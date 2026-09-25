@@ -1,0 +1,88 @@
+<div class="page">
+  <header class="page-header">
+    <div>
+      <h1>Build sources</h1>
+      <p class="subtitle">
+        Builds are fetched automatically once a day. Each site is read politely (Prydwen asks for 10 seconds between
+        pages, so a full sync takes a while).
+      </p>
+    </div>
+    <button mat-stroked-button (click)="refresh()"><mat-icon>refresh</mat-icon>Refresh</button>
+  </header>
+
+  @if (loading()) {
+    <mat-progress-bar mode="indeterminate" />
+  }
+  @if (error(); as message) {
+    <div class="panel">{{ message }}</div>
+  }
+
+  @for (game of games; track game) {
+    <h2 class="section-title">{{ gameLabels[game] }}</h2>
+    <div class="source-grid">
+      @for (source of byGame()[game]; track source.key) {
+        <article class="panel source" [class.disabled]="!source.enabled">
+          <div class="row">
+            <div>
+              <div class="name">{{ source.name }}</div>
+              <a class="muted small" [href]="source.base_url" target="_blank" rel="noopener">{{ source.base_url }}</a>
+            </div>
+            <span class="spacer"></span>
+            <mat-slide-toggle [checked]="source.enabled" (change)="toggle(source, $event.checked)" [matTooltip]="source.enabled ? 'Included in the daily sync' : 'Skipped by the daily sync'" />
+          </div>
+
+          <div class="facts">
+            <div><strong>{{ source.characters }}</strong><span class="muted small">characters</span></div>
+            <div><strong>{{ source.builds }}</strong><span class="muted small">builds</span></div>
+            <div>
+              <strong class="status" [class]="source.running ? 'running' : (source.last_status ?? 'never')">
+                {{ source.running ? 'running' : (source.last_status ?? 'never synced') }}
+              </strong>
+              <span class="muted small">{{ source.last_synced_at | timeAgo }}</span>
+            </div>
+          </div>
+
+          @if (source.running && source.latest_run) {
+            <mat-progress-bar mode="indeterminate" />
+            <span class="muted small">{{ stat(source.latest_run, 'characters_synced') }} characters processed so far…</span>
+          }
+          @if (source.last_error && !source.running) {
+            <pre class="error-text">{{ source.last_error }}</pre>
+          }
+
+          <div class="row">
+            <span class="spacer"></span>
+            <button mat-flat-button (click)="sync(source)" [disabled]="source.running || queued().has(source.key) || !source.enabled">
+              <mat-icon>sync</mat-icon>{{ queued().has(source.key) ? 'Queued' : 'Sync now' }}
+            </button>
+          </div>
+        </article>
+      }
+    </div>
+  }
+
+  <h2 class="section-title">Recent runs</h2>
+  <mat-accordion>
+    @for (run of runs(); track run.id) {
+      <mat-expansion-panel (opened)="loadLog(run)">
+        <mat-expansion-panel-header>
+          <mat-panel-title>
+            <span class="status-dot" [class]="run.status"></span>
+            {{ run.source?.name }} · {{ run.source ? gameLabels[run.source.game] : '' }}
+          </mat-panel-title>
+          <mat-panel-description>
+            {{ run.started_at | timeAgo }} · {{ duration(run) }} ·
+            {{ stat(run, 'builds_created') }} new, {{ stat(run, 'builds_updated') }} updated, {{ stat(run, 'errors') }} errors
+          </mat-panel-description>
+        </mat-expansion-panel-header>
+        @if (logs()[run.id] !== undefined) {
+          <pre class="log">{{ logs()[run.id] }}</pre>
+        } @else {
+          <mat-progress-bar mode="indeterminate" />
+        }
+      </mat-expansion-panel>
+    } @empty {
+      <p class="muted">No sync has run yet.</p>
+    }
+  </mat-accordion>
+</div>

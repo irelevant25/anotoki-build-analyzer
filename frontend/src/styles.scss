@@ -1,0 +1,241 @@
+@use '@angular/material' as mat;
+
+// Material 3 theme. "color-scheme" follows the OS setting; the toolbar toggle forces light or dark
+// by setting `color-scheme` on <html>.
+html {
+  color-scheme: light dark;
+  @include mat.theme((
+    color: (
+      primary: mat.$violet-palette,
+      tertiary: mat.$cyan-palette,
+    ),
+    typography: Roboto,
+    density: 0,
+  ));
+
+  // App tokens (light / dark aware).
+  --app-bg: light-dark(#f6f5fb, #121218);
+  --app-surface: light-dark(#ffffff, #1c1b24);
+  --app-surface-2: light-dark(#f0eef7, #24232e);
+  --app-border: light-dark(#e2dfeb, #33323f);
+  --app-muted: light-dark(#6b6878, #a09cb0);
+  --app-text: light-dark(#1c1b20, #ebe8f4);
+
+  --grade-s: #e0a526;
+  --grade-a: #3fae6a;
+  --grade-b: #3b9ad9;
+  --grade-c: #e0802c;
+  --grade-d: #d9534f;
+
+  --sev-high: #d9534f;
+  --sev-medium: #e0802c;
+  --sev-low: #3b9ad9;
+
+  --rarity-5: #d39a3c;
+  --rarity-4: #9a6fd3;
+  --rarity-3: #4f8fd0;
+
+  // Genshin elements
+  --el-pyro: #ef7a35;
+  --el-hydro: #3fa9e8;
+  --el-anemo: #4fbfa0;
+  --el-electro: #a56ad4;
+  --el-dendro: #88b529;
+  --el-cryo: #6fc3d8;
+  --el-geo: #d9a52b;
+  // HSR elements
+  --el-physical: #9a9aa8;
+  --el-fire: #e5533f;
+  --el-ice: #4db7e8;
+  --el-lightning: #b25bd6;
+  --el-wind: #3fbf8f;
+  --el-quantum: #6f5fd8;
+  --el-imaginary: #d8b53a;
+}
+
+html.theme-light {
+  color-scheme: light;
+}
+
+html.theme-dark {
+  color-scheme: dark;
+}
+
+html,
+body {
+  height: 100%;
+}
+
+body {
+  margin: 0;
+  background: var(--app-bg);
+  color: var(--app-text);
+  font-family: Roboto, 'Helvetica Neue', sans-serif;
+}
+
+a {
+  color: var(--mat-sys-primary);
+}
+
+.mat-icon {
+  font-family: 'Material Symbols Outlined';
+}
+
+// ---------------------------------------------------------------- layout helpers
+
+.page {
+  max-width: 1280px;
+  margin: 0 auto;
+  padding: 24px 16px 64px;
+  box-sizing: border-box;
+}
+
+.page-header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 20px;
+
+  h1 {
+    margin: 0;
+    font: var(--mat-sys-headline-small);
+  }
+
+  .subtitle {
+    margin: 4px 0 0;
+    color: var(--app-muted);
+  }
+}
+
+.panel {
+  background: var(--app-surface);
+  border: 1px solid var(--app-border);
+  border-radius: 16px;
+  padding: 16px;
+  box-sizing: border-box;
+}
+
+.panel-title {
+  margin: 0 0 12px;
+  font: var(--mat-sys-title-medium);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.muted {
+  color: var(--app-muted);
+}
+
+.small {
+  font-size: 0.85rem;
+}
+
+.row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.wrap {
+  flex-wrap: wrap;
+}
+
+.spacer {
+  flex: 1 1 auto;
+}
+
+.grid {
+  display: grid;
+  gap: 16px;
+}
+
+.empty-state {
+  text-align: center;
+  padding: 48px 16px;
+  color: var(--app-muted);
+
+  .mat-icon {
+    font-size: 48px;
+    width: 48px;
+    height: 48px;
+  }
+}
+
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 10px;
+  border-radius: 999px;
+  font-size: 0.8rem;
+  line-height: 1.6;
+  background: var(--app-surface-2);
+  border: 1px solid var(--app-border);
+  white-space: nowrap;
+}
+
+.chip.ok {
+  border-color: color-mix(in srgb, var(--grade-a) 60%, transparent);
+  background: color-mix(in srgb, var(--grade-a) 14%, transparent);
+}
+
+.chip.bad {
+  border-color: color-mix(in srgb, var(--grade-d) 60%, transparent);
+  background: color-mix(in srgb, var(--grade-d) 14%, transparent);
+}
+
+.chip.warn {
+  border-color: color-mix(in srgb, var(--grade-c) 60%, transparent);
+  background: color-mix(in srgb, var(--grade-c) 14%, transparent);
+}
+
+.icon-img {
+  width: 40px;
+  height: 40px;
+  border-radius: 10px;
+  object-fit: cover;
+  background: var(--app-surface-2);
+  flex: none;
+}
+
+.icon-img.sm {
+  width: 28px;
+  height: 28px;
+  border-radius: 8px;
+}
+
+.icon-img.lg {
+  width: 72px;
+  height: 72px;
+  border-radius: 16px;
+}
+
+.rarity-5 {
+  background: linear-gradient(160deg, color-mix(in srgb, var(--rarity-5) 55%, transparent), transparent 80%);
+}
+
+.rarity-4 {
+  background: linear-gradient(160deg, color-mix(in srgb, var(--rarity-4) 55%, transparent), transparent 80%);
+}
+
+.rarity-3 {
+  background: linear-gradient(160deg, color-mix(in srgb, var(--rarity-3) 45%, transparent), transparent 80%);
+}
+
+.stat-good {
+  color: var(--mat-sys-primary);
+  font-weight: 500;
+}
+
+.stat-dim {
+  color: var(--app-muted);
+}
+
+@media (max-width: 600px) {
+  .page {
+    padding: 16px 12px 48px;
+  }
+}

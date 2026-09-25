@@ -1,0 +1,9 @@
+# Local tooling
+/tools/composer.phar
+/dev.local.ps1
+
+# OS / editor noise
+.DS_Store
+Thumbs.db
+
+# Backend and frontend have their own .gitignore files.

@@ -1,0 +1,174 @@
+<div class="page">
+  @if (loading() && !account()) {
+    <mat-progress-bar mode="indeterminate" />
+  }
+
+  @if (error(); as message) {
+    <div class="panel"><mat-icon>error</mat-icon> {{ message }}</div>
+  }
+
+  @if (account(); as acc) {
+    <header class="page-header">
+      <div class="title-block">
+        @if (renaming()) {
+          <form class="row" (ngSubmit)="saveName()">
+            <mat-form-field appearance="outline" subscriptSizing="dynamic">
+              <mat-label>Account name</mat-label>
+              <input matInput name="name" [ngModel]="newName()" (ngModelChange)="newName.set($event)" maxlength="100" />
+            </mat-form-field>
+            <button mat-flat-button type="submit">Save</button>
+            <button mat-button type="button" (click)="renaming.set(false)">Cancel</button>
+          </form>
+        } @else {
+          <h1>
+            {{ acc.nickname }}
+            <button mat-icon-button (click)="renaming.set(true)" aria-label="Rename account" matTooltip="Rename"><mat-icon>edit</mat-icon></button>
+          </h1>
+        }
+        <p class="subtitle">
+          {{ gameLabels[acc.game] }}
+          @if (acc.uid) { · UID {{ acc.uid }} }
+          @if (acc.level) { · {{ acc.game === 'hsr' ? 'Trailblaze Level' : 'Adventure Rank' }} {{ acc.level }} }
+          · imported {{ acc.last_import_at | timeAgo }}
+        </p>
+      </div>
+      <div class="row wrap">
+        <a mat-stroked-button routerLink="/import" [queryParams]="{ game: acc.game, account: acc.id, method: 'enka' }"><mat-icon>badge</mat-icon>Update by UID</a>
+        <a mat-flat-button routerLink="/import" [queryParams]="{ game: acc.game, account: acc.id, method: 'file' }"><mat-icon>inventory_2</mat-icon>Upload inventory</a>
+      </div>
+    </header>
+
+    <div class="stats-row">
+      <div class="panel stat">
+        <span class="muted small">Characters</span>
+        <strong>{{ acc.counts.characters }}</strong>
+      </div>
+      <div class="panel stat">
+        <span class="muted small">Average build score</span>
+        <strong>{{ averageScore() ?? '–' }}</strong>
+      </div>
+      <div class="panel stat">
+        <span class="muted small">{{ acc.game === 'hsr' ? 'Relics' : 'Artifacts' }}</span>
+        <strong>{{ acc.counts.items }}</strong>
+      </div>
+      <div class="panel stat">
+        <span class="muted small">Data</span>
+        <strong class="data-kind">{{ acc.has_full_inventory ? 'Full inventory' : 'Showcase only' }}</strong>
+      </div>
+    </div>
+
+    @if (!acc.has_full_inventory) {
+      <p class="note muted small">
+        <mat-icon>info</mat-icon>
+        Only showcased characters are known. Upload a full inventory export to analyze every character and get
+        "better piece you already own" suggestions.
+      </p>
+    }
+
+    <div class="filters">
+      <mat-form-field appearance="outline" subscriptSizing="dynamic" class="search">
+        <mat-icon matPrefix>search</mat-icon>
+        <mat-label>Search</mat-label>
+        <input matInput [ngModel]="search()" (ngModelChange)="search.set($event)" />
+      </mat-form-field>
+
+      <mat-button-toggle-group [value]="element()" (change)="element.set($event.value)" hideSingleSelectionIndicator aria-label="Element">
+        <mat-button-toggle value="all">All</mat-button-toggle>
+        @for (el of elements(); track el) {
+          <mat-button-toggle [value]="el"><span class="el-dot" [style.background]="'var(--el-' + el + ')'"></span>{{ titleCase(el) }}</mat-button-toggle>
+        }
+      </mat-button-toggle-group>
+
+      <mat-form-field appearance="outline" subscriptSizing="dynamic" class="sort">
+        <mat-label>Sort</mat-label>
+        <mat-select [value]="sort()" (valueChange)="sort.set($event)">
+          <mat-option value="score-asc">Needs work first</mat-option>
+          <mat-option value="score-desc">Best builds first</mat-option>
+          <mat-option value="level">Level</mat-option>
+          <mat-option value="name">Name</mat-option>
+        </mat-select>
+      </mat-form-field>
+
+      @if (unbuiltCount() > 0) {
+        <mat-slide-toggle [checked]="!hideUnbuilt()" (change)="hideUnbuilt.set(!$event.checked)">
+          Show unbuilt ({{ unbuiltCount() }})
+        </mat-slide-toggle>
+      }
+    </div>
+
+    <div class="char-grid">
+      @for (c of characters(); track c.id) {
+        <a class="panel char-card" [routerLink]="['/accounts', acc.id, 'characters', c.key]">
+          <div class="row">
+            <app-avatar [src]="c.icon_url" [alt]="c.name" [rarity]="c.rarity" [element]="c.element" />
+            <div class="char-names">
+              <div class="char-name">{{ c.name }}</div>
+              <div class="muted small">Lv. {{ c.level }} · {{ rankLabel(c) }}</div>
+            </div>
+            @if (c.best) {
+              <app-grade-badge [grade]="c.best.grade" [score]="c.best.overall" />
+            }
+          </div>
+
+          @if (c.weapon) {
+            <div class="row weapon">
+              <app-avatar [src]="c.weapon.icon_url" [alt]="c.weapon.name" [rarity]="c.weapon.rarity" size="xs" />
+              <span class="small ellipsis">{{ c.weapon.name }} {{ refinement(c.weapon.refinement) }}</span>
+            </div>
+          }
+          <div class="row wrap sets">
+            @for (set of c.sets; track set.key) {
+              <span class="chip">{{ set.count }}× {{ set.name }}</span>
+            } @empty {
+              <span class="muted small">No {{ acc.game === 'hsr' ? 'relics' : 'artifacts' }} equipped</span>
+            }
+          </div>
+
+          @if (c.best; as best) {
+            <div class="parts">
+              <app-score-bar label="Sets" [value]="best.parts.sets" />
+              <app-score-bar label="Main stats" [value]="best.parts.main_stats" />
+              <app-score-bar label="Substats" [value]="best.parts.substats" />
+            </div>
+            <div class="muted small best-line">Best match: {{ best.source }} · {{ best.variant }}</div>
+            @if (best.top_issue) {
+              <div class="issue small"><mat-icon>tips_and_updates</mat-icon>{{ best.top_issue }}</div>
+            }
+          } @else {
+            <div class="muted small">No builds for this character yet.</div>
+          }
+        </a>
+      } @empty {
+        <div class="empty-state"><mat-icon>search_off</mat-icon><p>No characters match the filters.</p></div>
+      }
+    </div>
+
+    @if (withoutBuilds() > 0) {
+      <p class="muted small">{{ withoutBuilds() }} character(s) have no builds yet; they appear once the daily sync has fetched them.</p>
+    }
+
+    @if (imports().length > 0) {
+      <mat-expansion-panel class="history">
+        <mat-expansion-panel-header><mat-panel-title>Import history</mat-panel-title></mat-expansion-panel-header>
+        <table class="history-table">
+          <tbody>
+            @for (run of imports(); track run.id) {
+              <tr>
+                <td>{{ run.created_at | timeAgo }}</td>
+                <td>{{ sourceLabel(run) }}</td>
+                <td><span class="chip" [class.ok]="run.status === 'success'" [class.warn]="run.status === 'partial'" [class.bad]="run.status === 'failed'">{{ run.status }}</span></td>
+                <td class="muted small">
+                  @if (run.summary) {
+                    {{ run.summary.characters }} characters, {{ run.summary.items }} {{ acc.game === 'hsr' ? 'relics' : 'artifacts' }}
+                  } @else {
+                    {{ run.error }}
+                  }
+                </td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      </mat-expansion-panel>
+    }
+  }
+</div>

@@ -1,0 +1,176 @@
+:host {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.columns {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+  gap: 16px;
+
+  // Grid items default to min-width: auto, which lets the one-line notes stretch the columns.
+  > * {
+    min-width: 0;
+  }
+}
+
+.block h3 {
+  margin: 0 0 8px;
+  font: var(--mat-sys-title-small);
+  color: var(--app-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.block h3.mt {
+  margin-top: 16px;
+}
+
+ol {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  // minmax(0, …) keeps one-line notes from widening the track beyond the column.
+  grid-template-columns: minmax(0, 1fr);
+  gap: 6px;
+}
+
+ol li {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 8px;
+  border-radius: 10px;
+  border: 1px solid transparent;
+  min-width: 0;
+}
+
+ol li.equipped,
+ol li.matched {
+  border-color: color-mix(in srgb, var(--grade-a) 55%, transparent);
+  background: color-mix(in srgb, var(--grade-a) 10%, transparent);
+}
+
+.rank {
+  width: 22px;
+  text-align: center;
+  font-weight: 600;
+  color: var(--app-muted);
+  flex: none;
+}
+
+.w-text {
+  flex: 1;
+  min-width: 0;
+}
+
+.note {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.set-icons {
+  display: flex;
+  gap: 2px;
+  flex: none;
+}
+
+.stat-rows {
+  display: grid;
+  gap: 8px;
+}
+
+.stat-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.slot-name {
+  width: 120px;
+  flex: none;
+  color: var(--app-muted);
+  font-size: 0.9rem;
+}
+
+.priority {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px;
+  flex: 1;
+}
+
+.sep {
+  color: var(--app-muted);
+  font-weight: 600;
+  padding: 0 2px;
+}
+
+.check {
+  color: var(--grade-a);
+  flex: none;
+}
+
+.check.bad {
+  color: var(--grade-d);
+}
+
+.targets {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 8px;
+}
+
+.target {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  min-width: 0;
+  gap: 2px 8px;
+  padding: 8px 10px;
+  border-radius: 10px;
+  background: var(--app-surface-2);
+  border: 1px solid var(--app-border);
+}
+
+.target.ok {
+  border-color: color-mix(in srgb, var(--grade-a) 55%, transparent);
+}
+
+.target.bad {
+  border-color: color-mix(in srgb, var(--grade-d) 55%, transparent);
+}
+
+.t-stat {
+  font-weight: 500;
+}
+
+.t-goal {
+  text-align: right;
+  font-weight: 500;
+}
+
+.t-current {
+  grid-column: 1 / -1;
+  font-size: 0.85rem;
+}
+
+.t-text {
+  grid-column: 1 / -1;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.notes-text {
+  white-space: pre-line;
+  margin: 0;
+  line-height: 1.5;
+}
+
+footer {
+  display: block;
+}

@@ -1,0 +1,166 @@
+.hero {
+  text-align: center;
+  padding: 40px 24px;
+
+  h2 {
+    margin: 8px 0;
+  }
+
+  p {
+    max-width: 560px;
+    margin: 0 auto 20px;
+  }
+}
+
+.hero-icon {
+  font-size: 56px;
+  width: 56px;
+  height: 56px;
+  color: var(--mat-sys-primary);
+}
+
+.center {
+  justify-content: center;
+}
+
+.error-panel {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 16px;
+  border-color: color-mix(in srgb, var(--grade-d) 50%, transparent);
+
+  p {
+    margin: 4px 0 0;
+  }
+
+  > div {
+    flex: 1;
+  }
+}
+
+.game-section {
+  margin-top: 28px;
+}
+
+.section-title {
+  font: var(--mat-sys-title-large);
+  margin: 0 0 12px;
+}
+
+.account-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+  gap: 16px;
+}
+
+.account-card {
+  display: flex;
+  flex-direction: column;
+  padding: 0;
+  overflow: hidden;
+}
+
+.account-main {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding: 16px;
+  color: inherit;
+  text-decoration: none;
+
+  &:hover {
+    background: var(--app-surface-2);
+  }
+}
+
+.game-icon {
+  color: var(--el-hydro);
+
+  &.hsr {
+    color: var(--el-quantum);
+  }
+}
+
+.names {
+  min-width: 0;
+}
+
+.nickname {
+  font: var(--mat-sys-title-medium);
+}
+
+.counts {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+
+  div {
+    display: flex;
+    flex-direction: column;
+  }
+
+  strong {
+    font-size: 1.3rem;
+  }
+}
+
+.account-actions {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 8px;
+  border-top: 1px solid var(--app-border);
+}
+
+.source-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+  gap: 16px;
+}
+
+.source-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 0;
+
+  & + .source-row {
+    border-top: 1px solid var(--app-border);
+  }
+}
+
+.source-name {
+  font-weight: 500;
+}
+
+.status-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: var(--app-muted);
+  flex: none;
+
+  &.success {
+    background: var(--grade-a);
+  }
+
+  &.partial {
+    background: var(--grade-c);
+  }
+
+  &.failed {
+    background: var(--grade-d);
+  }
+
+  &.running {
+    background: var(--grade-b);
+    animation: pulse 1.2s infinite;
+  }
+}
+
+@keyframes pulse {
+  50% {
+    opacity: 0.35;
+  }
+}

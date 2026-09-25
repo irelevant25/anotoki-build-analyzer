@@ -1,0 +1,119 @@
+<div class="page">
+  <header class="page-header">
+    <div>
+      <h1>Your accounts</h1>
+      <p class="subtitle">Import a Genshin Impact or Honkai: Star Rail account and compare every character with community builds.</p>
+    </div>
+    <a mat-flat-button routerLink="/import"><mat-icon>add</mat-icon>Import account</a>
+  </header>
+
+  @if (loading()) {
+    <mat-progress-bar mode="indeterminate" />
+  }
+
+  @if (error(); as message) {
+    <div class="panel error-panel">
+      <mat-icon>cloud_off</mat-icon>
+      <div>
+        <strong>{{ message }}</strong>
+        <p class="muted small">Start the backend with <code>php artisan serve</code> (see README) and try again.</p>
+      </div>
+      <button mat-stroked-button (click)="load()">Retry</button>
+    </div>
+  }
+
+  @if (!loading() && !error() && accounts().length === 0) {
+    <div class="panel hero">
+      <mat-icon class="hero-icon">travel_explore</mat-icon>
+      <h2>Let's look at your characters</h2>
+      <p class="muted">
+        The import guide walks you through it step by step. The quickest way needs only your UID; a full
+        inventory export also finds better artifacts and relics you already own.
+      </p>
+      <div class="row wrap center">
+        <a mat-flat-button routerLink="/import" [queryParams]="{ game: 'genshin' }">Import Genshin Impact</a>
+        <a mat-flat-button routerLink="/import" [queryParams]="{ game: 'hsr' }">Import Honkai: Star Rail</a>
+      </div>
+    </div>
+  }
+
+  @for (game of games; track game) {
+    @if (accountsByGame()[game].length > 0) {
+      <section class="game-section">
+        <h2 class="section-title">{{ gameLabels[game] }}</h2>
+        <div class="account-grid">
+          @for (account of accountsByGame()[game]; track account.id) {
+            <article class="panel account-card">
+              <a class="account-main" [routerLink]="['/accounts', account.id]">
+                <div class="row">
+                  <mat-icon class="game-icon" [class.hsr]="game === 'hsr'">{{ game === 'hsr' ? 'rocket_launch' : 'auto_awesome' }}</mat-icon>
+                  <div class="names">
+                    <div class="nickname">{{ account.nickname }}</div>
+                    <div class="muted small">
+                      @if (account.uid) { UID {{ account.uid }} } @else { No UID }
+                      @if (account.level) { · {{ game === 'hsr' ? 'TL' : 'AR' }} {{ account.level }} }
+                    </div>
+                  </div>
+                </div>
+                <div class="counts">
+                  <div><strong>{{ account.counts.characters }}</strong><span class="muted small">characters</span></div>
+                  <div><strong>{{ account.counts.items }}</strong><span class="muted small">{{ game === 'hsr' ? 'relics' : 'artifacts' }}</span></div>
+                  <div><strong>{{ account.counts.weapons }}</strong><span class="muted small">{{ game === 'hsr' ? 'light cones' : 'weapons' }}</span></div>
+                </div>
+                <div class="row wrap">
+                  @if (account.has_full_inventory) {
+                    <span class="chip ok" matTooltip="Imported from an inventory exporter: suggestions can use every piece you own">Full inventory</span>
+                  } @else {
+                    <span class="chip" matTooltip="Imported from the in-game Character Showcase via Enka.Network">Showcase only</span>
+                  }
+                  <span class="muted small">Imported {{ account.last_import_at | timeAgo }}</span>
+                </div>
+              </a>
+              <div class="account-actions">
+                <a mat-button [routerLink]="['/accounts', account.id]">Open</a>
+                <a mat-button routerLink="/import" [queryParams]="{ game: account.game, account: account.id }">Update data</a>
+                <span class="spacer"></span>
+                <button mat-icon-button [matMenuTriggerFor]="menu" aria-label="More actions"><mat-icon>more_vert</mat-icon></button>
+                <mat-menu #menu="matMenu">
+                  <button mat-menu-item (click)="deleteAccount(account)"><mat-icon>delete</mat-icon>Delete account</button>
+                </mat-menu>
+              </div>
+            </article>
+          }
+        </div>
+      </section>
+    }
+  }
+
+  @if (sources().length > 0) {
+    <section class="game-section">
+      <div class="row">
+        <h2 class="section-title">Build sources</h2>
+        <span class="spacer"></span>
+        <a mat-button routerLink="/sources">Manage<mat-icon iconPositionEnd>chevron_right</mat-icon></a>
+      </div>
+      @if (buildsTotal() === 0) {
+        <p class="muted">
+          No builds downloaded yet. They are fetched once a day; start the first sync on the
+          <a routerLink="/sources">Sources</a> page.
+        </p>
+      }
+      <div class="source-grid">
+        @for (game of games; track game) {
+          <div class="panel">
+            <h3 class="panel-title">{{ gameLabels[game] }}</h3>
+            @for (source of sourcesByGame()[game]; track source.key) {
+              <div class="source-row">
+                <span class="status-dot" [class]="source.running ? 'running' : (source.last_status ?? 'never')"></span>
+                <span class="source-name">{{ source.name }}</span>
+                <span class="muted small">{{ source.characters }} characters</span>
+                <span class="spacer"></span>
+                <span class="muted small">{{ source.running ? 'syncing…' : (source.last_synced_at | timeAgo) }}</span>
+              </div>
+            }
+          </div>
+        }
+      </div>
+    </section>
+  }
+</div>

@@ -1,0 +1,172 @@
+@let b = build();
+@let prefix = gameMeta()?.refinement_prefix ?? 'R';
+
+<div class="columns">
+  <!-- Weapons / light cones -->
+  <section class="block">
+    <h3>{{ gameMeta()?.weapon_label ?? 'Weapon' }}s</h3>
+    @if (b.weapons.length === 0) {
+      <p class="muted small">This source lists none.</p>
+    }
+    <ol class="weapons">
+      @for (weapon of b.weapons; track weapon.key + weapon.rank) {
+        <li [class.equipped]="weapon.key === equippedWeaponKey()">
+          <span class="rank">{{ weapon.rank }}</span>
+          <app-avatar [src]="weapon.icon_url" [alt]="weapon.name" [rarity]="weapon.rarity" size="sm" />
+          <div class="w-text">
+            <div class="w-name">
+              {{ weapon.name }}
+              @if (weapon.refinement) {
+                <span class="muted small">{{ prefix }}{{ weapon.refinement }}</span>
+              }
+            </div>
+            @if (weapon.note) {
+              <div class="note muted small" [matTooltip]="weapon.note">{{ weapon.note }}</div>
+            }
+          </div>
+          @if (weapon.key === equippedWeaponKey()) {
+            <span class="chip ok">Equipped</span>
+          } @else if (ownedWeaponKeys().has(weapon.key)) {
+            <span class="chip">Owned</span>
+          }
+        </li>
+      }
+    </ol>
+  </section>
+
+  <!-- Sets -->
+  <section class="block">
+    @for (group of setGroups(); track group.kind) {
+      <h3>{{ group.title }}</h3>
+      <ol class="sets">
+        @for (option of group.options; track $index) {
+          <li [class.matched]="group.matchedRank === $index + 1">
+            <span class="rank">{{ $index + 1 }}</span>
+            <div class="set-icons">
+              @for (piece of option.pieces; track $index) {
+                <app-avatar [src]="piece.icon_url" [alt]="piece.label" size="xs" />
+              }
+            </div>
+            <div class="w-text">
+              <div>
+                {{ pieceText(option) }}
+                @if (option.choose && option.choose < option.pieces.length) {
+                  <span class="muted small">(any {{ option.choose }})</span>
+                }
+              </div>
+              @for (piece of option.pieces; track $index) {
+                @if (piece.names.length > 1) {
+                  <div class="muted small" [matTooltip]="piece.names.join(', ')">{{ piece.label }}: {{ piece.names.length }} sets qualify</div>
+                }
+              }
+              @if (option.note) {
+                <div class="note muted small" [matTooltip]="option.note">{{ option.note }}</div>
+              }
+            </div>
+            @if (group.matchedRank === $index + 1) {
+              <span class="chip ok">In use</span>
+            }
+          </li>
+        }
+      </ol>
+    }
+  </section>
+</div>
+
+<div class="columns">
+  <!-- Main stats -->
+  @if (mainStatSlots().length > 0) {
+    <section class="block">
+      <h3>Main stats</h3>
+      <div class="stat-rows">
+        @for (slot of mainStatSlots(); track slot.key) {
+          <div class="stat-row">
+            <span class="slot-name">{{ slot.label }}</span>
+            <span class="priority">
+              @for (group of slot.groups; track $index; let last = $last) {
+                @for (entry of group; track entry.stat; let lastInGroup = $last) {
+                  <span class="chip" [class.ok]="isCurrentMain(slot.key, entry.stat)">{{ stat(entry.stat) }}</span>
+                  @if (!lastInGroup) { <span class="sep">=</span> }
+                }
+                @if (!last) { <span class="sep">&gt;</span> }
+              }
+            </span>
+            @if (slot.check) {
+              <mat-icon class="check" [class.bad]="!slot.check.ok"
+                [matTooltip]="slot.check.ok ? 'Your main stat matches' : 'Yours: ' + stat(slot.check.current ?? '-')">
+                {{ slot.check.ok ? 'check_circle' : 'cancel' }}
+              </mat-icon>
+            }
+          </div>
+        }
+      </div>
+    </section>
+  }
+
+  <!-- Substats, talents -->
+  <section class="block">
+    <h3>Substat priority</h3>
+    @if (substatGroups().length === 0) {
+      <p class="muted small">Not listed by this source; the analysis borrows priorities from another source.</p>
+    } @else {
+      <div class="priority">
+        @for (group of substatGroups(); track $index; let last = $last) {
+          @for (entry of group; track entry.stat; let lastInGroup = $last) {
+            <span class="chip">{{ stat(entry.stat) }}</span>
+            @if (!lastInGroup) { <span class="sep">=</span> }
+          }
+          @if (!last) { <span class="sep">&gt;</span> }
+        }
+      </div>
+    }
+
+    @if (talentGroups().length > 0) {
+      <h3 class="mt">{{ game() === 'hsr' ? 'Trace priority' : 'Talent priority' }}</h3>
+      <div class="priority">
+        @for (label of talentGroups(); track $index; let last = $last) {
+          <span class="chip">{{ label }}</span>
+          @if (!last) { <span class="sep">&gt;</span> }
+        }
+      </div>
+    }
+  </section>
+</div>
+
+<!-- Stat targets -->
+@if (targets().length > 0) {
+  <section class="block">
+    <h3>Stat targets</h3>
+    <div class="targets">
+      @for (target of targets(); track target.stat) {
+        <div class="target" [class.ok]="target.ok === true" [class.bad]="target.ok === false">
+          <span class="t-stat">{{ stat(target.stat) }}</span>
+          <span class="t-goal">
+            {{ target.min | statValue: game() : target.stat }}@if (target.max) { – {{ target.max | statValue: game() : target.stat }} }+
+          </span>
+          @if (target.current !== undefined && target.current !== null) {
+            <span class="t-current">you: {{ target.current | statValue: game() : target.stat }}</span>
+          }
+          <span class="t-text muted small" [matTooltip]="target.text">{{ target.text }}</span>
+        </div>
+      }
+    </div>
+  </section>
+}
+
+@if (b.notes) {
+  <mat-expansion-panel class="notes">
+    <mat-expansion-panel-header>
+      <mat-panel-title>Notes from {{ b.source.name }}</mat-panel-title>
+    </mat-expansion-panel-header>
+    <p class="notes-text">{{ b.notes }}</p>
+  </mat-expansion-panel>
+}
+
+<footer class="muted small">
+  @if (b.source_url) {
+    <a [href]="b.source_url" target="_blank" rel="noopener">Open on {{ b.source.name }}</a> ·
+  }
+  @if (b.game_version) { Version {{ b.game_version }} · }
+  @if (b.source_updated_at) { Updated by the site {{ b.source_updated_at | timeAgo }} · }
+  Checked {{ b.fetched_at | timeAgo }}
+</footer>

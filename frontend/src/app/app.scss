@@ -1,0 +1,46 @@
+.toolbar {
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  gap: 8px;
+  background: var(--app-surface);
+  border-bottom: 1px solid var(--app-border);
+}
+
+.brand {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: inherit;
+  text-decoration: none;
+  font-weight: 500;
+  margin-right: 16px;
+}
+
+.brand-icon {
+  color: var(--mat-sys-primary);
+}
+
+.nav {
+  display: flex;
+  gap: 4px;
+
+  a.active {
+    background: color-mix(in srgb, var(--mat-sys-primary) 14%, transparent);
+  }
+}
+
+.spacer {
+  flex: 1 1 auto;
+}
+
+@media (max-width: 720px) {
+  .brand span,
+  .nav-label {
+    display: none;
+  }
+
+  .brand {
+    margin-right: 4px;
+  }
+}

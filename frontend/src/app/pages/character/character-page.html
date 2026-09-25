@@ -1,0 +1,258 @@
+<div class="page">
+  @if (loading()) {
+    <mat-progress-bar mode="indeterminate" class="top-progress" />
+  }
+  @if (error(); as message) {
+    <div class="panel"><mat-icon>error</mat-icon> {{ message }}</div>
+  }
+
+  @if (data(); as d) {
+    <a mat-button [routerLink]="['/accounts', d.account.id]" class="back"><mat-icon>arrow_back</mat-icon>{{ d.account.nickname }}</a>
+
+    <!-- Header -->
+    <header class="hero panel">
+      <app-avatar [src]="d.character.icon_url" [alt]="d.character.name" [rarity]="d.character.rarity" [element]="d.character.element" size="lg" />
+      <div class="hero-text">
+        <h1>{{ d.character.name }}</h1>
+        <div class="row wrap">
+          @if (d.character.element) {
+            <span class="chip"><span class="el-dot" [style.background]="'var(--el-' + d.character.element + ')'"></span>{{ titleCase(d.character.element) }}</span>
+          }
+          @if (d.character.weapon_type) {
+            <span class="chip">{{ titleCase(d.character.weapon_type) }}</span>
+          }
+          <span class="chip">Lv. {{ d.character.level }}</span>
+          <span class="chip">{{ rankPrefix() }}{{ d.character.rank }}</span>
+          @for (t of talents(); track t.label) {
+            <span class="chip" [matTooltip]="t.bonus ? '+' + t.bonus + ' from ' + (game() === 'hsr' ? 'Eidolons' : 'Constellations') : ''">
+              {{ t.label }} {{ t.level }}@if (t.bonus) {<span class="bonus">+{{ t.bonus }}</span>}
+            </span>
+          }
+        </div>
+      </div>
+      @if (evaluation(); as e) {
+        <div class="hero-grade">
+          <app-grade-badge [grade]="e.score.grade" size="lg" />
+          <div>
+            <div class="big-score">{{ e.score.overall ?? '–' }}<span class="muted">/100</span></div>
+            <div class="muted small">vs. {{ e.build.source.name }} · {{ e.build.variant }}</div>
+          </div>
+        </div>
+      }
+    </header>
+
+    @if (d.evaluations.length === 0) {
+      <div class="panel empty-state">
+        <mat-icon>hourglass_empty</mat-icon>
+        <p>No builds for {{ d.character.name }} yet. They appear after the daily sync (or start one on the <a routerLink="/sources">Sources</a> page).</p>
+      </div>
+    } @else {
+      <!-- Build selector -->
+      <mat-tab-group class="build-tabs" [selectedIndex]="selectedIndex()" (selectedIndexChange)="selectTab($event)" mat-stretch-tabs="false" animationDuration="0ms">
+        @for (e of d.evaluations; track e.build.id) {
+          <mat-tab>
+            <ng-template mat-tab-label>
+              <span class="tab-label">
+                <app-grade-badge [grade]="e.score.grade" size="sm" />
+                <span>{{ e.build.source.name }} · {{ e.build.variant }}</span>
+                @if (e.build.id === d.best_build_id) {
+                  <mat-icon class="best-star" matTooltip="Closest match to your current setup">star</mat-icon>
+                }
+              </span>
+            </ng-template>
+          </mat-tab>
+        }
+      </mat-tab-group>
+
+      @if (evaluation(); as e) {
+        <div class="top-grid">
+          <!-- Score breakdown -->
+          <section class="panel">
+            <h2 class="panel-title"><mat-icon>speed</mat-icon>Score breakdown</h2>
+            <div class="parts">
+              <app-score-bar [label]="gameMeta()?.weapon_label ?? 'Weapon'" [value]="e.score.parts.weapon" />
+              <app-score-bar label="Set bonuses" [value]="e.score.parts.sets" />
+              <app-score-bar label="Main stats" [value]="e.score.parts.main_stats" />
+              <app-score-bar label="Substats" [value]="e.score.parts.substats" />
+              <app-score-bar label="Stat targets" [value]="e.score.parts.targets" />
+            </div>
+            @if (e.score.parts.targets === null && e.targets.length > 0) {
+              <p class="muted small">Stat targets need in-game totals; import this character by UID (Enka) to check them.</p>
+            }
+            @if (e.weapon?.equipped; as w) {
+              <div class="weapon-line">
+                <span class="muted small">Your {{ (gameMeta()?.weapon_label ?? 'weapon') | lowercase }}:</span>
+                <strong>{{ w.name }} {{ refinementPrefix() }}{{ w.refinement }}</strong>
+                <span class="muted small">Lv. {{ w.level }} · {{ e.weapon?.rank ? 'option #' + e.weapon?.rank + ' of ' + e.weapon?.total : 'not on the list' }}</span>
+              </div>
+            }
+          </section>
+
+          <!-- Recommendations -->
+          <section class="panel recs">
+            <h2 class="panel-title"><mat-icon>checklist</mat-icon>What to improve</h2>
+            @for (rec of recommendations(); track $index) {
+              <div class="rec" [class]="rec.severity">
+                <mat-icon>{{ severityIcon(rec) }}</mat-icon>
+                <div>
+                  <div class="rec-cat small">{{ categoryLabel(rec) }}@if (rec.slot) { · {{ rec.slot | slotLabel: game() }} }</div>
+                  <div>{{ rec.message }}</div>
+                </div>
+              </div>
+            } @empty {
+              <div class="all-good"><mat-icon>celebration</mat-icon>Nothing to change for this build. Great job!</div>
+            }
+          </section>
+        </div>
+
+        <!-- Current equipment -->
+        <section class="section">
+          <div class="row">
+            <h2 class="section-title">Your {{ game() === 'hsr' ? 'relics' : 'artifacts' }}</h2>
+            <span class="spacer"></span>
+            @if (game() === 'genshin') {
+              <span class="chip" matTooltip="2 × CRIT Rate + CRIT DMG from artifacts">Crit value {{ d.equipment.crit_value }}</span>
+            }
+          </div>
+          <p class="muted small legend">Substats in <span class="stat-good">color</span> matter most for this build; grayed ones are useless for it.</p>
+          <div class="items-grid">
+            @for (entry of items(); track entry.slot.key) {
+              @if (entry.item; as item) {
+                <app-item-card [item]="item" [game]="game()" />
+              } @else {
+                <div class="panel empty-slot">
+                  <mat-icon>block</mat-icon>
+                  <span>{{ entry.slot.label }}</span>
+                  <span class="muted small">Nothing equipped</span>
+                </div>
+              }
+            }
+          </div>
+        </section>
+
+        <!-- Inventory suggestions -->
+        @if (d.has_full_inventory) {
+          <section class="section">
+            <h2 class="section-title">Better pieces you already own</h2>
+            @if (suggestions().length === 0 && d.set_plans.length === 0) {
+              <p class="muted">Your inventory has nothing clearly better for this build. Time to farm!</p>
+            }
+            @for (plan of d.set_plans; track plan.kind) {
+              <div class="panel plan">
+                <div class="row wrap">
+                  <strong>Switch to {{ plan.set }}</strong>
+                  <span class="spacer"></span>
+                  <span class="chip" [class.ok]="plan.owned >= plan.needed" [class.warn]="plan.owned < plan.needed">
+                    You own {{ plan.owned }} of {{ plan.needed }} pieces
+                  </span>
+                </div>
+                <div class="items-grid">
+                  @for (piece of plan.pieces; track piece.id) {
+                    <div class="plan-piece">
+                      <app-item-card [item]="piece" [game]="game()" />
+                      <span class="muted small">{{ piece.equipped_on ? 'Currently on ' + piece.equipped_on : 'Not equipped by anyone' }}</span>
+                    </div>
+                  }
+                </div>
+                @if (plan.owned < plan.needed) {
+                  <p class="muted small">Farm {{ plan.needed - plan.owned }} more piece(s) of this set to complete the bonus.</p>
+                }
+              </div>
+            }
+            <div class="suggestions">
+              @for (entry of suggestions(); track entry.suggestion.slot) {
+                @let s = entry.suggestion;
+                <div class="panel suggestion">
+                  <div class="row">
+                    <strong>{{ s.slot | slotLabel: game() }}</strong>
+                    <span class="spacer"></span>
+                    <span class="chip ok">{{ suggestionReason(s) }}</span>
+                  </div>
+                  <app-item-card [item]="entry.view" [game]="game()" />
+                  <div class="muted small">
+                    @if (s.current_percent !== null) { Current piece: {{ s.current_percent }}% · }
+                    {{ s.item.equipped_on ? 'Currently on ' + s.item.equipped_on : 'Not equipped by anyone' }}
+                  </div>
+                </div>
+              }
+            </div>
+          </section>
+        } @else {
+          <p class="muted small hint"><mat-icon>info</mat-icon>Upload a full inventory export to see better pieces you already own.</p>
+        }
+
+        <!-- Recommended build -->
+        @if (build(); as b) {
+          <section class="section panel">
+            <div class="row wrap">
+              <h2 class="section-title">{{ b.source.name }} · {{ b.variant }}</h2>
+              @if (b.role && b.role !== b.variant) {
+                <span class="chip">{{ b.role }}</span>
+              }
+            </div>
+            <app-build-detail [build]="b" [game]="game()" [evaluation]="e" [element]="d.character.element" />
+          </section>
+        }
+      }
+
+      <!-- Consensus + stats -->
+      <div class="bottom-grid">
+        @if (d.consensus.builds > 1) {
+          <section class="panel">
+            <h2 class="panel-title"><mat-icon>groups</mat-icon>What the sources agree on</h2>
+            <p class="muted small">{{ d.consensus.builds }} builds from {{ d.consensus.sources.join(', ') }}</p>
+            @for (slot of consensusSlots(); track slot.label) {
+              <div class="consensus-row">
+                <span class="muted">{{ slot.label }}</span>
+                <span class="row wrap">
+                  @for (stat of slot.stats; track stat.name) {
+                    <span class="chip">{{ stat.name | statLabel: game() }} <b>{{ stat.count }}×</b></span>
+                  }
+                </span>
+              </div>
+            }
+            @for (group of consensusSets(); track group.title) {
+              <div class="consensus-row">
+                <span class="muted">{{ group.title }}</span>
+                <span class="row wrap">
+                  @for (set of group.list; track set.name) {
+                    <span class="chip">{{ set.name }} <b>{{ set.count }}×</b></span>
+                  }
+                </span>
+              </div>
+            }
+            <div class="consensus-row">
+              <span class="muted">Best {{ (gameMeta()?.weapon_label ?? 'weapon') | lowercase }}</span>
+              <span class="row wrap">
+                @for (weapon of d.consensus.weapons; track weapon.name) {
+                  <span class="chip">{{ weapon.name }} <b>{{ weapon.count }}×</b></span>
+                }
+              </span>
+            </div>
+          </section>
+        }
+
+        <section class="panel">
+          <h2 class="panel-title"><mat-icon>bar_chart</mat-icon>Stats</h2>
+          @if (finalStats().length > 0) {
+            <p class="muted small">In-game totals from {{ d.character.final_stats_source === 'enka' ? 'Enka.Network' : d.character.final_stats_source }}, {{ d.character.synced_at | timeAgo }}.</p>
+            <div class="stat-table">
+              @for (entry of finalStats(); track entry[0]) {
+                <span class="muted">{{ entry[0] | statLabel: game() }}</span>
+                <span class="value">{{ entry[1] | statValue: game() : entry[0] }}</span>
+              }
+            </div>
+          } @else {
+            <p class="muted small">From {{ game() === 'hsr' ? 'relics' : 'artifacts' }} only (import by UID to see in-game totals):</p>
+            <div class="stat-table">
+              @for (entry of totals(); track entry[0]) {
+                <span class="muted">{{ entry[0] | statLabel: game() }}</span>
+                <span class="value">{{ entry[1] | statValue: game() : entry[0] }}</span>
+              }
+            </div>
+          }
+        </section>
+      </div>
+    }
+  }
+</div>
