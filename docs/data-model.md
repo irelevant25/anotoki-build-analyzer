@@ -120,7 +120,7 @@ between installations". Format version 1:
   "format": "build-analyzer.builds", "format_version": 1,
   "source": "genshin-2", "game": "genshin",          // the API's key of the source, never its site
   "exported_at": "2026-09-29T14:03:12.123456Z",      // UTC, to the microsecond, like every time in the file
-  "synced_at": "2026-09-29T13:40:05.000000Z",        // the source's last_synced_at where it was exported, or null
+  "synced_at": "2026-09-29T13:40:05.000000Z",        // its last successful full sync where it was exported, or null
   "builds": [{
     "character": "hutao",                            // game_characters.key, matched by (game, key)
     "character_name": "Hu Tao",                      // for people reading the file
@@ -134,22 +134,33 @@ between installations". Format version 1:
 ```
 
 - Builds come ordered by character key, position and variant, so two exports of the same builds differ only in
-  `exported_at`. No page address (`source_url`), no site address or name: text copied from pages passes
-  through `Neutral::text()`, as in every answer of the API.
+  `exported_at`. No page address (`source_url`), no site address or name: every text goes through
+  `Neutral::text()`, as in every answer of the API, and is kept within the caps the import reads with (the
+  words that replace an address can take more room than it did). Two variants of a character that neutral
+  words make alike ("Prydwen DPS", "Game8 DPS") become "The source DPS" and "The source DPS #2". Whatever an
+  export writes, an import reads.
 - An import checks the whole file first and writes nothing when anything is off, naming the first problem:
   format and version, game and source; every field present (a build may leave out `fetched_at` /
   `changed_at`) and none the format lacks; the JSON shapes above, with whole numbers where the app counts
-  (ranks, positions, priorities, piece counts, refinements); the set kinds (`artifact` for Genshin, `relic` /
-  `planar` for HSR), slots and talents of the game; texts no longer than their columns; one build per
-  (character, variant); and caps far above any source (16 MB, 5000 builds, 100 weapons and 50 set options a
-  build, 8 pieces an option …), which also keep the set matcher's search small.
+  (ranks, positions, priorities, refinements); the set kinds (`artifact` for Genshin, `relic` / `planar` for
+  HSR), slots, stat keys (`Stats::keys()`, what `Stats::parse()` gives) and talents of the game; set pieces as
+  syncs store them - each set listed once, a `count` of 2 or 4 (2 for a planar ornament); times from 1970 on;
+  texts no longer than their columns; one build per (character, variant); and caps well above what the sources
+  give (5000 builds, 100 weapons and 50 set options a build, 30 pieces an option, 100 sets a piece …; real syncs
+  reach 23 weapons, 12 options, 5 pieces and 13 sets a piece), and 8 MB for the file, a common default of PHP's
+  limit on a request, against about 2 MB for a whole source. Every text is made neutral on the way in too, so a
+  file edited by hand cannot bring a site's name into the analysis.
+- Those piece rules keep the set matcher small: with each set listed once and 2 or 4 pieces asked of it, no
+  more than two equipped sets satisfy the pieces of an option. `SetMatcher` also works out each state of its
+  search once (the piece, the sets used), so even an option it was not written for stays quick.
 - It makes the source's builds exactly the file's, in one transaction under the sync step lock and never
   while a run of the source is going. Each character's builds are written by `BuildSync::write()`, like a
   sync's: created, updated (the content hash differs; `changed_at` moves) or unchanged, other variants of the
-  character deleted. An imported build hashes with `source_url` null, so a synced build that had an address
-  counts as updated once, and importing the same file again changes nothing. `fetched_at` / `changed_at` come
-  from the file where they are times (never later than now), else now. Every build of the source whose
-  character the file lacks is deleted. Characters the catalog lacks are skipped: an import never adds to it.
+  character deleted. A file never carries a page address: a build this installation has already keeps its
+  own and is hashed with it, so importing what a sync stored here changes nothing and the next sync does not
+  count every build as changed; a new build gets none. `fetched_at` / `changed_at` come from the file where
+  they are times (never later than now), else now. Every build of the source whose character the file lacks is
+  deleted. Characters the catalog lacks are skipped: an import never adds to it.
 - It is recorded as a `builds` run of the source, `started_by` the admin, with a sync's stats (skipped
   characters in `characters_skipped` and in `unmatched` as `{game}:characters`), a log that starts "imported
   from a file exported …" and ends with the "Done: …" line; and it leaves the source as a successful full sync

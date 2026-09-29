@@ -100,8 +100,10 @@ Each source on the Sources page has **Export** and **Import** (admins; both wait
 - **Import** takes such a file of the same source (same key, same game) and makes the source's builds exactly
   the file's, after the page has asked: builds are created, updated or kept as a sync would, and builds the
   file does not have are removed. It is recorded as a run of the source ("imported from a file exported …"),
-  and the source counts as synced when the file's builds were, so "Sync all" leaves it alone for
-  `stale_hours` like any source synced then.
+  and the source counts as synced when the file's builds were last synced in full (or, when that sync did not
+  succeed, when the file was exported), so "Sync all" leaves it alone for `stale_hours` like any source synced
+  then. The page refuses a file over 8 MB before sending it (a common default of PHP's limit on a request; a
+  whole source's file takes about 2 MB).
 - A character this installation's catalog lacks is skipped and named (in the answer and the run's log):
   **Refresh catalog**, then import the same file again. A file none of whose characters the catalog knows is
   refused.
@@ -191,7 +193,7 @@ accounts again and sync (cached pages make it quick).
 | New character missing builds | released? `php sync-builds.php --check-names`; the site may not have it yet |
 | A source always fails on the host (HTTP 403) but syncs at home | its site refuses the host: sync it at home, Export, and Import on the site ("Moving builds between installations") |
 | A builds file's import skipped characters ("not in the catalog") | this catalog is older than the file: Refresh catalog on the Sources page, then import the same file again |
-| A builds file's import answers "No file arrived" | the file is larger than the host's PHP `post_max_size`; a whole source is a few MB, so check the hosting panel's PHP settings |
+| A builds file's import answers "No file arrived" | the file is larger than the host's PHP `post_max_size`; a whole source takes about 2 MB, so check the hosting panel's PHP settings |
 | Showcase import errors | the message comes from `EnkaClient` (UID, maintenance, 429); details hidden → the wizard's steps |
 | "Sign in to continue." / 401 everywhere | token missing or refused: `storage/logs/app.log` has "IAM access token refused: <reason>" (issuer, audience, expiry, keys) |
 | 403 "Sign-in is switched off … (auth mode none)" | a "none" copy asked from another computer or site: use http://localhost:4600, or switch sign-in on with `setup.php` |

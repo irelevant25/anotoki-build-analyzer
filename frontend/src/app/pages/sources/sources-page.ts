@@ -156,7 +156,10 @@ export class SourcesPage {
       return;
     }
     if (file.size > BUILD_FILE_MAX_BYTES) {
-      this.snackBar.open(`This file is larger than ${BUILD_FILE_MAX_BYTES / 1048576} MB, far more than the builds of a source take.`, 'Close');
+      this.snackBar.open(
+        `This file is larger than ${BUILD_FILE_MAX_BYTES / 1048576} MB: more than the server may accept, and far more than the builds of a source take. Is it the right file?`,
+        'Close',
+      );
       return;
     }
 

@@ -98,7 +98,7 @@ return function (Slim\App $slim, App $app): void {
             $bytes = strlen((string) $request->getBody());
             if ($bytes === 0) {
                 // What PHP makes of a body larger than its post_max_size: the file arrives as nothing.
-                throw new HttpError(422, 'No file arrived. A file larger than this server accepts (PHP\'s post_max_size) arrives empty.');
+                throw new HttpError(422, 'No file arrived. A file larger than this server accepts arrives empty.');
             }
             if ($bytes > BuildFile::MAX_BYTES) {
                 throw new HttpError(422, sprintf('The file is larger than %d MB, far more than the builds of a source take.', BuildFile::MAX_BYTES / 1048576));

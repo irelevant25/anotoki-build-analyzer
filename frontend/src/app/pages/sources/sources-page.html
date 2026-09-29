@@ -14,7 +14,7 @@
       <button mat-stroked-button (click)="refreshCatalog()" [disabled]="starting()" matTooltip="Characters, weapons and sets from the game data source">
         <mat-icon>library_books</mat-icon>Refresh catalog
       </button>
-      <button mat-flat-button (click)="syncAll()" [disabled]="starting()" matTooltip="Every switched-on source not synced in the last 20 hours">
+      <button mat-flat-button (click)="syncAll()" [disabled]="starting() || transfer() !== null" matTooltip="Every switched-on source not synced in the last 20 hours">
         <mat-icon>sync</mat-icon>Sync all
       </button>
     </div>
@@ -126,7 +126,8 @@
               <mat-icon>upload</mat-icon>{{ moving === 'import' ? 'Importing…' : 'Import' }}
             </button>
             <input #importFile type="file" accept=".json,application/json" hidden (change)="importBuilds(source, importFile)" />
-            <button mat-flat-button class="sync-now" (click)="syncOne(source)" [disabled]="starting() || syncingKeys().has(source.key) || !source.enabled">
+            <button mat-flat-button class="sync-now" (click)="syncOne(source)"
+              [disabled]="starting() || syncingKeys().has(source.key) || !source.enabled || transfer()?.key === source.key">
               <mat-icon>sync</mat-icon>{{ syncingKeys().has(source.key) ? 'Syncing' : 'Sync now' }}
             </button>
           </div>

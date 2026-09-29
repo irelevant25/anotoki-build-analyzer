@@ -24,7 +24,13 @@ final class SetMatcher
             return ['satisfied' => true, 'fraction' => 1.0, 'matched' => 0, 'required' => 0];
         }
 
-        $matched = self::maxMatched($equipped, $pieces, 0, []);
+        // Per piece, the equipped sets with enough pieces for it, each once: an option can list many pieces
+        // and a piece many sets, but only the few sets worn can take part in a match.
+        $candidates = array_map(fn (array $piece) => array_values(array_unique(array_filter(
+            $piece['keys'], fn ($key) => ($equipped[$key] ?? 0) >= $piece['count'],
+        ))), $pieces);
+        $memo = [];
+        $matched = self::maxMatched($candidates, 0, [], $required, $memo);
 
         // Partial credit: e.g. only 2 pieces of a 4pc set.
         $partial = 0.0;
@@ -44,27 +50,38 @@ final class SetMatcher
     }
 
     /**
-     * Maximum number of pieces that can be satisfied with distinct equipped sets (tiny backtracking search).
+     * The most pieces from $index on that distinct equipped sets satisfy, up to $cap: matching more than the
+     * option requires changes nothing (evaluate() caps it anyway). Each state - the piece, the sets used so
+     * far - is worked out once, so the search stays small however many pieces an option lists.
      *
-     * @param  array<string, int>  $equipped
+     * @param  list<list<string>>  $candidates  per piece, the equipped sets that satisfy it
      * @param  list<string>  $used
+     * @param  array<string, int>  $memo
      */
-    private static function maxMatched(array $equipped, array $pieces, int $index, array $used): int
+    private static function maxMatched(array $candidates, int $index, array $used, int $cap, array &$memo): int
     {
-        if ($index >= count($pieces)) {
+        if ($index >= count($candidates) || $cap === 0) {
             return 0;
+        }
+        sort($used);
+        $state = $index.':'.implode(',', $used);
+        if (isset($memo[$state])) {
+            return $memo[$state];
         }
 
         // Option 1: leave this piece unsatisfied.
-        $best = self::maxMatched($equipped, $pieces, $index + 1, $used);
+        $best = self::maxMatched($candidates, $index + 1, $used, $cap, $memo);
 
-        // Option 2: satisfy it with any unused set that has enough pieces.
-        foreach ($pieces[$index]['keys'] as $key) {
-            if (! in_array($key, $used, true) && ($equipped[$key] ?? 0) >= $pieces[$index]['count']) {
-                $best = max($best, 1 + self::maxMatched($equipped, $pieces, $index + 1, [...$used, $key]));
+        // Option 2: satisfy it with a set not used yet.
+        foreach ($candidates[$index] as $key) {
+            if ($best === $cap) {
+                break;
+            }
+            if (! in_array($key, $used, true)) {
+                $best = max($best, 1 + self::maxMatched($candidates, $index + 1, [...$used, $key], $cap - 1, $memo));
             }
         }
 
-        return $best;
+        return $memo[$state] = $best;
     }
 }

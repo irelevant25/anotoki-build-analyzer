@@ -392,7 +392,8 @@ class BuildSync implements RunHandler
     /**
      * What is stored of a build, in the order its content hash reads it (the hash is of this array's JSON).
      * Syncs and imports both put a build together here, so the same content hashes alike whichever way it
-     * came - but for the page address, which an import does not have (the file never carries it).
+     * came. A file never carries the page address: an import passes the one this installation has for the
+     * build already, or none for a new one.
      *
      * @param  list<array<string, mixed>>  $weapons
      * @param  list<array<string, mixed>>  $sets

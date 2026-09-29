@@ -98,4 +98,21 @@ test('choose two of many', function () use ($piece) {
     check(! SetMatcher::evaluate(['fury' => 2, 'other' => 3], $option)['satisfied'], 'one of three');
 });
 
+test('many pieces listing many sets are matched at once, with the same result', function () use ($piece) {
+    // Five sets worn one piece each, and pieces that list all five ten times over and ask for one piece:
+    // tried entry by entry this took seconds for five pieces, and for thirty would never end.
+    $sets = ['a', 'b', 'c', 'd', 'e'];
+    $keys = array_merge(...array_fill(0, 10, $sets));
+    $equipped = array_fill_keys($sets, 1);
+
+    $started = microtime(true);
+    $some = SetMatcher::evaluate($equipped, ['choose' => 5, 'pieces' => array_fill(0, 30, $piece($keys, 1))]);
+    $all = SetMatcher::evaluate($equipped, ['pieces' => array_fill(0, 30, $piece($keys, 1))]);
+    $took = microtime(true) - $started;
+
+    check($took < 0.5, "took {$took} s");
+    same([true, 5, 5], [$some['satisfied'], $some['matched'], $some['required']], 'five of thirty, five distinct sets');
+    same([false, 5, 30], [$all['satisfied'], $all['matched'], $all['required']], 'all thirty: five sets satisfy five pieces at most');
+});
+
 finishTests();

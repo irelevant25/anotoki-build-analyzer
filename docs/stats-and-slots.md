@@ -36,7 +36,9 @@ main stat value; `MainStatValues::compute()` fills it (Genshin interpolated, HSR
 
 - `Stats::parse($game, 'ATK%')` → `['atk_']`. Bare "ATK"/"HP"/"DEF" mean percentages ("Flat ATK" → `atk`);
   "Crit", "CR/CD", "CRIT Rate/DMG" → both crit stats; "Pyro"/"Pyro DMG Bonus" → `pyro_dmg_`; "Thunder" → lightning;
-  known site typos ("Energy Rechage") are mapped. Unknown labels return `[]`.
+  known site typos ("Energy Rechage") are mapped. Unknown labels return `[]`. `Stats::keys($game)` lists every
+  key it can give - so every stat key a build of that game holds; an imported builds file may name no other.
+- `Talents::keys($game)` likewise lists the talent keys below.
 - `Stats::parsePriorityList($game, 'CRIT Rate = CRIT DMG > ATK% > ER / EM')`: `>` (`≥`, `»`, `;`, newline) starts a
   lower priority, `=`, `/`, `,`, "or" keep it; notes in brackets ("EHR (Until 75%)") are stripped.
 - `Stats::ordered($game, [...labels])` for plain ordered lists: adjacent CRIT Rate / CRIT DMG share a priority.

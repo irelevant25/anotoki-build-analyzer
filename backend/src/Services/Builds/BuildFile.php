@@ -5,7 +5,9 @@ namespace App\Services\Builds;
 use App\Enums\Game;
 use App\Models\Build;
 use App\Support\Clock;
+use App\Support\Key;
 use App\Support\Neutral;
+use App\Support\Stats;
 use App\Support\Talents;
 use App\Support\Text;
 use DateTimeImmutable;
@@ -17,14 +19,16 @@ use DateTimeInterface;
  * computer a site answers, imported on a host the site refuses - and keeps them as a backup.
  *
  * Like every answer of the API it names no site: the source is its key ("genshin-2"), the page a build was
- * read from stays behind, and text copied from pages goes through Neutral.
+ * read from stays behind, and every text passes through Neutral - on the way out, and again on the way in, so
+ * a file edited by hand cannot bring a site's name into what the API sends or the analysis writes.
  *
  * Reading is strict, because the analysis reads every stored build for every user. A file is refused as a
- * whole, naming its first problem, unless every build has exactly the fields and shapes a sync stores:
- * lists and objects where they belong, whole numbers where the app counts, the set kinds, slots and talents
- * of the source's game, text that fits its column, and no more entries than the caps below - far above what
- * any source publishes, and low enough to keep the set matcher's search (it tries the pieces of an option
- * against the equipped sets) small.
+ * whole, naming its first problem, unless every build has exactly the fields and shapes a sync stores: lists
+ * and objects where they belong, whole numbers where the app counts, the set kinds, slots, stats and talents
+ * of the source's game, and set pieces as syncs make them - each set listed once, 2 or 4 pieces of it (2 of a
+ * planar ornament), which keeps the set matcher's search small: no more than two equipped sets can satisfy
+ * such pieces. The caps on sizes are well above anything a source publishes; they only keep a file from
+ * being absurd. Whatever the export writes, the import reads.
  */
 final class BuildFile
 {
@@ -32,8 +36,8 @@ final class BuildFile
 
     public const VERSION = 1;
 
-    /** A whole source takes a few MB, pretty-printed. */
-    public const MAX_BYTES = 16 * 1024 * 1024;
+    /** A common default of PHP's post_max_size; a whole source takes about 2 MB (pretty-printed). */
+    public const MAX_BYTES = 8 * 1024 * 1024;
 
     public const MAX_BUILDS = 5000;
 
@@ -42,9 +46,11 @@ final class BuildFile
 
     private const MAX_SETS = 50;
 
-    private const MAX_PIECES = 8;
+    /** A "choose two" option lists one piece per set; a page can list many. */
+    private const MAX_PIECES = 30;
 
-    private const MAX_SET_KEYS = 50;
+    /** A group such as "any 18% ATK set" grows with every new set (13 in 2026). */
+    private const MAX_SET_KEYS = 100;
 
     private const MAX_STATS = 30;
 
@@ -52,16 +58,29 @@ final class BuildFile
 
     private const MAX_TARGETS = 30;
 
+    /** Text that has a column: its length there. */
+    private const MAX_CHARACTER = 120;
+
+    private const MAX_CHARACTER_NAME = 160;
+
+    /** Also where BuildTransfer tells apart variants that neutral words make alike ("… #2"). */
+    public const MAX_VARIANT = 120;
+
+    private const MAX_ROLE = 60;
+
+    private const MAX_GAME_VERSION = 20;
+
     /**
      * Text without a column of its own: a build's notes; the notes of its weapons, sets and targets; names,
-     * labels and keys of weapons and sets, which a site can spell longer than the catalog's columns (a
-     * "Flex: A / B / C" piece, a weapon the catalog does not know).
+     * labels and keys of weapons and sets, which a site can spell longer than the catalog's columns - a
+     * "Flex: A / B / C" piece grows with every option (229 characters seen), a weapon the catalog does not
+     * know keeps the site's name for it.
      */
     private const MAX_NOTES = 20000;
 
     private const MAX_NOTE = 5000;
 
-    private const MAX_NAME = 500;
+    private const MAX_NAME = 1000;
 
     /** The fields of the file and of a build, in the order the export writes them. */
     private const FIELDS = ['format', 'format_version', 'source', 'game', 'exported_at', 'synced_at', 'builds'];
@@ -81,7 +100,9 @@ final class BuildFile
 
     /**
      * A stored build as the file holds it. Times keep their microseconds, so an import writes them back as
-     * they were and a build's content hash (which reads source_updated_at) comes out the same.
+     * they were and a build's content hash (which reads source_updated_at) comes out the same. Text is made
+     * neutral within the reader's caps, and a piece's sets that neutral words make alike are listed once, so
+     * the file always imports.
      *
      * @return array<string, mixed>
      */
@@ -89,21 +110,44 @@ final class BuildFile
     {
         return [
             'character' => $build->character->key,
-            'character_name' => $build->character->name,
-            'variant' => Neutral::text($build->variant),
-            'role' => Neutral::text($build->role),
+            'character_name' => self::neutral($build->character->name, self::MAX_CHARACTER_NAME),
+            'variant' => self::neutral($build->variant, self::MAX_VARIANT),
+            'role' => self::neutral($build->role, self::MAX_ROLE),
             'recommended' => $build->recommended,
             'position' => $build->position,
-            'weapons' => Neutral::deep($build->weapons),
-            'sets' => Neutral::deep($build->sets),
+            'weapons' => array_map(fn (array $weapon) => [
+                'key' => self::neutralKey((string) ($weapon['key'] ?? '')),
+                'name' => self::neutral((string) ($weapon['name'] ?? ''), self::MAX_NAME),
+                'rank' => $weapon['rank'] ?? null,
+                'refinement' => $weapon['refinement'] ?? null,
+                'note' => self::neutral($weapon['note'] ?? null, self::MAX_NOTE),
+                'known' => $weapon['known'] ?? null,
+            ], $build->weapons),
+            'sets' => array_map(fn (array $option) => [
+                'rank' => $option['rank'] ?? null,
+                'kind' => $option['kind'] ?? null,
+                'choose' => $option['choose'] ?? null,
+                'pieces' => array_map(fn (array $piece) => [
+                    'label' => self::neutral((string) ($piece['label'] ?? ''), self::MAX_NAME),
+                    'count' => $piece['count'] ?? null,
+                    'keys' => array_values(array_unique(array_map(fn ($key) => self::neutralKey((string) $key), $piece['keys'] ?? []))),
+                    'names' => array_values(array_unique(array_map(fn ($name) => self::neutral((string) $name, self::MAX_NAME), $piece['names'] ?? []))),
+                ], $option['pieces'] ?? []),
+                'note' => self::neutral($option['note'] ?? null, self::MAX_NOTE),
+            ], $build->sets),
             // An object even when empty: its keys are slots.
             'main_stats' => (object) $build->main_stats,
             'substats' => $build->substats,
             'talent_priority' => $build->talent_priority,
-            'stat_targets' => Neutral::deep($build->stat_targets),
-            'notes' => Neutral::text($build->notes),
+            'stat_targets' => $build->stat_targets === null ? null : array_map(fn (array $target) => [
+                'stat' => $target['stat'] ?? null,
+                'min' => $target['min'] ?? null,
+                'max' => $target['max'] ?? null,
+                'text' => self::neutral((string) ($target['text'] ?? ''), self::MAX_NOTE),
+            ], $build->stat_targets),
+            'notes' => self::neutral($build->notes, self::MAX_NOTES),
             'source_updated_at' => self::time($build->source_updated_at),
-            'game_version' => $build->game_version,
+            'game_version' => self::neutral($build->game_version, self::MAX_GAME_VERSION),
             'fetched_at' => self::time($build->fetched_at),
             'changed_at' => self::time($build->changed_at),
         ];
@@ -113,6 +157,27 @@ final class BuildFile
     public static function time(?DateTimeInterface $time): ?string
     {
         return $time === null ? null : DateTimeImmutable::createFromInterface($time)->setTimezone(Clock::utc())->format('Y-m-d\TH:i:s.u\Z');
+    }
+
+    /**
+     * Text as a builds file holds it, written or read: other sites' names and addresses replaced (Neutral), in
+     * at most $max characters - "the source page" can take more room than the address it stands for. Text
+     * that is neutral already comes back as it was.
+     */
+    public static function neutral(?string $text, int $max): ?string
+    {
+        $text = Neutral::text($text);
+        if ($text === null || mb_strlen($text) <= $max) {
+            return $text;
+        }
+
+        return rtrim(mb_substr($text, 0, $max - 1)).'…';
+    }
+
+    /** A key of the form Key makes, the same way: one that spells a site's name ("prydwen") stops doing so. */
+    public static function neutralKey(string $key): string
+    {
+        return Neutral::mentionsAny($key) ? Key::from((string) Neutral::text($key)) : $key;
     }
 
     /**
@@ -137,7 +202,7 @@ final class BuildFile
         $version = $file['format_version'] ?? null;
         if ($version !== self::VERSION) {
             throw new BuildFileException(is_int($version) && $version > self::VERSION
-                ? "This builds file has format version {$version}, and this installation reads version ".self::VERSION.'. Update it, then import again.'
+                ? "This builds file has format version {$version}, and this installation reads version ".self::VERSION.'. Update this installation, then import again.'
                 : 'This builds file has no format version this installation reads.');
         }
         $game = is_string($file['game'] ?? null) ? Game::tryFrom($file['game']) : null;
@@ -180,21 +245,21 @@ final class BuildFile
         $this->build = null;
         $entry = $this->object($entry, "builds[{$index}]");
 
-        // The character and variant first, so every later problem can name the build they make. Keys and
-        // lengths as the catalog and the builds table hold them.
+        // The character and variant first, so every later problem can name the build they make.
         $this->build = "builds[{$index}]";
         $this->fields(array_intersect_key($entry, ['character' => true, 'variant' => true]), null, ['character', 'variant']);
-        $character = $this->key($entry['character'], 'character', 120);
-        $variant = $this->text($entry['variant'], 'variant', 120, empty: false);
+        // Matched with the catalog as it is; a character the catalog lacks is skipped, and only named neutrally.
+        $character = $this->key($entry['character'], 'character', self::MAX_CHARACTER, neutral: false);
+        $variant = $this->text($entry['variant'], 'variant', self::MAX_VARIANT, empty: false);
         $this->build = sprintf('builds[%d] (%s, "%s")', $index, $character, Text::limit($variant, 40));
         $this->fields($entry, null, self::BUILD_FIELDS, self::OPTIONAL);
 
         // In the order of the fields, so the first problem found is the first in the build.
         return [
             'character' => $character,
-            'name' => $this->text($entry['character_name'], 'character_name', 160, empty: false),
+            'name' => $this->text($entry['character_name'], 'character_name', self::MAX_CHARACTER_NAME, empty: false),
             'variant' => $variant,
-            'role' => $this->text($entry['role'], 'role', 60, nullable: true),
+            'role' => $this->text($entry['role'], 'role', self::MAX_ROLE, nullable: true),
             'recommended' => $this->boolean($entry['recommended'], 'recommended'),
             'position' => $this->integer($entry['position'], 'position', 0, 32767),
             'weapons' => $this->weapons($entry['weapons']),
@@ -205,7 +270,7 @@ final class BuildFile
             'stat_targets' => $this->targets($entry['stat_targets']),
             'notes' => $this->text($entry['notes'], 'notes', self::MAX_NOTES, nullable: true),
             'source_updated_at' => $this->readTime($entry['source_updated_at'], 'source_updated_at', nullable: true),
-            'game_version' => $this->text($entry['game_version'], 'game_version', 20, nullable: true),
+            'game_version' => $this->text($entry['game_version'], 'game_version', self::MAX_GAME_VERSION, nullable: true),
             'fetched_at' => self::parseTime($entry['fetched_at'] ?? null),
             'changed_at' => self::parseTime($entry['changed_at'] ?? null),
         ];
@@ -254,15 +319,16 @@ final class BuildFile
                 $piece = $this->object($piece, $in);
                 $this->fields($piece, $in, ['label', 'count', 'keys', 'names']);
                 $label = $this->text($piece['label'], "{$in}.label", self::MAX_NAME);
-                $count = $this->integer($piece['count'], "{$in}.count", 1, 9);
-                // A piece accepts any of its sets ("any +80 EM set").
+                // A 2-piece or 4-piece bonus; ornaments come in pairs.
+                $count = $this->oneOf($piece['count'], "{$in}.count", $kind === 'planar' ? [2] : [2, 4]);
+                // A piece accepts any of its sets ("any +80 EM set"), each listed once.
                 $keys = [];
                 foreach ($this->list($piece['keys'], "{$in}.keys", self::MAX_SET_KEYS, min: 1) as $k => $key) {
-                    $keys[] = $this->key($key, "{$in}.keys[{$k}]", self::MAX_NAME);
+                    $keys[] = $this->unique($this->key($key, "{$in}.keys[{$k}]", self::MAX_NAME), $keys, "{$in}.keys[{$k}]");
                 }
                 $names = [];
                 foreach ($this->list($piece['names'], "{$in}.names", self::MAX_SET_KEYS, min: 1) as $n => $name) {
-                    $names[] = $this->text($name, "{$in}.names[{$n}]", self::MAX_NAME, empty: false);
+                    $names[] = $this->unique($this->text($name, "{$in}.names[{$n}]", self::MAX_NAME, empty: false), $names, "{$in}.names[{$n}]");
                 }
                 $pieces[] = ['label' => $label, 'count' => $count, 'keys' => $keys, 'names' => $names];
             }
@@ -417,6 +483,17 @@ final class BuildFile
         return $value;
     }
 
+    /** $value, which the list $before must not hold already. */
+    private function unique(string $value, array $before, string $where): string
+    {
+        if (in_array($value, $before, true)) {
+            $this->fail($where, 'repeats an earlier entry of its list');
+        }
+
+        return $value;
+    }
+
+    /** Text from the file, made neutral (neutral()); its length is checked as the file spells it. */
     private function text(mixed $value, string $where, int $max, bool $empty = true, bool $nullable = false): ?string
     {
         if ($value === null && $nullable) {
@@ -432,7 +509,7 @@ final class BuildFile
             $this->fail($where, "must not be longer than {$max} characters");
         }
 
-        return $value;
+        return self::neutral($value, $max);
     }
 
     private function integer(mixed $value, string $where, int $min, int $max, bool $nullable = false): ?int
@@ -466,30 +543,36 @@ final class BuildFile
         return $value;
     }
 
-    /** A catalog key ("hutao", "staffofhoma"): lowercase letters and digits, as App\Support\Key makes them. */
-    private function key(mixed $value, string $where, int $max): string
+    /**
+     * A catalog key ("hutao", "staffofhoma"): lowercase letters and digits, as App\Support\Key makes them;
+     * made neutral (neutralKey()) unless it is matched with the catalog as it is.
+     */
+    private function key(mixed $value, string $where, int $max, bool $neutral = true): string
     {
         if (! is_string($value) || ! preg_match('/^[a-z0-9]+$/', $value) || strlen($value) > $max) {
             $this->fail($where, "must be a key of lowercase letters and digits, at most {$max} long");
         }
 
-        return $value;
+        return $neutral ? self::neutralKey($value) : $value;
     }
 
-    /** A canonical stat key ("critRate_", "pyro_dmg_", "spd"; App\Support\Stats). */
+    /** A stat key of the game (App\Support\Stats::keys()): the API sends them as they are. */
     private function stat(mixed $value, string $where): string
     {
-        if (! is_string($value) || ! preg_match('/^[A-Za-z][A-Za-z_]{0,39}$/', $value)) {
-            $this->fail($where, 'must be a stat key such as critRate_ or pyro_dmg_');
+        if (! in_array($value, Stats::keys($this->game), true)) {
+            $this->fail($where, "must be a stat key of {$this->game->label()}, such as critRate_ or hp_");
         }
 
         return $value;
     }
 
     /**
-     * @param  list<string>  $allowed
+     * @template T of string|int
+     *
+     * @param  list<T>  $allowed
+     * @return T
      */
-    private function oneOf(mixed $value, string $where, array $allowed): string
+    private function oneOf(mixed $value, string $where, array $allowed): string|int
     {
         if (! in_array($value, $allowed, true)) {
             $last = array_pop($allowed);
@@ -506,13 +589,16 @@ final class BuildFile
         }
 
         return self::parseTime($value)
-            ?? $this->fail($where, 'must be a time in ISO 8601, such as 2026-09-29T14:03:12Z'.($nullable ? ', or null' : ''));
+            ?? $this->fail($where, 'must be a time in ISO 8601 from 1970 on, such as 2026-09-29T14:03:12Z'.($nullable ? ', or null' : ''));
     }
 
-    /** A time as the file writes one (ISO 8601 with its zone; fractions of a second optional), or null. */
+    /**
+     * A time as the file writes one (ISO 8601 with its zone; fractions of a second optional) from 1970 on, or
+     * null. Earlier years are nothing a build carries, and some (the year 0) PostgreSQL cannot store.
+     */
     private static function parseTime(mixed $value): ?DateTimeImmutable
     {
-        if (! is_string($value) || ! preg_match(self::TIME, $value)) {
+        if (! is_string($value) || ! preg_match(self::TIME, $value) || (int) substr($value, 0, 4) < 1970) {
             return null;
         }
         try {

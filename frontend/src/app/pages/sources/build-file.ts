@@ -9,8 +9,12 @@ import { BuildImportResult, GameKey, SourceStatus } from '../../core/models';
 
 export const BUILD_FILE_FORMAT = 'build-analyzer.builds';
 export const BUILD_FILE_VERSION = 1;
-/** The largest file the server takes (BuildFile::MAX_BYTES). */
-export const BUILD_FILE_MAX_BYTES = 16 * 1024 * 1024;
+/**
+ * The largest file the server takes (BuildFile::MAX_BYTES), checked before sending: 8 MB is a common default
+ * of PHP's post_max_size, and a server sent more can answer with a warning page instead of the API's JSON. A
+ * whole source's file takes about 2 MB.
+ */
+export const BUILD_FILE_MAX_BYTES = 8 * 1024 * 1024;
 
 /** A builds file of the source, with what the confirmation says about it. */
 export interface BuildFileCheck {
@@ -47,7 +51,7 @@ export function checkBuildFile(text: string, source: Source): BuildFileCheck | B
   if (version !== BUILD_FILE_VERSION) {
     return problem(
       typeof version === 'number' && version > BUILD_FILE_VERSION
-        ? `This builds file has format version ${version}, and this installation reads version ${BUILD_FILE_VERSION}. Update it, then import again.`
+        ? `This builds file has format version ${version}, and this installation reads version ${BUILD_FILE_VERSION}. Update this installation, then import again.`
         : 'This builds file has no format version this installation reads.',
     );
   }

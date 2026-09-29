@@ -13,13 +13,17 @@ source's builds exactly the file's instead of merging, so a file always means on
 not linger; it writes through `BuildSync`'s own `write()` and `finish()` (the same content hash, created /
 updated / unchanged, `changed_at`, a builds run of the source), so imported builds behave like synced ones, and
 the source counts as synced when the file's builds were, which keeps "Sync all" away from it for
-`stale_hours`. An imported build hashes without a page address, since the file carries none. The file is read
-strictly - exactly the fields and shapes a sync stores, whole numbers where the app counts, the game's set
-kinds, slots and talents, caps on sizes - because the analysis reads every build for every user; one problem
-refuses the whole file. Characters the catalog lacks are skipped, as in account imports (an uploaded file never
-adds to the shared catalog), and a file of nothing but such characters is refused rather than emptying the
-source. The import runs under the sync step lock and waits for a sync of its source to end, so no step writes
-over it halfway.
+`stale_hours`. The file carries no page address, so an imported build keeps the one this installation has for
+it (and hashes with it, as a sync does), and a new build has none. The file is read strictly - exactly the
+fields and shapes a sync stores, whole numbers where the app counts, the game's set kinds, slots, stat keys and
+talents, set pieces as syncs make them (each set once, 2 or 4 pieces), caps on sizes - because the analysis
+reads every build for every user; one problem refuses the whole file. Every text is made neutral on the way in
+as well as out, so a file edited by hand cannot bring a site's name into the recommendations; and whatever an
+export writes, an import reads (neutral text kept within the caps, variants it makes alike told apart with
+"#2"). Characters the catalog lacks are skipped, as in account imports (an uploaded file never adds to the
+shared catalog), and a file of nothing but such characters is refused rather than emptying the source. The
+import runs under the sync step lock and waits for a sync of its source to end, so no step writes over it
+halfway.
 
 **2026-09-29 — The backend without Laravel; the app named "build analyzer" (owner's decision).** The backend
 is rewritten in the shape of the other anotoki sites (the genshin site, the IAM): Slim 4 for routing and PSR-7

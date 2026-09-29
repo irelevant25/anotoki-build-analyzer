@@ -60,6 +60,61 @@ final class Stats
      */
     public const FLAT_TO_PERCENT = ['hp' => 'hp_', 'atk' => 'atk_', 'def' => 'def_'];
 
+    /** What parse() reads a label as: elements whose DMG bonus a label can name, then words for the stats. */
+    private const ELEMENTS = [
+        'genshin' => ['pyro', 'hydro', 'anemo', 'electro', 'dendro', 'cryo', 'geo', 'physical'],
+        'hsr' => ['physical', 'fire', 'ice', 'lightning', 'thunder', 'wind', 'quantum', 'imaginary'],
+    ];
+
+    private const COMMON = [
+        'hp' => 'hp_', 'maxhp' => 'hp_', 'flathp' => 'hp',
+        'atk' => 'atk_', 'attack' => 'atk_', 'flatatk' => 'atk',
+        'def' => 'def_', 'defense' => 'def_', 'defence' => 'def_', 'flatdef' => 'def',
+        'cr' => 'critRate_', 'critrate' => 'critRate_', 'critchance' => 'critRate_',
+        'cd' => 'critDMG_', 'critdmg' => 'critDMG_', 'cdmg' => 'critDMG_',
+        'elementaldmg' => self::ELEMENTAL_DMG, 'elementdmg' => self::ELEMENTAL_DMG, 'dmg' => self::ELEMENTAL_DMG,
+        'elemental' => self::ELEMENTAL_DMG,
+    ];
+
+    private const SPECIFIC = [
+        'genshin' => [
+            'em' => 'eleMas', 'elementalmastery' => 'eleMas', 'mastery' => 'eleMas', 'elemas' => 'eleMas',
+            'er' => 'enerRech_', 'energyrecharge' => 'enerRech_', 'recharge' => 'enerRech_', 'energyrechargerate' => 'enerRech_',
+            'enerrech' => 'enerRech_', 'energyrechage' => 'enerRech_', // typo on genshin.gg
+            'healing' => 'heal_', 'heal' => 'heal_', 'hb' => 'heal_',
+        ],
+        'hsr' => [
+            'spd' => 'spd', 'speed' => 'spd',
+            'ehr' => 'effectHitRate_', 'effecthitrate' => 'effectHitRate_', 'effecthit' => 'effectHitRate_', 'hitrate' => 'effectHitRate_',
+            'effectres' => 'effectRes_', 'effres' => 'effectRes_', 'res' => 'effectRes_', 'effectresistance' => 'effectRes_',
+            'be' => 'breakEffect_', 'breakeffect' => 'breakEffect_', 'break' => 'breakEffect_',
+            'err' => 'energyRegen_', 'er' => 'energyRegen_', 'energyregen' => 'energyRegen_',
+            'energyregenerationrate' => 'energyRegen_', 'energyregenrate' => 'energyRegen_', 'energyregeneration' => 'energyRegen_',
+            'ohb' => 'heal_', 'outgoinghealing' => 'heal_', 'healing' => 'heal_', 'heal' => 'heal_',
+        ],
+    ];
+
+    /**
+     * Every key parse() can give for a game - so every stat key a build of that game holds (an imported
+     * builds file may name no other: the API sends these keys as they are).
+     *
+     * @return list<string>
+     */
+    public static function keys(Game $game): array
+    {
+        $keys = [
+            ...array_values(self::COMMON),
+            ...array_values(self::SPECIFIC[$game->value]),
+            ...array_map(self::elementKey(...), self::ELEMENTS[$game->value]),
+        ];
+        // "SPD%" (a set bonus) is the one key parse() makes of another with a "%".
+        if (in_array('spd', $keys, true)) {
+            $keys[] = 'spd_';
+        }
+
+        return array_values(array_unique($keys));
+    }
+
     public static function isPercent(string $key): bool
     {
         return str_ends_with($key, '_');
@@ -130,43 +185,14 @@ final class Stats
         $isPct = str_contains($norm, '%') || str_contains($norm, 'percent');
         $norm = str_replace(['%', 'percent'], '', $norm);
 
-        $elements = $game === Game::Genshin
-            ? ['pyro', 'hydro', 'anemo', 'electro', 'dendro', 'cryo', 'geo', 'physical']
-            : ['physical', 'fire', 'ice', 'lightning', 'thunder', 'wind', 'quantum', 'imaginary'];
-
-        foreach ($elements as $element) {
+        foreach (self::ELEMENTS[$game->value] as $element) {
             // "Pyro DMG Bonus" => "pyrodmg"; a goblet/sphere listed just as "Pyro" means the same.
             if ($norm === $element || $norm === $element.'dmg') {
-                return [($element === 'thunder' ? 'lightning' : $element).'_dmg_'];
+                return [self::elementKey($element)];
             }
         }
 
-        $common = [
-            'hp' => 'hp_', 'maxhp' => 'hp_', 'flathp' => 'hp',
-            'atk' => 'atk_', 'attack' => 'atk_', 'flatatk' => 'atk',
-            'def' => 'def_', 'defense' => 'def_', 'defence' => 'def_', 'flatdef' => 'def',
-            'cr' => 'critRate_', 'critrate' => 'critRate_', 'critchance' => 'critRate_',
-            'cd' => 'critDMG_', 'critdmg' => 'critDMG_', 'cdmg' => 'critDMG_',
-            'elementaldmg' => self::ELEMENTAL_DMG, 'elementdmg' => self::ELEMENTAL_DMG, 'dmg' => self::ELEMENTAL_DMG,
-            'elemental' => self::ELEMENTAL_DMG,
-        ];
-
-        $specific = $game === Game::Genshin ? [
-            'em' => 'eleMas', 'elementalmastery' => 'eleMas', 'mastery' => 'eleMas', 'elemas' => 'eleMas',
-            'er' => 'enerRech_', 'energyrecharge' => 'enerRech_', 'recharge' => 'enerRech_', 'energyrechargerate' => 'enerRech_',
-            'enerrech' => 'enerRech_', 'energyrechage' => 'enerRech_', // typo on genshin.gg
-            'healing' => 'heal_', 'heal' => 'heal_', 'hb' => 'heal_',
-        ] : [
-            'spd' => 'spd', 'speed' => 'spd',
-            'ehr' => 'effectHitRate_', 'effecthitrate' => 'effectHitRate_', 'effecthit' => 'effectHitRate_', 'hitrate' => 'effectHitRate_',
-            'effectres' => 'effectRes_', 'effres' => 'effectRes_', 'res' => 'effectRes_', 'effectresistance' => 'effectRes_',
-            'be' => 'breakEffect_', 'breakeffect' => 'breakEffect_', 'break' => 'breakEffect_',
-            'err' => 'energyRegen_', 'er' => 'energyRegen_', 'energyregen' => 'energyRegen_',
-            'energyregenerationrate' => 'energyRegen_', 'energyregenrate' => 'energyRegen_', 'energyregeneration' => 'energyRegen_',
-            'ohb' => 'heal_', 'outgoinghealing' => 'heal_', 'healing' => 'heal_', 'heal' => 'heal_',
-        ];
-
-        $key = $specific[$norm] ?? $common[$norm] ?? null;
+        $key = self::SPECIFIC[$game->value][$norm] ?? self::COMMON[$norm] ?? null;
         if ($key === null) {
             return [];
         }
@@ -252,6 +278,11 @@ final class Stats
         }
 
         return $result;
+    }
+
+    private static function elementKey(string $element): string
+    {
+        return ($element === 'thunder' ? 'lightning' : $element).'_dmg_';
     }
 
     /**

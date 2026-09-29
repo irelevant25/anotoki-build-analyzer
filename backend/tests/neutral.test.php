@@ -90,9 +90,11 @@ test('what the Sources, build and account pages get names no other site', functi
         'source_url' => 'https://www.prydwen.gg/genshin/characters/hu-tao',
         'content_hash' => 'x', 'fetched_at' => $now, 'changed_at' => $now,
     ]);
-    // A run log written by an older version, which named the sites.
+    // A run log written by an older version, which named the sites, and names it could not match as a
+    // page spelled them.
     $run = (int) db()->insert('sync_runs', ['build_source_id' => $source, 'kind' => 'builds', 'game' => 'genshin', 'status' => 'failed',
-        'started_at' => $now, 'finished_at' => $now, 'log' => "Prydwen (Genshin Impact): fetching https://www.prydwen.gg/genshin/characters\nFailed: enka.network did not answer"]);
+        'started_at' => $now, 'finished_at' => $now, 'log' => "Prydwen (Genshin Impact): fetching https://www.prydwen.gg/genshin/characters\nFailed: enka.network did not answer",
+        'stats' => Json::encode(['errors' => 1, 'unmatched' => ['genshin:weapons' => ['Prydwen favourite from https://www.prydwen.gg']]])]);
     $account = seedAccount(1, 'genshin', ['uid' => '700000001', 'nickname' => 'Main']);
     db()->insert('import_runs', ['user_id' => 1, 'account_id' => $account, 'game' => 'genshin', 'source' => 'enka', 'status' => 'failed',
         'error' => 'enka.network answered HTTP 424 for https://enka.network/api/uid/700000001', 'created_at' => $now, 'updated_at' => $now]);

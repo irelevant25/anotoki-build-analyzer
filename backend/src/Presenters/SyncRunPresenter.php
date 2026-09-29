@@ -31,7 +31,8 @@ final class SyncRunPresenter
             'status' => $run->status,
             'started_at' => Clock::iso($run->started_at),
             'finished_at' => Clock::iso($run->finished_at),
-            'stats' => $run->stats,
+            // Names a sync or an import could not match ("unmatched") are text from elsewhere.
+            'stats' => Neutral::deep($run->stats),
             'progress' => $run->isActive()
                 ? ['done' => (int) ($state['done'] ?? 0), 'total' => isset($state['total']) ? (int) $state['total'] : null]
                 : null,
