@@ -20,7 +20,7 @@ declare(strict_types=1);
  *
  * Never in it: config/*.local.php (setup.php writes the server's own), the command-line scripts and the dev
  * router (there is no shell on the host), tests, logs, caches, node_modules. The upload map is in
- * DEVELOPING.md ("Deploying").
+ * DEV.md ("Deploying").
  *
  * Runs on the developer's machine, where a shell exists; nothing here runs on the host.
  */
@@ -38,7 +38,7 @@ if (PHP_VERSION_ID < MIN_PHP) {
     fail('PHP 8.4 or newer is needed (this is '.PHP_VERSION.').');
 }
 if (! is_file($backend.'/vendor/autoload.php')) {
-    fail('backend/vendor/ is missing: run `composer install` in backend/ first (DEVELOPING.md).');
+    fail('backend/vendor/ is missing: run `composer install` in backend/ first (DEV.md).');
 }
 require $backend.'/vendor/autoload.php';
 
@@ -160,7 +160,7 @@ echo "\nBuilt dist/ ({$files} files, ".round($bytes / 1048576, 1)." MB):\n\n"
     ."  dist/build-analyzer/*   upload into the site's web root (the folder its address serves).\n"
     ."  dist/setup.php          first install only: upload beside it, open https://<site>/setup.php.\n\n"
     ."Writable for the web server: config/ (setup.php writes its files there) and storage/.\n"
-    ."PHP 8.4+ with pdo_pgsql, curl, dom, mbstring and openssl. Details: DEVELOPING.md (\"Deploying\").\n";
+    ."PHP 8.4+ with pdo_pgsql, curl, dom, mbstring and openssl. Details: DEV.md (\"Deploying\").\n";
 
 // ──────────────────────────────────────────────────────────────────────────────────────────────
 

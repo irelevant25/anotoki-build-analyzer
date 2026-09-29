@@ -3,7 +3,7 @@
 /**
  * PHP's built-in server, made to behave like the Apache the app runs on:
  *
- *     php -S 127.0.0.1:8400 router.php
+ *     composer start          (php -S 127.0.0.1:8400 router.php)
  *
  *   /api/...     the API (api/index.php), whatever the path looks like: without this, `php -S` treats a
  *                path with a dot in its last segment as a static file and answers 404 itself

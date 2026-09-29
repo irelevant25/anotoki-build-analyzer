@@ -2,7 +2,7 @@
 
 Reference for anyone (human or AI) changing this project. Read the page that matches your task; they are
 written to be read on their own. Setting up, running, testing and deploying are in
-[DEVELOPING.md](../DEVELOPING.md).
+[DEV.md](../DEV.md).
 
 | Page | Read it when you… |
 | --- | --- |

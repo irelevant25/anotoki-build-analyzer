@@ -18,7 +18,7 @@ these steps (configuration keys, sign-in modes, syncs, troubleshooting) is [docs
 - **PostgreSQL** (14 or newer; developed on 18) and a user that may create databases - setup creates the app's
   database, and the tests create throwaway ones.
 - **Node.js 22.12+** with npm. (npm 10.9.2 crashes on this project; `npx -y npm@11 ci` works.)
-- To sign in: the **anotoki IAM** running locally (see its DEVELOPING.md; it registers this app at
+- To sign in: the **anotoki IAM** running locally (see its DEV.md; it registers this app at
   http://localhost:4600 by itself). Without it, set sign-in to "switched off" in setup - a copy of your own,
   where everything belongs to one owner.
 
@@ -36,7 +36,7 @@ these steps (configuration keys, sign-in modes, syncs, troubleshooting) is [docs
 2. Start the two servers, each in its own terminal:
 
    ```bash
-   cd backend && php -S 127.0.0.1:8400 router.php
+   cd backend && composer start           # php -S 127.0.0.1:8400 router.php
    cd frontend && npm start
    ```
 

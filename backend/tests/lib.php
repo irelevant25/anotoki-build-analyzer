@@ -66,7 +66,7 @@ function bootTests(): void
 {
     $local = __DIR__.'/../config/database.local.php';
     if (! is_file($local)) {
-        fwrite(STDERR, "The tests need the PostgreSQL server of config/database.local.php. Run setup.php first (see DEVELOPING.md).\n");
+        fwrite(STDERR, "The tests need the PostgreSQL server of config/database.local.php. Run setup.php first (see DEV.md).\n");
         exit(1);
     }
     $server = require $local;

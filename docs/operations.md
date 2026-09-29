@@ -1,6 +1,6 @@
 # Operations and environment
 
-First-time setup, day-to-day work and deploying are walked through in [DEVELOPING.md](../DEVELOPING.md); this
+First-time setup, day-to-day work and deploying are walked through in [DEV.md](../DEV.md); this
 page is the reference behind it.
 
 ## Running things
@@ -9,7 +9,7 @@ page is the reference behind it.
 | --- | --- | --- |
 | First setup | `.\dev.ps1 setup`, then `.\dev.ps1 start` and open http://localhost:4600 (it leads to `setup.php`) | `cd backend && composer install`; `cd frontend && npm ci`; start the two servers below; open http://localhost:4600/setup.php |
 | Everything for development | `.\dev.ps1 start` (API :8400 + Angular :4600; nothing else is needed) | the two below, in background shells |
-| API only | – | `cd backend && php -S 127.0.0.1:8400 router.php` |
+| API only | – | `cd backend && composer start` (`php -S 127.0.0.1:8400 router.php`) |
 | Angular dev server | – | `cd frontend && npx ng serve` (http://localhost:4600) |
 | Database migrations | `.\dev.ps1 migrate`, or the Sources page's "Apply" | `cd backend && php migration.php [--status \| --dry-run]` |
 | Sync builds | Sources page "Sync all" / "Sync now", or `.\dev.ps1 sync [-Force]` | `cd backend && php sync-builds.php [source] [--force] [--character=x] [--check-names]` |
@@ -113,7 +113,7 @@ Each source on the Sources page has **Export** and **Import** (admins; both wait
 
 **A source the host cannot reach.** Some sites turn away requests from hosting servers (bot protection against
 datacenter addresses) but answer a computer at home. Sync that source on your own computer (a copy with sign-in
-switched off will do, see [DEVELOPING.md](../DEVELOPING.md)), export it there and import the file on the site;
+switched off will do, see [DEV.md](../DEV.md)), export it there and import the file on the site;
 repeat when you want fresher builds. Leave the source switched on there - the analysis uses the builds of
 switched-on sources only. Once the import is older than `stale_hours`, "Sync all" on the site tries the source
 itself again; when the site still refuses, that run fails without touching the imported builds.
@@ -123,7 +123,7 @@ itself again; when the site still refuses, that run fails without touching the i
 The host: Apache with `.htaccess` support (`mod_rewrite`), **PHP 8.4** (the scrapers need PHP 8.4's
 `Dom\HTMLDocument`) with `pdo_pgsql`, `openssl`, `mbstring`, `curl` and `dom`, and a PostgreSQL database made in
 the hosting panel. No shell, cron, queue worker or long-running process is needed. The steps, with the upload
-map, are in [DEVELOPING.md](../DEVELOPING.md) ("Deploying"); in short:
+map, are in [DEV.md](../DEV.md) ("Deploying"); in short:
 
 1. `.\dev.ps1 dist` (or `php scripts/build-dist.php`) assembles `dist/build-analyzer/` - the whole web root:
    the Angular build, `api/`, `src/`, `config/app.php`, `migrations/`, `vendor/`, an empty `storage/` and the

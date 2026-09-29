@@ -411,7 +411,7 @@ final class Installer
     /**
      * Refuses to go on when the web server hands out files from outside the app's public files: config/
      * would be readable. A probe file in storage/ is asked for over HTTP; when the request itself fails the
-     * check cannot tell, and the install goes on (DEVELOPING.md says how to check by hand).
+     * check cannot tell, and the install goes on (DEV.md says how to check by hand).
      */
     public function checkExposure(string $siteUrl): void
     {

@@ -8,7 +8,7 @@ each person with their own accounts), or on your own computer without sign-in.
 - **Backend:** PHP 8.4+, Slim 4, PostgreSQL, in `backend/`
 - **Frontend:** Angular 21 + Angular Material, in `frontend/`
 
-Setting it up, running, testing, building and deploying: **[DEVELOPING.md](DEVELOPING.md)**.
+Setting it up, running, testing, building and deploying: **[DEV.md](DEV.md)**.
 
 ## Features
 
@@ -39,7 +39,7 @@ Requirements: PHP 8.4+ (`pdo_pgsql`, `openssl`, `mbstring`, `curl`, `dom`), Post
 The app then leads you to `setup.php`: the database, sign-in (the anotoki IAM, or switched off for a copy of
 your own) and the owner's user id. Then **Sources → Refresh catalog → Sync all**, and import an account.
 Other commands: `.\dev.ps1 test`, `.\dev.ps1 sync`, `.\dev.ps1 migrate`, `.\dev.ps1 build`, `.\dev.ps1 dist`
-(what to upload to a host). Other systems: the same steps by hand, in [DEVELOPING.md](DEVELOPING.md).
+(what to upload to a host). Other systems: the same steps by hand, in [DEV.md](DEV.md).
 
 ## Importing your data
 
@@ -113,7 +113,7 @@ the app then answers only its own pages on that computer. See [docs/operations.m
 The host needs only Apache, PHP 8.4 and PostgreSQL, with files uploaded by FTP: no shell, cron or worker.
 `.\dev.ps1 dist` assembles `dist/` (the whole web root, with `vendor/` and the built frontend, and no
 configuration or tests); `setup.php` writes the host's configuration and builds the database; later database
-updates are applied from the Sources page. The steps and the upload map: [DEVELOPING.md](DEVELOPING.md)
+updates are applied from the Sources page. The steps and the upload map: [DEV.md](DEV.md)
 ("Deploying").
 
 ## Project layout

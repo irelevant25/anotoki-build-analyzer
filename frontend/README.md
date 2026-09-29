@@ -1,6 +1,6 @@
 # Build analyzer: frontend
 
-Angular 21 + Angular Material. See [DEVELOPING.md](../DEVELOPING.md) for setting up, running, testing and
+Angular 21 + Angular Material. See [DEV.md](../DEV.md) for setting up, running, testing and
 deploying, and [docs/architecture.md](../docs/architecture.md) ("Frontend") for how it is organised.
 
 ```bash

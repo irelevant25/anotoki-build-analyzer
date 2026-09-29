@@ -27,7 +27,7 @@ this copy signs in through the IAM (`"mode":"iam"` in `/api/meta`), ask the user
 Use `run_in_background` for both, then wait until they answer:
 
 ```bash
-cd backend && php -S 127.0.0.1:8400 router.php
+cd backend && composer start                      # php -S 127.0.0.1:8400 router.php
 cd frontend && npx ng serve                       # http://localhost:4600, proxies /api and /setup.php to :8400
 ```
 

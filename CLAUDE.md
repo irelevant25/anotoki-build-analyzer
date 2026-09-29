@@ -13,7 +13,7 @@ Deployable on FTP-only shared hosting: no shell, cron, queue worker or long-runn
    architecture (incl. setup gate, sign-in, neutral names and syncs), data model and migrations, stats & slots,
    name matching, build sources, import formats, analysis, operations (configuration, commands, sign-in modes,
    deploying, machine quirks, troubleshooting), decisions. Setup, running, testing and deploying for people:
-   `DEVELOPING.md`.
+   `DEV.md`.
 2. **Use the project skills** for these tasks (invoke them with the Skill tool, or read `.claude/skills/*/SKILL.md`):
 
    | Task | Skill |
@@ -28,7 +28,7 @@ Deployable on FTP-only shared hosting: no shell, cron, queue worker or long-runn
    `build-source-researcher` (how a site stores its builds), `sync-doctor` (diagnose sync problems, proposes
    fixes), `analysis-auditor` (explain / audit scores, read-only), `build-analyzer-reviewer` (review a finished
    change).
-4. **Keep docs current**: when behavior described in `docs/`, `DEVELOPING.md` or the README changes, update it in
+4. **Keep docs current**: when behavior described in `docs/`, `DEV.md` or the README changes, update it in
    the same change; record notable choices in `docs/decisions.md`.
 
 ## Environment (Windows machine; details in docs/operations.md)
@@ -56,7 +56,7 @@ Deployable on FTP-only shared hosting: no shell, cron, queue worker or long-runn
 ```bash
 cd backend && php tests/run.php                      # backend tests (throwaway databases, ~140 tests)
 (cd frontend && npx ng build && npx ng test --watch=false)
-cd backend && php -S 127.0.0.1:8400 router.php       # API (+ setup.php, + the built app)
+cd backend && composer start                         # API: php -S 127.0.0.1:8400 router.php (+ setup.php, + the built app)
 cd frontend && npx ng serve                          # http://localhost:4600, proxies /api and /setup.php
 cd backend && php migration.php [--status|--dry-run] # apply pending migrations
 cd backend && php sync-builds.php [source] [--character=slug] [--force] [--check-names]   # stepped runs, like the Sources page

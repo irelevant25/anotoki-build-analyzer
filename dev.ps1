@@ -12,7 +12,7 @@
   sync          Read builds now (sources synced in the last 20 hours are skipped unless -Force).
   test          Run the backend and the frontend tests.
   build         Build the frontend, so that the API server alone serves everything on :8400.
-  dist          Assemble dist/, what to upload to the host (see DEVELOPING.md, "Deploying").
+  dist          Assemble dist/, what to upload to the host (see DEV.md, "Deploying").
 
   PHP 8.4+ is required. When "php" on PATH is older, set BUILD_ANALYZER_PHP to the php.exe to use, e.g. in
   dev.local.ps1 (not committed):  $env:BUILD_ANALYZER_PHP = 'C:\path\to\php.exe'

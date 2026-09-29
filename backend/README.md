@@ -1,12 +1,12 @@
 # Build analyzer: backend
 
 The API, the importers, the build scrapers and the analysis: PHP 8.4+, Slim 4, PostgreSQL. See
-[DEVELOPING.md](../DEVELOPING.md) for setting up, running, testing and deploying, and
+[DEV.md](../DEV.md) for setting up, running, testing and deploying, and
 [docs/architecture.md](../docs/architecture.md) for how it fits together.
 
 ```bash
 composer install                       # the packages (Slim, slim/psr7, composer/ca-bundle, voku/portable-ascii)
-php -S 127.0.0.1:8400 router.php       # the API at /api, setup.php, and the built frontend
+composer start                         # the API at /api, setup.php, and the built frontend (php -S 127.0.0.1:8400 router.php)
 php migration.php [--status|--dry-run] # apply the pending migrations
 php sync-builds.php --help             # read builds (the same stepped runs as the Sources page); --help lists the options
 php sync-catalog.php [genshin|hsr]     # refresh the game catalog

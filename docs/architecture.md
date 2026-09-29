@@ -45,7 +45,7 @@ other anotoki sites (the genshin site, the IAM).
 | Output | `src/Presenters/*` (accounts, builds, sync runs, icon addresses), `src/Support/Neutral.php` | what the API sends, in the shapes of `frontend/src/app/core/models.ts` |
 | Command line | `migration.php`, `sync-builds.php`, `sync-catalog.php`, `import-account.php` (→ `src/Commands/*`) | loop over the same steps as the Sources page; nothing is scheduled |
 | Setup | `setup.php` + `src/Setup/Installer.php` | writes `config/*.local.php`, builds the database; see [operations.md](operations.md) |
-| Deploy | `../scripts/build-dist.php` | `dist/`, the web root to upload; see DEVELOPING.md "Deploying" |
+| Deploy | `../scripts/build-dist.php` | `dist/`, the web root to upload; see DEV.md "Deploying" |
 
 ### Setup gate
 

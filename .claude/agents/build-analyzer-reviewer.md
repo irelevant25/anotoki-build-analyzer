@@ -67,7 +67,7 @@ Then quality:
   constructor injection through `App::get()` / `make()`, no framework helpers); Angular conventions (standalone
   components with three files `.ts` / `.html` / `.scss`, signals, `input()`, `inject()`, built-in control flow,
   CSS tokens from `styles.scss`, `min-width: 0` on grid children with one-line text).
-- Docs in `docs/`, `DEVELOPING.md` and the README updated when behavior they describe changed; a user-visible
+- Docs in `docs/`, `DEV.md` and the README updated when behavior they describe changed; a user-visible
   release has a `frontend/public/changelog.json` entry and the same version in `backend/src/Version.php`.
 - Nothing sensitive or machine-specific committed: `dev.local.ps1`, `backend/config/*.local.php`, credentials,
   cookies, absolute user paths outside `dev.local.ps1` / `.vscode`.

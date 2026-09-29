@@ -5,7 +5,7 @@
  * fetch.local.php, and builds the database. Needed once on every installation, a development copy included:
  * without those files the API answers 503 "not_set_up" and the app says so.
  *
- * ON THIS COMPUTER (a loopback client asking for localhost - `php -S 127.0.0.1:8400 router.php`, then
+ * ON THIS COMPUTER (a loopback client asking for localhost - `composer start` in backend/, then
  * http://127.0.0.1:8400/setup.php, or through the Angular dev server on http://localhost:4600/setup.php)
  * there is no token: a CSRF nonce (a cookie that other sites cannot send) protects the form. It can be run
  * again whenever something changes; it shows the saved values, never the saved password, and it stays.
