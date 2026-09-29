@@ -30,7 +30,7 @@ export class Changelog {
   private readonly dialog = inject(MatDialog);
 
   readonly entries = signal<ChangelogEntry[]>([]);
-  /** "1.0", or null until the changelog has loaded. */
+  /** "0.1", or null until the changelog has loaded. */
   readonly current = computed(() => this.entries()[0]?.version ?? null);
 
   async load(): Promise<void> {
