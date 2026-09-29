@@ -61,8 +61,8 @@ ask the IAM for `{issuer}/.well-known/openid-configuration` without saving anyth
 
 - The IAM in development runs at `http://localhost:4300` (its API on :8100); hosted it is
   `https://iam.anotoki.eu`. The frontend reads the issuer and client id from `/api/meta`.
-- Registered at the IAM (client `build-analyzer`, "Build Analyzer"): redirect `https://builds.anotoki.eu/auth/callback`,
-  post-logout `https://builds.anotoki.eu/`, web origin `https://builds.anotoki.eu`; for development the IAM
+- Registered at the IAM (client `build-analyzer`, "Build Analyzer"): redirect `https://builder.anotoki.eu/auth/callback`,
+  post-logout `https://builder.anotoki.eu/`, web origin `https://builder.anotoki.eu`; for development the IAM
   registers `http://localhost:4600` (`/auth/callback`, `/`, the origin) by itself.
 - Roles are granted in the IAM's admin console (the owner holds ADMIN). A removed role or a disabled account
   reaches this app within one access-token lifetime (10 minutes).
@@ -103,7 +103,7 @@ map, are in [DEVELOPING.md](../DEVELOPING.md) ("Deploying"); in short:
    or a frontend that names another site.
 2. Upload `dist/build-analyzer/*` into the site's web root (and, the first time, `dist/setup.php` beside it).
    `config/` and `storage/` must be writable for the web server.
-3. First install: open `https://builds.anotoki.eu/setup.php`, read the token from
+3. First install: open `https://builder.anotoki.eu/setup.php`, read the token from
    `config/setup-token.local.php` over FTP, fill in the database and the IAM, test both, press "Set up". It
    checks the requirements and that `storage/` is not served, builds the database, writes the three config files
    (owner-only where PHP runs as the FTP account), writes `storage/installed.lock` and deletes the token and
@@ -113,8 +113,8 @@ map, are in [DEVELOPING.md](../DEVELOPING.md) ("Deploying"); in short:
    harmless). New migrations show on the Sources page as waiting database updates; **Apply** runs them
    (`POST /api/admin/migrations/apply`, admins only). Back the database up first where the panel allows.
 
-Check after an install: `https://builds.anotoki.eu/config/database.local.php`, `/storage/logs/app.log` and
-`/src/Config.php` must not download (403); `https://builds.anotoki.eu/api/meta` answers JSON with
+Check after an install: `https://builder.anotoki.eu/config/database.local.php`, `/storage/logs/app.log` and
+`/src/Config.php` must not download (403); `https://builder.anotoki.eu/api/meta` answers JSON with
 `"mode":"iam"`; `/api/accounts` answers 401 without a token.
 
 ### A database made by the first (Laravel) version

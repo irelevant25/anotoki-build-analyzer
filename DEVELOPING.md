@@ -133,7 +133,7 @@ later changed from the Sources page.
 
    | Local | Upload to | |
    | --- | --- | --- |
-   | `dist/build-analyzer/*` (with its `.htaccess` files) | the site's web root, e.g. `~/builds.anotoki.eu/` | the app, `api/`, `src/`, `config/app.php`, `migrations/`, `vendor/`, an empty `storage/` |
+   | `dist/build-analyzer/*` (with its `.htaccess` files) | the site's web root, e.g. `~/builder.anotoki.eu/` | the app, `api/`, `src/`, `config/app.php`, `migrations/`, `vendor/`, an empty `storage/` |
    | `dist/setup.php` | the same web root | the first install only; it deletes itself |
 
    The `.htaccess` files send `/api` to `api/index.php`, every other path that is not a file to the app (a
@@ -144,17 +144,17 @@ later changed from the Sources page.
    or 775).
 
 3. **Register the site at the IAM** (its admin console, client `build-analyzer`): redirect URI
-   `https://builds.anotoki.eu/auth/callback`, post-logout URI `https://builds.anotoki.eu/`, web origin
-   `https://builds.anotoki.eu`. Give your account the `ADMIN` role there.
+   `https://builder.anotoki.eu/auth/callback`, post-logout URI `https://builder.anotoki.eu/`, web origin
+   `https://builder.anotoki.eu`. Give your account the `ADMIN` role there.
 
-4. **First install**: open `https://builds.anotoki.eu/setup.php`. It writes a token into
+4. **First install**: open `https://builder.anotoki.eu/setup.php`. It writes a token into
    `config/setup-token.local.php`; download that file by FTP and paste the token into the form, with the
    PostgreSQL connection and the IAM (`https://iam.anotoki.eu`, client id `build-analyzer`), and test both. "Set
    up" checks the requirements and that `storage/` is not served, builds the database, writes the three config
    files, writes `storage/installed.lock` and deletes the token and `setup.php` itself (delete them by FTP if it
    says it could not).
 
-5. **Check**: `https://builds.anotoki.eu/api/meta` answers JSON with `"mode":"iam"`; `/api/accounts` answers
+5. **Check**: `https://builder.anotoki.eu/api/meta` answers JSON with `"mode":"iam"`; `/api/accounts` answers
    401; `/config/database.local.php` and `/storage/logs/app.log` do not download (403).
 
 6. **First data**: sign in with the ADMIN account, open Sources, press **Refresh catalog**, then **Sync all**,

@@ -2,7 +2,7 @@
 
 Import your **Genshin Impact** and **Honkai: Star Rail** accounts, collect recommended builds from community
 build sites, and see per character what to change: set bonuses, main stats, substats, weapon / light cone,
-stat targets and better pieces you already own. Hosted at builds.anotoki.eu (sign-in through the anotoki IAM,
+stat targets and better pieces you already own. Hosted at builder.anotoki.eu (sign-in through the anotoki IAM,
 each person with their own accounts), or on your own computer without sign-in.
 
 - **Backend:** PHP 8.4+, Slim 4, PostgreSQL, in `backend/`

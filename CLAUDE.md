@@ -3,7 +3,7 @@
 Imports Genshin Impact / Honkai: Star Rail accounts (the Character Showcase by UID; GOOD files and HSR scanner
 exports), reads recommended builds from community build sites when an admin syncs them, and shows per
 character what to improve. Backend: PHP 8.4+ / Slim 4 / PostgreSQL in `backend/` (no Laravel, no Illuminate
-components). Frontend: Angular 21 + Angular Material in `frontend/`. Hosted at builds.anotoki.eu with sign-in
+components). Frontend: Angular 21 + Angular Material in `frontend/`. Hosted at builder.anotoki.eu with sign-in
 through the anotoki IAM (each person has their own accounts), or run on the owner's computer without sign-in.
 Deployable on FTP-only shared hosting: no shell, cron, queue worker or long-running process.
 
