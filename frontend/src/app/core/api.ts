@@ -1,10 +1,11 @@
-import { HttpClient, HttpErrorResponse, HttpParams } from '@angular/common/http';
+import { HttpClient, HttpErrorResponse, HttpParams, HttpResponse } from '@angular/common/http';
 import { Injectable, inject } from '@angular/core';
 import { Observable } from 'rxjs';
 import {
   AccountDetail,
   AccountSummary,
   BuildCharacter,
+  BuildImportResult,
   CharacterAnalysis,
   CharacterBuilds,
   GameKey,
@@ -94,6 +95,21 @@ export class Api {
     return this.http.post<SyncStartResult>(`${this.base}/sources/${key}/sync`, {});
   }
 
+  /**
+   * A source's builds as a file to save, its name in Content-Disposition. Fetched here rather than opened
+   * as a link, because the API wants the bearer token.
+   */
+  exportSourceBuilds(key: string): Observable<HttpResponse<Blob>> {
+    return this.http.get(`${this.base}/sources/${key}/export`, { observe: 'response', responseType: 'blob' });
+  }
+
+  /** Makes a source's builds exactly those of a builds file, whose text is sent as it is. */
+  importSourceBuilds(key: string, file: string): Observable<BuildImportResult> {
+    return this.http.post<BuildImportResult>(`${this.base}/sources/${key}/import`, file, {
+      headers: { 'Content-Type': 'application/json' },
+    });
+  }
+
   /** Every enabled source; without force, sources synced within the last 20 hours are skipped. */
   syncAllSources(force = false): Observable<SyncStartResult> {
     return this.http.post<SyncStartResult>(`${this.base}/sync/builds`, { force });
@@ -153,4 +169,20 @@ export function errorMessage(error: unknown): string {
     return firstValidation ?? body?.message ?? `Request failed (HTTP ${error.status}).`;
   }
   return error instanceof Error ? error.message : 'Something went wrong.';
+}
+
+/**
+ * errorMessage() for a request whose answer is a file (a Blob): the API's {message} then arrives as a Blob
+ * too, and has to be read first.
+ */
+export async function fileErrorMessage(error: unknown): Promise<string> {
+  if (error instanceof HttpErrorResponse && error.error instanceof Blob) {
+    try {
+      const body: unknown = JSON.parse(await error.error.text());
+      return errorMessage(new HttpErrorResponse({ error: body, status: error.status, statusText: error.statusText }));
+    } catch {
+      // Not JSON: the message for the status alone.
+    }
+  }
+  return errorMessage(error);
 }

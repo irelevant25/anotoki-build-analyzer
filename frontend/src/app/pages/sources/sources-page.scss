@@ -93,6 +93,11 @@
   font: var(--mat-sys-title-medium);
 }
 
+// Sync now keeps to the right, on a line of its own too when a narrow card wraps the actions.
+.source-actions .sync-now {
+  margin-left: auto;
+}
+
 .facts {
   display: grid;
   grid-template-columns: 1fr 1fr 1.4fr;

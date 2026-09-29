@@ -76,6 +76,9 @@ described in [docs/import-formats.md](docs/import-formats.md).
   (repeatable), `--limit=5`, `--game=hsr`, `--check-names` (lists each site's characters and reports names that
   do not match the game catalog), and `--dry-run` (parses and compares with the stored builds without writing;
   add `--cache-hours=96` to replay pages fetched in the last days).
+- **Export** and **Import** on each source carry its builds to another installation as a file (or keep them as a
+  backup): sync a source on a computer its site answers, export it, and import it on a server the site refuses.
+  An import replaces the source's builds with the file's and counts as a sync of that source.
 - Requests identify themselves, wait between requests to the same site, retry 429/5xx responses and cache pages
   for 12 hours. The sites and how each is read: [docs/build-sources.md](docs/build-sources.md).
 

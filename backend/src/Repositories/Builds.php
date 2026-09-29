@@ -66,6 +66,16 @@ final class Builds
     }
 
     /**
+     * Every build of one source, with its character: what an export of the source holds.
+     *
+     * @return list<Build>
+     */
+    public function ofSource(int $sourceId): array
+    {
+        return array_map(fn (array $row) => Build::fromRow($row), $this->db->all(self::SELECT.' WHERE b.build_source_id = ?', [$sourceId]));
+    }
+
+    /**
      * Characters of a game that have builds, with a line per build (source and times): the builds browser.
      *
      * @return list<array<string, mixed>>

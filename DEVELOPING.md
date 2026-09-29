@@ -82,6 +82,7 @@ longer read and can be deleted.
 | Apply new migrations | `backend: php migration.php` (`--status`, `--dry-run`); or "Apply" on the Sources page |
 | Sync builds | Sources page, or `backend: php sync-builds.php [source] [--force] [--character=hu_tao] [--dry-run]` |
 | Refresh the catalog | Sources page, or `backend: php sync-catalog.php [genshin\|hsr] [--force]` |
+| Move a source's builds to another installation | Sources page: **Export** on one, **Import** on the other ([docs/operations.md](docs/operations.md)) |
 | Import from the command line | `backend: php import-account.php genshin 700123456` or `… hsr path/to/export.json --account=3` |
 | Change the configuration | run `setup.php` again (the password field left empty keeps the saved one) |
 
@@ -158,7 +159,9 @@ later changed from the Sources page.
    401; `/config/database.local.php` and `/storage/logs/app.log` do not download (403).
 
 6. **First data**: sign in with the ADMIN account, open Sources, press **Refresh catalog**, then **Sync all**,
-   and keep the tab open until it is done.
+   and keep the tab open until it is done. A source whose site refuses the host (its syncs fail with HTTP 403):
+   sync it on your own computer, **Export** it there and **Import** the file on the site's Sources page
+   ([docs/operations.md](docs/operations.md), "Moving builds between installations").
 
 **A new version**: build again and upload `dist/build-analyzer/*` over the old files (FTP never deletes remote
 files; old hashed `*.js` do no harm). When it brings new migrations, the Sources page shows the waiting

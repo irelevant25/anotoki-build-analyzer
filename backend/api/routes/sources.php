@@ -2,11 +2,16 @@
 
 use App\App;
 use App\Auth\Role;
+use App\Cache\LockTimeout;
 use App\Presenters\SyncRunPresenter;
 use App\Repositories\BuildSources;
 use App\Repositories\SyncRuns;
+use App\Services\Builds\BuildFile;
+use App\Services\Builds\BuildFileException;
 use App\Services\Builds\BuildSource;
 use App\Services\Builds\BuildSourceRegistry;
+use App\Services\Builds\BuildTransfer;
+use App\Services\Builds\SourceSyncing;
 use App\Web\HttpError;
 use App\Web\Input;
 use App\Web\Json;
@@ -16,43 +21,54 @@ use Slim\Routing\RouteCollectorProxy;
 
 /**
  * The build sources and their sync history. Listing is for every member (the dashboard shows how fresh the
- * builds are); switching sources and the history are for admins. A source is "Source N" with a key like
- * "genshin-2" - the API never names the site.
+ * builds are); switching sources, the history and moving a source's builds through a file are for admins.
+ * A source is "Source N" with a key like "genshin-2" - the API never names the site.
  *
  *   GET   /api/sources                          members
  *   PATCH /api/sources/{key}  {enabled}         admins
+ *   GET   /api/sources/{key}/export             admins: the source's builds as a file to save,
+ *                                               "builds-genshin-2-2026-09-29.json" (format: BuildFile)
+ *   POST  /api/sources/{key}/import  <file>     admins: the file's JSON as the body; the source's builds
+ *                                               become the file's. Answers the counts, the characters the
+ *                                               catalog lacks and the source as GET /api/sources lists it;
+ *                                               422 when the file does not fit this source (nothing is
+ *                                               written), 409 while the source syncs or a step runs
  *   GET   /api/sync-runs?source=&kind=&limit=   admins: history, newest first
  *   GET   /api/sync-runs/{id}                   admins: one run with its log
  */
 return function (Slim\App $slim, App $app): void {
-    $slim->get('/api/sources', function (Request $request, Response $response) use ($app): Response {
+    /**
+     * A source as the Sources page lists it: its state, its counts ($counts from BuildSources::counts()),
+     * whether a sync of it is going, and its latest run - with who started it when $admin.
+     */
+    $summary = function (BuildSource $source, array $counts, bool $admin) use ($app): array {
+        $model = $app->get(BuildSourceRegistry::class)->model($source);
+        $latest = $app->get(SyncRuns::class)->latestFor($model->id);
+        $presenter = $app->get(SyncRunPresenter::class);
+
+        return $presenter->source($model) + [
+            'builds' => $counts[$model->id]['builds'] ?? 0,
+            'characters' => $counts[$model->id]['characters'] ?? 0,
+            'running' => (bool) $latest?->isActive(),
+            'latest_run' => $latest ? $presenter->summary($latest, withStarter: $admin) : null,
+        ];
+    };
+
+    $slim->get('/api/sources', function (Request $request, Response $response) use ($app, $summary): Response {
         $registry = $app->get(BuildSourceRegistry::class);
         $registry->ensureModels();
-        $presenter = $app->get(SyncRunPresenter::class);
         $counts = $app->get(BuildSources::class)->counts();
         // Who started a run (an admin's IAM id and name) is for admins only.
         $admin = currentUser($request)->isAdmin();
 
-        $sources = [];
-        foreach ($registry->all() as $source) {
-            /** @var BuildSource $source */
-            $model = $registry->model($source);
-            $latest = $app->get(SyncRuns::class)->latestFor($model->id);
-
-            $sources[] = $presenter->source($model) + [
-                'builds' => $counts[$model->id]['builds'] ?? 0,
-                'characters' => $counts[$model->id]['characters'] ?? 0,
-                'running' => (bool) $latest?->isActive(),
-                'latest_run' => $latest ? $presenter->summary($latest, withStarter: $admin) : null,
-            ];
-        }
+        $sources = array_map(fn (BuildSource $source) => $summary($source, $counts, $admin), array_values($registry->all()));
         // By game, then in the order of their numbers.
         usort($sources, fn ($a, $b) => [$a['game'], $a['key']] <=> [$b['game'], $b['key']]);
 
         return Json::send($response, $sources);
     })->add(requireRole($app, Role::MEMBER));
 
-    $slim->group('', function (RouteCollectorProxy $group) use ($app) {
+    $slim->group('', function (RouteCollectorProxy $group) use ($app, $summary) {
         $group->patch('/api/sources/{key}', function (Request $request, Response $response, array $args) use ($app): Response {
             $registry = $app->get(BuildSourceRegistry::class);
             $source = $registry->find((string) $args['key']) ?? throw HttpError::notFound();
@@ -64,6 +80,41 @@ return function (Slim\App $slim, App $app): void {
             $app->get(BuildSources::class)->update($model, ['enabled' => $enabled]);
 
             return Json::send($response, $app->get(SyncRunPresenter::class)->source($model));
+        });
+
+        $group->get('/api/sources/{key}/export', function (Request $request, Response $response, array $args) use ($app): Response {
+            $source = $app->get(BuildSourceRegistry::class)->find((string) $args['key']) ?? throw HttpError::notFound();
+            $file = $app->get(BuildTransfer::class)->export($source);
+
+            return Json::download($response, $file, "builds-{$file['source']}-".substr((string) $file['exported_at'], 0, 10).'.json');
+        });
+
+        $group->post('/api/sources/{key}/import', function (Request $request, Response $response, array $args) use ($app, $summary): Response {
+            // An import that has started finishes, even when the tab is closed while it runs.
+            ignore_user_abort(true);
+            @set_time_limit(BuildTransfer::MAX_SECONDS);
+
+            $source = $app->get(BuildSourceRegistry::class)->find((string) $args['key']) ?? throw HttpError::notFound();
+            $bytes = strlen((string) $request->getBody());
+            if ($bytes === 0) {
+                // What PHP makes of a body larger than its post_max_size: the file arrives as nothing.
+                throw new HttpError(422, 'No file arrived. A file larger than this server accepts (PHP\'s post_max_size) arrives empty.');
+            }
+            if ($bytes > BuildFile::MAX_BYTES) {
+                throw new HttpError(422, sprintf('The file is larger than %d MB, far more than the builds of a source take.', BuildFile::MAX_BYTES / 1048576));
+            }
+
+            try {
+                $result = $app->get(BuildTransfer::class)->import($source, $request->getParsedBody(), currentUser($request));
+            } catch (BuildFileException $e) {
+                throw new HttpError(422, $e->getMessage());
+            } catch (SourceSyncing $e) {
+                throw new HttpError(409, $e->getMessage());
+            } catch (LockTimeout) {
+                throw new HttpError(409, 'A sync step is still running. Try again in a moment.');
+            }
+
+            return Json::send($response, $result + ['source' => $summary($source, $app->get(BuildSources::class)->counts(), true)]);
         });
 
         $group->get('/api/sync-runs', function (Request $request, Response $response) use ($app): Response {

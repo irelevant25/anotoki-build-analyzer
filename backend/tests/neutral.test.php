@@ -107,6 +107,9 @@ test('what the Sources, build and account pages get names no other site', functi
     $builds = $admin->get('/api/builds/genshin/hutao');
     assertNeutral($builds, 'a character\'s builds');
     same(null, $builds->json('builds.0.source_url'), 'the page a build came from is not sent');
+    $file = $admin->get('/api/sources/genshin-2/export');
+    assertNeutral($file, 'a builds file');
+    same(1, count($file->json('builds')), 'the file holds the build');
     assertNeutral($admin->get("/api/accounts/{$account}/imports"), 'the imports of an account');
     assertNeutral($admin->get('/api/meta'), 'meta');
 });

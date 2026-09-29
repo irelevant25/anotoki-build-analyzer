@@ -9,6 +9,19 @@ use App\Enums\Game;
  */
 final class Talents
 {
+    /**
+     * Every key parse() can give (an imported builds file may name no other).
+     *
+     * @return list<string>
+     */
+    public static function keys(Game $game): array
+    {
+        return match ($game) {
+            Game::Genshin => ['normal', 'skill', 'burst'],
+            Game::Hsr => ['basic', 'skill', 'ultimate', 'talent', 'memo_skill', 'memo_talent'],
+        };
+    }
+
     public static function parse(Game $game, string $label): ?string
     {
         $key = Key::from($label);

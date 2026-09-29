@@ -82,6 +82,8 @@ test('syncs, sources and migrations are for admins only', function () {
     $adminOnly = [
         ['PATCH', '/api/sources/genshin-1', ['enabled' => false]],
         ['POST', '/api/sources/genshin-1/sync', []],
+        ['GET', '/api/sources/genshin-1/export', null],
+        ['POST', '/api/sources/genshin-1/import', []],
         ['GET', '/api/sync', null],
         ['POST', '/api/sync/builds', []],
         ['POST', '/api/sync/catalog', []],

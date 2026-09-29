@@ -3,6 +3,24 @@
 Short records of choices that shape the code. Add a new entry (newest first) when you make a similar call.
 Older entries describe the Laravel version as it was; where a setting has since moved, the entry says so.
 
+**2026-09-29 — A source's builds move between installations as a file (owner's request: "every source should
+have buttons for import and export").** The live site could not sync two of its sources: the site behind them
+answers the hosting server 403 (bot protection that refuses datacenter addresses), while the owner's computer
+syncs them fine. So every source can be exported to a file and imported from one - synced where its site
+answers, imported where it does not - and for any source the file is also a backup. The file names no site
+(the source is its key, page addresses stay behind, copied text goes through `Neutral`). An import makes the
+source's builds exactly the file's instead of merging, so a file always means one state and removed builds do
+not linger; it writes through `BuildSync`'s own `write()` and `finish()` (the same content hash, created /
+updated / unchanged, `changed_at`, a builds run of the source), so imported builds behave like synced ones, and
+the source counts as synced when the file's builds were, which keeps "Sync all" away from it for
+`stale_hours`. An imported build hashes without a page address, since the file carries none. The file is read
+strictly - exactly the fields and shapes a sync stores, whole numbers where the app counts, the game's set
+kinds, slots and talents, caps on sizes - because the analysis reads every build for every user; one problem
+refuses the whole file. Characters the catalog lacks are skipped, as in account imports (an uploaded file never
+adds to the shared catalog), and a file of nothing but such characters is refused rather than emptying the
+source. The import runs under the sync step lock and waits for a sync of its source to end, so no step writes
+over it halfway.
+
 **2026-09-29 — The backend without Laravel; the app named "build analyzer" (owner's decision).** The backend
 is rewritten in the shape of the other anotoki sites (the genshin site, the IAM): Slim 4 for routing and PSR-7
 messages and nothing else from a framework, a front controller (`api/index.php`) with route files and

@@ -150,7 +150,7 @@ class SyncRunner
      */
     public function cancel(SyncRun $run, ?User $by = null): SyncRun
     {
-        return $this->locks->lock(self::STEP_LOCK, $this->budget() + 60)->block(5, function () use ($run, $by) {
+        return $this->exclusively(function () use ($run, $by) {
             $run = $this->runs->find((int) $run->id) ?? $run;
             if ($run->isActive()) {
                 $done = $run->state['done'] ?? 0;
@@ -165,6 +165,24 @@ class SyncRunner
 
             return $run;
         });
+    }
+
+    /**
+     * Runs $work holding the step lock, so no step works on any run meanwhile: a cancel, or builds imported
+     * from a file, which write what a step of that source would. Waits a few seconds for a step that is
+     * going, then gives up (LockTimeout) rather than hold the request.
+     *
+     * @template T
+     *
+     * @param  callable(): T  $work
+     * @param  int|null  $seconds  how long the lock holds if the request dies with it; longer than $work can take
+     * @return T
+     *
+     * @throws LockTimeout
+     */
+    public function exclusively(callable $work, ?int $seconds = null): mixed
+    {
+        return $this->locks->lock(self::STEP_LOCK, $seconds ?? $this->budget() + 60)->block(5, $work);
     }
 
     // ── driving ───────────────────────────────────────────────────────────────────────────────────

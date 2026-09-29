@@ -54,7 +54,7 @@ Deployable on FTP-only shared hosting: no shell, cron, queue worker or long-runn
 ## Commands
 
 ```bash
-cd backend && php tests/run.php                      # backend tests (throwaway databases, ~130 tests)
+cd backend && php tests/run.php                      # backend tests (throwaway databases, ~140 tests)
 (cd frontend && npx ng build && npx ng test --watch=false)
 cd backend && php -S 127.0.0.1:8400 router.php       # API (+ setup.php, + the built app)
 cd frontend && npx ng serve                          # http://localhost:4600, proxies /api and /setup.php
@@ -76,6 +76,7 @@ php scripts/build-dist.php                           # dist/: what to upload to 
 - Catalog / names: `src/Services/Catalog/Catalog.php` (+ aliases in `config/app.php`), `CatalogSync.php`
 - Imports: `src/Services/Import/ImportService.php` → parsers → `ParsedAccount` → `AccountImporter.php` (always for one user)
 - Scrapers: `src/Services/Builds/Sources/*` (+ `Parsing/AstroIslands`, `NextFlight`, `StatTargets`), `BuildSync.php`, `BuildSourceRegistry.php` ("Source N" labels)
+- Builds files (a source's builds exported / imported between installations): `src/Services/Builds/BuildFile.php` (format, strict reading), `BuildTransfer.php`; frontend `pages/sources/build-file.ts`
 - Syncs: `src/Services/Sync/SyncRunner.php` (steps, lock, due runs), `src/Http/Fetcher.php` (per-host delay in the cache, `FetchDeferred`); frontend `core/sync-driver.ts`
 - Analysis: `src/Services/Analysis/BuildEvaluator.php`, `ItemScorer.php`, `SetMatcher.php`, `CharacterAnalyzer.php`
 - Output: `src/Presenters/*` (mirrored in `frontend/src/app/core/models.ts`), `src/Support/Neutral.php`

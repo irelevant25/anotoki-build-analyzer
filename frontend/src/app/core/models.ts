@@ -443,3 +443,17 @@ export interface SourceStatus {
   running: boolean;
   latest_run: SyncRunSummary | null;
 }
+
+/** What importing a builds file into a source did (POST /api/sources/{key}/import, ADMIN). */
+export interface BuildImportResult {
+  created: number;
+  updated: number;
+  unchanged: number;
+  removed: number;
+  /** Characters whose builds were written. */
+  characters: number;
+  /** Characters of the file this installation's catalog lacks: skipped until the catalog is refreshed. */
+  skipped: { key: string; name: string }[];
+  /** The source afterwards, as GET /api/sources lists it. */
+  source: SourceStatus;
+}

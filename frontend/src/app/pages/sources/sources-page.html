@@ -5,7 +5,8 @@
       <p class="subtitle">
         Builds come from these sources when you sync them here. A sync runs in short steps while this page is open;
         closing it pauses the sync, and Resume continues where it stopped. Each source is read politely (some ask for
-        10 seconds between pages), so a full sync takes a while.
+        10 seconds between pages), so a full sync takes a while. Export and Import carry a source's builds to another
+        installation as a file: sync a source this server cannot reach on a computer that can, then import it here.
       </p>
     </div>
     <div class="row wrap actions">
@@ -114,9 +115,18 @@
             <pre class="error-text">{{ source.last_error }}</pre>
           }
 
-          <div class="row">
-            <span class="spacer"></span>
-            <button mat-flat-button (click)="syncOne(source)" [disabled]="starting() || syncingKeys().has(source.key) || !source.enabled">
+          <div class="row wrap source-actions">
+            @let moving = transfer()?.key === source.key ? transfer()?.action : null;
+            <button mat-stroked-button (click)="exportBuilds(source)" [disabled]="transferBlocked(source)"
+              matTooltip="Save this source's builds as a file: a backup, or to import them on another installation">
+              <mat-icon>download</mat-icon>{{ moving === 'export' ? 'Exporting…' : 'Export' }}
+            </button>
+            <button mat-stroked-button (click)="importFile.click()" [disabled]="transferBlocked(source)"
+              matTooltip="Replace this source's builds with those of an exported file">
+              <mat-icon>upload</mat-icon>{{ moving === 'import' ? 'Importing…' : 'Import' }}
+            </button>
+            <input #importFile type="file" accept=".json,application/json" hidden (change)="importBuilds(source, importFile)" />
+            <button mat-flat-button class="sync-now" (click)="syncOne(source)" [disabled]="starting() || syncingKeys().has(source.key) || !source.enabled">
               <mat-icon>sync</mat-icon>{{ syncingKeys().has(source.key) ? 'Syncing' : 'Sync now' }}
             </button>
           </div>

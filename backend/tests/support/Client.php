@@ -61,7 +61,8 @@ final class Client
 
     /**
      * @param  array<string, mixed>|null  $json
-     * @param  array<string, mixed>  $options  files: [name => [path, filename]], form: array
+     * @param  array<string, mixed>  $options  files: [name => [path, filename]], form: array, body: a raw body
+     *                                          (sent as application/json, or as type)
      */
     public function request(string $method, string $url, ?array $json = null, array $options = []): Answer
     {
@@ -73,6 +74,9 @@ final class Client
 
         if ($json !== null) {
             $request = $request->withHeader('Content-Type', 'application/json')->withBody($streams->createStream((string) json_encode($json)));
+        }
+        if (isset($options['body'])) {
+            $request = $request->withHeader('Content-Type', $options['type'] ?? 'application/json')->withBody($streams->createStream($options['body']));
         }
         if (isset($options['files'])) {
             $files = [];

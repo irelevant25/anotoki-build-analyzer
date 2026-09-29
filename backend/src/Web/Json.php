@@ -21,4 +21,17 @@ final class Json
     {
         return self::send($response, ['message' => $message] + $extra, $status);
     }
+
+    /**
+     * A JSON file for the browser to save under $filename. Pretty-printed: people open such files, and two of
+     * them are compared line by line.
+     */
+    public static function download(ResponseInterface $response, mixed $data, string $filename): ResponseInterface
+    {
+        $response->getBody()->write(json_encode($data, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR)."\n");
+        $filename = preg_replace('/[^A-Za-z0-9._-]/', '', $filename) ?: 'download.json';
+
+        return $response->withHeader('Content-Type', 'application/json; charset=utf-8')
+            ->withHeader('Content-Disposition', 'attachment; filename="'.$filename.'"');
+    }
 }

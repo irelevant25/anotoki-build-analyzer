@@ -90,6 +90,32 @@ open; in a background tab the browser may slow the loop down.
 waits; they join a run the browser already started. Only one step runs at a time (tabs and the command line
 take turns), and each site's delay between requests holds across all of them.
 
+## Moving builds between installations
+
+Each source on the Sources page has **Export** and **Import** (admins; both wait while that source syncs).
+
+- **Export** saves the source's builds as a file, `builds-genshin-2-2026-09-29.json` (the format:
+  [data-model.md](data-model.md), "Builds files"). It holds every build of the source but not the addresses of
+  the pages they were read from. Keep it as a backup, or take it to another installation.
+- **Import** takes such a file of the same source (same key, same game) and makes the source's builds exactly
+  the file's, after the page has asked: builds are created, updated or kept as a sync would, and builds the
+  file does not have are removed. It is recorded as a run of the source ("imported from a file exported …"),
+  and the source counts as synced when the file's builds were, so "Sync all" leaves it alone for
+  `stale_hours` like any source synced then.
+- A character this installation's catalog lacks is skipped and named (in the answer and the run's log):
+  **Refresh catalog**, then import the same file again. A file none of whose characters the catalog knows is
+  refused.
+- A file of another source or game, a file that is not a builds file and a file with any malformed build are
+  refused whole (422, naming the first problem), and nothing is written. While a sync of the source is going
+  the import is refused too (409): let the sync finish, or cancel it.
+
+**A source the host cannot reach.** Some sites turn away requests from hosting servers (bot protection against
+datacenter addresses) but answer a computer at home. Sync that source on your own computer (a copy with sign-in
+switched off will do, see [DEVELOPING.md](../DEVELOPING.md)), export it there and import the file on the site;
+repeat when you want fresher builds. Leave the source switched on there - the analysis uses the builds of
+switched-on sources only. Once the import is older than `stale_hours`, "Sync all" on the site tries the source
+itself again; when the site still refuses, that run fails without touching the imported builds.
+
 ## Deploying (FTP-only shared hosting)
 
 The host: Apache with `.htaccess` support (`mod_rewrite`), **PHP 8.4** (the scrapers need PHP 8.4's
@@ -163,6 +189,9 @@ accounts again and sync (cached pages make it quick).
 | `! unknown weapon/set` lines, "unmatched" in import summaries | [name-matching.md](name-matching.md) → add an alias, or refresh the catalog |
 | An import skipped a new character / set | the catalog lacks it: Refresh catalog (Sources page), then import again |
 | New character missing builds | released? `php sync-builds.php --check-names`; the site may not have it yet |
+| A source always fails on the host (HTTP 403) but syncs at home | its site refuses the host: sync it at home, Export, and Import on the site ("Moving builds between installations") |
+| A builds file's import skipped characters ("not in the catalog") | this catalog is older than the file: Refresh catalog on the Sources page, then import the same file again |
+| A builds file's import answers "No file arrived" | the file is larger than the host's PHP `post_max_size`; a whole source is a few MB, so check the hosting panel's PHP settings |
 | Showcase import errors | the message comes from `EnkaClient` (UID, maintenance, 429); details hidden → the wizard's steps |
 | "Sign in to continue." / 401 everywhere | token missing or refused: `storage/logs/app.log` has "IAM access token refused: <reason>" (issuer, audience, expiry, keys) |
 | 403 "Sign-in is switched off … (auth mode none)" | a "none" copy asked from another computer or site: use http://localhost:4600, or switch sign-in on with `setup.php` |

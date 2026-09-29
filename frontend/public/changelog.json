@@ -1,5 +1,15 @@
 [
   {
+    "version": "0.2",
+    "date": "2026-09-29",
+    "changes": {
+      "added": [
+        "Export and Import on every source of the Sources page: a source's builds as a file, to keep as a backup or to take to another copy of the app",
+        "A source this server cannot reach can be synced on your own computer, exported there and imported here"
+      ]
+    }
+  },
+  {
     "version": "0.1",
     "date": "2026-09-29",
     "changes": {

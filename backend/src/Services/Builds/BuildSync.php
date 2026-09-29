@@ -19,6 +19,7 @@ use App\Support\Json;
 use App\Support\Key;
 use App\Support\Log;
 use App\Support\Text;
+use DateTimeImmutable;
 use DateTimeInterface;
 use Throwable;
 
@@ -30,6 +31,9 @@ use Throwable;
  * A build is identified by (source, character, variant). Unchanged builds only get fetched_at bumped;
  * changed ones also get changed_at, so the UI can show "updated recently". Variants that disappear
  * from the site are deleted.
+ *
+ * Builds imported from a file (BuildTransfer) are stored by the same content(), write() and finish(), so
+ * an import creates, updates and hashes builds exactly as a sync does and ends its run the same way.
  */
 class BuildSync implements RunHandler
 {
@@ -182,9 +186,11 @@ class BuildSync implements RunHandler
     }
 
     /**
-     * Close the run and, for a full run, record the outcome on the source.
+     * Close the run and, for a full run, record the outcome on the source: synced now - or, for builds
+     * imported from a file, when the file's builds were synced, so "Sync all" judges their age and not the
+     * import's.
      */
-    private function finish(SyncRun $run, BuildSourceModel $model, RunLog $log, ?string $status = null): void
+    public function finish(SyncRun $run, BuildSourceModel $model, RunLog $log, ?string $status = null, ?DateTimeImmutable $syncedAt = null): void
     {
         $stats = $run->stats;
         $status ??= match (true) {
@@ -213,7 +219,7 @@ class BuildSync implements RunHandler
 
         $errors = array_filter(explode("\n", (string) $run->log), fn ($line) => str_contains($line, 'ERROR') || str_contains($line, 'failed'));
         $this->sources->update($model, [
-            'last_synced_at' => Clock::now(),
+            'last_synced_at' => $syncedAt ?? Clock::now(),
             'last_status' => $status,
             'last_error' => $status === 'success' ? null : Text::limit(implode("\n", $errors), 2000),
         ]);
@@ -247,30 +253,48 @@ class BuildSync implements RunHandler
             throw new \RuntimeException("Could not resolve character {$ref->name}");
         }
 
+        $rows = [];
+        foreach ($builds as $position => $scraped) {
+            $rows[] = ['variant' => $scraped->variant, 'data' => $this->buildData($game, $scraped, $position)];
+        }
+
+        return $this->write($model, $character->id, $rows);
+    }
+
+    /**
+     * Stores the builds of one character of a source, in place of what the source had for that character: a
+     * new variant is created, a stored one is updated when its content hash differs (changed_at moves) or
+     * kept (only fetched_at moves), and a variant missing from $builds is deleted. A sync passes what it
+     * read just now; an import passes each build with the times its file gives.
+     *
+     * @param  list<array{variant: string, data: array<string, mixed>, fetched_at?: DateTimeImmutable, changed_at?: DateTimeImmutable}>  $builds  data as content() makes it
+     * @return array{builds_created: int, builds_updated: int, builds_unchanged: int, builds_removed: int}
+     */
+    public function write(BuildSourceModel $model, int $characterId, array $builds): array
+    {
         $result = ['builds_created' => 0, 'builds_updated' => 0, 'builds_unchanged' => 0, 'builds_removed' => 0];
 
-        $this->db->transaction(function () use ($builds, $model, $character, $game, &$result) {
+        $this->db->transaction(function () use ($builds, $model, $characterId, &$result) {
             $variants = [];
             $now = Clock::now();
-            foreach ($builds as $position => $scraped) {
-                $variants[] = $scraped->variant;
+            foreach ($builds as $build) {
+                $variants[] = $build['variant'];
 
-                $data = $this->buildData($game, $scraped, $position);
-                $hash = $this->contentHash($data);
-                $columns = $this->columns($data) + ['content_hash' => $hash, 'fetched_at' => $now, 'updated_at' => $now];
+                $hash = $this->contentHash($build['data']);
+                $columns = $this->columns($build['data']) + ['content_hash' => $hash, 'fetched_at' => $build['fetched_at'] ?? $now, 'updated_at' => $now];
 
                 $existing = $this->db->one(
                     'SELECT id, content_hash FROM builds WHERE build_source_id = ? AND game_character_id = ? AND variant = ?',
-                    [$model->id, $character->id, $scraped->variant],
+                    [$model->id, $characterId, $build['variant']],
                 );
 
                 if ($existing === null) {
                     $result['builds_created']++;
                     $this->db->insert('builds', [
                         'build_source_id' => $model->id,
-                        'game_character_id' => $character->id,
-                        'variant' => $scraped->variant,
-                        'changed_at' => $now,
+                        'game_character_id' => $characterId,
+                        'variant' => $build['variant'],
+                        'changed_at' => $build['changed_at'] ?? $now,
                         'created_at' => $now,
                     ] + $columns);
 
@@ -279,7 +303,7 @@ class BuildSync implements RunHandler
 
                 if ($existing['content_hash'] !== $hash) {
                     $result['builds_updated']++;
-                    $columns['changed_at'] = $now;
+                    $columns['changed_at'] = $build['changed_at'] ?? $now;
                 } else {
                     $result['builds_unchanged']++;
                 }
@@ -289,7 +313,7 @@ class BuildSync implements RunHandler
             [$in, $params] = Db::in($variants);
             $result['builds_removed'] = $this->db->run(
                 "DELETE FROM builds WHERE build_source_id = ? AND game_character_id = ? AND variant NOT IN ({$in})",
-                [$model->id, $character->id, ...$params],
+                [$model->id, $characterId, ...$params],
             );
         });
 
@@ -348,20 +372,65 @@ class BuildSync implements RunHandler
      */
     private function buildData(Game $game, ScrapedBuild $scraped, int $position): array
     {
+        return self::content(
+            role: $scraped->role,
+            recommended: $scraped->recommended,
+            position: $position,
+            weapons: $this->weapons($game, $scraped),
+            sets: $this->sets($game, $scraped),
+            mainStats: $scraped->mainStats,
+            substats: $scraped->substats,
+            talentPriority: $scraped->talents,
+            statTargets: $scraped->statTargets,
+            notes: $scraped->notes,
+            sourceUrl: $scraped->sourceUrl,
+            sourceUpdatedAt: $scraped->updatedAt,
+            gameVersion: $scraped->gameVersion,
+        );
+    }
+
+    /**
+     * What is stored of a build, in the order its content hash reads it (the hash is of this array's JSON).
+     * Syncs and imports both put a build together here, so the same content hashes alike whichever way it
+     * came - but for the page address, which an import does not have (the file never carries it).
+     *
+     * @param  list<array<string, mixed>>  $weapons
+     * @param  list<array<string, mixed>>  $sets
+     * @param  array<string, list<array{stat: string, priority: int}>>  $mainStats
+     * @param  list<array{stat: string, priority: int}>  $substats
+     * @param  list<array{talent: string, priority: int}>  $talentPriority  stored as null when empty
+     * @param  list<array{stat: string, min: int|float|null, max: int|float|null, text: string}>  $statTargets  stored as null when empty
+     * @return array<string, mixed>
+     */
+    public static function content(
+        ?string $role,
+        bool $recommended,
+        int $position,
+        array $weapons,
+        array $sets,
+        array $mainStats,
+        array $substats,
+        array $talentPriority,
+        array $statTargets,
+        ?string $notes,
+        ?string $sourceUrl,
+        ?DateTimeInterface $sourceUpdatedAt,
+        ?string $gameVersion,
+    ): array {
         return [
-            'role' => $scraped->role,
-            'recommended' => $scraped->recommended,
+            'role' => $role,
+            'recommended' => $recommended,
             'position' => $position,
-            'weapons' => $this->weapons($game, $scraped),
-            'sets' => $this->sets($game, $scraped),
-            'main_stats' => $scraped->mainStats,
-            'substats' => $scraped->substats,
-            'talent_priority' => $scraped->talents ?: null,
-            'stat_targets' => $scraped->statTargets ?: null,
-            'notes' => $scraped->notes,
-            'source_url' => $scraped->sourceUrl,
-            'source_updated_at' => $scraped->updatedAt,
-            'game_version' => $scraped->gameVersion,
+            'weapons' => $weapons,
+            'sets' => $sets,
+            'main_stats' => $mainStats,
+            'substats' => $substats,
+            'talent_priority' => $talentPriority ?: null,
+            'stat_targets' => $statTargets ?: null,
+            'notes' => $notes,
+            'source_url' => $sourceUrl,
+            'source_updated_at' => $sourceUpdatedAt,
+            'game_version' => $gameVersion,
         ];
     }
 

@@ -108,6 +108,53 @@ Import semantics (`AccountImporter`):
   `last_synced_at`. The content hash is computed exactly as the Laravel version did (dates in Carbon's JSON
   form), so builds it stored do not all look changed after an upgrade.
 
+## Builds files
+
+A source's builds exported on the Sources page (`GET /api/sources/{key}/export`) and imported on another
+installation (`POST /api/sources/{key}/import`, the file's JSON as the body): `Services/Builds/BuildFile` is the
+format, `BuildTransfer` the export and import. How to use them: [operations.md](operations.md), "Moving builds
+between installations". Format version 1:
+
+```jsonc
+{
+  "format": "build-analyzer.builds", "format_version": 1,
+  "source": "genshin-2", "game": "genshin",          // the API's key of the source, never its site
+  "exported_at": "2026-09-29T14:03:12.123456Z",      // UTC, to the microsecond, like every time in the file
+  "synced_at": "2026-09-29T13:40:05.000000Z",        // the source's last_synced_at where it was exported, or null
+  "builds": [{
+    "character": "hutao",                            // game_characters.key, matched by (game, key)
+    "character_name": "Hu Tao",                      // for people reading the file
+    "variant": "DPS", "role": "DPS", "recommended": true, "position": 0,
+    "weapons": [], "sets": [], "main_stats": {}, "substats": [],   // the shapes of the builds table above
+    "talent_priority": null, "stat_targets": null,   // a list or null
+    "notes": null, "source_updated_at": null, "game_version": "6.0",
+    "fetched_at": "2026-09-28T10:00:00.000000Z", "changed_at": "2026-09-20T10:00:00.000000Z"
+  }]
+}
+```
+
+- Builds come ordered by character key, position and variant, so two exports of the same builds differ only in
+  `exported_at`. No page address (`source_url`), no site address or name: text copied from pages passes
+  through `Neutral::text()`, as in every answer of the API.
+- An import checks the whole file first and writes nothing when anything is off, naming the first problem:
+  format and version, game and source; every field present (a build may leave out `fetched_at` /
+  `changed_at`) and none the format lacks; the JSON shapes above, with whole numbers where the app counts
+  (ranks, positions, priorities, piece counts, refinements); the set kinds (`artifact` for Genshin, `relic` /
+  `planar` for HSR), slots and talents of the game; texts no longer than their columns; one build per
+  (character, variant); and caps far above any source (16 MB, 5000 builds, 100 weapons and 50 set options a
+  build, 8 pieces an option …), which also keep the set matcher's search small.
+- It makes the source's builds exactly the file's, in one transaction under the sync step lock and never
+  while a run of the source is going. Each character's builds are written by `BuildSync::write()`, like a
+  sync's: created, updated (the content hash differs; `changed_at` moves) or unchanged, other variants of the
+  character deleted. An imported build hashes with `source_url` null, so a synced build that had an address
+  counts as updated once, and importing the same file again changes nothing. `fetched_at` / `changed_at` come
+  from the file where they are times (never later than now), else now. Every build of the source whose
+  character the file lacks is deleted. Characters the catalog lacks are skipped: an import never adds to it.
+- It is recorded as a `builds` run of the source, `started_by` the admin, with a sync's stats (skipped
+  characters in `characters_skipped` and in `unmatched` as `{game}:characters`), a log that starts "imported
+  from a file exported …" and ends with the "Done: …" line; and it leaves the source as a successful full sync
+  does, with `last_synced_at` the file's `synced_at` (else `exported_at`).
+
 ## Cache and locks
 
 | Table | Notes |

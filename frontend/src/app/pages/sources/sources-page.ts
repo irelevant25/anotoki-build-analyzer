@@ -7,18 +7,20 @@ import { MatSlideToggleModule } from '@angular/material/slide-toggle';
 import { MatSnackBar } from '@angular/material/snack-bar';
 import { MatTooltipModule } from '@angular/material/tooltip';
 import { Observable } from 'rxjs';
-import { Api, errorMessage } from '../../core/api';
+import { Api, errorMessage, fileErrorMessage } from '../../core/api';
 import { GAME_LABELS } from '../../core/format';
 import { GameKey, MigrationStatus, SourceStatus, SyncRunSummary, SyncStartResult } from '../../core/models';
 import { SyncDriver } from '../../core/sync-driver';
 import { TimeAgoPipe } from '../../shared/stat-pipes';
+import { BUILD_FILE_MAX_BYTES, checkBuildFile, downloadName, importQuestion, importSummary, saveFile } from './build-file';
 
 /** A run nobody has stepped for this long counts as paused. */
 const PAUSED_AFTER_MS = 60_000;
 
 /**
  * Admin page: the build sites, their syncs and the database. Syncs run in steps driven by this page
- * (SyncDriver); closing it pauses them.
+ * (SyncDriver); closing it pauses them. A source's builds can also be exported to a file and imported from
+ * one - how a source the host cannot reach gets its builds, synced on another computer.
  */
 @Component({
   selector: 'app-sources-page',
@@ -39,6 +41,8 @@ export class SourcesPage {
   protected readonly starting = signal(false);
   protected readonly migrations = signal<MigrationStatus | null>(null);
   protected readonly applying = signal(false);
+  /** The source whose builds file is on its way, and which way. */
+  protected readonly transfer = signal<{ key: string; action: 'export' | 'import' } | null>(null);
   /** Ticks every second for the countdowns. */
   protected readonly now = signal(Date.now());
 
@@ -117,6 +121,73 @@ export class SourcesPage {
         this.refresh(false);
       },
       error: (err) => this.snackBar.open(errorMessage(err), 'Close'),
+    });
+  }
+
+  /**
+   * Export and Import wait while the source syncs (an export would be half old, half new; the server refuses
+   * an import) or while a file of it is on its way.
+   */
+  protected transferBlocked(source: SourceStatus): boolean {
+    return this.syncingKeys().has(source.key) || this.transfer()?.key === source.key;
+  }
+
+  protected exportBuilds(source: SourceStatus): void {
+    this.transfer.set({ key: source.key, action: 'export' });
+    this.api.exportSourceBuilds(source.key).subscribe({
+      next: (response) => {
+        this.transfer.set(null);
+        const today = new Date().toISOString().slice(0, 10);
+        saveFile(response.body ?? new Blob([]), downloadName(response.headers.get('Content-Disposition'), `builds-${source.key}-${today}.json`));
+      },
+      error: async (err: unknown) => {
+        this.transfer.set(null);
+        this.snackBar.open(await fileErrorMessage(err), 'Close');
+      },
+    });
+  }
+
+  /** A file chosen for a source: checked here, confirmed, then sent; the list and the runs show what it did. */
+  protected async importBuilds(source: SourceStatus, input: HTMLInputElement): Promise<void> {
+    const file = input.files?.[0];
+    // Cleared, so choosing the same file again (after fixing it) counts as a change too.
+    input.value = '';
+    if (!file) {
+      return;
+    }
+    if (file.size > BUILD_FILE_MAX_BYTES) {
+      this.snackBar.open(`This file is larger than ${BUILD_FILE_MAX_BYTES / 1048576} MB, far more than the builds of a source take.`, 'Close');
+      return;
+    }
+
+    let text: string;
+    try {
+      text = await file.text();
+    } catch {
+      this.snackBar.open('This file could not be read.', 'Close');
+      return;
+    }
+    const check = checkBuildFile(text, source);
+    if (!check.ok) {
+      this.snackBar.open(check.message, 'Close');
+      return;
+    }
+    if (!confirm(importQuestion(source, check))) {
+      return;
+    }
+
+    this.transfer.set({ key: source.key, action: 'import' });
+    this.api.importSourceBuilds(source.key, text).subscribe({
+      next: (result) => {
+        this.transfer.set(null);
+        // Skipped characters ask for something to be done: that message stays until it is closed.
+        this.snackBar.open(importSummary(source, result), 'OK', { duration: result.skipped.length > 0 ? undefined : 8000 });
+        this.refresh(false);
+      },
+      error: (err) => {
+        this.transfer.set(null);
+        this.snackBar.open(errorMessage(err), 'Close');
+      },
     });
   }
 

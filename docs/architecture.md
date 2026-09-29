@@ -39,7 +39,7 @@ other anotoki sites (the genshin site, the IAM).
 | Cache and locks | `src/Cache/{Cache,Locks}.php` | the `cache` and `cache_locks` tables (the host has no Redis or shared memory) |
 | Catalog | `src/Services/Catalog/{Catalog,CatalogSync,SetBonusGroups}.php` | resolve any source's names/IDs to catalog rows; see [name-matching.md](name-matching.md) |
 | Imports | `src/Services/Import/ImportService` → parsers → `ParsedAccount` → `AccountImporter` | always for one user; see [import-formats.md](import-formats.md) |
-| Builds | `src/Services/Builds/{BuildSync,BuildSourceRegistry}.php`, `Sources/*`, `Parsing/*` | see [build-sources.md](build-sources.md) |
+| Builds | `src/Services/Builds/{BuildSync,BuildSourceRegistry}.php`, `Sources/*`, `Parsing/*`; `BuildFile.php`, `BuildTransfer.php` | see [build-sources.md](build-sources.md); a source's builds exported to / imported from a file: [data-model.md](data-model.md) ("Builds files") |
 | Syncs | `src/Services/Sync/{SyncRunner,RunHandler,RunLog,StepResult}.php` | runs worked through in short steps; see "Syncs" below |
 | Analysis | `src/Services/Analysis/*` | see [analysis.md](analysis.md) |
 | Output | `src/Presenters/*` (accounts, builds, sync runs, icon addresses), `src/Support/Neutral.php` | what the API sends, in the shapes of `frontend/src/app/core/models.ts` |
@@ -114,6 +114,10 @@ changelog. So the API never sends a site's name or address either:
   characters, then fetches and stores one character after another until the step's budget is used or the site's
   crawl delay does not fit; names resolved (characters created if unknown; weapons/sets only looked up) →
   upsert `builds` by (source, character, variant) with a content hash.
+- **Builds file**: `GET /api/sources/{key}/export` → `BuildTransfer::export()` (`BuildFile::entry()` per build,
+  a download); `POST /api/sources/{key}/import` → `BuildFile::read()` checks the whole file → under the step
+  lock (`SyncRunner::exclusively()`), refused while the source syncs, one transaction: `BuildSync::write()` per
+  character, the source's other builds deleted, a builds run recorded and closed by `BuildSync::finish()`.
 - **Analysis**: `GET /api/accounts/{id}` → `CharacterAnalyzer::overview()` (best build per character);
   `GET /api/accounts/{id}/characters/{key}` → `CharacterAnalyzer::detail()` (all evaluations, consensus,
   suggestions, set plans) + full builds via `BuildPresenter`.
@@ -150,6 +154,8 @@ command-line scripts do the same in a loop. Cancel waits for a running step, the
 | `GET /api/sources` | member | source status (the dashboard shows it) |
 | `PATCH /api/sources/{key}` `{enabled}` | admin | switch a source on / off |
 | `POST /api/sources/{key}/sync` | admin | start (or join) a sync of one source, however recent its last one |
+| `GET /api/sources/{key}/export` | admin | the source's builds as a file to save (`builds-{key}-{date}.json`) |
+| `POST /api/sources/{key}/import` (the file's JSON) | admin | the source's builds become the file's; the counts, skipped characters and the source |
 | `POST /api/sync/builds` `{force?}` | admin | "Sync all": every enabled source not synced in 20 h (+ stale catalogs) |
 | `POST /api/sync/catalog` `{games?}` | admin | refresh the game catalog |
 | `GET /api/sync`, `POST /api/sync/step` | admin | the active runs and `wait_ms`; do one bounded step |
@@ -158,8 +164,9 @@ command-line scripts do the same in a loop. Cancel waits for a running step, the
 
 Errors are JSON `{message}` (validation adds `errors: {field: [message]}`): 401 `Sign in to continue.` (no or
 bad token), 403 (no role here / not an admin / "none" mode from another computer), 404 `Not found.` (also for
-other users' accounts and unknown paths), 409 (a step holds the lock), 422 (import problems, validation), 429
-(too many showcase imports), 503 `not_set_up`.
+other users' accounts and unknown paths), 409 (a step holds the lock; a builds file for a source that is
+syncing), 422 (import problems, a builds file that does not fit, validation), 429 (too many showcase imports),
+503 `not_set_up`.
 
 ## Frontend (`frontend/`, Angular 21 + Angular Material 21)
 
@@ -181,8 +188,9 @@ other users' accounts and unknown paths), 409 (a step holds the lock), 422 (impo
   `statValue`, `slotLabel`, `timeAgo`).
 - `pages/`: `dashboard`, `import` (wizard + `import-guides.ts` content), `account`, `character`, `builds`
   (list + per character), `sources` (admin: sources, running syncs with pause / resume / cancel, database
-  updates), `sign-in`, `not-set-up`. Lazy-loaded from `app.routes.ts`; route params arrive as signal inputs
-  (`withComponentInputBinding`).
+  updates, a source's builds exported and imported as a file - `build-file.ts` checks a chosen file before
+  anything is sent), `sign-in`, `not-set-up`. Lazy-loaded from `app.routes.ts`; route params arrive as signal
+  inputs (`withComponentInputBinding`).
 - Conventions: standalone components, always three files (`.ts`, `.html`, `.scss`), signals (`signal`,
   `computed`, `input`), `inject()`, built-in control flow (`@if`, `@for`, `@let`), zoneless change detection,
   Material 3 theme with CSS tokens in `src/styles.scss` (`--app-*`, `--grade-*`, `--el-*`, light/dark via
