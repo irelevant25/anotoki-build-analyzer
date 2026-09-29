@@ -1,0 +1,5 @@
+# What the running app writes is never committed. The folders it writes to are kept by their own
+# .gitignore files, which is why directories are not ignored here.
+*
+!.gitignore
+!*/

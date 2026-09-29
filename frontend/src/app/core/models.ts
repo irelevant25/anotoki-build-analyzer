@@ -31,9 +31,18 @@ export interface GameMeta {
   talents: Record<string, string>;
 }
 
+/** How this deployment signs people in (GET /api/meta), read before anything is drawn. */
+export interface AuthConfig {
+  /** "iam": sign in at the anotoki IAM; "none": no sign-in, everything is the owner's (a local copy). */
+  mode: 'iam' | 'none';
+  issuer: string | null;
+  client_id: string | null;
+}
+
 export interface Meta {
   games: GameMeta[];
   version: string;
+  auth: AuthConfig;
 }
 
 // ------------------------------------------------------------------ accounts & imports
@@ -107,10 +116,13 @@ export interface AccountDetail extends AccountSummary {
   characters: CharacterOverview[];
 }
 
+/** Where imported data came from: the in-game Character Showcase (by UID), or an inventory export file. */
+export type ImportKind = 'showcase' | 'file';
+
 export interface ImportRun {
   id: number;
   game: GameKey;
-  source: string;
+  source: ImportKind;
   status: 'success' | 'partial' | 'failed';
   file_name: string | null;
   summary: {
@@ -118,7 +130,6 @@ export interface ImportRun {
     weapons: number;
     items: number;
     full_inventory: boolean;
-    tool: string | null;
     warnings: string[];
     unmatched: Record<string, string[]>;
   } | null;
@@ -176,9 +187,10 @@ export interface SetOption {
   note: string | null;
 }
 
+/** A build as a source recommends it. The source is "Source N"; the page it was read from is not sent. */
 export interface Build {
   id: number;
-  source: { key: string; name: string; base_url: string };
+  source: { key: string; name: string };
   variant: string;
   role: string | null;
   recommended: boolean;
@@ -189,7 +201,6 @@ export interface Build {
   talent_priority: TalentPriority[] | null;
   stat_targets: StatTarget[] | null;
   notes: string | null;
-  source_url: string | null;
   source_updated_at: string | null;
   game_version: string | null;
   fetched_at: string | null;
@@ -275,7 +286,6 @@ export interface Evaluation {
     variant: string;
     role: string | null;
     recommended: boolean;
-    source_url: string | null;
     source_updated_at: string | null;
     game_version: string | null;
     fetched_at: string | null;
@@ -344,7 +354,7 @@ export interface CharacterAnalysis {
   character: CharacterSummary & {
     talents: Record<string, number | Record<string, number>> | null;
     final_stats: Record<string, number> | null;
-    final_stats_source: string | null;
+    final_stats_source: ImportKind | null;
     synced_at: string | null;
   };
   equipment: { totals: Record<string, number>; crit_value: number; slots: string[] };
@@ -366,21 +376,64 @@ export interface CharacterAnalysis {
 
 // ------------------------------------------------------------------ sources
 
+/** A build sync of one source ("builds") or a catalog refresh of one game ("catalog"). */
 export interface SyncRunSummary {
   id: number;
-  status: 'running' | 'success' | 'partial' | 'failed';
+  kind: 'builds' | 'catalog';
+  game: GameKey | null;
+  status: 'running' | 'success' | 'partial' | 'failed' | 'cancelled';
   started_at: string;
   finished_at: string | null;
   stats: Record<string, unknown> | null;
-  source?: { key: string; name: string; game: GameKey };
+  /** While running: units done of total (characters, or catalog lists); total is null until listed. */
+  progress: { done: number; total: number | null } | null;
+  /** The next step may not start before this (the site's crawl delay). */
+  next_step_at: string | null;
+  last_step_at: string | null;
+  started_by: { id: number; name: string } | null;
+  source: { key: string; name: string; game: GameKey } | null;
   log?: string | null;
 }
 
+/** The syncs going on now (GET /api/sync). */
+export interface SyncStatus {
+  active: boolean;
+  /** Milliseconds until the next step has work (0 = now); null when nothing is running. */
+  wait_ms: number | null;
+  runs: SyncRunSummary[];
+}
+
+/** What one step did (POST /api/sync/step). */
+export interface SyncStepResult extends SyncStatus {
+  /** Another step (another tab, the command line) was running; nothing was done. */
+  busy: boolean;
+  did: SyncRunSummary | null;
+  lines: string[];
+}
+
+export interface SyncStartResult extends SyncStatus {
+  started: SyncRunSummary[];
+  skipped: { key: string; name: string; reason: string }[];
+}
+
+/** Database migrations (ADMIN): the files in backend/migrations not applied yet. */
+export interface MigrationStatus {
+  pending: string[];
+  applied_count: number;
+  last_applied: string | null;
+}
+
+export interface MigrationResult extends MigrationStatus {
+  ok: boolean;
+  applied: string[];
+  output: string;
+}
+
+/** A build source as the API shows it: "Source 1" with a key like "genshin-1", never the site. */
 export interface SourceStatus {
   key: string;
   game: GameKey;
   name: string;
-  base_url: string;
   enabled: boolean;
   last_synced_at: string | null;
   last_status: string | null;

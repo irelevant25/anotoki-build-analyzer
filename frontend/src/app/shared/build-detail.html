@@ -163,10 +163,7 @@
 }
 
 <footer class="muted small">
-  @if (b.source_url) {
-    <a [href]="b.source_url" target="_blank" rel="noopener">Open on {{ b.source.name }}</a> ·
-  }
   @if (b.game_version) { Version {{ b.game_version }} · }
-  @if (b.source_updated_at) { Updated by the site {{ b.source_updated_at | timeAgo }} · }
+  @if (b.source_updated_at) { Updated at the source {{ b.source_updated_at | timeAgo }} · }
   Checked {{ b.fetched_at | timeAgo }}
 </footer>

@@ -31,6 +31,11 @@
               }
             ],
             "styles": [
+              "@fontsource/roboto/300.css",
+              "@fontsource/roboto/400.css",
+              "@fontsource/roboto/500.css",
+              "@fontsource/roboto/700.css",
+              "material-symbols/outlined.css",
               "src/styles.scss"
             ]
           },
@@ -54,26 +59,6 @@
               "optimization": false,
               "extractLicenses": false,
               "sourceMap": true
-            },
-            "backend": {
-              "budgets": [
-                {
-                  "type": "initial",
-                  "maximumWarning": "1MB",
-                  "maximumError": "2MB"
-                },
-                {
-                  "type": "anyComponentStyle",
-                  "maximumWarning": "8kB",
-                  "maximumError": "16kB"
-                }
-              ],
-              "outputHashing": "all",
-              "baseHref": "/app/",
-              "outputPath": {
-                "base": "../backend/public/app",
-                "browser": ""
-              }
             }
           },
           "defaultConfiguration": "production"
@@ -90,6 +75,7 @@
           },
           "defaultConfiguration": "development",
           "options": {
+            "port": 4600,
             "proxyConfig": "proxy.conf.json"
           }
         },

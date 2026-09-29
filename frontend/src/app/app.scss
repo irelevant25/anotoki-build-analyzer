@@ -24,6 +24,7 @@
 .nav {
   display: flex;
   gap: 4px;
+  min-width: 0;
 
   a.active {
     background: color-mix(in srgb, var(--mat-sys-primary) 14%, transparent);
@@ -34,13 +35,44 @@
   flex: 1 1 auto;
 }
 
+.user-name {
+  max-width: 160px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.spin {
+  animation: spin 1.6s linear infinite;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(-360deg);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .spin {
+    animation: none;
+  }
+}
+
 @media (max-width: 720px) {
   .brand span,
-  .nav-label {
+  .nav-label,
+  .user-name {
     display: none;
   }
 
   .brand {
     margin-right: 4px;
   }
+}
+
+.version {
+  min-width: 0;
+  padding: 0 8px;
+  color: var(--app-muted);
+  font-variant-numeric: tabular-nums;
 }

@@ -1,65 +1,84 @@
 ---
 name: add-import-format
-description: Add or fix a way to import a player's Genshin Impact / Honkai Star Rail account into hoyo-analyzer — new exporter or scanner file formats (a new GOOD version, yas, a Fribbels save file, another packet-capture tool), a HoYoLAB cookie import, or repairing Enka / GOOD / Reliquary Archiver parsing when fields changed. Use whenever imports fail, data is missing after an import (talents, rolls, sets, Traveler/Trailblazer gear), or the user wants another way to get their characters in.
+description: Add or fix a way to import a player's Genshin Impact / Honkai Star Rail account into the build analyzer — new exporter or scanner file formats (a new GOOD version, yas, a Fribbels save file, another packet-capture tool), an import through the game's official web account (cookies), or repairing showcase / GOOD / HSR scanner parsing when fields changed. Use whenever imports fail, data is missing after an import (talents, rolls, sets, Traveler/Trailblazer gear), or the user wants another way to get their characters in.
 ---
 
 # Add or fix an import format
 
 Every import path ends in the same place: a parser turns raw JSON into a `ParsedAccount`, and
 `AccountImporter` resolves catalog references and writes the account. Keeping parsers free of database
-work is what lets one importer serve Enka, GOOD and scanner files; keep it that way.
+work is what lets one importer serve showcases, GOOD and scanner files; keep it that way.
 
-Read `docs/import-formats.md` first (exact field mappings of every supported format, tools, HoYoLAB notes)
-and `docs/data-model.md` (what "full inventory" means for existing data).
+Read `docs/import-formats.md` first (exact field mappings of every supported format, the tools players use,
+notes on the official web account) and `docs/data-model.md` (what "full inventory" means for existing data).
 
 ## 1. Understand the format from real samples
 
-Get a real export or API response (the user's own, a tool's test fixtures on GitHub, or the tool's source
-code). Map every field you need: characters (level, ascension, constellation/eidolon, talents), weapons
-(level, refinement/superimposition, location), items (set, slot, rarity, level, main stat, substats with
-values and roll counts if present, location), account (UID, nickname). Note how "equipped on" is expressed
-(character key, in-game ID, "Traveler").
+Get a real export or API response (the user's own, a tool's test fixtures, or the tool's source code). Map every
+field you need: characters (level, ascension, constellation/eidolon, talents), weapons (level,
+refinement/superimposition, location), items (set, slot, rarity, level, main stat, substats with values and roll
+counts if present, location), account (UID, nickname). Note how "equipped on" is expressed (character key,
+in-game ID, "Traveler"). Keep samples outside the repository.
 
-## 2. Write the parser (`backend/app/Services/Import/...`)
+## 2. Write the parser (`backend/src/Services/Import/...`)
 
 - A class with `public static function matches(array $json): bool` and `public function parse(array $json): ParsedAccount`.
-- `new ParsedAccount(game, source, fullInventory, uid, nickname, …, meta: ['tool' => …])`.
-  `fullInventory: true` means the file lists *every* item, so the importer replaces all gear; use `false`
-  for partial data (showcases), which only replaces gear of the listed characters.
-- References: prefer in-game IDs (`['external_id' => '1005']`, they match the yatta catalog), fall back to
-  names (`['name' => 'KaedeharaKazuha']`), or give a canonical key for special cases (`['key' => 'traveleranemo']`).
-- Stats: map to canonical keys (`docs/stats-and-slots.md`); percentages in percent units (Enka ratios ×100);
-  drop unknown substats with a warning instead of guessing. Fill `main_value` from the source, else
+- `new ParsedAccount(game, source, fullInventory, uid, nickname, …, meta: ['tool' => …])`. `source` is the
+  internal format key (`enka`, `good`, `hsr_scanner`); the API reports anything but `enka` as `file`, and
+  leaves `meta.tool` out. `fullInventory: true` means the file lists *every* item, so the importer replaces all
+  gear; use `false` for partial data (showcases), which only replaces gear of the listed characters.
+- References: prefer in-game IDs (`['external_id' => '1005']`, they match the catalog), fall back to names
+  (`['name' => 'KaedeharaKazuha']`), or give a canonical key for special cases (`['key' => 'traveleranemo']`).
+  The importer only looks references up - it never adds to the shared catalog - so an unresolvable reference is
+  skipped with a warning; an unknown in-game ID may refresh that catalog list first (rate-limited). Prefer IDs
+  for exactly this reason.
+- Stats: map to canonical keys (`docs/stats-and-slots.md`); percentages in percent units (showcase ratios
+  ×100); drop unknown substats with a warning instead of guessing. Fill `main_value` from the source, else
   `MainStatValues::compute()`.
-- Throw `ImportException` with a sentence the player can act on ("…turn on Show Character Details…");
-  it is shown in the wizard as is. Collect soft problems in `$account->warnings`.
+- Throw `ImportException` with a sentence the player can act on ("…turn on Show Character Details…"); it is
+  shown in the wizard as it is. Collect soft problems in `$account->warnings`. Neither may name a website,
+  service or tool: say "the showcase service", "a GOOD file", "the export" (the UI names nothing that is not
+  ours; `Neutral::text()` is only a safety net).
 
 ## 3. Wire it in
 
 - Files: add detection to `ImportService::fromFile()` (the `match` order matters — most specific first).
-- New online source: a client class like `Enka/EnkaClient` (errors mapped to messages, response caching,
-  polite delays through `Fetcher`), a method on `ImportService`, a controller action + route in `routes/api.php`
-  with validation and a throttle, and `Api` method in `frontend/src/app/core/api.ts`.
-- Credentials (e.g. HoYoLAB cookies): ask the user before building this. Never log or return them, store them
-  encrypted (`Crypt`) or not at all, and say in the wizard what they grant.
-- CLI: `accounts:import` routes UIDs to Enka and files to `fromFile`; extend it if the new path needs it.
+- Every import is for one user: `ImportService` methods take the `User $owner` and pass it to
+  `AccountImporter::import($parsed, $owner, $target)`; a target account must be the owner's (in
+  `api/routes/imports.php` the `$target` closure checks `account_id` with `Accounts::findOwned()`), and failures
+  go to `recordFailure(…, $owner, …)`.
+- New online source: a client class like `Import/Enka/EnkaClient` (errors mapped to neutral messages, response
+  caching in the cache table, polite delays through `Fetcher`, no long sleeps inside a web request, its address
+  in `config/app.php`), a method on `ImportService`, a route in `api/routes/imports.php` with `Web\Input`
+  validation, `requireRole($app, Role::MEMBER)` and a per-user `throttle()`, and an `Api` method in
+  `frontend/src/app/core/api.ts`. The route path must not carry the service's name (the showcase import is
+  `/api/imports/showcase`).
+- Credentials (e.g. the official web account's cookies): ask the user before building this. Never log or return
+  them, store them encrypted (with a key in a `config/*.local.php` that `setup.php` writes) or not at all,
+  scoped to the user, and say in the wizard what they grant.
+- CLI: `import-account.php` (`src/Commands/ImportAccount.php`) routes UIDs to the showcase and files to
+  `fromFile` for `--user` (default `local_user_id`); extend it if the new path needs it.
 
 ## 4. Test
 
-Follow `backend/tests/Feature/ImportTest.php`: seed the catalog with `Tests\Support\SeedsCatalog`, build a
-small synthetic JSON with the real field names, and assert the stored account, items (slot, main stat,
-substats with rolls, equipped character), talents and `ImportRun` summary. Mock remote APIs with `Http::fake`
-and bind a fake `EnkaStore` like the existing test does, so tests never hit the network.
+Follow `backend/tests/import.test.php`: `seedGenshinCatalog()` / `seedHsrCatalog()`, `seedUser(1, 'owner')`, a
+small synthetic JSON with the real field names, and assertions on the stored account (and its `user_id`), items
+(slot, main stat, substats with rolls, equipped character), talents and the import run's summary. API calls need
+a token: `(new Client)->asIam(1)`. Remote APIs are faked with `T::$http->fake([...])` (it fails the test on any
+request it was not told about) and the Genshin store with a fake `EnkaStore`, as the existing tests do.
+`backend/tests/isolation.test.php` shows the per-user checks a new endpoint should pass too, and
+`backend/tests/neutral.test.php` that nothing it answers names another site.
 
 ```bash
-scripts/artisan.sh test && (cd backend && ../scripts/php.sh vendor/bin/pint)
-scripts/artisan.sh accounts:import <game> path/to/real-sample.json      # then look at the account in the UI
+cd backend && php tests/run.php
+cd backend && php import-account.php <game> path/to/real-sample.json      # then look at the account in the UI
 ```
 
 ## 5. User-facing guide and docs
 
-- Wizard content: `frontend/src/app/pages/import/import-guides.ts` (`METHODS` pros/cons, `GUIDES` steps with
-  download links, tips, troubleshooting, `fileHint`). A brand-new method key also needs handling in
-  `import-wizard.ts/.html`.
+- Wizard content: `frontend/src/app/pages/import/import-guides.ts` (`METHODS` pros/cons, `GUIDES` steps, tips,
+  troubleshooting, `fileHint`) - describe tools by what they do ("an inventory exporter that saves the GOOD
+  format"), with no names and no links. A brand-new method key also needs handling in
+  `import-wizard.ts/.html` and `ImportKind` in `core/models.ts`.
 - Update `docs/import-formats.md`, the README import table, and `docs/decisions.md` for notable choices.
 - Check the wizard visually with the `verify-ui` skill.

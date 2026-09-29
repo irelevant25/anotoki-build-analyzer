@@ -1,6 +1,6 @@
 # Stats, slots and talents
 
-Everything uses canonical stat keys (`backend/app/Support/Stats.php`). Genshin keys follow the GOOD format;
+Everything uses canonical stat keys (`backend/src/Support/Stats.php`). Genshin keys follow the GOOD format;
 HSR keys use the same style. A trailing underscore means "percent".
 
 ## Stat keys

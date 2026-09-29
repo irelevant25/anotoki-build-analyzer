@@ -44,7 +44,7 @@
     @if (d.evaluations.length === 0) {
       <div class="panel empty-state">
         <mat-icon>hourglass_empty</mat-icon>
-        <p>No builds for {{ d.character.name }} yet. They appear after the daily sync (or start one on the <a routerLink="/sources">Sources</a> page).</p>
+        <p>No builds for {{ d.character.name }} yet. They appear after the next build sync (admins start one on the <a routerLink="/sources">Sources</a> page).</p>
       </div>
     } @else {
       <!-- Build selector -->
@@ -77,7 +77,7 @@
               <app-score-bar label="Stat targets" [value]="e.score.parts.targets" />
             </div>
             @if (e.score.parts.targets === null && e.targets.length > 0) {
-              <p class="muted small">Stat targets need in-game totals; import this character by UID (Enka) to check them.</p>
+              <p class="muted small">Stat targets need in-game totals; import this character by UID (Character Showcase) to check them.</p>
             }
             @if (e.weapon?.equipped; as w) {
               <div class="weapon-line">
@@ -235,7 +235,7 @@
         <section class="panel">
           <h2 class="panel-title"><mat-icon>bar_chart</mat-icon>Stats</h2>
           @if (finalStats().length > 0) {
-            <p class="muted small">In-game totals from {{ d.character.final_stats_source === 'enka' ? 'Enka.Network' : d.character.final_stats_source }}, {{ d.character.synced_at | timeAgo }}.</p>
+            <p class="muted small">In-game totals from {{ d.character.final_stats_source === 'showcase' ? 'your Character Showcase' : 'your inventory file' }}, {{ d.character.synced_at | timeAgo }}.</p>
             <div class="stat-table">
               @for (entry of finalStats(); track entry[0]) {
                 <span class="muted">{{ entry[0] | statLabel: game() }}</span>

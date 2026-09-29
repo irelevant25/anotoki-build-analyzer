@@ -8,6 +8,7 @@ import { MatTooltipModule } from '@angular/material/tooltip';
 import { RouterLink } from '@angular/router';
 import { forkJoin } from 'rxjs';
 import { Api, errorMessage } from '../../core/api';
+import { AuthService } from '../../core/auth';
 import { GAME_LABELS } from '../../core/format';
 import { AccountSummary, GameKey, SourceStatus } from '../../core/models';
 import { TimeAgoPipe } from '../../shared/stat-pipes';
@@ -21,6 +22,7 @@ import { TimeAgoPipe } from '../../shared/stat-pipes';
 export class DashboardPage {
   private readonly api = inject(Api);
   private readonly snackBar = inject(MatSnackBar);
+  protected readonly auth = inject(AuthService);
 
   protected readonly accounts = signal<AccountSummary[]>([]);
   protected readonly sources = signal<SourceStatus[]>([]);

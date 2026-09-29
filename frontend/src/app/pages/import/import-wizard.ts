@@ -104,12 +104,12 @@ export class ImportWizard {
     this.advance();
   }
 
-  protected importEnka(): void {
+  protected importShowcase(): void {
     const game = this.game();
     if (!game || !this.uidValid()) {
       return;
     }
-    this.run(this.api.importEnka(game, this.uid().trim(), this.targetAccountId()));
+    this.run(this.api.importShowcase(game, this.uid().trim(), this.targetAccountId()));
   }
 
   protected importFile(): void {
@@ -183,7 +183,7 @@ export class ImportWizard {
     return Object.values(run.summary?.unmatched ?? {}).flat();
   }
 
-  private run(request: ReturnType<Api['importEnka']>): void {
+  private run(request: ReturnType<Api['importShowcase']>): void {
     this.busy.set(true);
     this.error.set(null);
     request.subscribe({
@@ -250,7 +250,7 @@ export class ImportWizard {
    */
   private defaultAccount(game: GameKey, method: ImportMethodKey): number | null {
     const prefill = this.prefillAccount();
-    if (method === 'enka') {
+    if (method === 'showcase') {
       return prefill && prefill.game === game && !prefill.uid ? prefill.id : null;
     }
     if (prefill && prefill.game === game) {
@@ -278,7 +278,8 @@ export class ImportWizard {
           if (account.uid) {
             this.uid.set(account.uid);
           }
-          const method = (params.get('method') as ImportMethodKey | null) ?? (account.has_full_inventory ? 'file' : 'enka');
+          const asked = params.get('method');
+          const method: ImportMethodKey = asked === 'showcase' || asked === 'file' ? asked : account.has_full_inventory ? 'file' : 'showcase';
           this.chooseMethod(method);
           this.confirmPrepared();
         }

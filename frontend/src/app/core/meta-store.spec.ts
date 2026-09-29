@@ -5,7 +5,8 @@ import { MetaStore } from './meta-store';
 import { Meta } from './models';
 
 const META: Meta = {
-  version: '0.1.0',
+  version: '1.0',
+  auth: { mode: 'iam', issuer: 'https://iam.example.test', client_id: 'build-analyzer' },
   games: [
     {
       key: 'genshin',
@@ -41,8 +42,8 @@ describe('MetaStore', () => {
 
   it('labels and formats stats with the loaded metadata', async () => {
     const loaded = store.load();
-    http.expectOne('api/meta').flush(META);
-    await loaded;
+    http.expectOne('/api/meta').flush(META);
+    expect(await loaded).toEqual(META);
 
     expect(store.loaded()).toBe(true);
     expect(store.statLabel('genshin', 'critRate_')).toBe('CRIT Rate');
@@ -55,11 +56,30 @@ describe('MetaStore', () => {
 
   it('falls back to raw keys when the backend is unreachable', async () => {
     const loaded = store.load();
-    http.expectOne('api/meta').error(new ProgressEvent('error'));
-    await loaded;
+    http.expectOne('/api/meta').error(new ProgressEvent('error'));
+    expect(await loaded).toBeNull();
 
     expect(store.loaded()).toBe(false);
     expect(store.statLabel('genshin', 'critRate_')).toBe('critRate_');
     expect(store.formatStat('hsr', 'spd', 134.5)).toBe('134.5');
+    expect(store.notSetUp()).toBeNull();
+  });
+
+  it('says where to set up a server that has not been set up', async () => {
+    const loaded = store.load();
+    http
+      .expectOne('/api/meta')
+      .flush({ code: 'not_set_up', message: 'Not set up.', setup: '/setup.php' }, { status: 503, statusText: 'Service Unavailable' });
+    expect(await loaded).toBeNull();
+    expect(store.notSetUp()).toBe('/setup.php');
+  });
+
+  it('takes no setup address that leads elsewhere', async () => {
+    const loaded = store.load();
+    http
+      .expectOne('/api/meta')
+      .flush({ code: 'not_set_up', setup: 'https://elsewhere.example/setup.php' }, { status: 503, statusText: 'Service Unavailable' });
+    await loaded;
+    expect(store.notSetUp()).toBe('/setup.php');
   });
 });

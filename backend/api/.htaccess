@@ -1,0 +1,11 @@
+RewriteEngine On
+
+# The bearer token reaches PHP only this way under CGI / FastCGI, which drop the Authorization header.
+RewriteCond %{HTTP:Authorization} .
+RewriteRule .* - [E=HTTP_AUTHORIZATION:%{HTTP:Authorization}]
+
+# Everything goes through index.php. No other file under api/ is meant to be requested: the route and
+# middleware files, called on their own, would only fail. The first rule stops the rewrite looping on
+# index.php itself.
+RewriteRule ^index\.php$ - [L]
+RewriteRule ^ index.php [QSA,L]

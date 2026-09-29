@@ -1,7 +1,7 @@
 # Analysis and scoring
 
-Code: `backend/app/Services/Analysis/`. Tests: `tests/Feature/AnalysisTest.php`, `tests/Unit/ItemScorerTest.php`,
-`tests/Unit/SetMatcherTest.php`.
+Code: `backend/src/Services/Analysis/`. Tests: `backend/tests/analysis.test.php`, `scoring.test.php` (ItemScorer,
+SetMatcher).
 
 ## Flow
 
@@ -25,7 +25,7 @@ character and slot) and runs `BuildEvaluator::evaluate()` for every build of eve
 | Sets | first satisfied option (in rank order) → `max(70, 100 − 8·(rank−1))`; none → `10 + 60·bestFraction` (partial credit). HSR: relic group 60 %, planar 40 %. `SetMatcher`: a piece needs `count` items of one of its keys; one equipped set satisfies only one piece; `choose` = pieces required. |
 | Main stats | per variable slot: first priority 100, next 85, lower 75, not listed 0, empty slot 0. |
 | Substats | `ItemScorer` per item → percent of an ideal item; part = `min(100, avg% / 70 · 100)` where the average runs over all slots (empty slots count 0). |
-| Stat targets | only with in-game totals (Enka Genshin): met → 100, else `max(0, current/min·100 − 10)`. |
+| Stat targets | only with in-game totals (Genshin showcase imports): met → 100, else `max(0, current/min·100 − 10)`. |
 
 Overall = weighted mean of available parts: weapon 20, sets 25, main stats 20, substats 25, targets 10
 (`BuildEvaluator::PART_WEIGHTS`). Grades: S ≥ 90, A ≥ 80, B ≥ 65, C ≥ 50, else D.

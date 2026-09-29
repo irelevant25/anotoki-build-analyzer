@@ -16,7 +16,9 @@
       <mat-icon>cloud_off</mat-icon>
       <div>
         <strong>{{ message }}</strong>
-        <p class="muted small">Start the backend with <code>php artisan serve</code> (see README) and try again.</p>
+        @if (auth.mode() !== 'iam') {
+          <p class="muted small">Is the backend running? DEVELOPING.md says how to start it; then try again.</p>
+        }
       </div>
       <button mat-stroked-button (click)="load()">Retry</button>
     </div>
@@ -64,7 +66,7 @@
                   @if (account.has_full_inventory) {
                     <span class="chip ok" matTooltip="Imported from an inventory exporter: suggestions can use every piece you own">Full inventory</span>
                   } @else {
-                    <span class="chip" matTooltip="Imported from the in-game Character Showcase via Enka.Network">Showcase only</span>
+                    <span class="chip" matTooltip="Imported from the in-game Character Showcase by UID">Showcase only</span>
                   }
                   <span class="muted small">Imported {{ account.last_import_at | timeAgo }}</span>
                 </div>
@@ -90,12 +92,17 @@
       <div class="row">
         <h2 class="section-title">Build sources</h2>
         <span class="spacer"></span>
-        <a mat-button routerLink="/sources">Manage<mat-icon iconPositionEnd>chevron_right</mat-icon></a>
+        @if (auth.isAdmin()) {
+          <a mat-button routerLink="/sources">Manage<mat-icon iconPositionEnd>chevron_right</mat-icon></a>
+        }
       </div>
       @if (buildsTotal() === 0) {
         <p class="muted">
-          No builds downloaded yet. They are fetched once a day; start the first sync on the
-          <a routerLink="/sources">Sources</a> page.
+          @if (auth.isAdmin()) {
+            No builds downloaded yet. Start the first sync on the <a routerLink="/sources">Sources</a> page.
+          } @else {
+            No builds downloaded yet. They appear once an admin syncs the build sites.
+          }
         </p>
       }
       <div class="source-grid">

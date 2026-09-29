@@ -1,0 +1,19 @@
+[
+  {
+    "version": "1.0",
+    "date": "2026-09-29",
+    "changes": {
+      "added": [
+        "Sign in with your anotoki account. The game accounts you import, and everything worked out from them, are visible to you only",
+        "The number at the top of the page shows the version you are using; click it to see what has changed"
+      ],
+      "updated": [
+        "The app has a new name: Build Analyzer",
+        "Build sources are now called Source 1, Source 2 and so on",
+        "Syncing builds happens on the Sources page in short steps, with a progress bar, and can be paused, resumed and cancelled",
+        "Character, weapon and set pictures now load from this site",
+        "Rebuilt behind the scenes to be lighter and quicker, so it runs on ordinary web hosting"
+      ]
+    }
+  }
+]

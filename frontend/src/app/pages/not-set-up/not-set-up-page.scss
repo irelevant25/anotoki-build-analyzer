@@ -1,0 +1,30 @@
+.hero {
+  text-align: center;
+  padding: 48px 24px;
+  max-width: 640px;
+  margin: 32px auto 0;
+
+  h1 {
+    margin: 8px 0 16px;
+  }
+
+  p {
+    max-width: 540px;
+    margin: 0 auto 16px;
+  }
+
+  .row {
+    margin-bottom: 20px;
+  }
+}
+
+.hero-icon {
+  font-size: 56px;
+  width: 56px;
+  height: 56px;
+  color: var(--mat-sys-primary);
+}
+
+.center {
+  justify-content: center;
+}

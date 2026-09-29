@@ -1,0 +1,4 @@
+.hero { display: flex; gap: 20px; align-items: center; margin: 8px 0 16px; }
+.hero h1 { margin: 0 0 4px; font: var(--mat-sys-headline-medium); }
+.tab-body { padding: 16px 4px; display: flex; flex-direction: column; gap: 12px; align-items: flex-start; }
+.tab-body app-build-detail { align-self: stretch; }

@@ -1,0 +1,8 @@
+<div class="avatar" [class]="'rarity-' + (rarity() ?? 0) + ' ' + size()" [style.--ring]="ring()">
+  @if (src()) {
+    <img [src]="src()" [alt]="alt()" loading="lazy" referrerpolicy="no-referrer" (error)="broken = true" [hidden]="broken" />
+  }
+  @if (!src() || broken) {
+    <span class="fallback">{{ initials() }}</span>
+  }
+</div>

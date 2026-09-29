@@ -1,0 +1,57 @@
+.release {
+  border: 1px solid var(--app-border);
+  border-radius: 12px;
+  padding: 12px 16px;
+  margin-bottom: 12px;
+
+  &.latest {
+    border-color: var(--mat-sys-primary);
+  }
+
+  ul {
+    margin: 0 0 8px;
+    padding-left: 22px;
+  }
+
+  li {
+    margin: 4px 0;
+    color: var(--app-text);
+  }
+}
+
+.release-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 4px;
+}
+
+.version {
+  font: var(--mat-sys-title-medium);
+}
+
+.kind {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 12px 0 4px;
+  font: var(--mat-sys-title-small);
+
+  .mat-icon {
+    font-size: 18px;
+    width: 18px;
+    height: 18px;
+  }
+
+  &.added {
+    color: var(--grade-a);
+  }
+
+  &.fixed {
+    color: var(--grade-c);
+  }
+
+  &.updated {
+    color: var(--grade-b);
+  }
+}

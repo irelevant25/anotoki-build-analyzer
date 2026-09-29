@@ -33,7 +33,7 @@
         </p>
       </div>
       <div class="row wrap">
-        <a mat-stroked-button routerLink="/import" [queryParams]="{ game: acc.game, account: acc.id, method: 'enka' }"><mat-icon>badge</mat-icon>Update by UID</a>
+        <a mat-stroked-button routerLink="/import" [queryParams]="{ game: acc.game, account: acc.id, method: 'showcase' }"><mat-icon>badge</mat-icon>Update by UID</a>
         <a mat-flat-button routerLink="/import" [queryParams]="{ game: acc.game, account: acc.id, method: 'file' }"><mat-icon>inventory_2</mat-icon>Upload inventory</a>
       </div>
     </header>
@@ -144,7 +144,7 @@
     </div>
 
     @if (withoutBuilds() > 0) {
-      <p class="muted small">{{ withoutBuilds() }} character(s) have no builds yet; they appear once the daily sync has fetched them.</p>
+      <p class="muted small">{{ withoutBuilds() }} character(s) have no builds yet; they appear once a build sync has fetched them.</p>
     }
 
     @if (imports().length > 0) {

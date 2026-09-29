@@ -1,9 +1,13 @@
+import { HttpErrorResponse } from '@angular/common/http';
 import { Injectable, inject, signal } from '@angular/core';
 import { Api } from './api';
 import { GameKey, GameMeta, Meta } from './models';
 
 /**
- * Game metadata (slot names, stat labels, talent names) loaded once at startup.
+ * Game metadata (slot names, stat labels, talent names) and the sign-in settings, loaded once at startup.
+ *
+ * An installation nobody has set up yet answers every request with 503 {code: "not_set_up", setup: "/setup.php"};
+ * notSetUp then holds where to set it up, and the app shows that instead of its pages.
  */
 @Injectable({ providedIn: 'root' })
 export class MetaStore {
@@ -11,17 +15,23 @@ export class MetaStore {
   private readonly meta = signal<Meta | null>(null);
 
   readonly loaded = signal(false);
+  /** The setup page to open ("/setup.php") when the server has not been set up yet; null otherwise. */
+  readonly notSetUp = signal<string | null>(null);
 
-  load(): Promise<void> {
+  /** The metadata, or null when the backend could not be reached. */
+  load(): Promise<Meta | null> {
     return new Promise((resolve) => {
       this.api.meta().subscribe({
         next: (meta) => {
           this.meta.set(meta);
           this.loaded.set(true);
-          resolve();
+          resolve(meta);
         },
         // The app still renders (with raw keys) when the backend is down; pages show the error.
-        error: () => resolve(),
+        error: (error: unknown) => {
+          this.notSetUp.set(setupPage(error));
+          resolve(null);
+        },
       });
     });
   }
@@ -65,4 +75,17 @@ export class MetaStore {
     }
     return Math.round(value).toLocaleString('en-US');
   }
+}
+
+/** Where to set the server up, when this error says it has not been; null for any other error. */
+function setupPage(error: unknown): string | null {
+  if (!(error instanceof HttpErrorResponse) || error.status !== 503) {
+    return null;
+  }
+  const body = error.error as { code?: string; setup?: string } | null;
+  if (body?.code !== 'not_set_up') {
+    return null;
+  }
+  // Only a page of this site, whatever the answer says.
+  return typeof body.setup === 'string' && /^\/[\w.-]+$/.test(body.setup) ? body.setup : '/setup.php';
 }

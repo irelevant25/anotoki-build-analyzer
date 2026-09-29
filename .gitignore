@@ -2,8 +2,14 @@
 /tools/composer.phar
 /dev.local.ps1
 
+# What scripts/build-dist.php assembles for the upload
+/dist/
+
 # OS / editor noise
 .DS_Store
 Thumbs.db
 
 # Backend and frontend have their own .gitignore files.
+
+# Claude Code's personal settings (the rest of .claude/ is shared).
+.claude/settings.local.json

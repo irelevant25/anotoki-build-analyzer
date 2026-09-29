@@ -6,33 +6,8 @@ import { elementColor } from '../core/format';
  */
 @Component({
   selector: 'app-avatar',
-  template: `
-    <div class="avatar" [class]="'rarity-' + (rarity() ?? 0) + ' ' + size()" [style.--ring]="ring()">
-      @if (src()) {
-        <img [src]="src()" [alt]="alt()" loading="lazy" referrerpolicy="no-referrer" (error)="broken = true" [hidden]="broken" />
-      }
-      @if (!src() || broken) {
-        <span class="fallback">{{ initials() }}</span>
-      }
-    </div>
-  `,
-  styles: `
-    :host { display: inline-block; flex: none; }
-    .avatar {
-      --dim: 48px;
-      width: var(--dim); height: var(--dim);
-      border-radius: 14px;
-      overflow: hidden;
-      display: grid; place-items: center;
-      background-color: var(--app-surface-2);
-      box-shadow: inset 0 0 0 2px var(--ring, transparent);
-    }
-    .avatar.sm { --dim: 32px; border-radius: 10px; }
-    .avatar.lg { --dim: 88px; border-radius: 20px; }
-    .avatar.xs { --dim: 24px; border-radius: 6px; }
-    img { width: 100%; height: 100%; object-fit: cover; }
-    .fallback { font-weight: 600; color: var(--app-muted); font-size: 0.8em; }
-  `,
+  templateUrl: './char-avatar.html',
+  styleUrl: './char-avatar.scss',
 })
 export class Avatar {
   readonly src = input<string | null | undefined>(null);

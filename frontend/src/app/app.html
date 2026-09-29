@@ -1,11 +1,11 @@
 <mat-toolbar class="toolbar">
   <a class="brand" routerLink="/">
     <mat-icon class="brand-icon">auto_awesome</mat-icon>
-    <span>Hoyo Analyzer</span>
+    <span>Build Analyzer</span>
   </a>
 
   <nav class="nav">
-    @for (link of links; track link.path) {
+    @for (link of links(); track link.path) {
       <a mat-button [routerLink]="link.path" routerLinkActive="active" [routerLinkActiveOptions]="{ exact: link.exact }">
         <mat-icon>{{ link.icon }}</mat-icon>
         <span class="nav-label">{{ link.label }}</span>
@@ -15,6 +15,18 @@
 
   <span class="spacer"></span>
 
+  @if (sync.driving()) {
+    <a mat-icon-button routerLink="/sources" matTooltip="Syncing builds (keep this tab open)" aria-label="Syncing builds">
+      <mat-icon class="spin">sync</mat-icon>
+    </a>
+  }
+
+  @if (changelog.current(); as version) {
+    <button mat-button class="version" (click)="changelog.open()" matTooltip="What's new" [attr.aria-label]="'Version ' + version + ', what is new'">
+      v{{ version }}
+    </button>
+  }
+
   <button mat-icon-button [matMenuTriggerFor]="themeMenu" matTooltip="Theme" aria-label="Change theme">
     <mat-icon>{{ themeIcon() }}</mat-icon>
   </button>
@@ -23,8 +35,29 @@
     <button mat-menu-item (click)="setTheme('light')"><mat-icon>light_mode</mat-icon>Light</button>
     <button mat-menu-item (click)="setTheme('dark')"><mat-icon>dark_mode</mat-icon>Dark</button>
   </mat-menu>
+
+  @if (auth.usesSignIn() && !meta.notSetUp()) {
+    @if (auth.user()) {
+      <button mat-button class="user" [matMenuTriggerFor]="userMenu" aria-label="Your account">
+        <mat-icon>account_circle</mat-icon>
+        <span class="user-name">{{ auth.displayName() }}</span>
+      </button>
+      <mat-menu #userMenu="matMenu">
+        @if (auth.accountUrl(); as accountUrl) {
+          <a mat-menu-item [href]="accountUrl" target="_blank" rel="noopener"><mat-icon>manage_accounts</mat-icon>Account</a>
+        }
+        <button mat-menu-item (click)="auth.logout()"><mat-icon>logout</mat-icon>Sign out</button>
+      </mat-menu>
+    } @else {
+      <button mat-flat-button (click)="auth.login()"><mat-icon>login</mat-icon>Sign in</button>
+    }
+  }
 </mat-toolbar>
 
 <main>
-  <router-outlet />
+  @if (meta.notSetUp(); as setupUrl) {
+    <app-not-set-up-page [setupUrl]="setupUrl" />
+  } @else {
+    <router-outlet />
+  }
 </main>

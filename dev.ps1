@@ -1,18 +1,21 @@
 <#
 .SYNOPSIS
-  Everyday commands for running Hoyo Analyzer on Windows.
+  Everyday commands for working on the build analyzer on Windows.
 
 .DESCRIPTION
-  setup         Install dependencies, create the SQLite database and download the game catalog.
-  start         Open the API server, queue worker, scheduler and Angular dev server in separate windows.
-  sync          Fetch builds now (sources synced in the last 20 hours are skipped unless -Force).
-  test          Run the backend (PHPUnit) and frontend (Vitest) tests.
-  build         Build the frontend into backend/public/app (then "php artisan serve" alone serves everything).
-  install-task  Register a Windows scheduled task that syncs builds every day, even without "start".
-  remove-task   Remove that scheduled task.
+  setup         Install the backend's packages (Composer) and the frontend's (npm). Then run "start" and
+                open http://localhost:4600: the app sends you to setup.php, which writes the configuration.
+  start         Open the API server (http://127.0.0.1:8400) and the Angular dev server
+                (http://localhost:4600) in separate windows. Nothing else is needed: syncs run in steps
+                from the Sources page.
+  migrate       Apply the database migrations that are pending.
+  sync          Read builds now (sources synced in the last 20 hours are skipped unless -Force).
+  test          Run the backend and the frontend tests.
+  build         Build the frontend, so that the API server alone serves everything on :8400.
+  dist          Assemble dist/, what to upload to the host (see DEVELOPING.md, "Deploying").
 
-  PHP 8.4+ is required. When "php" on PATH is older, set HOYO_PHP to the php.exe to use, e.g. in
-  dev.local.ps1 (not committed):  $env:HOYO_PHP = 'C:\path\to\php-8.5\php.exe'
+  PHP 8.4+ is required. When "php" on PATH is older, set BUILD_ANALYZER_PHP to the php.exe to use, e.g. in
+  dev.local.ps1 (not committed):  $env:BUILD_ANALYZER_PHP = 'C:\path\to\php.exe'
 
 .EXAMPLE
   .\dev.ps1 setup
@@ -21,7 +24,7 @@
 #>
 param(
     [Parameter(Position = 0)]
-    [ValidateSet('setup', 'start', 'sync', 'test', 'build', 'install-task', 'remove-task')]
+    [ValidateSet('setup', 'start', 'migrate', 'sync', 'test', 'build', 'dist')]
     [string]$Command = 'start',
     [switch]$Force
 )
@@ -30,7 +33,6 @@ $ErrorActionPreference = 'Stop'
 $Root = $PSScriptRoot
 $Backend = Join-Path $Root 'backend'
 $Frontend = Join-Path $Root 'frontend'
-$TaskName = 'Hoyo Analyzer daily build sync'
 
 $localConfig = Join-Path $Root 'dev.local.ps1'
 if (Test-Path $localConfig) {
@@ -39,7 +41,7 @@ if (Test-Path $localConfig) {
 
 function Get-Php {
     $candidates = @()
-    if ($env:HOYO_PHP) { $candidates += $env:HOYO_PHP }
+    if ($env:BUILD_ANALYZER_PHP) { $candidates += $env:BUILD_ANALYZER_PHP }
     $onPath = Get-Command php -ErrorAction SilentlyContinue
     if ($onPath) { $candidates += $onPath.Source }
 
@@ -49,7 +51,7 @@ function Get-Php {
             return $php
         }
     }
-    throw "PHP 8.4 or newer was not found. Put `$env:HOYO_PHP = 'C:\path\to\php.exe' into dev.local.ps1."
+    throw "PHP 8.4 or newer was not found. Put `$env:BUILD_ANALYZER_PHP = 'C:\path\to\php.exe' into dev.local.ps1."
 }
 
 function Invoke-Checked([string]$File, [string[]]$Arguments, [string]$WorkingDirectory) {
@@ -63,7 +65,11 @@ function Invoke-Checked([string]$File, [string[]]$Arguments, [string]$WorkingDir
     }
 }
 
+# composer.phar, downloaded once into tools\ (gitignored) unless Composer is on PATH.
 function Get-Composer([string]$Php) {
+    $onPath = Get-Command composer -ErrorAction SilentlyContinue
+    if ($onPath) { return $null }
+
     $phar = Join-Path $Root 'tools\composer.phar'
     if (-not (Test-Path $phar)) {
         Write-Host 'Downloading Composer into tools\composer.phar ...'
@@ -82,18 +88,14 @@ function Get-Composer([string]$Php) {
 switch ($Command) {
     'setup' {
         $php = Get-Php
-        $composer = Get-Composer $php
         Write-Host "Using $php"
-
-        Invoke-Checked $php @($composer, 'install', '--no-interaction') $Backend
-        if (-not (Test-Path (Join-Path $Backend '.env'))) {
-            Copy-Item (Join-Path $Backend '.env.example') (Join-Path $Backend '.env')
-            Invoke-Checked $php @('artisan', 'key:generate') $Backend
+        $phar = Get-Composer $php
+        if ($phar) {
+            Invoke-Checked $php @($phar, 'install', '--no-interaction') $Backend
         }
-        $database = Join-Path $Backend 'database\database.sqlite'
-        if (-not (Test-Path $database)) { New-Item -ItemType File $database | Out-Null }
-        Invoke-Checked $php @('artisan', 'migrate', '--force') $Backend
-        Invoke-Checked $php @('artisan', 'catalog:sync') $Backend
+        else {
+            Invoke-Checked 'composer' @('install', '--no-interaction') $Backend
+        }
 
         Push-Location $Frontend
         try {
@@ -107,55 +109,44 @@ switch ($Command) {
         }
 
         Write-Host ''
-        Write-Host 'Done. Next: .\dev.ps1 start   (first build sync: .\dev.ps1 sync)' -ForegroundColor Green
+        Write-Host 'Done. Next: .\dev.ps1 start, then open http://localhost:4600 - it leads you to setup.php.' -ForegroundColor Green
     }
 
     'start' {
         $php = Get-Php
+        # No queue worker or scheduler: syncs run in steps driven by the Sources page.
         $windows = @(
-            @{ Title = 'API (php artisan serve)'; Dir = $Backend; Cmd = "& '$php' artisan serve --host=127.0.0.1 --port=8000" },
-            @{ Title = 'Queue worker'; Dir = $Backend; Cmd = "& '$php' artisan queue:work --timeout=3300" },
-            @{ Title = 'Scheduler'; Dir = $Backend; Cmd = "& '$php' artisan schedule:work" },
+            @{ Title = 'API (php -S 127.0.0.1:8400)'; Dir = $Backend; Cmd = "& '$php' -S 127.0.0.1:8400 router.php" },
             @{ Title = 'Angular dev server'; Dir = $Frontend; Cmd = 'npx ng serve --open' }
         )
         foreach ($window in $windows) {
-            $script = "`$Host.UI.RawUI.WindowTitle = 'Hoyo Analyzer - $($window.Title)'; Set-Location '$($window.Dir)'; $($window.Cmd)"
+            $script = "`$Host.UI.RawUI.WindowTitle = 'Build analyzer - $($window.Title)'; Set-Location '$($window.Dir)'; $($window.Cmd)"
             Start-Process powershell -ArgumentList '-NoExit', '-Command', $script | Out-Null
         }
-        Write-Host 'Started 4 windows. The app opens at http://localhost:4200 (close the windows to stop).' -ForegroundColor Green
+        Write-Host 'Started 2 windows. The app opens at http://localhost:4600 (close the windows to stop).' -ForegroundColor Green
+    }
+
+    'migrate' {
+        Invoke-Checked (Get-Php) @('migration.php') $Backend
     }
 
     'sync' {
-        $php = Get-Php
-        $arguments = @('artisan', 'builds:sync')
+        $arguments = @('sync-builds.php')
         if ($Force) { $arguments += '--force' }
-        Invoke-Checked $php $arguments $Backend
+        Invoke-Checked (Get-Php) $arguments $Backend
     }
 
     'test' {
-        $php = Get-Php
-        Invoke-Checked $php @('artisan', 'test') $Backend
+        Invoke-Checked (Get-Php) @('tests/run.php') $Backend
         Invoke-Checked 'npx' @('ng', 'test', '--watch=false') $Frontend
     }
 
     'build' {
-        Invoke-Checked 'npx' @('ng', 'build', '--configuration', 'backend') $Frontend
-        Write-Host 'Built into backend\public\app. Run "php artisan serve" and open http://127.0.0.1:8000/app/' -ForegroundColor Green
+        Invoke-Checked 'npx' @('ng', 'build') $Frontend
+        Write-Host 'Built into frontend\dist\frontend\browser. With the API server running, open http://127.0.0.1:8400/' -ForegroundColor Green
     }
 
-    'install-task' {
-        $php = Get-Php
-        $action = New-ScheduledTaskAction -Execute 'powershell.exe' -WorkingDirectory $Backend `
-            -Argument "-NoProfile -WindowStyle Hidden -Command `"& '$php' artisan catalog:sync; & '$php' artisan builds:sync`""
-        $trigger = New-ScheduledTaskTrigger -Daily -At '04:30'
-        # Run as soon as possible when the PC was off at 04:30.
-        $settings = New-ScheduledTaskSettingsSet -StartWhenAvailable -ExecutionTimeLimit (New-TimeSpan -Hours 3)
-        Register-ScheduledTask -TaskName $TaskName -Action $action -Trigger $trigger -Settings $settings -Force | Out-Null
-        Write-Host "Registered '$TaskName' (daily at 04:30, catches up after the PC was off)." -ForegroundColor Green
-    }
-
-    'remove-task' {
-        Unregister-ScheduledTask -TaskName $TaskName -Confirm:$false
-        Write-Host "Removed '$TaskName'."
+    'dist' {
+        Invoke-Checked (Get-Php) @((Join-Path $Root 'scripts\build-dist.php')) $Root
     }
 }

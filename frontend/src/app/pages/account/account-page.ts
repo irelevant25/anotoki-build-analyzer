@@ -173,6 +173,6 @@ export class AccountPage {
   }
 
   protected sourceLabel(run: ImportRun): string {
-    return run.source === 'enka' ? 'Enka.Network (UID)' : (run.summary?.tool ?? run.source);
+    return run.source === 'showcase' ? 'Showcase (UID)' : 'Inventory file';
   }
 }

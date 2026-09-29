@@ -2,7 +2,7 @@
   <header class="page-header">
     <div>
       <h1>Import your account</h1>
-      <p class="subtitle">A few short steps. Your data stays in this app's local database.</p>
+      <p class="subtitle">A few short steps. Your data stays in this app's database, visible to you only.</p>
     </div>
   </header>
 
@@ -62,13 +62,6 @@
               <div class="guide-body">
                 <div class="guide-title"><mat-icon>{{ step.icon }}</mat-icon>{{ step.title }}</div>
                 <p>{{ step.body }}</p>
-                @if (step.links) {
-                  <div class="row wrap">
-                    @for (link of step.links; track link.url) {
-                      <a mat-stroked-button [href]="link.url" target="_blank" rel="noopener"><mat-icon>open_in_new</mat-icon>{{ link.label }}</a>
-                    }
-                  </div>
-                }
                 @if (step.tip) {
                   <p class="tip"><mat-icon>lightbulb</mat-icon>{{ step.tip }}</p>
                 }
@@ -94,9 +87,9 @@
 
     <!-- 4. Import -->
     <mat-step label="Import" [completed]="!!result()">
-      @if (method() === 'enka') {
+      @if (method() === 'showcase') {
         <h2 class="step-title">Enter your UID</h2>
-        <form class="uid-form" (ngSubmit)="importEnka()">
+        <form class="uid-form" (ngSubmit)="importShowcase()">
           <mat-form-field appearance="outline" class="uid-field">
             <mat-label>{{ game() ? gameLabels[game()!] : '' }} UID</mat-label>
             <input matInput name="uid" inputmode="numeric" autocomplete="off" maxlength="10"
@@ -142,7 +135,7 @@
 
         @if (!fileContent()) {
           <mat-expansion-panel class="paste">
-            <mat-expansion-panel-header><mat-panel-title>…or paste the JSON (e.g. "copy to clipboard" in Irminsul)</mat-panel-title></mat-expansion-panel-header>
+            <mat-expansion-panel-header><mat-panel-title>…or paste the JSON (if your exporter copies it to the clipboard)</mat-panel-title></mat-expansion-panel-header>
             <mat-form-field appearance="outline" class="full">
               <mat-label>Export JSON</mat-label>
               <textarea matInput rows="6" [ngModel]="pasteText()" (ngModelChange)="pasteText.set($event)"></textarea>

@@ -33,7 +33,7 @@ if [ -z "$browser" ]; then
 fi
 
 tmp="${TMPDIR:-${TEMP:-/tmp}}"
-profile="$tmp/hoyo-headless-profile"
+profile="$tmp/build-analyzer-headless-profile"
 to_native() { if command -v cygpath >/dev/null 2>&1; then cygpath -wa "$1"; else echo "$1"; fi; }
 
 common=(--headless=new --disable-gpu --hide-scrollbars --no-first-run --run-all-compositor-stages-before-draw

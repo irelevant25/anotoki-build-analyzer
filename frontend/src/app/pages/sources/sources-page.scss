@@ -3,6 +3,65 @@
   margin: 24px 0 12px;
 }
 
+.actions {
+  justify-content: flex-end;
+}
+
+.active-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-bottom: 16px;
+  border-color: color-mix(in srgb, var(--grade-b) 45%, var(--app-border));
+
+  .panel-title {
+    margin: 0;
+  }
+}
+
+.active-run {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+
+  .row {
+    min-width: 0;
+  }
+}
+
+.run-name {
+  font-weight: 500;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.migrations-panel {
+  margin-bottom: 16px;
+  border-color: color-mix(in srgb, var(--grade-c) 50%, var(--app-border));
+
+  mat-icon {
+    color: var(--grade-c);
+  }
+
+  p {
+    margin: 8px 0 0;
+  }
+}
+
+.error-panel {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 16px;
+  border-color: color-mix(in srgb, var(--grade-d) 50%, var(--app-border));
+
+  mat-icon {
+    color: var(--grade-d);
+  }
+}
+
 .source-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
@@ -19,6 +78,17 @@
   }
 }
 
+.source-name {
+  min-width: 0;
+
+  a {
+    display: block;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+}
+
 .name {
   font: var(--mat-sys-title-medium);
 }
@@ -31,6 +101,7 @@
   div {
     display: flex;
     flex-direction: column;
+    min-width: 0;
   }
 
   strong {
@@ -60,6 +131,7 @@
 
 .status-dot {
   display: inline-block;
+  flex: none;
   width: 10px;
   height: 10px;
   border-radius: 50%;
@@ -93,4 +165,17 @@
   max-height: 320px;
   overflow: auto;
   margin: 0;
+}
+
+.db-line {
+  margin-top: 24px;
+}
+
+// Run headers grow with their text instead of overlapping when it wraps (narrow screens).
+.run-header {
+  --mat-expansion-header-collapsed-state-height: auto;
+  --mat-expansion-header-expanded-state-height: auto;
+  min-height: 48px;
+  padding-top: 10px;
+  padding-bottom: 10px;
 }

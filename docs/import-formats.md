@@ -1,15 +1,24 @@
 # Import formats
 
-Entry point: `Services/Import/ImportService` (`fromEnka`, `fromFile` with format detection). Parsers produce a
-`ParsedAccount` whose characters / weapons / items reference the catalog by `['external_id' => …]`,
-`['name' => …]` or `['key' => …]`; `AccountImporter` resolves and writes them ([data-model.md](data-model.md)).
-User-facing steps for each method live in the wizard: `frontend/src/app/pages/import/import-guides.ts`.
+Entry point: `src/Services/Import/ImportService` (`fromEnka($game, $uid, $owner, $target)`, `fromFile($contents,
+$owner, $game, $target, $fileName)` with format detection). Parsers produce a `ParsedAccount` whose characters /
+weapons / items reference the catalog by `['external_id' => …]`, `['name' => …]` or `['key' => …]`;
+`AccountImporter` resolves them (lookups only: whatever the shared catalog lacks is skipped and reported) and
+writes them into an account of the importing user ([data-model.md](data-model.md)). The showcase import is
+throttled to `showcase.per_minute` (10, `config/app.php`) a minute per user. User-facing steps for each method
+live in the wizard: `frontend/src/app/pages/import/import-guides.ts`.
+
+This page names the services, tools and formats: it is internal. The UI calls the two methods "Character
+Showcase (UID)" and "Full inventory (exporter tool)", describes the tools without naming or linking them, and
+the API reports an import's source as `showcase` or `file` (see [architecture.md](architecture.md), "Neutral
+names").
 
 ## Enka.Network (showcase by UID) — `Import/Enka/*`
 
-- `GET https://enka.network/api/uid/{uid}` (Genshin), `/api/hsr/uid/{uid}` (HSR). **No trailing slash**
-  (308). Errors mapped in `EnkaClient`: 400 bad UID, 404 no player, 424 maintenance, 429 rate limited, 5xx.
-  Responses are cached for the returned `ttl`. UIDs are 9–10 digits.
+- `GET https://enka.network/api/uid/{uid}` (Genshin), `/api/hsr/uid/{uid}` (HSR); the base is
+  `showcase.api` in `config/app.php`. **No trailing slash** (308). Errors mapped in `EnkaClient` (in neutral
+  words): 400 bad UID, 404 no player, 424 maintenance, 429 rate limited, 5xx. Responses are cached (cache table)
+  for the returned `ttl`. UIDs are 9–10 digits.
 - Showcase limits: Genshin up to 12 characters ("Show Character Details" must be on); HSR showcase + support
   characters (~8).
 
@@ -28,8 +37,9 @@ Genshin (`EnkaGenshinParser`):
 | `flat.setId`, `flat.equipType` | set (= catalog ID); EQUIP_BRACER flower, NECKLACE plume, SHOES sands, RING goblet, DRESS circlet |
 | `flat.reliquaryMainstat` / `reliquarySubstats` | `FIGHT_PROP_*` + `statValue` (not `propValue` as the docs say) |
 
-Store files: only `https://raw.githubusercontent.com/EnkaNetwork/API-docs/master/store/gi/avatars.json`
-(cached 24 h by `EnkaStore`); the legacy `store/characters.json` + `loc.json` are frozen at game version 6.2.
+Store files: only `store/gi/avatars.json` of Enka's API docs repository (`showcase.genshin_avatars` in
+`config/app.php`, cached 24 h by `EnkaStore`); the legacy `store/characters.json` + `loc.json` are frozen at game
+version 6.2.
 
 HSR (`EnkaHsrParser`): `detailInfo{uid, nickname, level, worldLevel, avatarDetailList[]}`; support characters
 carry `_assist: true` and may duplicate showcase entries (deduplicated). Per avatar: `level`, `promotion`,
@@ -42,7 +52,7 @@ substats; ratio values ×100. Sub affix IDs: 1 HP, 2 ATK, 3 DEF, 4 HP%, 5 ATK%, 
 
 ## GOOD (Genshin, full inventory) — `Files/GoodParser`
 
-Written by Irminsul (packet capture, recommended), Inventory Kamera, GOODScanner, Genshin Optimizer.
+Written by Irminsul (packet capture), Inventory Kamera, GOODScanner and Genshin Optimizer.
 `{format: "GOOD", version: 1–3, source, characters[], weapons[], artifacts[], materials?}`.
 
 - Characters: `key` PascalCase ("KaedeharaKazuha", "TravelerAnemo"; plain "Traveler" = old file, skipped),
@@ -53,7 +63,7 @@ Written by Irminsul (packet capture, recommended), Inventory Kamera, GOODScanner
 
 ## Reliquary Archiver / HSR-Scanner (HSR, full inventory, "version 4") — `Files/HsrScannerParser`
 
-Format read by the Fribbels HSR Optimizer. `{source: "reliquary_archiver"|"HSR-Scanner", build, version: 4,
+The format the Fribbels HSR Optimizer reads. `{source: "reliquary_archiver"|"HSR-Scanner", build, version: 4,
 metadata{uid, trailblazer}, light_cones[], relics[], characters[]}`.
 
 - Relics: `set_id` (= catalog ID), `name` (set name), `slot` ("Head", "Hands", "Body", "Feet", "Planar Sphere",
@@ -67,22 +77,25 @@ metadata{uid, trailblazer}, light_cones[], relics[], characters[]}`.
 
 Detection (`ImportService::fromFile`): `format === "GOOD"` → GOOD; `relics` array + known `source` or
 (`light_cones` + `version ≥ 3`) → HSR scanner; anything else → readable error. A UTF-8 BOM is tolerated.
+Error messages name the format ("a GOOD file"), never a tool.
 
-## Tools (for the wizard and README)
+## The tools players use
+
+The wizard describes these without their names ("an inventory exporter", "a relic exporter"); this table is for
+whoever maintains the parsers.
 
 | Tool | Game | How | Output |
 | --- | --- | --- | --- |
-| [Irminsul](https://github.com/konkers/irminsul/releases) | Genshin | run as admin (pktmon) before entering the world, export | `genshin_export_*.json` (GOOD) or clipboard |
+| Irminsul | Genshin | run as admin (pktmon) before entering the world, export | `genshin_export_*.json` (GOOD) or clipboard |
 | Inventory Kamera (taiwenlee fork) | Genshin | OCR, English client | `genshinData_GOOD_*.json` |
-| [Reliquary Archiver](https://github.com/IceDynamix/reliquary-archiver/releases) | HSR | pktmon build (admin) or pcap build (Npcap); start at "Click to Start", then enter | `archive_output-*.json`; also live websocket `ws://127.0.0.1:23313/ws` |
+| Reliquary Archiver | HSR | pktmon build (admin) or pcap build (Npcap); start at "Click to Start", then enter | `archive_output-*.json`; also live websocket `ws://127.0.0.1:23313/ws` |
 | HSR-Scanner (kel-z) | HSR | OCR, English, 16:9, ~5–10 min | `HSRScanData_*.json` |
 
-## HoYoLAB (not implemented — research notes)
+## The game's official web account (not implemented — research notes)
 
-Would return every owned character with equipped gear (no unequipped inventory) without a tool, but needs the
-player's `ltuid_v2` / `ltoken_v2` / `ltmid_v2` cookies (a full login session: store encrypted, keep briefly),
-public Battle Chronicle + "Character Details", and a DS signature header whose salt changes over time.
-Endpoints (overseas): Genshin `POST sg-public-api.hoyolab.com/event/game_record/genshin/api/character/list`
-and `…/character/detail`; HSR `GET bbs-api-os.hoyolab.com/game_record/hkrpg/api/avatar/info`. Reference
-implementation: the `seriaati/genshin.py` library (routes, DS algorithm, error retcodes, server from UID prefix).
-Captchas are likely from server IPs, and cookie use conflicts with HoYoverse's security guidance.
+The publisher's community site has a "battle chronicle" API that would return every owned character with
+equipped gear (no unequipped inventory) without a tool, but it needs the player's login session cookies (store
+encrypted, keep briefly), a public battle chronicle with "Character Details" on, and a request signature whose
+salt changes over time. The open-source `genshin.py` library (seriaati) documents the routes, the signature
+algorithm, the error codes and the server from the UID prefix. Captchas are likely from server IPs, and using
+session cookies goes against the publisher's own security advice.

@@ -1,0 +1,7 @@
+<div class="head">
+  <span>{{ label() }}</span>
+  <span class="value">{{ value() === null || value() === undefined ? 'n/a' : value() }}</span>
+</div>
+<div class="track" role="progressbar" [attr.aria-valuenow]="value()" aria-valuemin="0" aria-valuemax="100" [attr.aria-label]="label()">
+  <div class="fill" [style.width.%]="value() ?? 0" [style.background]="color()"></div>
+</div>
