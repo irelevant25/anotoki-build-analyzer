@@ -8,6 +8,13 @@
  * buildAnalyzerApi() in app.php, which the tests call with a configuration of their own.
  */
 
+// The hosting prints PHP's warnings into the page (display_errors is on there), which puts the server's paths
+// in front of an answer's JSON and breaks it for the app. Served by a web server, they go to the error log
+// only; the command line, the tests and the development server keep showing them.
+if (! in_array(PHP_SAPI, ['cli', 'cli-server'], true)) {
+    ini_set('display_errors', '0');
+}
+
 require_once __DIR__.'/../vendor/autoload.php';
 require_once __DIR__.'/app.php';
 
