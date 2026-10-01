@@ -13,6 +13,7 @@ use App\Repositories\Builds;
 use App\Repositories\CatalogRows;
 use App\Services\Builds\BuildSourceRegistry;
 use App\Support\Clock;
+use App\Support\Neutral;
 use App\Support\Stats;
 
 /**
@@ -54,6 +55,10 @@ class CharacterAnalyzer
                     'grade' => $best['score']['grade'],
                     'parts' => $best['score']['parts'],
                     'top_issue' => $best['recommendations'][0]['message'] ?? null,
+                    // The same recommendation as a kind with its parameters (BuildEvaluator::KINDS), for a
+                    // page to word; both null when there is nothing to recommend.
+                    'top_issue_kind' => $best['recommendations'][0]['kind'] ?? null,
+                    'top_issue_params' => $best['recommendations'][0]['params'] ?? null,
                     'issues' => count(array_filter($best['recommendations'], fn ($r) => $r['severity'] !== 'low')),
                 ] : null,
             ];
@@ -107,7 +112,8 @@ class CharacterAnalyzer
             'evaluations' => $evaluations,
             'best_build_id' => $best['build']['id'] ?? null,
             'focus_build_id' => $focus['build']['id'] ?? null,
-            'consensus' => $this->consensus($builds, $character->character->element),
+            // The build's names as the build page shows them: neutral.
+            'consensus' => Neutral::deep($this->consensus($builds, $character->character->element)),
             'suggestions' => $suggestions['items'],
             'set_plans' => $suggestions['set_plans'],
             'has_full_inventory' => $account->has_full_inventory,
@@ -247,6 +253,7 @@ class CharacterAnalyzer
     {
         $mainStats = [];
         $sets = [];
+        $setParts = [];
         $weapons = [];
 
         foreach ($builds as $build) {
@@ -269,8 +276,10 @@ class CharacterAnalyzer
                     }
                 }
                 if ($first) {
+                    // Counted by the English label; a page words the option from its pieces and its "any N".
                     $label = BuildEvaluator::optionLabel($first);
                     $sets[$kind][$label] = ($sets[$kind][$label] ?? 0) + 1;
+                    $setParts[$kind][$label] ??= ['pieces' => BuildEvaluator::optionPieces($first), 'choose' => BuildEvaluator::optionChoose($first)];
                 }
             }
 
@@ -286,6 +295,15 @@ class CharacterAnalyzer
             return array_map(fn ($name, $count) => ['name' => $name, 'count' => $count], array_keys($counts), $counts);
         };
 
+        // A set row is {name, pieces, choose, count}: "name" stays the label it was counted by.
+        $setRows = [];
+        foreach ($sets as $kind => $counts) {
+            $setRows[$kind] = array_map(
+                fn (array $row) => ['name' => $row['name']] + $setParts[$kind][$row['name']] + ['count' => $row['count']],
+                $sortDesc($counts),
+            );
+        }
+
         $sources = [];
         foreach ($builds as $build) {
             $sources[] = $this->registry->label($build->source->key);
@@ -295,7 +313,7 @@ class CharacterAnalyzer
             'builds' => count($builds),
             'sources' => array_values(array_unique($sources)),
             'main_stats' => array_map($sortDesc, $mainStats),
-            'sets' => array_map($sortDesc, $sets),
+            'sets' => $setRows,
             'weapons' => $sortDesc($weapons),
         ];
     }

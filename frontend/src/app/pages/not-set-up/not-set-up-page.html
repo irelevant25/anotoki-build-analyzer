@@ -1,22 +1,13 @@
 <div class="page">
   <div class="panel hero" role="alert">
     <mat-icon class="hero-icon">construction</mat-icon>
-    <h1>Not set up yet</h1>
-    <p>
-      The build analyzer is installed, but nobody has set it up yet: it does not know its database or how people
-      sign in. Until then there is nothing to show here.
-    </p>
-    <p class="muted">
-      If this is your server, open the setup page, fill in the database and sign-in settings and save them. Then come
-      back here.
-    </p>
+    <h1>{{ 'notSetUp.title' | translate }}</h1>
+    <p>{{ 'notSetUp.lead' | translate }}</p>
+    <p class="muted">{{ 'notSetUp.owner' | translate }}</p>
     <div class="row wrap center">
-      <a mat-flat-button [href]="setupUrl()"><mat-icon>settings</mat-icon>Open the setup page</a>
-      <button mat-stroked-button (click)="reload()"><mat-icon>refresh</mat-icon>Try again</button>
+      <a mat-flat-button [href]="setupUrl()"><mat-icon>settings</mat-icon>{{ 'notSetUp.open' | translate }}</a>
+      <button mat-stroked-button (click)="reload()"><mat-icon>refresh</mat-icon>{{ 'notSetUp.tryAgain' | translate }}</button>
     </div>
-    <p class="muted small">
-      Not your server? Its owner has to finish the setup. The setup page removes itself once a hosted install is
-      done; if it is gone and this page still shows, upload setup.php again and run it.
-    </p>
+    <p class="muted small">{{ 'notSetUp.notOwner' | translate }}</p>
   </div>
 </div>

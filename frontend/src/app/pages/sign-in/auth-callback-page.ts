@@ -2,6 +2,7 @@ import { Component, OnInit, inject } from '@angular/core';
 import { MatProgressBarModule } from '@angular/material/progress-bar';
 import { Router } from '@angular/router';
 import { AuthService } from '../../core/auth';
+import { TranslatePipe } from '../../core/i18n/translate';
 
 /**
  * /auth/callback, where the IAM sends the browser back. The IAM client has already finished the sign-in
@@ -10,7 +11,7 @@ import { AuthService } from '../../core/auth';
  */
 @Component({
   selector: 'app-auth-callback-page',
-  imports: [MatProgressBarModule],
+  imports: [MatProgressBarModule, TranslatePipe],
   templateUrl: './auth-callback-page.html',
   styleUrl: './auth-callback-page.scss',
 })

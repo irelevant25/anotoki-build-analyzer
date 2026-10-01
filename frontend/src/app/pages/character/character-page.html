@@ -2,8 +2,8 @@
   @if (loading()) {
     <mat-progress-bar mode="indeterminate" class="top-progress" />
   }
-  @if (error(); as message) {
-    <div class="panel"><mat-icon>error</mat-icon> {{ message }}</div>
+  @if (error(); as problem) {
+    <div class="panel"><mat-icon>error</mat-icon> {{ problem | errorText }}</div>
   }
 
   @if (data(); as d) {
@@ -21,10 +21,10 @@
           @if (d.character.weapon_type) {
             <span class="chip">{{ titleCase(d.character.weapon_type) }}</span>
           }
-          <span class="chip">Lv. {{ d.character.level }}</span>
+          <span class="chip">{{ level(d.character.level) }}</span>
           <span class="chip">{{ rankPrefix() }}{{ d.character.rank }}</span>
           @for (t of talents(); track t.label) {
-            <span class="chip" [matTooltip]="t.bonus ? '+' + t.bonus + ' from ' + (game() === 'hsr' ? 'Eidolons' : 'Constellations') : ''">
+            <span class="chip" [matTooltip]="t.bonus ? ('character.talentBonus' | translate: { bonus: t.bonus, ranks: terms().ranks }) : ''">
               {{ t.label }} {{ t.level }}@if (t.bonus) {<span class="bonus">+{{ t.bonus }}</span>}
             </span>
           }
@@ -35,7 +35,7 @@
           <app-grade-badge [grade]="e.score.grade" size="lg" />
           <div>
             <div class="big-score">{{ e.score.overall ?? '–' }}<span class="muted">/100</span></div>
-            <div class="muted small">vs. {{ e.build.source.name }} · {{ e.build.variant }}</div>
+            <div class="muted small">{{ 'character.versus' | translate: { build: e.build.source.name + ' · ' + e.build.variant } }}</div>
           </div>
         </div>
       }
@@ -44,7 +44,7 @@
     @if (d.evaluations.length === 0) {
       <div class="panel empty-state">
         <mat-icon>hourglass_empty</mat-icon>
-        <p>No builds for {{ d.character.name }} yet. They appear after the next build sync (admins start one on the <a routerLink="/sources">Sources</a> page).</p>
+        <p>{{ noBuilds()[0] }}@if (noBuilds()[2]) {<a routerLink="/sources">{{ 'builds.sourcesPage' | translate }}</a>}{{ noBuilds()[1] }}</p>
       </div>
     } @else {
       <!-- Build selector -->
@@ -56,7 +56,7 @@
                 <app-grade-badge [grade]="e.score.grade" size="sm" />
                 <span>{{ e.build.source.name }} · {{ e.build.variant }}</span>
                 @if (e.build.id === d.best_build_id) {
-                  <mat-icon class="best-star" matTooltip="Closest match to your current setup">star</mat-icon>
+                  <mat-icon class="best-star" [matTooltip]="'character.closestMatch' | translate">star</mat-icon>
                 }
               </span>
             </ng-template>
@@ -68,39 +68,47 @@
         <div class="top-grid">
           <!-- Score breakdown -->
           <section class="panel">
-            <h2 class="panel-title"><mat-icon>speed</mat-icon>Score breakdown</h2>
+            <h2 class="panel-title"><mat-icon>speed</mat-icon>{{ 'character.scoreBreakdown' | translate }}</h2>
             <div class="parts">
-              <app-score-bar [label]="gameMeta()?.weapon_label ?? 'Weapon'" [value]="e.score.parts.weapon" />
-              <app-score-bar label="Set bonuses" [value]="e.score.parts.sets" />
-              <app-score-bar label="Main stats" [value]="e.score.parts.main_stats" />
-              <app-score-bar label="Substats" [value]="e.score.parts.substats" />
-              <app-score-bar label="Stat targets" [value]="e.score.parts.targets" />
+              <app-score-bar [label]="weaponTerm()" [value]="e.score.parts.weapon" />
+              <app-score-bar [label]="buildTerms.setBonuses" [value]="e.score.parts.sets" />
+              <app-score-bar [label]="buildTerms.mainStats" [value]="e.score.parts.main_stats" />
+              <app-score-bar [label]="buildTerms.substats" [value]="e.score.parts.substats" />
+              <app-score-bar [label]="'character.score.targets' | translate" [value]="e.score.parts.targets" />
             </div>
             @if (e.score.parts.targets === null && e.targets.length > 0) {
-              <p class="muted small">Stat targets need in-game totals; import this character by UID (Character Showcase) to check them.</p>
+              <p class="muted small">{{ 'character.targetsNeedTotals' | translate }}</p>
             }
             @if (e.weapon?.equipped; as w) {
               <div class="weapon-line">
-                <span class="muted small">Your {{ (gameMeta()?.weapon_label ?? 'weapon') | lowercase }}:</span>
+                <span class="muted small">{{ 'character.yourWeapon' | translate: { weapon_label: weaponTerm() } }}</span>
                 <strong>{{ w.name }} {{ refinementPrefix() }}{{ w.refinement }}</strong>
-                <span class="muted small">Lv. {{ w.level }} · {{ e.weapon?.rank ? 'option #' + e.weapon?.rank + ' of ' + e.weapon?.total : 'not on the list' }}</span>
+                <span class="muted small">
+                  {{ level(w.level) }} ·
+                  @if (e.weapon?.rank) {
+                    {{ 'character.weaponOption' | translate: { rank: e.weapon?.rank, total: e.weapon?.total } }}
+                  } @else {
+                    {{ 'character.weaponNotListed' | translate }}
+                  }
+                </span>
               </div>
             }
           </section>
 
           <!-- Recommendations -->
           <section class="panel recs">
-            <h2 class="panel-title"><mat-icon>checklist</mat-icon>What to improve</h2>
-            @for (rec of recommendations(); track $index) {
+            <h2 class="panel-title"><mat-icon>checklist</mat-icon>{{ 'character.improve' | translate }}</h2>
+            @for (row of recommendations(); track $index) {
+              @let rec = row.recommendation;
               <div class="rec" [class]="rec.severity">
                 <mat-icon>{{ severityIcon(rec) }}</mat-icon>
                 <div>
-                  <div class="rec-cat small">{{ categoryLabel(rec) }}@if (rec.slot) { · {{ rec.slot | slotLabel: game() }} }</div>
-                  <div>{{ rec.message }}</div>
+                  <div class="rec-cat small">{{ row.category }}@if (rec.slot) { · {{ rec.slot | slotLabel: game() }} }</div>
+                  <div [attr.lang]="row.text.lang">{{ row.text.text }}</div>
                 </div>
               </div>
             } @empty {
-              <div class="all-good"><mat-icon>celebration</mat-icon>Nothing to change for this build. Great job!</div>
+              <div class="all-good"><mat-icon>celebration</mat-icon>{{ 'character.nothingToChange' | translate }}</div>
             }
           </section>
         </div>
@@ -108,13 +116,16 @@
         <!-- Current equipment -->
         <section class="section">
           <div class="row">
-            <h2 class="section-title">Your {{ game() === 'hsr' ? 'relics' : 'artifacts' }}</h2>
+            <h2 class="section-title">{{ 'character.yourItems' | translate: { items: terms().items } }}</h2>
             <span class="spacer"></span>
             @if (game() === 'genshin') {
-              <span class="chip" matTooltip="2 × CRIT Rate + CRIT DMG from artifacts">Crit value {{ d.equipment.crit_value }}</span>
+              <span
+                class="chip"
+                [matTooltip]="'character.critValueHint' | translate: { crit_rate: ('critRate_' | statLabel: game()), crit_dmg: ('critDMG_' | statLabel: game()), items: terms().items }"
+              >{{ 'character.critValue' | translate: { value: d.equipment.crit_value } }}</span>
             }
           </div>
-          <p class="muted small legend">Substats in <span class="stat-good">color</span> matter most for this build; grayed ones are useless for it.</p>
+          <p class="muted small legend">{{ legend()[0] }}@if (legend()[2]) {<span class="stat-good">{{ 'character.legendColor' | translate }}</span>}{{ legend()[1] }}</p>
           <div class="items-grid">
             @for (entry of items(); track entry.slot.key) {
               @if (entry.item; as item) {
@@ -123,7 +134,7 @@
                 <div class="panel empty-slot">
                   <mat-icon>block</mat-icon>
                   <span>{{ entry.slot.label }}</span>
-                  <span class="muted small">Nothing equipped</span>
+                  <span class="muted small">{{ 'character.nothingEquipped' | translate }}</span>
                 </div>
               }
             }
@@ -133,29 +144,35 @@
         <!-- Inventory suggestions -->
         @if (d.has_full_inventory) {
           <section class="section">
-            <h2 class="section-title">Better pieces you already own</h2>
+            <h2 class="section-title">{{ 'character.betterOwned' | translate }}</h2>
             @if (suggestions().length === 0 && d.set_plans.length === 0) {
-              <p class="muted">Your inventory has nothing clearly better for this build. Time to farm!</p>
+              <p class="muted">{{ 'character.nothingBetter' | translate }}</p>
             }
             @for (plan of d.set_plans; track plan.kind) {
               <div class="panel plan">
                 <div class="row wrap">
-                  <strong>Switch to {{ plan.set }}</strong>
+                  <strong>{{ 'character.switchTo' | translate: { set: plan.set } }}</strong>
                   <span class="spacer"></span>
                   <span class="chip" [class.ok]="plan.owned >= plan.needed" [class.warn]="plan.owned < plan.needed">
-                    You own {{ plan.owned }} of {{ plan.needed }} pieces
+                    {{ 'character.planOwned' | translatePlural: plan.needed : { owned: plan.owned } }}
                   </span>
                 </div>
                 <div class="items-grid">
                   @for (piece of plan.pieces; track piece.id) {
                     <div class="plan-piece">
                       <app-item-card [item]="piece" [game]="game()" />
-                      <span class="muted small">{{ piece.equipped_on ? 'Currently on ' + piece.equipped_on : 'Not equipped by anyone' }}</span>
+                      <span class="muted small">
+                        @if (piece.equipped_on) {
+                          {{ 'character.currentlyOn' | translate: { character: piece.equipped_on } }}
+                        } @else {
+                          {{ 'character.notEquipped' | translate }}
+                        }
+                      </span>
                     </div>
                   }
                 </div>
                 @if (plan.owned < plan.needed) {
-                  <p class="muted small">Farm {{ plan.needed - plan.owned }} more piece(s) of this set to complete the bonus.</p>
+                  <p class="muted small">{{ 'character.planMissing' | translatePlural: plan.needed - plan.owned }}</p>
                 }
               </div>
             }
@@ -166,19 +183,23 @@
                   <div class="row">
                     <strong>{{ s.slot | slotLabel: game() }}</strong>
                     <span class="spacer"></span>
-                    <span class="chip ok">{{ suggestionReason(s) }}</span>
+                    <span class="chip ok">{{ entry.reason }}</span>
                   </div>
                   <app-item-card [item]="entry.view" [game]="game()" />
                   <div class="muted small">
-                    @if (s.current_percent !== null) { Current piece: {{ s.current_percent }}% · }
-                    {{ s.item.equipped_on ? 'Currently on ' + s.item.equipped_on : 'Not equipped by anyone' }}
+                    @if (s.current_percent !== null) { {{ 'character.currentPiece' | translate: { percent: s.current_percent } }} · }
+                    @if (s.item.equipped_on) {
+                      {{ 'character.currentlyOn' | translate: { character: s.item.equipped_on } }}
+                    } @else {
+                      {{ 'character.notEquipped' | translate }}
+                    }
                   </div>
                 </div>
               }
             </div>
           </section>
         } @else {
-          <p class="muted small hint"><mat-icon>info</mat-icon>Upload a full inventory export to see better pieces you already own.</p>
+          <p class="muted small hint"><mat-icon>info</mat-icon>{{ 'character.uploadInventory' | translate }}</p>
         }
 
         <!-- Recommended build -->
@@ -199,8 +220,8 @@
       <div class="bottom-grid">
         @if (d.consensus.builds > 1) {
           <section class="panel">
-            <h2 class="panel-title"><mat-icon>groups</mat-icon>What the sources agree on</h2>
-            <p class="muted small">{{ d.consensus.builds }} builds from {{ d.consensus.sources.join(', ') }}</p>
+            <h2 class="panel-title"><mat-icon>groups</mat-icon>{{ 'character.consensus.title' | translate }}</h2>
+            <p class="muted small">{{ 'character.consensus.builds' | translatePlural: d.consensus.builds : { sources: d.consensus.sources.join(', ') } }}</p>
             @for (slot of consensusSlots(); track slot.label) {
               <div class="consensus-row">
                 <span class="muted">{{ slot.label }}</span>
@@ -211,18 +232,18 @@
                 </span>
               </div>
             }
-            @for (group of consensusSets(); track group.title) {
+            @for (group of consensusSets(); track group.kind) {
               <div class="consensus-row">
                 <span class="muted">{{ group.title }}</span>
                 <span class="row wrap">
                   @for (set of group.list; track set.name) {
-                    <span class="chip">{{ set.name }} <b>{{ set.count }}×</b></span>
+                    <span class="chip">{{ set.text }} <b>{{ set.count }}×</b></span>
                   }
                 </span>
               </div>
             }
             <div class="consensus-row">
-              <span class="muted">Best {{ (gameMeta()?.weapon_label ?? 'weapon') | lowercase }}</span>
+              <span class="muted">{{ 'character.consensus.bestWeapon' | translate: { weapon_label: weaponTerm() } }}</span>
               <span class="row wrap">
                 @for (weapon of d.consensus.weapons; track weapon.name) {
                   <span class="chip">{{ weapon.name }} <b>{{ weapon.count }}×</b></span>
@@ -233,9 +254,17 @@
         }
 
         <section class="panel">
-          <h2 class="panel-title"><mat-icon>bar_chart</mat-icon>Stats</h2>
+          <h2 class="panel-title"><mat-icon>bar_chart</mat-icon>{{ 'character.stats.title' | translate }}</h2>
           @if (finalStats().length > 0) {
-            <p class="muted small">In-game totals from {{ d.character.final_stats_source === 'showcase' ? 'your Character Showcase' : 'your inventory file' }}, {{ d.character.synced_at | timeAgo }}.</p>
+            <p class="muted small">
+              @if (!d.character.synced_at) {
+                {{ 'character.stats.inGame' | translate }}
+              } @else if (d.character.final_stats_source === 'showcase') {
+                {{ 'character.stats.fromShowcase' | translate: { when: (d.character.synced_at | localDate: 'ago') } }}
+              } @else {
+                {{ 'character.stats.fromFile' | translate: { when: (d.character.synced_at | localDate: 'ago') } }}
+              }
+            </p>
             <div class="stat-table">
               @for (entry of finalStats(); track entry[0]) {
                 <span class="muted">{{ entry[0] | statLabel: game() }}</span>
@@ -243,7 +272,7 @@
               }
             </div>
           } @else {
-            <p class="muted small">From {{ game() === 'hsr' ? 'relics' : 'artifacts' }} only (import by UID to see in-game totals):</p>
+            <p class="muted small">{{ 'character.stats.itemsOnly' | translate: { items: terms().items } }}</p>
             <div class="stat-table">
               @for (entry of totals(); track entry[0]) {
                 <span class="muted">{{ entry[0] | statLabel: game() }}</span>

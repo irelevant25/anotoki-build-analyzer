@@ -11,6 +11,10 @@ what has run.
   `{table}_{columns}_unique` / `_foreign` / `_index`, so an adopted database and a new one are the same, down
   to the names - `tests/migrations.test.php` compares them), adds the `CHECK`s and ends with a verification
   gate.
+- `003_languages_and_translations.sql` creates the three tables of the site's words (below), the two languages
+  it is released in and every string, English and Slovak, in one file: a database never has the tables
+  without the strings. It alters no existing table, so everything but the words works on a database that has
+  not run it yet. Later string migrations follow its pattern.
 
 Rules: never edit a migration that has run somewhere; add `NNN_what.sql`. A migration runs in one transaction
 (PostgreSQL DDL is transactional), so a failing one leaves nothing behind. A migration that changes data ends
@@ -49,7 +53,7 @@ address; the API sends `/api/icons/{c|w|s}/{id}` instead, which fetches the imag
 | Table | Notes |
 | --- | --- |
 | `accounts` | `user_id` → `users` (cascade), `game`, `uid` (nullable: file imports have none), unique (`user_id`, `game`, `uid`) so two people can import the same UID, `nickname`, `level`, `world_level`, `has_full_inventory`, `last_import_at`, `meta` (region, tool…; the API sends only neutral keys) |
-| `import_runs` | `user_id` → `users`, `account_id` (null for a failed attempt without an account), `source` (`enka` \| `good` \| `hsr_scanner`; the API says `showcase` or `file`), `status` (`success` \| `partial` \| `failed`), `summary` {characters, weapons, items, full_inventory, tool, warnings[], unmatched{bucket: names[]}} (the API leaves out `tool`), `error` |
+| `import_runs` | `user_id` → `users`, `account_id` (null for a failed attempt without an account), `source` (`enka` \| `good` \| `hsr_scanner`; the API says `showcase` or `file`), `status` (`success` \| `partial` \| `failed`), `summary` {characters, weapons, items, full_inventory, tool, warnings[], warning_kinds[{code, params}], unmatched{bucket: names[]}} (the API leaves out `tool`) - on a failed run `{error: {code, params}}` instead, `error` (the English sentence) |
 | `account_characters` | unique (account, character); `level`, `ascension`, `rank` (constellation/eidolon), `talents`, `final_stats`, `source`, `synced_at` |
 | `account_weapons` | `refinement` (= superimposition in HSR), `equipped_character_id` → `game_characters`, `external_uid` |
 | `account_items` | artifacts/relics: `slot`, `rarity`, `level`, `main_stat`, `main_value` (nullable), `substats` JSON, `equipped_character_id`, `game_set_id` |
@@ -65,6 +69,12 @@ JSON shapes:
   constellation +3); HSR `{basic, skill, ultimate, talent, memo_skill?, memo_talent?}`.
 - `account_characters.final_stats`: in-game totals, from Genshin showcase imports only, e.g.
   `{hp: 15000, critRate_: 65.2}`.
+- `import_runs.summary.warning_kinds`: what each of `warnings` says as a kind of `ImportKinds::WARNINGS` and
+  its params, index for index; the API sends it only when there are as many as there are warnings (a run
+  stored before kinds has none, and its English is shown). A failed run's summary is `{error: {code,
+  params}}` (a kind of `ImportKinds::ERRORS`, `unexpected` for anything else); the API sends it as
+  `error_code` / `error_params` beside `error` and no summary. See [import-formats.md](import-formats.md),
+  "Errors and warnings are kinds".
 
 Import semantics (`AccountImporter`):
 
@@ -165,6 +175,26 @@ between installations". Format version 1:
   characters in `characters_skipped` and in `unmatched` as `{game}:characters`), a log that starts "imported
   from a file exported …" and ends with the "Done: …" line; and it leaves the source as a successful full sync
   does, with `last_synced_at` the file's `synced_at` (else `exported_at`).
+
+## The site's words (migration 003)
+
+| Table | Notes |
+| --- | --- |
+| `languages` | `code` (key; `^[a-z]{2}(-[a-z]{2})?$`, as a browser and the IAM's token write it), `name` (in English, for the owner's pages), `native_name` (for the reader's chooser), `enabled` (offered to readers; a hidden one keeps its strings), `sort_order`. `en` and `sk` are seeded and cannot be deleted (`TranslationCheck::SEEDED`); English cannot be switched off. At most 20 |
+| `translation_keys` | `name` (key: `namespace.thing[.detail]`), `description` (where it is shown and what its `{placeholders}` stand for - all a translator has to go by), `created_at`. Only migrations write keys; the browser changes values |
+| `translations` | key (`key_name`, `language_code`), both cascading on delete and rename; `value` (never empty: a language with no string of its own has no row and reads the English), `updated_at`, `updated_by` (the IAM user id of whoever last reworded it; null as a migration wrote it; no foreign key) |
+
+- A string is plain text, at most 2000 characters, drawn as text (there is no HTML on the site). Its
+  `{placeholders}` are the code's: the English keeps exactly its own, another language may leave one out but
+  never add one. No string names another website or holds a web address (`TranslationCheck`, on every save,
+  import and seeded string).
+- Saving an empty string in a language other than English deletes that row; an import passes empty ones over
+  and deletes nothing. Deleting a language deletes its strings.
+- Game terms are never keys (stat, character, weapon, set, slot and talent names, "Lv.", "4pc", UID).
+- A later string migration: key rows with a description, one `INSERT … SELECT … FROM (VALUES …)` block per
+  language, `ON CONFLICT DO NOTHING`, and a `DO $$` gate that counts what it seeds. Each installation's
+  database holds its own strings: what the owner rewords in the browser is not in any file
+  ([operations.md](operations.md), "The site's words").
 
 ## Cache and locks
 

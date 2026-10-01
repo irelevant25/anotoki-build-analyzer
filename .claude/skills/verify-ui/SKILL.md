@@ -61,7 +61,8 @@ $S "http://localhost:4600/import?game=hsr" "$OUT/wizard.png" 1400 1100
 Open each PNG with the Read tool (`cygpath -w` gives the Windows path) and actually inspect it: layout at
 the chosen width, overflowing text, empty sections, wrong numbers, and that nothing names another website,
 service or tool (sources are "Source 1", "Source 2" …). Routes: `/`, `/import`, `/accounts/{id}`,
-`/accounts/{id}/characters/{key}`, `/builds/{genshin|hsr}`, `/builds/{game}/{key}`, `/sources`, `/sign-in`.
+`/accounts/{id}/characters/{key}`, `/builds/{genshin|hsr}`, `/builds/{game}/{key}`, `/sources`, `/sign-in`,
+and the owner's `/translations` and `/languages` (also in the toolbar's menu).
 
 The first page a fresh browser profile opens shows "What's new" (the changelog of the current version) once;
 `screenshot.sh` keeps its profile between runs, so capture any page once and the next captures are clean.
@@ -76,8 +77,24 @@ npm i --prefix "$TMPDIR/pw" playwright-core      # once
 NODE_PATH="$TMPDIR/pw/node_modules" node .claude/skills/verify-ui/scripts/viewport.cjs http://localhost:4600/sources "$OUT/sources-390.png" 390
 ```
 
-It also prints the page's scroll width; more than the viewport means a horizontal page scroll. With
-playwright-core, states behind sign-in can be checked without the IAM: `context.route('**/api/meta', …)` to
+It also prints the page's scroll width; more than the viewport means a horizontal page scroll. **The scroll
+width can hide overlaps**: a bar or panel that shrinks its children (`min-width: 0`) never scrolls, and its
+pieces paint over each other instead - the toolbar's links once sat 32 px under the version button at 390 px,
+and the import history cut its last column to a few letters a line, both with a scroll width equal to the
+viewport. For a bar or a panel, compare the bounding boxes of its pieces (`getBoundingClientRect()`: no two
+overlapping, the last one inside the viewport) and check that no cell's text is cut.
+
+**A Slovak pass at 390 px** for every member page a change touches: the same page with `?lang=sk` (kept for
+the tab) and with `?lang=en`. Slovak runs longer than English. Look for a key where a word should be
+(`dashboard.title` - the database lacks the string), English left on a Slovak page (a sentence written into a
+template, or a stored row without a known kind, which is fine only with `lang="en"`), a Slovak word declining a
+game term (game terms stay English, first and before a colon), `<html lang>` and the tab title in the language.
+`/sources`, `/translations` and `/languages` stay English with `lang="en"` even with Slovak chosen. **This
+machine's browser locale is Slovak**, so a fresh profile (every `viewport.cjs` run) starts in Slovak through the
+browser's language: pin the English pass with `?lang=en` (or the context's `locale: 'en-US'`). With
+migration 003 not applied the pages read the compiled English whatever is chosen.
+
+With playwright-core, states behind sign-in can be checked without the IAM: `context.route('**/api/meta', …)` to
 answer `auth.mode: "iam"` (signed out: guards go to `/sign-in`), plus an `addInitScript` that stores an SDK
 session under `localStorage['anotoki-auth:build-analyzer']` (`{access_token, access_expires_at, refresh_token,
 user: {sub, preferred_username, roles: ['MEMBER']}}`) for the member view; the "none"-mode backend ignores the

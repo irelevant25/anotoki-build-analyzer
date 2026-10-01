@@ -3,95 +3,112 @@
     <mat-progress-bar mode="indeterminate" />
   }
 
-  @if (error(); as message) {
-    <div class="panel"><mat-icon>error</mat-icon> {{ message }}</div>
+  @if (error(); as failure) {
+    <div class="panel"><mat-icon>error</mat-icon> {{ failure | errorText }}</div>
   }
 
   @if (account(); as acc) {
+    <!-- What the game calls its things - Artifacts / Relics, Adventure Rank / Trailblaze Level: never worded. -->
+    @let terms = gameTerms[acc.game];
     <header class="page-header">
       <div class="title-block">
         @if (renaming()) {
           <form class="row" (ngSubmit)="saveName()">
             <mat-form-field appearance="outline" subscriptSizing="dynamic">
-              <mat-label>Account name</mat-label>
+              <mat-label>{{ 'account.nameLabel' | translate }}</mat-label>
               <input matInput name="name" [ngModel]="newName()" (ngModelChange)="newName.set($event)" maxlength="100" />
             </mat-form-field>
-            <button mat-flat-button type="submit">Save</button>
-            <button mat-button type="button" (click)="renaming.set(false)">Cancel</button>
+            <button mat-flat-button type="submit">{{ 'common.save' | translate }}</button>
+            <button mat-button type="button" (click)="renaming.set(false)">{{ 'common.cancel' | translate }}</button>
           </form>
         } @else {
           <h1>
             {{ acc.nickname }}
-            <button mat-icon-button (click)="renaming.set(true)" aria-label="Rename account" matTooltip="Rename"><mat-icon>edit</mat-icon></button>
+            <button mat-icon-button (click)="renaming.set(true)" [attr.aria-label]="'account.rename' | translate" [matTooltip]="'account.renameShort' | translate">
+              <mat-icon>edit</mat-icon>
+            </button>
           </h1>
         }
         <p class="subtitle">
           {{ gameLabels[acc.game] }}
-          @if (acc.uid) { · UID {{ acc.uid }} }
-          @if (acc.level) { · {{ acc.game === 'hsr' ? 'Trailblaze Level' : 'Adventure Rank' }} {{ acc.level }} }
-          · imported {{ acc.last_import_at | timeAgo }}
+          @if (acc.uid) { · {{ uidTerm }} {{ acc.uid }} }
+          @if (acc.level) { · {{ terms.accountLevel }} {{ acc.level }} }
+          ·
+          @if (acc.last_import_at) {
+            {{ 'account.imported' | translate: { when: (acc.last_import_at | localDate: 'ago') } }}
+          } @else {
+            {{ 'account.notImportedYet' | translate }}
+          }
         </p>
       </div>
       <div class="row wrap">
-        <a mat-stroked-button routerLink="/import" [queryParams]="{ game: acc.game, account: acc.id, method: 'showcase' }"><mat-icon>badge</mat-icon>Update by UID</a>
-        <a mat-flat-button routerLink="/import" [queryParams]="{ game: acc.game, account: acc.id, method: 'file' }"><mat-icon>inventory_2</mat-icon>Upload inventory</a>
+        <a mat-stroked-button routerLink="/import" [queryParams]="{ game: acc.game, account: acc.id, method: 'showcase' }">
+          <mat-icon>badge</mat-icon>{{ 'account.updateByUid' | translate }}
+        </a>
+        <a mat-flat-button routerLink="/import" [queryParams]="{ game: acc.game, account: acc.id, method: 'file' }">
+          <mat-icon>inventory_2</mat-icon>{{ 'account.uploadInventory' | translate }}
+        </a>
       </div>
     </header>
 
     <div class="stats-row">
       <div class="panel stat">
-        <span class="muted small">Characters</span>
+        <span class="muted small">{{ 'account.characters' | translate }}</span>
         <strong>{{ acc.counts.characters }}</strong>
       </div>
       <div class="panel stat">
-        <span class="muted small">Average build score</span>
+        <span class="muted small">{{ 'account.averageScore' | translate }}</span>
         <strong>{{ averageScore() ?? '–' }}</strong>
       </div>
       <div class="panel stat">
-        <span class="muted small">{{ acc.game === 'hsr' ? 'Relics' : 'Artifacts' }}</span>
+        <span class="muted small">{{ terms.items }}</span>
         <strong>{{ acc.counts.items }}</strong>
       </div>
       <div class="panel stat">
-        <span class="muted small">Data</span>
-        <strong class="data-kind">{{ acc.has_full_inventory ? 'Full inventory' : 'Showcase only' }}</strong>
+        <span class="muted small">{{ 'account.data' | translate }}</span>
+        <strong class="data-kind">{{ (acc.has_full_inventory ? 'account.fullInventory' : 'account.showcaseOnly') | translate }}</strong>
       </div>
     </div>
 
     @if (!acc.has_full_inventory) {
       <p class="note muted small">
         <mat-icon>info</mat-icon>
-        Only showcased characters are known. Upload a full inventory export to analyze every character and get
-        "better piece you already own" suggestions.
+        {{ 'account.showcaseNote' | translate }}
       </p>
     }
 
     <div class="filters">
       <mat-form-field appearance="outline" subscriptSizing="dynamic" class="search">
         <mat-icon matPrefix>search</mat-icon>
-        <mat-label>Search</mat-label>
+        <mat-label>{{ 'account.search' | translate }}</mat-label>
         <input matInput [ngModel]="search()" (ngModelChange)="search.set($event)" />
       </mat-form-field>
 
-      <mat-button-toggle-group [value]="element()" (change)="element.set($event.value)" hideSingleSelectionIndicator aria-label="Element">
-        <mat-button-toggle value="all">All</mat-button-toggle>
+      <mat-button-toggle-group
+        [value]="element()"
+        (change)="element.set($event.value)"
+        hideSingleSelectionIndicator
+        [attr.aria-label]="'account.elementFilter' | translate"
+      >
+        <mat-button-toggle value="all">{{ 'account.allElements' | translate }}</mat-button-toggle>
+        <!-- An element's name is the game's. -->
         @for (el of elements(); track el) {
           <mat-button-toggle [value]="el"><span class="el-dot" [style.background]="'var(--el-' + el + ')'"></span>{{ titleCase(el) }}</mat-button-toggle>
         }
       </mat-button-toggle-group>
 
       <mat-form-field appearance="outline" subscriptSizing="dynamic" class="sort">
-        <mat-label>Sort</mat-label>
+        <mat-label>{{ 'account.sort' | translate }}</mat-label>
         <mat-select [value]="sort()" (valueChange)="sort.set($event)">
-          <mat-option value="score-asc">Needs work first</mat-option>
-          <mat-option value="score-desc">Best builds first</mat-option>
-          <mat-option value="level">Level</mat-option>
-          <mat-option value="name">Name</mat-option>
+          @for (option of sorts; track option.value) {
+            <mat-option [value]="option.value">{{ option.label | translate }}</mat-option>
+          }
         </mat-select>
       </mat-form-field>
 
       @if (unbuiltCount() > 0) {
         <mat-slide-toggle [checked]="!hideUnbuilt()" (change)="hideUnbuilt.set(!$event.checked)">
-          Show unbuilt ({{ unbuiltCount() }})
+          {{ 'account.showUnbuilt' | translate: { count: unbuiltCount() } }}
         </mat-slide-toggle>
       }
     </div>
@@ -103,7 +120,8 @@
             <app-avatar [src]="c.icon_url" [alt]="c.name" [rarity]="c.rarity" [element]="c.element" />
             <div class="char-names">
               <div class="char-name">{{ c.name }}</div>
-              <div class="muted small">Lv. {{ c.level }} · {{ rankLabel(c) }}</div>
+              <!-- "Lv. 90 · C2": the game's notation. -->
+              <div class="muted small">{{ level(c.level) }} · {{ rankLabel(c) }}</div>
             </div>
             @if (c.best) {
               <app-grade-badge [grade]="c.best.grade" [score]="c.best.overall" />
@@ -120,50 +138,50 @@
             @for (set of c.sets; track set.key) {
               <span class="chip">{{ set.count }}× {{ set.name }}</span>
             } @empty {
-              <span class="muted small">No {{ acc.game === 'hsr' ? 'relics' : 'artifacts' }} equipped</span>
+              <span class="muted small">{{ 'account.noItemsEquipped' | translate: { items: terms.items } }}</span>
             }
           </div>
 
           @if (c.best; as best) {
             <div class="parts">
-              <app-score-bar label="Sets" [value]="best.parts.sets" />
-              <app-score-bar label="Main stats" [value]="best.parts.main_stats" />
-              <app-score-bar label="Substats" [value]="best.parts.substats" />
+              <app-score-bar [label]="'account.partSets' | translate" [value]="best.parts.sets" />
+              <app-score-bar [label]="buildTerms.mainStats" [value]="best.parts.main_stats" />
+              <app-score-bar [label]="buildTerms.substats" [value]="best.parts.substats" />
             </div>
-            <div class="muted small best-line">Best match: {{ best.source }} · {{ best.variant }}</div>
-            @if (best.top_issue) {
-              <div class="issue small"><mat-icon>tips_and_updates</mat-icon>{{ best.top_issue }}</div>
+            <div class="muted small best-line">{{ 'account.bestMatch' | translate: { source: best.source, variant: best.variant } }}</div>
+            <!-- The first thing the build recommends: worded from its kind, or the stored English sentence, saying so. -->
+            @if (issues().get(c.id); as issue) {
+              <div class="issue small"><mat-icon>tips_and_updates</mat-icon><span [attr.lang]="issue.lang">{{ issue.text }}</span></div>
             }
           } @else {
-            <div class="muted small">No builds for this character yet.</div>
+            <div class="muted small">{{ 'account.noBuildsForCharacter' | translate }}</div>
           }
         </a>
       } @empty {
-        <div class="empty-state"><mat-icon>search_off</mat-icon><p>No characters match the filters.</p></div>
+        <div class="empty-state"><mat-icon>search_off</mat-icon><p>{{ 'account.noMatches' | translate }}</p></div>
       }
     </div>
 
     @if (withoutBuilds() > 0) {
-      <p class="muted small">{{ withoutBuilds() }} character(s) have no builds yet; they appear once a build sync has fetched them.</p>
+      <p class="muted small">{{ 'account.withoutBuilds' | translatePlural: withoutBuilds() }}</p>
     }
 
-    @if (imports().length > 0) {
+    @if (history().length > 0) {
       <mat-expansion-panel class="history">
-        <mat-expansion-panel-header><mat-panel-title>Import history</mat-panel-title></mat-expansion-panel-header>
+        <mat-expansion-panel-header><mat-panel-title>{{ 'account.importHistory' | translate }}</mat-panel-title></mat-expansion-panel-header>
         <table class="history-table">
           <tbody>
-            @for (run of imports(); track run.id) {
+            @for (row of history(); track row.run.id) {
               <tr>
-                <td>{{ run.created_at | timeAgo }}</td>
-                <td>{{ sourceLabel(run) }}</td>
-                <td><span class="chip" [class.ok]="run.status === 'success'" [class.warn]="run.status === 'partial'" [class.bad]="run.status === 'failed'">{{ run.status }}</span></td>
-                <td class="muted small">
-                  @if (run.summary) {
-                    {{ run.summary.characters }} characters, {{ run.summary.items }} {{ acc.game === 'hsr' ? 'relics' : 'artifacts' }}
-                  } @else {
-                    {{ run.error }}
-                  }
+                <td>{{ row.run.created_at | localDate: 'ago' }}</td>
+                <td>{{ row.source | translate }}</td>
+                <td>
+                  <span class="chip" [class.ok]="row.run.status === 'success'" [class.warn]="row.run.status === 'partial'" [class.bad]="row.run.status === 'failed'">{{
+                    row.status
+                  }}</span>
                 </td>
+                <!-- What came in - or, for a run that failed, why: worded from its code, or the sentence stored with it. -->
+                <td class="muted small" [attr.lang]="row.outcome.lang">{{ row.outcome.text }}</td>
               </tr>
             }
           </tbody>

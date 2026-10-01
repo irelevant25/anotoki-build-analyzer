@@ -24,7 +24,7 @@ class GoodParser
     public function parse(array $json): ParsedAccount
     {
         if (! self::matches($json)) {
-            throw new ImportException('This is not a GOOD file (missing "format": "GOOD").');
+            throw new ImportException('This is not a GOOD file (missing "format": "GOOD").', 'good_not_good');
         }
 
         $account = new ParsedAccount(
@@ -41,7 +41,7 @@ class GoodParser
                 continue;
             }
             if ($key === 'Traveler') {
-                $account->warnings[] = 'The file has a Traveler without an element (old GOOD version); it was skipped.';
+                $account->warn('good_traveler_no_element', [], 'The file has a Traveler without an element (old GOOD version); it was skipped.');
 
                 continue;
             }
@@ -127,10 +127,10 @@ class GoodParser
         }
 
         if ($skipped > 0) {
-            $account->warnings[] = "{$skipped} artifact(s) with missing set, slot or main stat were skipped.";
+            $account->warn('good_artifacts_skipped', ['count' => $skipped], "{$skipped} artifact(s) with missing set, slot or main stat were skipped.");
         }
         if ($account->characters === [] && $account->items === []) {
-            throw new ImportException('The GOOD file contains no characters or artifacts. Check the exporter settings.');
+            throw new ImportException('The GOOD file contains no characters or artifacts. Check the exporter settings.', 'good_empty');
         }
 
         return $account;

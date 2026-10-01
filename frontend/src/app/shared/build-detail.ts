@@ -2,10 +2,16 @@ import { Component, computed, inject, input } from '@angular/core';
 import { MatExpansionModule } from '@angular/material/expansion';
 import { MatIconModule } from '@angular/material/icon';
 import { MatTooltipModule } from '@angular/material/tooltip';
+import { GAME_TERMS, SET_KIND_TERMS, pieces } from '../core/game-terms';
+import { LocalDatePipe } from '../core/i18n/local-date';
+import { TranslatePipe } from '../core/i18n/translate';
+import { TranslatePluralPipe } from '../core/i18n/translate-plural';
+import { TranslationService } from '../core/i18n/translation';
 import { MetaStore } from '../core/meta-store';
 import { Build, Evaluation, GameKey, SetOption, StatPriority, TalentPriority } from '../core/models';
+import { BUILD_TERMS } from './build-terms';
 import { Avatar } from './char-avatar';
-import { StatValuePipe, TimeAgoPipe } from './stat-pipes';
+import { StatValuePipe } from './stat-pipes';
 
 interface SetGroup {
   kind: SetOption['kind'];
@@ -16,15 +22,21 @@ interface SetGroup {
 
 /**
  * Renders a recommended build. With an evaluation it also marks what the player already has.
+ *
+ * The site's own words are keys; the game's words - the headings of weapons and sets, "4pc", stat and
+ * talent names - are terms and stay as they are. What a source wrote (a weapon's or a set's note, a
+ * target's text, the build's notes) is stored English: shown as it is, marked `lang="en"` while the page
+ * is in another language.
  */
 @Component({
   selector: 'app-build-detail',
-  imports: [Avatar, StatValuePipe, TimeAgoPipe, MatIconModule, MatTooltipModule, MatExpansionModule],
+  imports: [Avatar, StatValuePipe, LocalDatePipe, TranslatePipe, TranslatePluralPipe, MatIconModule, MatTooltipModule, MatExpansionModule],
   templateUrl: './build-detail.html',
   styleUrl: './build-detail.scss',
 })
 export class BuildDetail {
   private readonly meta = inject(MetaStore);
+  private readonly i18n = inject(TranslationService);
 
   readonly build = input.required<Build>();
   readonly game = input.required<GameKey>();
@@ -33,6 +45,11 @@ export class BuildDetail {
   readonly element = input<string | null>(null);
 
   protected readonly gameMeta = computed(() => this.meta.game(this.game()));
+  /** The game's own words for this game: "Weapons" / "Light Cones", "Talents" / "Traces". */
+  protected readonly terms = computed(() => GAME_TERMS[this.game()]);
+  protected readonly buildTerms = BUILD_TERMS;
+  /** `en` on what a source wrote while the page is in another language; nothing while it is English. */
+  protected readonly storedLang = this.i18n.storedEnglishLang;
 
   protected readonly equippedWeaponKey = computed(() => this.evaluation()?.weapon?.equipped?.key ?? null);
 
@@ -41,16 +58,11 @@ export class BuildDetail {
   );
 
   protected readonly setGroups = computed<SetGroup[]>(() => {
-    const titles: Record<SetOption['kind'], string> = {
-      artifact: 'Artifact sets',
-      relic: 'Cavern Relics',
-      planar: 'Planar Ornaments',
-    };
     const groups = this.evaluation()?.sets?.groups ?? [];
     return (['artifact', 'relic', 'planar'] as const)
       .map((kind) => ({
         kind,
-        title: titles[kind],
+        title: SET_KIND_TERMS[kind],
         options: this.build().sets.filter((option) => option.kind === kind),
         matchedRank: groups.find((group) => group.kind === kind)?.matched_rank ?? null,
       }))
@@ -86,8 +98,9 @@ export class BuildDetail {
     return evaluated && evaluated.length > 0 ? evaluated : (this.build().stat_targets ?? []);
   });
 
+  /** "4pc A + 2pc B": the game's notation, the same in every language. */
   protected pieceText(option: SetOption): string {
-    return option.pieces.map((piece) => `${piece.count}pc ${piece.label}`).join(' + ');
+    return option.pieces.map((piece) => `${pieces(piece.count)} ${piece.label}`).join(' + ');
   }
 
   protected stat(stat: string): string {

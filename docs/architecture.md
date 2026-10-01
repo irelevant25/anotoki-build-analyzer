@@ -27,7 +27,7 @@ other anotoki sites (the genshin site, the IAM).
 | Area | Where | Notes |
 | --- | --- | --- |
 | Entry points | `api/index.php` (front controller, `/api/*`), `api/app.php` (`buildAnalyzerApi()`: routes + middleware), `router.php` (PHP's built-in server in development), `setup.php` (installer) | the tests call `buildAnalyzerApi()` in-process |
-| Routes | `api/routes/{meta,icons,accounts,imports,builds,sources,sync,admin}.php` | each returns `function (Slim\App $slim, App $app)` |
+| Routes | `api/routes/{meta,icons,accounts,imports,builds,sources,sync,admin,translations}.php` | each returns `function (Slim\App $slim, App $app)` |
 | Middleware | `api/middleware/errors.php` (JSON errors), `security.php` (headers), `setup_gate.php` (503 `not_set_up`), `auth.php` (`requireRole()`, `currentUser()`, `throttle()`) | Slim runs the last one added first |
 | Wiring | `src/App.php` (a small container: `get()` builds a class once per request scope, `resetScope()`), `src/Config.php` | `Db` and the HTTP client last the whole process; everything else is per request |
 | Configuration | `config/app.php` (committed: sources, catalog, showcase, aliases), `config/{database,auth,fetch}.local.php` (per installation, written by `setup.php`) | no environment variables, no `.env` |
@@ -38,12 +38,13 @@ other anotoki sites (the genshin site, the IAM).
 | Outgoing HTTP | `src/Http/Fetcher.php`, `CurlHttpClient.php`, `FetchDeferred.php` | per-host delay kept in the cache table, retries on 429/5xx, optional disk cache, step deadline |
 | Cache and locks | `src/Cache/{Cache,Locks}.php` | the `cache` and `cache_locks` tables (the host has no Redis or shared memory) |
 | Catalog | `src/Services/Catalog/{Catalog,CatalogSync,SetBonusGroups}.php` | resolve any source's names/IDs to catalog rows; see [name-matching.md](name-matching.md) |
-| Imports | `src/Services/Import/ImportService` → parsers → `ParsedAccount` → `AccountImporter` | always for one user; see [import-formats.md](import-formats.md) |
+| Imports | `src/Services/Import/ImportService` → parsers → `ParsedAccount` → `AccountImporter`; `ImportKinds.php` | always for one user; errors and warnings are kinds with params; see [import-formats.md](import-formats.md) |
 | Builds | `src/Services/Builds/{BuildSync,BuildSourceRegistry}.php`, `Sources/*`, `Parsing/*`; `BuildFile.php`, `BuildTransfer.php` | see [build-sources.md](build-sources.md); a source's builds exported to / imported from a file: [data-model.md](data-model.md) ("Builds files") |
 | Syncs | `src/Services/Sync/{SyncRunner,RunHandler,RunLog,StepResult}.php` | runs worked through in short steps; see "Syncs" below |
-| Analysis | `src/Services/Analysis/*` | see [analysis.md](analysis.md) |
-| Output | `src/Presenters/*` (accounts, builds, sync runs, icon addresses), `src/Support/Neutral.php` | what the API sends, in the shapes of `frontend/src/app/core/models.ts` |
-| Command line | `migration.php`, `sync-builds.php`, `sync-catalog.php`, `import-account.php` (→ `src/Commands/*`) | loop over the same steps as the Sources page; nothing is scheduled |
+| Analysis | `src/Services/Analysis/*` | recommendations are kinds with params (`BuildEvaluator::KINDS`); see [analysis.md](analysis.md) |
+| The site's words | `src/Repositories/Translations.php` (`available()`: are the tables there), `src/Services/Translations/{TranslationCheck,TranslationEditor}.php`, `src/Presenters/TranslationPresenter.php`, `api/routes/translations.php`, migration 003 | see "The site's words" below and [data-model.md](data-model.md) |
+| Output | `src/Presenters/*` (accounts, builds, sync runs, icon addresses, translations), `src/Support/Neutral.php` | what the API sends, in the shapes of `frontend/src/app/core/models.ts` |
+| Command line | `migration.php`, `sync-builds.php`, `sync-catalog.php`, `import-account.php`, `translations.php` (→ `src/Commands/*`) | loop over the same steps as the Sources page; nothing is scheduled |
 | Setup | `setup.php` + `src/Setup/Installer.php` | writes `config/*.local.php`, builds the database; see [operations.md](operations.md) |
 | Deploy | `../scripts/build-dist.php` | `dist/`, the web root to upload; see DEV.md "Deploying" |
 
@@ -99,6 +100,11 @@ changelog. So the API never sends a site's name or address either:
   source". `scripts/build-dist.php` refuses a frontend build that contains one of those names.
 - Icons: the catalog stores the provider's icon address; the API sends `/api/icons/{c|w|s}/{id}`, which fetches
   the image once into `storage/icons/` and serves it from this site.
+- The site's words: no string names another site or holds a web address, whether a migration seeded it or the
+  owner reworded it in the browser (or imported it from a file, or the command line). `TranslationCheck`
+  refuses one (422 `names_another_site`, checked last, in any language, also in a language's names), and
+  `tests/translation_catalogue.test.php` puts every seeded string through the same check. A word refused only
+  because it contains a name is reworded; the list of names is not changed for it.
 
 ### Main flows
 
@@ -107,7 +113,8 @@ changelog. So the API never sends a site's name or address either:
   `ParsedAccount` with catalog *references* (`external_id` / `name` / `key`) → `AccountImporter::import($parsed,
   $owner, $target)` refreshes a missing catalog list if allowed, resolves references (lookups only, never
   creating catalog rows), upserts characters, replaces gear, writes an `ImportRun`. Failures are recorded as
-  failed `ImportRun`s of the user; `ImportException` messages are shown to users as they are (422).
+  failed `ImportRun`s of the user; a refusal is 422 `{message, code, params}`, which the wizard words from
+  `code` and `params` (import-formats.md, "Errors and warnings are kinds").
 - **Build sync**: an admin presses "Sync now" / "Sync all" (or runs `php sync-builds.php`) →
   `SyncRunner::startBuilds()` creates a `sync_runs` row per source (and a catalog run first when the game's
   catalog is stale) → the page calls `POST /api/sync/step` repeatedly → `BuildSync::step()` lists the site's
@@ -139,6 +146,50 @@ request) and `last_step_at`. `SyncRunner::step()`:
 The browser (`SyncDriver`) waits `wait_ms` and asks again while anything is active; closing the tab pauses. The
 command-line scripts do the same in a loop. Cancel waits for a running step, then marks the run `cancelled`.
 
+### The site's words
+
+The member pages read in English or Slovak (more languages can be added in the browser). The words are rows
+of the database ([data-model.md](data-model.md), "The site's words"), because the host has no shell and an
+upload overwrites the build: a string is a key the code names and a value per language the owner may reword.
+
+- **Keys, not sentences.** A template words a key with the `translate` / `translatePlural` pipes; state holds
+  keys, kinds and errors, and a template or a `computed()` words them, so a page follows a change of language
+  without reloading. Keys put together at run time come only from the closed lists in
+  `frontend/src/app/core/i18n/dynamic-keys.ts`.
+- **What the server says to a member is a kind with params**: recommendations (`BuildEvaluator::KINDS` →
+  `recommendation-words.ts`), import errors and warnings (`ImportKinds` → `import-words.ts`), and a failed
+  request's `code` (`error-text.ts`, which never shows the server's sentence to a member). The English beside
+  each kind stays for the command line and for rows stored before kinds; such a row is shown in that English
+  with `lang="en"`.
+- **Game terms stay as the game writes them** in every language: stat, slot, talent, set, weapon and
+  character names, "Lv.", "4pc", UID, grades, and the game's notation ("62.4%", "R1"). They are never keys;
+  they reach a sentence as a `{placeholder}` or stand before a colon, so no Slovak word agrees with one
+  (`core/game-terms.ts`, `shared/build-terms.ts`, and what `/api/meta` sends).
+- **The fallbacks**: the server merges English under every bundle; a key the database lacks shows as the key,
+  on purpose. The compiled English (`core/i18n/en.ts` and its parts `en/*.json`) is the list of keys (an
+  unknown key is a compile error) and the last resort: it is shown only while no bundle is in memory - before
+  migration 003 is applied (every translation route answers 503 `translations_unavailable` then) or while a
+  first visit waits for its words - and never fills a single missing string.
+- **The language**: `?lang=` (kept for the tab), the menu's remembered choice, the IAM token's `locale`, the
+  browser's languages (Czech readers get Slovak while no Czech is offered), else English
+  (`TranslationService`). The last bundle is kept in the browser, so a returning reader starts in their
+  language. `<html lang>` and the page titles (`title-strategy.ts`) follow it; dates and numbers use
+  `Intl` (`localDate`).
+- **English pages**: `/sources`, `/translations` and `/languages` keep their English code and read English with
+  `<html lang="en">` whatever language is chosen; the server's admin-only sentences stay English and those
+  pages show them as they come (`errorMessage()`).
+- **The owner's pages** (admin): Translations is a grid of every key with its description and a cell per
+  language, saved together (`PUT /api/admin/translations`, checked whole by `TranslationCheck` and written in
+  one transaction), plus export and import of one language as a `{key: text}` file. Languages adds, renames,
+  orders, offers or hides and deletes languages; a new language starts hidden, so its strings can be written
+  before readers are offered it. What neither page has saved is kept for the tab (`LocalizationDrafts`, in
+  `sessionStorage`, per person), leaving inside the app asks first (`unsavedChangesGuard`, through
+  `shared/confirm-dialog`), and closing the tab asks the browser's question.
+- **The tests hold the pieces together** (`tests/translation_catalogue.test.php`): the compiled English is,
+  key for key, the seeded English; every key the frontend uses (the scan `tests/support/translation_keys.php`,
+  which reads the sources and `dynamic-keys.ts` as text) is in the database and every database key is used;
+  the server's kinds are the declared tails; every seeded string passes the checks a save makes.
+
 ### REST API (`api/routes/`)
 
 | Method & path | Who | Purpose |
@@ -161,12 +212,19 @@ command-line scripts do the same in a loop. Cancel waits for a running step, the
 | `GET /api/sync`, `POST /api/sync/step` | admin | the active runs and `wait_ms`; do one bounded step |
 | `GET /api/sync-runs`, `GET /api/sync-runs/{id}`, `POST /api/sync-runs/{id}/cancel` | admin | history (`?source=`, `?kind=`), log, cancel |
 | `GET /api/admin/migrations`, `POST /api/admin/migrations/apply` | admin | pending migrations; apply them (no shell on the host) |
+| `GET /api/translations/{code}` | anyone (no token read) | the bundle: `{language, languages (the offered ones), values, english?}`, the language's strings with English underneath; ETag and 304 |
+| `GET/POST /api/admin/languages`, `PUT/DELETE /api/admin/languages/{code}` | admin | the languages, hidden ones too, with their string counts / add one / change name, native name, offered, order / delete one and its strings (never `en` or `sk`) |
+| `GET/PUT /api/admin/translations` `{values: {key: {code: text}}}` | admin | the grid (every key, its description, its strings) / save the changed strings, all or none |
+| `GET /api/admin/translations/{code}/export`, `PUT …/{code}/import` `{key: text}` | admin | one language's own strings as a file / back in, with a save's checks |
 
-Errors are JSON `{message}` (validation adds `errors: {field: [message]}`): 401 `Sign in to continue.` (no or
-bad token), 403 (no role here / not an admin / "none" mode from another computer), 404 `Not found.` (also for
-other users' accounts and unknown paths), 409 (a step holds the lock; a builds file for a source that is
-syncing), 422 (import problems, a builds file that does not fit, validation), 429 (too many showcase imports),
-503 `not_set_up`.
+Errors are JSON `{message}` and, where a page words them, a `code` (validation adds `errors: {field:
+[message]}`): 401 `Sign in to continue.` (no or bad token), 403 (no role here / not an admin / "none" mode
+from another computer), 404 `Not found.` (also for other users' accounts and unknown paths), 409 (a step holds
+the lock; a builds file for a source that is syncing; `language_exists`, `fallback_language`,
+`seeded_language`), 422 (import problems `{code, params}`, a builds file that does not fit, validation, a
+string or language the checks refuse - with the key and the language; a write to the translation routes whose body is not
+`application/json`, such as a form, is `invalid_language` / `invalid_value` like a malformed one), 429 (too many showcase imports), 503
+`not_set_up`, and 503 `translations_unavailable` from the translation routes until migration 003 is applied.
 
 ## Frontend (`frontend/`, Angular 21 + Angular Material 21)
 
@@ -183,14 +241,30 @@ syncing), 422 (import problems, a builds file that does not fit, validation), 42
   off (`mode: 'none'`) no sign-in controls are shown and every page opens.
 - `core/sync-driver.ts` (`SyncDriver`, provided in root): steps the syncs while the tab is open; the toolbar shows
   a spinning icon while it drives.
+- `core/i18n/` (see "The site's words" above): `translation.ts` (`TranslationService`: the language, the
+  bundle, `init()` from the app initializer, the English pages), `en.ts` with the compiled English parts
+  `en/{core,shell,builds,import}.json` (one flat `{"key": "English"}` object each, a key in exactly one part),
+  the pipes `translate`, `translatePlural`, `localDate`, `dynamic-keys.ts`, `error-text.ts` (a failed request
+  by its `code`), `recommendation-words.ts`, `import-words.ts`, `title-strategy.ts` (`AppTitleStrategy`: a
+  member route's `title` is a key) and `testing.ts` (the specs' helpers). The game's own words:
+  `core/game-terms.ts`, `shared/build-terms.ts`. `pages/import/stepper-words.ts` words the Material stepper's
+  own labels.
+- The owner's pages: `core/localization-drafts.ts` (`LocalizationDrafts`: what the Translations and Languages
+  pages have not saved, for the tab, and the one `beforeunload` question), `core/unsaved-changes.guard.ts`
+  (`unsavedChangesGuard`, `canDeactivate` on both routes), `shared/confirm-dialog`.
+- The toolbar: the navigation links, and one menu button for the theme, the language (each in its own name,
+  with its `lang`) and, for an admin, the owner's two pages - one button, so it costs no width. Under 720 px the
+  icon-only links and the user button drop Material's 64 px minimum width and the bar's padding is 8 px, so
+  nothing overlaps at 360 or 390 px.
 - `shared/`: `build-detail` (renders a build, optionally annotated with an evaluation), `item-card`,
-  `grade-badge`, `score-bar`, `char-avatar` (`app-avatar`), `changelog-dialog`, `stat-pipes` (`statLabel`,
-  `statValue`, `slotLabel`, `timeAgo`).
-- `pages/`: `dashboard`, `import` (wizard + `import-guides.ts` content), `account`, `character`, `builds`
-  (list + per character), `sources` (admin: sources, running syncs with pause / resume / cancel, database
-  updates, a source's builds exported and imported as a file - `build-file.ts` checks a chosen file before
-  anything is sent), `sign-in`, `not-set-up`. Lazy-loaded from `app.routes.ts`; route params arrive as signal
-  inputs (`withComponentInputBinding`).
+  `grade-badge`, `score-bar`, `char-avatar` (`app-avatar`), `changelog-dialog`, `confirm-dialog`,
+  `stat-pipes` (`statLabel`, `statValue`, `slotLabel`, `timeAgo`).
+- `pages/`: `dashboard`, `import` (wizard + `import-guides.ts`, whose texts are keys), `account` (its import
+  history wraps a row under 600 px, so the last column is never cut), `character`, `builds` (list + per
+  character), `sources` (admin: sources, running syncs with pause / resume / cancel, database updates, a
+  source's builds exported and imported as a file - `build-file.ts` checks a chosen file before anything is
+  sent), `translations` and `languages` (admin, English), `sign-in`, `not-set-up`. Lazy-loaded from
+  `app.routes.ts`; route params arrive as signal inputs (`withComponentInputBinding`).
 - Conventions: standalone components, always three files (`.ts`, `.html`, `.scss`), signals (`signal`,
   `computed`, `input`), `inject()`, built-in control flow (`@if`, `@for`, `@let`), zoneless change detection,
   Material 3 theme with CSS tokens in `src/styles.scss` (`--app-*`, `--grade-*`, `--el-*`, light/dark via

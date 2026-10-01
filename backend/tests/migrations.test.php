@@ -14,30 +14,11 @@ declare(strict_types=1);
 
 require __DIR__.'/lib.php';
 
-use App\Db\Db;
 use App\Db\Migrator;
 
 bootTests();
 
 $server = require __DIR__.'/../config/database.local.php';
-
-/** A throwaway database of this file's own; dropped at the end. */
-function scratchDatabase(array $server, string $suffix): PDO
-{
-    $name = T::$database.'_'.$suffix;
-    $postgres = Db::pdo($server, 'postgres', false);
-    $postgres->exec('DROP DATABASE IF EXISTS "'.$name.'" WITH (FORCE)');
-    $postgres->exec('CREATE DATABASE "'.$name.'"');
-    register_shutdown_function(static function () use ($server, $name): void {
-        try {
-            Db::pdo($server, 'postgres', false)->exec('DROP DATABASE IF EXISTS "'.$name.'" WITH (FORCE)');
-        } catch (Throwable $e) {
-            fwrite(STDERR, "could not drop {$name}: {$e->getMessage()}\n");
-        }
-    });
-
-    return Db::pdo($server, $name, false);
-}
 
 /** Every column, constraint and index of the app's tables, as comparable lines. */
 function schemaOf(PDO $pdo): array
@@ -143,7 +124,7 @@ function laravelDatabase(array $server, int $level): PDO
 
 test('a new database is built by the migrations', function () {
     $migrator = new Migrator(db()->raw(), Migrator::directory());
-    same(['pending' => [], 'applied_count' => 2, 'last_applied' => '002_schema.sql'], $migrator->status(), 'status');
+    same(['pending' => [], 'applied_count' => 3, 'last_applied' => '003_languages_and_translations.sql'], $migrator->status(), 'status');
     same(false, $migrator->isLaravelDatabase(), 'not a Laravel database');
 });
 
@@ -185,7 +166,7 @@ foreach ([6 => 'the version first committed', 7 => 'with sign-in through the IAM
 
         // Looking does not change anything.
         check($migrator->isLaravelDatabase(), 'recognised');
-        same(['001_adopt_laravel_database.sql', '002_schema.sql'], $migrator->status()['pending'], 'pending');
+        same(['001_adopt_laravel_database.sql', '002_schema.sql', '003_languages_and_translations.sql'], $migrator->status()['pending'], 'pending');
         same(1, (int) $pdo->query("SELECT count(*) FROM information_schema.columns WHERE table_name = 'migrations' AND column_name = 'batch'")->fetchColumn(), 'still Laravel\'s table after looking');
 
         $result = $migrator->applyPending(['local_user_id' => 1]);

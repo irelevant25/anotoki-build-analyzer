@@ -36,7 +36,7 @@ class EnkaClient
     public function profile(Game $game, string $uid): array
     {
         if (! self::isValidUid($uid)) {
-            throw new ImportException('A UID is 9 or 10 digits long.');
+            throw new ImportException('A UID is 9 or 10 digits long.', 'uid_invalid');
         }
 
         $cacheKey = "showcase:{$game->value}:{$uid}";
@@ -52,25 +52,25 @@ class EnkaClient
         } catch (RuntimeException $e) {
             Log::exception($e, 'Showcase import');
 
-            throw new ImportException('The showcase service cannot be reached right now. Try again in a few minutes.');
+            throw new ImportException('The showcase service cannot be reached right now. Try again in a few minutes.', 'showcase_unreachable');
         }
 
-        $message = match ($response->status) {
+        $problem = match ($response->status) {
             200 => null,
-            400 => 'The showcase service did not accept the UID.',
-            404 => 'No player with this UID exists (check the UID and the game).',
-            424 => 'The game is under maintenance or just updated, so showcases cannot be read right now. Try again later.',
-            429 => 'Too many showcase requests right now. Wait a minute and try again.',
-            500, 503 => 'The showcase service is having problems right now. Try again later.',
-            default => "The showcase service answered with HTTP {$response->status}.",
+            400 => new ImportException('The showcase service did not accept the UID.', 'showcase_uid_refused'),
+            404 => new ImportException('No player with this UID exists (check the UID and the game).', 'showcase_player_not_found'),
+            424 => new ImportException('The game is under maintenance or just updated, so showcases cannot be read right now. Try again later.', 'showcase_maintenance'),
+            429 => new ImportException('Too many showcase requests right now. Wait a minute and try again.', 'showcase_busy'),
+            500, 503 => new ImportException('The showcase service is having problems right now. Try again later.', 'showcase_down'),
+            default => new ImportException("The showcase service answered with HTTP {$response->status}.", 'showcase_http', ['status' => $response->status]),
         };
-        if ($message) {
-            throw new ImportException($message);
+        if ($problem) {
+            throw $problem;
         }
 
         $json = $response->json();
         if (! is_array($json)) {
-            throw new ImportException('The showcase service returned an unexpected answer.');
+            throw new ImportException('The showcase service returned an unexpected answer.', 'showcase_bad_answer');
         }
 
         $ttl = max(60, (int) ($json['ttl'] ?? 60));

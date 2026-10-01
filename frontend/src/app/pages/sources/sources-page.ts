@@ -9,6 +9,7 @@ import { MatTooltipModule } from '@angular/material/tooltip';
 import { Observable } from 'rxjs';
 import { Api, errorMessage, fileErrorMessage } from '../../core/api';
 import { GAME_LABELS } from '../../core/format';
+import { TranslationService } from '../../core/i18n/translation';
 import { GameKey, MigrationStatus, SourceStatus, SyncRunSummary, SyncStartResult } from '../../core/models';
 import { SyncDriver } from '../../core/sync-driver';
 import { TimeAgoPipe } from '../../shared/stat-pipes';
@@ -32,6 +33,7 @@ export class SourcesPage {
   private readonly api = inject(Api);
   private readonly snackBar = inject(MatSnackBar);
   protected readonly sync = inject(SyncDriver);
+  private readonly i18n = inject(TranslationService);
 
   protected readonly sources = signal<SourceStatus[]>([]);
   protected readonly runs = signal<SyncRunSummary[]>([]);
@@ -211,6 +213,10 @@ export class SourcesPage {
       next: (result) => {
         this.applying.set(false);
         this.migrations.set(result);
+        if (result.ok && result.applied.length > 0) {
+          // The site's strings may only now exist, or have new keys: this tab reads them again.
+          void this.i18n.reload();
+        }
         this.snackBar.open(result.ok ? `Applied ${result.applied.length} database update(s).` : `Applying failed: ${result.output}`, 'OK', {
           duration: result.ok ? 5000 : undefined,
         });

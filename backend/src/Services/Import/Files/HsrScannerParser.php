@@ -53,7 +53,7 @@ class HsrScannerParser
     public function parse(array $json): ParsedAccount
     {
         if (! self::matches($json)) {
-            throw new ImportException('This is not a Star Rail inventory export (it has no "relics" and "light_cones").');
+            throw new ImportException('This is not a Star Rail inventory export (it has no "relics" and "light_cones").', 'hsr_not_export');
         }
 
         $account = new ParsedAccount(
@@ -151,10 +151,10 @@ class HsrScannerParser
         }
 
         if ($skipped > 0) {
-            $account->warnings[] = "{$skipped} relic(s) with an unknown slot, set or main stat were skipped.";
+            $account->warn('hsr_relics_skipped', ['count' => $skipped], "{$skipped} relic(s) with an unknown slot, set or main stat were skipped.");
         }
         if ($account->characters === [] && $account->items === []) {
-            throw new ImportException('The export contains no characters or relics. Check the scanner settings.');
+            throw new ImportException('The export contains no characters or relics. Check the scanner settings.', 'hsr_empty');
         }
 
         return $account;

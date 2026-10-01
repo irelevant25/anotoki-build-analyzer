@@ -1,6 +1,7 @@
 import { Component, input } from '@angular/core';
 import { MatIconModule } from '@angular/material/icon';
 import { MatTooltipModule } from '@angular/material/tooltip';
+import { TranslatePipe } from '../core/i18n/translate';
 import { GameKey, ScoredSubstat } from '../core/models';
 import { Avatar } from './char-avatar';
 import { GradeBadge } from './grade-badge';
@@ -25,7 +26,7 @@ export interface ItemView {
  */
 @Component({
   selector: 'app-item-card',
-  imports: [Avatar, GradeBadge, StatLabelPipe, StatValuePipe, SlotLabelPipe, MatIconModule, MatTooltipModule],
+  imports: [Avatar, GradeBadge, StatLabelPipe, StatValuePipe, SlotLabelPipe, TranslatePipe, MatIconModule, MatTooltipModule],
   templateUrl: './item-card.html',
   styleUrl: './item-card.scss',
 })

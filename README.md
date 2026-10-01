@@ -25,6 +25,10 @@ Setting it up, running, testing, building and deploying: **[DEV.md](DEV.md)**.
 - **Analysis per character and per build**: a 0–100 score and grade, prioritized recommendations, your pieces
   graded against the build, stat targets checked against your in-game totals, where the sources agree, and
   (with a full inventory) the best replacement you already own for each slot.
+- **English and Slovak**: the member pages read in either, chosen in the toolbar's menu (or taken from the
+  browser). The words live in the database, so the owner rewords them and adds or hides languages in the
+  browser (the Translations and Languages pages, in English like the Sources page). The game's own words -
+  stat, set, weapon and character names, "Lv.", "4pc", values like "62.4%" - stay as the game writes them.
 - **What's new**: the version in the top bar opens the changelog (`frontend/public/changelog.json`).
 
 ## Quick start (Windows)
@@ -103,8 +107,8 @@ the best replacement you own for each slot; a suggestion never makes your set bo
 
 Hosted, people sign in at the **anotoki IAM** (iam.anotoki.eu, OpenID Connect); this app is its client
 `build-analyzer`. Only accounts with a role here can use it: **MEMBER** imports accounts and sees their
-analysis, **ADMIN** also syncs builds and the catalog, switches sources on and off and applies database
-updates. Roles are granted in the IAM's admin console. The backend checks every access token itself (signature
+analysis, **ADMIN** also syncs builds and the catalog, switches sources on and off, applies database
+updates and keeps the site's words and languages. Roles are granted in the IAM's admin console. The backend checks every access token itself (signature
 against the IAM's published keys, issuer, audience, expiry). On your own computer sign-in can be switched off;
 the app then answers only its own pages on that computer. See [docs/operations.md](docs/operations.md).
 
@@ -125,16 +129,19 @@ backend/
                         Cache/, Models/, Repositories/, Presenters/, Commands/, Setup/, Support/ (stats,
                         talents, keys, neutral text; Iam/ = the IAM's token verifier, vendored)
   src/Services/         Catalog/ (game catalog, name resolution), Import/ (showcase + file parsers,
-                        AccountImporter), Builds/ (BuildSync, the scrapers, page-data parsers), Sync/
-                        (SyncRunner: runs worked through in steps), Analysis/ (scores, recommendations)
+                        AccountImporter, ImportKinds), Builds/ (BuildSync, the scrapers, page-data parsers), Sync/
+                        (SyncRunner: runs worked through in steps), Analysis/ (scores, recommendations),
+                        Translations/ (the checks and the editing of the site's words)
   config/               app.php (committed) and *.local.php (per installation, written by setup.php)
-  migrations/           the schema, as SQL files applied in order
+  migrations/           the schema and the site's words, as SQL files applied in order
   tests/                php tests/run.php: throwaway PostgreSQL databases, fixtures, a fake network
-  setup.php, router.php, migration.php, sync-builds.php, sync-catalog.php, import-account.php
+  setup.php, router.php, migration.php, sync-builds.php, sync-catalog.php, import-account.php, translations.php
 frontend/src/app/
-  core/                 API client, models, metadata store, changelog, sign-in (iam/ = the IAM's browser SDK), sync driver
-  shared/               build detail, item card, grade badge, changelog dialog, ...
-  pages/                dashboard, import wizard, account, character analysis, builds, sources, sign-in, not set up
+  core/                 API client, models, metadata store, changelog, sign-in (iam/ = the IAM's browser SDK), sync driver,
+                        i18n/ (the site's words: service, pipes, the compiled English), game terms
+  shared/               build detail, item card, grade badge, changelog dialog, confirm dialog, ...
+  pages/                dashboard, import wizard, account, character analysis, builds, sources, translations,
+                        languages, sign-in, not set up
 frontend/public/        changelog.json, favicon
 docs/                   knowledge base (start at docs/README.md)
 .claude/                project skills and agents for AI-assisted work

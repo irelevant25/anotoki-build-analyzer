@@ -1,26 +1,26 @@
 <div class="page">
   <header class="page-header">
     <div>
-      <h1>Recommended builds</h1>
-      <p class="subtitle">Everything the build syncs collected, per character and source.</p>
+      <h1>{{ 'builds.title' | translate }}</h1>
+      <p class="subtitle">{{ 'builds.subtitle' | translate }}</p>
     </div>
-    <mat-button-toggle-group [value]="gameKey()" (change)="switchGame($event.value)" hideSingleSelectionIndicator aria-label="Game">
-      <mat-button-toggle value="genshin">Genshin Impact</mat-button-toggle>
-      <mat-button-toggle value="hsr">Honkai: Star Rail</mat-button-toggle>
+    <mat-button-toggle-group [value]="gameKey()" (change)="switchGame($event.value)" hideSingleSelectionIndicator [attr.aria-label]="'builds.game' | translate">
+      <mat-button-toggle value="genshin">{{ gameLabels.genshin }}</mat-button-toggle>
+      <mat-button-toggle value="hsr">{{ gameLabels.hsr }}</mat-button-toggle>
     </mat-button-toggle-group>
   </header>
 
   <mat-form-field appearance="outline" subscriptSizing="dynamic" class="search">
     <mat-icon matPrefix>search</mat-icon>
-    <mat-label>Search {{ gameLabels[gameKey()] }} characters</mat-label>
+    <mat-label>{{ 'builds.search' | translate: { game: gameLabels[gameKey()] } }}</mat-label>
     <input matInput [ngModel]="search()" (ngModelChange)="search.set($event)" />
   </mat-form-field>
 
   @if (loading()) {
     <mat-progress-bar mode="indeterminate" />
   }
-  @if (error(); as message) {
-    <div class="panel">{{ message }}</div>
+  @if (error(); as problem) {
+    <div class="panel">{{ problem | errorText }}</div>
   }
 
   <div class="grid-list">
@@ -30,14 +30,14 @@
         <div class="text">
           <div class="name">{{ c.name }}</div>
           <div class="muted small">{{ titleCase(c.element) }}{{ c.weapon_type ? ' · ' + titleCase(c.weapon_type) : '' }}</div>
-          <div class="muted small">{{ c.builds }} build{{ c.builds === 1 ? '' : 's' }} · {{ c.sources.join(', ') }}</div>
+          <div class="muted small">{{ 'builds.count' | translatePlural: c.builds }} · {{ c.sources.join(', ') }}</div>
         </div>
       </a>
     } @empty {
       @if (!loading()) {
         <div class="empty-state">
           <mat-icon>menu_book</mat-icon>
-          <p>No builds yet. Start a sync on the <a routerLink="/sources">Sources</a> page.</p>
+          <p>{{ empty()[0] }}@if (empty()[2]) {<a routerLink="/sources">{{ 'builds.sourcesPage' | translate }}</a>}{{ empty()[1] }}</p>
         </div>
       }
     }

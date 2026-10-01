@@ -8,6 +8,7 @@ use App\Presenters\AccountPresenter;
 use App\Repositories\Accounts;
 use App\Services\Import\ImportException;
 use App\Services\Import\ImportService;
+use App\Support\Neutral;
 use App\Web\HttpError;
 use App\Web\Input;
 use App\Web\Json;
@@ -23,9 +24,15 @@ use Slim\Routing\RouteCollectorProxy;
  *                                                                            (10 a minute per person)
  *   POST /api/imports/file      {content | file, game?, account_id?, file_name?}  an inventory export
  *
- * A problem the person can fix is answered 422 with a message the wizard shows as it is.
+ * A problem the person can fix is answered 422 {message, code, params}: the English sentence, and what
+ * happened as a kind of ImportKinds::ERRORS with its parameters, for the wizard to word.
  */
 return function (Slim\App $slim, App $app): void {
+    $refused = fn (ImportException $e): HttpError => new HttpError(422, (string) Neutral::text($e->getMessage()), [
+        'code' => $e->kind,
+        'params' => AccountPresenter::params($e->params),
+    ]);
+
     /** The account an import may target: one of the user's, or none. Anyone else's reads as "does not exist". */
     $target = function (Input $input, User $user) use ($app): ?Account {
         $id = $input->integer('account_id');
@@ -40,8 +47,8 @@ return function (Slim\App $slim, App $app): void {
         return $account;
     };
 
-    $slim->group('/api/imports', function (RouteCollectorProxy $group) use ($app, $target) {
-        $group->post('/showcase', function (Request $request, Response $response) use ($app, $target): Response {
+    $slim->group('/api/imports', function (RouteCollectorProxy $group) use ($app, $target, $refused) {
+        $group->post('/showcase', function (Request $request, Response $response) use ($app, $target, $refused): Response {
             $user = currentUser($request);
             $input = Input::of($request);
             $game = $input->game('game', required: true);
@@ -52,13 +59,13 @@ return function (Slim\App $slim, App $app): void {
             try {
                 $run = $app->get(ImportService::class)->fromEnka($game, $uid, $user, $account);
             } catch (ImportException $e) {
-                throw new HttpError(422, $e->getMessage());
+                throw $refused($e);
             }
 
             return Json::send($response, AccountPresenter::importRun($run), 201);
         })->add(throttle($app, 'showcase', (int) $app->config->get('showcase.per_minute', 10)));
 
-        $group->post('/file', function (Request $request, Response $response) use ($app, $target): Response {
+        $group->post('/file', function (Request $request, Response $response) use ($app, $target, $refused): Response {
             $user = currentUser($request);
             $input = Input::of($request);
             $game = $input->game('game');
@@ -84,7 +91,7 @@ return function (Slim\App $slim, App $app): void {
             try {
                 $run = $app->get(ImportService::class)->fromFile((string) $content, $user, $game, $account, $fileName);
             } catch (ImportException $e) {
-                throw new HttpError(422, $e->getMessage());
+                throw $refused($e);
             }
 
             return Json::send($response, AccountPresenter::importRun($run), 201);

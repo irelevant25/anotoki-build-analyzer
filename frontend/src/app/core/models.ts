@@ -2,6 +2,113 @@ export type GameKey = 'genshin' | 'hsr';
 export type Severity = 'high' | 'medium' | 'low';
 export type Grade = 'S' | 'A' | 'B' | 'C' | 'D' | '-';
 
+// ------------------------------------------------------------------ errors
+
+/**
+ * What an error says happened, for a page to word: every error a member can meet carries one beside the
+ * server's English `message`. (An import's 422 carries an ImportErrorCode instead; the refusals of the
+ * admin-only routes carry none.)
+ */
+export type ApiErrorCode =
+  | 'sign_in_required'
+  | 'local_only'
+  | 'no_access'
+  | 'admin_only'
+  | 'too_many_imports'
+  | 'not_found'
+  | 'method_not_allowed'
+  | 'server_error'
+  | 'not_set_up'
+  | 'invalid';
+
+/** The parameters of a code or a kind: flat, named, strings and numbers (null where a kind says so). */
+export type KindParams = Record<string, string | number | null>;
+
+/** The body of an error answer of the API. */
+export interface ApiErrorBody {
+  /** The server's English sentence. */
+  message: string;
+  /** An ApiErrorCode or an ImportErrorCode - or one a newer server added; absent on admin-only refusals. */
+  code?: string;
+  /** With an ImportErrorCode (the 422 of an import): that code's parameters. */
+  params?: KindParams;
+  /** With "invalid": every message by field. */
+  errors?: Record<string, string[]>;
+  /** With "not_set_up": where the setup page is. */
+  setup?: string;
+}
+
+// ------------------------------------------------------------------ the site's own words
+
+/** A language a page can be read in: what the bar's menu offers. */
+export interface SiteLanguage {
+  code: string;
+  /** In English: "Slovak". */
+  name: string;
+  /** As its speakers write it: "Slovenčina" - what the menu shows. */
+  native_name: string;
+}
+
+/**
+ * GET /api/translations/{code}: the strings of one language with English merged underneath, the languages
+ * on offer, and English itself (left out when `language` is "en") - what the English pages read.
+ */
+export interface TranslationBundle {
+  /**
+   * The language that answered: the one asked for; its base language for a regional code the site does not
+   * have ("sk" for "sk-sk"); "en" when the one asked for is unknown or switched off.
+   */
+  language: string;
+  languages: SiteLanguage[];
+  values: Record<string, string>;
+  english?: Record<string, string>;
+}
+
+/** A language as the owner's pages see it (GET /api/admin/languages): the hidden ones too. */
+export interface AdminLanguage extends SiteLanguage {
+  /** Offered to readers in the bar's menu. English always is. */
+  enabled: boolean;
+  /** Its place in the menu, 0-1000: the lowest comes first. */
+  sort_order: number;
+  /** One the site is released in (a migration writes its strings): it can be hidden, never deleted. */
+  seeded: boolean;
+  /** How many strings of its own it has. */
+  strings: number;
+}
+
+/** What a language's row changes: only what differs is sent. */
+export interface LanguageChanges {
+  name?: string;
+  native_name?: string;
+  enabled?: boolean;
+  sort_order?: number;
+}
+
+/** POST /api/admin/languages. `enabled` is always said: a new language starts hidden unless the owner says so. */
+export interface NewLanguage {
+  code: string;
+  name: string;
+  native_name: string;
+  enabled: boolean;
+}
+
+/** One key of the Translations page: what it is for, and its string in each language that has one. */
+export interface TranslationKeyRow {
+  name: string;
+  /** What the key is for ('' when nothing is said). */
+  description: string;
+  values: Record<string, string>;
+}
+
+/** GET /api/admin/translations, and what a save or an import answers: every language, every key by name. */
+export interface TranslationGrid {
+  languages: AdminLanguage[];
+  keys: TranslationKeyRow[];
+}
+
+/** Changed strings: key -> language code -> text ('' takes a language's own string away). */
+export type TranslationChanges = Record<string, Record<string, string>>;
+
 // ------------------------------------------------------------------ meta
 
 export interface StatMeta {
@@ -107,7 +214,11 @@ export interface CharacterOverview extends CharacterSummary {
     overall: number | null;
     grade: Grade;
     parts: ScoreParts;
+    /** The first recommendation's English sentence; null when there is nothing to recommend. */
     top_issue: string | null;
+    /** The same recommendation as a kind with its parameters, for the page to word; null with top_issue. */
+    top_issue_kind: string | null;
+    top_issue_params: KindParams | null;
     issues: number;
   } | null;
 }
@@ -119,21 +230,90 @@ export interface AccountDetail extends AccountSummary {
 /** Where imported data came from: the in-game Character Showcase (by UID), or an inventory export file. */
 export type ImportKind = 'showcase' | 'file';
 
+/**
+ * Why an import was refused or failed (the server's ImportKinds::ERRORS): the `code` of an import's 422, and
+ * a failed run's `error_code`. Their parameters: account_game_mismatch {account_game, data_game},
+ * account_uid_mismatch {data_uid, account_uid}, showcase_http {status}, file_game_mismatch {file_game,
+ * chosen_game}; the others have none.
+ */
+export type ImportErrorCode =
+  | 'account_missing'
+  | 'account_game_mismatch'
+  | 'account_uid_mismatch'
+  | 'unexpected'
+  | 'uid_invalid'
+  | 'showcase_unreachable'
+  | 'showcase_uid_refused'
+  | 'showcase_player_not_found'
+  | 'showcase_maintenance'
+  | 'showcase_busy'
+  | 'showcase_down'
+  | 'showcase_http'
+  | 'showcase_bad_answer'
+  | 'showcase_details_off'
+  | 'showcase_empty'
+  | 'showcase_empty_hsr'
+  | 'good_not_good'
+  | 'good_empty'
+  | 'hsr_not_export'
+  | 'hsr_empty'
+  | 'file_not_json'
+  | 'file_unknown_format'
+  | 'file_game_mismatch';
+
+/**
+ * What an import that went through warns about (the server's ImportKinds::WARNINGS). Their parameters:
+ * unknown_character {ref}, unknown_weapon {weapon_label, ref}, unknown_set {ref}, good_artifacts_skipped
+ * {count}, hsr_relics_skipped {count}; the others have none.
+ */
+export type ImportWarningCode =
+  | 'unknown_character'
+  | 'unknown_weapon'
+  | 'unknown_set'
+  | 'catalog_behind'
+  | 'showcase_artifact_skipped'
+  | 'showcase_relic_skipped'
+  | 'good_traveler_no_element'
+  | 'good_artifacts_skipped'
+  | 'hsr_relics_skipped';
+
+/** One warning of an import as a kind: `code` is an ImportWarningCode, or one a newer server added. */
+export interface ImportWarningKind {
+  code: string;
+  params: KindParams;
+}
+
+/** The body of the 422 an import answers with: the English sentence, and what happened for the page to word. */
+export interface ImportErrorBody {
+  message: string;
+  /** An ImportErrorCode, or one a newer server added. */
+  code: string;
+  params: KindParams;
+}
+
 export interface ImportRun {
   id: number;
   game: GameKey;
   source: ImportKind;
   status: 'success' | 'partial' | 'failed';
   file_name: string | null;
+  /** Null for every failed run. */
   summary: {
     characters: number;
     weapons: number;
     items: number;
     full_inventory: boolean;
+    /** The English sentences. */
     warnings: string[];
+    /** The same warnings as kinds, index for index with `warnings`; absent on runs stored before kinds were kept. */
+    warning_kinds?: ImportWarningKind[];
     unmatched: Record<string, string[]>;
   } | null;
+  /** A failed run's English sentence, as stored. */
   error: string | null;
+  /** A failed run's ImportErrorCode with its parameters; both null on runs stored before kinds were kept. */
+  error_code: string | null;
+  error_params: KindParams | null;
   created_at: string;
   account: AccountSummary | null;
   account_id: number | null;
@@ -234,10 +414,46 @@ export interface CharacterBuilds {
 
 // ------------------------------------------------------------------ analysis
 
+/**
+ * What a recommendation says (the server's BuildEvaluator::KINDS), each with its parameters:
+ * weapon_none {weapon_label, options}; weapon_level {name, level, max_level}; weapon_unlisted {name,
+ * weapon_label, options}, _owned + {owned, refinement}, _owned_on + {character}; weapon_better_owned {owned,
+ * refinement, owned_rank, name, rank}, _on + {character}; weapon_low_rank {name, rank, options}; sets_missing
+ * {set_label, best, best_choose, current}; sets_missing_empty {set_label, best, best_choose};
+ * sets_lower_option {set_label, current, rank, best, best_choose}; main_stat_missing {slot_label, wanted};
+ * main_stat_wrong {slot_label, stat, wanted}; item_level {slot_label, level, max_level}; substats_weak
+ * {slot_label, percent, stats}; target_below {stat, stat_key, current, min}; talent_level {talent, level};
+ * character_level {level}. `best` is a set option without its "(any N)", `best_choose` that N or null.
+ */
+export type RecommendationKind =
+  | 'weapon_none'
+  | 'weapon_level'
+  | 'weapon_unlisted'
+  | 'weapon_unlisted_owned'
+  | 'weapon_unlisted_owned_on'
+  | 'weapon_better_owned'
+  | 'weapon_better_owned_on'
+  | 'weapon_low_rank'
+  | 'sets_missing'
+  | 'sets_missing_empty'
+  | 'sets_lower_option'
+  | 'main_stat_missing'
+  | 'main_stat_wrong'
+  | 'item_level'
+  | 'substats_weak'
+  | 'target_below'
+  | 'talent_level'
+  | 'character_level';
+
 export interface Recommendation {
   severity: Severity;
   category: 'weapon' | 'sets' | 'main_stats' | 'substats' | 'targets' | 'talents' | 'levels';
+  /** A RecommendationKind, or one a newer server added. */
+  kind: string;
+  params: KindParams;
+  /** The same in English. */
   message: string;
+  /** The slot's key, when the recommendation is about one piece. */
   slot?: string;
 }
 
@@ -349,6 +565,15 @@ export interface CountedName {
   count: number;
 }
 
+/**
+ * A set option counted across the builds. `name` is the label it was counted by (English, with its
+ * "(any N)"); `pieces` is that option without the "(any N)" and `choose` that N, or null.
+ */
+export interface CountedSet extends CountedName {
+  pieces: string;
+  choose: number | null;
+}
+
 export interface CharacterAnalysis {
   account: AccountSummary;
   character: CharacterSummary & {
@@ -365,7 +590,7 @@ export interface CharacterAnalysis {
     builds: number;
     sources: string[];
     main_stats: Record<string, CountedName[]>;
-    sets: Record<string, CountedName[]>;
+    sets: Record<string, CountedSet[]>;
     weapons: CountedName[];
   };
   suggestions: Suggestion[];

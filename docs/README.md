@@ -6,14 +6,14 @@ written to be read on their own. Setting up, running, testing and deploying are 
 
 | Page | Read it when you… |
 | --- | --- |
-| [architecture.md](architecture.md) | need the big picture: modules, the setup gate, sign-in (anotoki IAM), per-user data, neutral names, stepped syncs, request flows, API and who may call it, frontend structure |
-| [data-model.md](data-model.md) | touch tables (users, per-user accounts, sync runs), migrations, JSON columns (builds, items, talents), import semantics or the builds files a source is exported to |
+| [architecture.md](architecture.md) | need the big picture: modules, the setup gate, sign-in (anotoki IAM), per-user data, neutral names, stepped syncs, the site's words (keys, kinds, English and Slovak, the owner's pages), request flows, API and who may call it, frontend structure |
+| [data-model.md](data-model.md) | touch tables (users, per-user accounts, sync runs, languages and strings), migrations, JSON columns (builds, items, talents), import semantics or the builds files a source is exported to |
 | [stats-and-slots.md](stats-and-slots.md) | handle stat keys, slots, main stats, roll values, label parsing |
 | [name-matching.md](name-matching.md) | see "unknown weapon / set / character", add aliases, sync the catalog |
 | [build-sources.md](build-sources.md) | fix or add a scraper |
-| [import-formats.md](import-formats.md) | fix or add an importer (showcase, GOOD, HSR scanner exports) |
-| [analysis.md](analysis.md) | change scoring, grades, recommendations, inventory suggestions |
-| [operations.md](operations.md) | configure, run, test, sync, move a source's builds to another installation, switch sign-in on or off, deploy to the FTP-only host, adopt an old database, troubleshoot, or hit a machine quirk |
+| [import-formats.md](import-formats.md) | fix or add an importer (showcase, GOOD, HSR scanner exports), or an import error or warning (a kind) |
+| [analysis.md](analysis.md) | change scoring, grades, recommendations (kinds the page words), inventory suggestions |
+| [operations.md](operations.md) | configure, run, test, sync, move a source's builds to another installation, release new strings or carry reworded ones between installations, switch sign-in on or off, deploy to the FTP-only host, adopt an old database, troubleshoot, or hit a machine quirk |
 | [decisions.md](decisions.md) | wonder why something is the way it is |
 
 Project automation built on this knowledge:

@@ -1,36 +1,37 @@
-<h2 mat-dialog-title>What's new</h2>
+<h2 mat-dialog-title>{{ 'whatsNew.title' | translate }}</h2>
 
 <mat-dialog-content>
   @for (entry of entries; track entry.version; let first = $first) {
     <section class="release" [class.latest]="first">
       <header class="release-head">
-        <span class="version">Version {{ entry.version }}</span>
+        <span class="version">{{ 'whatsNew.version' | translate: { version: entry.version } }}</span>
         @if (first) {
-          <span class="chip ok">Latest</span>
+          <span class="chip ok">{{ 'whatsNew.latest' | translate }}</span>
         }
         <span class="spacer"></span>
-        <span class="muted small">{{ date(entry.date) }}</span>
+        <span class="muted small">{{ entry.date | localDate: 'day' }}</span>
       </header>
 
+      <!-- The entries are written once, in English, and shown as they are: each list says which language it is in. -->
       @if (entry.changes.added?.length) {
-        <h3 class="kind added"><mat-icon>add_circle</mat-icon>New</h3>
-        <ul>
+        <h3 class="kind added"><mat-icon>add_circle</mat-icon>{{ 'whatsNew.added' | translate }}</h3>
+        <ul [attr.lang]="i18n.storedEnglishLang()">
           @for (item of entry.changes.added; track item) {
             <li>{{ item }}</li>
           }
         </ul>
       }
       @if (entry.changes.fixed?.length) {
-        <h3 class="kind fixed"><mat-icon>build</mat-icon>Fixed</h3>
-        <ul>
+        <h3 class="kind fixed"><mat-icon>build</mat-icon>{{ 'whatsNew.fixed' | translate }}</h3>
+        <ul [attr.lang]="i18n.storedEnglishLang()">
           @for (item of entry.changes.fixed; track item) {
             <li>{{ item }}</li>
           }
         </ul>
       }
       @if (entry.changes.updated?.length) {
-        <h3 class="kind updated"><mat-icon>update</mat-icon>Changed</h3>
-        <ul>
+        <h3 class="kind updated"><mat-icon>update</mat-icon>{{ 'whatsNew.updated' | translate }}</h3>
+        <ul [attr.lang]="i18n.storedEnglishLang()">
           @for (item of entry.changes.updated; track item) {
             <li>{{ item }}</li>
           }
@@ -41,5 +42,5 @@
 </mat-dialog-content>
 
 <mat-dialog-actions align="end">
-  <button mat-flat-button mat-dialog-close>Close</button>
+  <button mat-flat-button mat-dialog-close>{{ 'common.close' | translate }}</button>
 </mat-dialog-actions>

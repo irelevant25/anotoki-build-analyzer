@@ -5,14 +5,14 @@
     <div class="slot">{{ it.slot | slotLabel: game() }}</div>
     <div class="set muted small" [title]="it.set.name">{{ it.set.name }}</div>
   </div>
-  <app-grade-badge [grade]="it.grade" size="sm" [matTooltip]="it.percent + '% of an ideal piece for this build'" />
+  <app-grade-badge [grade]="it.grade" size="sm" [matTooltip]="'item.percentOfIdealForBuild' | translate: { percent: it.percent }" />
 </div>
 
 <div class="main" [class.bad]="it.main_ok === false">
   <span>{{ it.main_stat | statLabel: game() }}</span>
   <span class="value">{{ it.main_value | statValue: game() : it.main_stat }}</span>
   @if (it.main_ok === false) {
-    <mat-icon class="warn-icon" matTooltip="This build wants a different main stat">error</mat-icon>
+    <mat-icon class="warn-icon" [matTooltip]="'item.wrongMainStat' | translate">error</mat-icon>
   }
 </div>
 
@@ -32,5 +32,5 @@
 
 <div class="foot muted small">
   <span>+{{ it.level }}@if (it.max_level && it.level < it.max_level) { / +{{ it.max_level }} }</span>
-  <span>{{ it.percent }}% of ideal</span>
+  <span>{{ 'item.percentOfIdeal' | translate: { percent: it.percent } }}</span>
 </div>

@@ -48,10 +48,36 @@ The database may have no accounts; import one first (the user's UID via the app,
 
 ## 2. Change the rule
 
-Keep scores in 0–100, keep parts that lack data out of the overall (they return `null`), and keep
-recommendation messages as short, actionable English sentences with the slot/stat named - and without the name
-of any website ("Source 2's build", never the site). When you add a field to the evaluation or detail output,
-add it to `frontend/src/app/core/models.ts` and render it where it helps (character page, build detail).
+Keep scores in 0–100, keep parts that lack data out of the overall (they return `null`), and keep the English
+`message` of a recommendation a short, actionable sentence with the slot/stat named - and without the name of
+any website ("Source 2's build", never the site). When you add a field to the evaluation or detail output,
+add it to `frontend/src/app/core/models.ts` and render it where it helps (character page, build detail), with
+its words as keys (`core/i18n/en/*.json` and a string migration, as below).
+
+A recommendation is a **kind with params** that the page words in the reader's language; the English
+`message` beside it is for the command line, the tests and the fallback (`docs/analysis.md`,
+"Recommendations"). A new or changed recommendation therefore touches, together:
+
+1. `BuildEvaluator::KINDS` - the kind and the names of its params, in the order they are sent. A clause the
+   sentence may or may not have is a kind of its own (`_owned`, `_on`, `_empty`), never an English fragment
+   inside a param; params are flat (game names and labels as the message uses them, numbers as numbers,
+   lists joined as in the message).
+2. The `recommend($severity, $category, $kind, $params, $message, $slot)` call - an existing `message` stays
+   byte for byte (tests assert it).
+3. `frontend/src/app/core/i18n/dynamic-keys.ts` - the tail under `recommendation.`, written out whole.
+4. `frontend/src/app/core/i18n/recommendation-words.ts` - the kind's row (its key, the params its sentence
+   needs); `target_below`-like numbers go through `MetaStore.formatStat()`, the game's notation.
+5. The English in `frontend/src/app/core/i18n/en/core.json` (`recommendation.<kind>`) - the message with the
+   params as `{placeholders}`.
+6. A **new migration** (`backend/migrations/NNN_*.sql`, 003's pattern: the key with a description saying
+   where it shows and its placeholders, one `VALUES` block per language, `ON CONFLICT DO NOTHING`, a `DO $$`
+   gate counting the keys) with the English and **informal Slovak** ("ty"). Game terms stay English and come
+   first, then a colon - no Slovak word may have to agree with one („CRIT Rate: máš 62.0%, build mieri na
+   70.0% a viac.“). Never edit 003 once it has run somewhere.
+
+`tests/translation_catalogue.test.php` fails until all of them agree (KINDS = the declared tails = the
+database's keys; each seeded English's placeholders among the kind's params; `en/*.json` = the seeded
+English); `analysis.test.php` asserts each kind's params against `KINDS`.
 
 ## 3. Tests
 
@@ -74,3 +100,6 @@ the user with a couple of concrete characters.
 
 Update `docs/analysis.md`, the README "How the analysis works" table, and `docs/decisions.md` when the
 change alters what users see. A change users will notice gets a line in `frontend/public/changelog.json`.
+A new or reworded recommendation is looked at on the character
+page in English and in Slovak at 390 px (`verify-ui`): no key on the page, game terms in English before a
+colon.

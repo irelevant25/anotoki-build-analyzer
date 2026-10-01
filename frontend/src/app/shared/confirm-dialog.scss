@@ -1,0 +1,16 @@
+// A long name in the question (an account's, a language's) wraps instead of widening the dialog.
+h2,
+.message {
+  overflow-wrap: anywhere;
+}
+
+.message {
+  margin: 0;
+  color: var(--app-text);
+}
+
+// The yes of a question about something that cannot be undone: the theme's error colours, light and dark.
+.confirm.danger {
+  --mat-button-filled-container-color: var(--mat-sys-error);
+  --mat-button-filled-label-text-color: var(--mat-sys-on-error);
+}

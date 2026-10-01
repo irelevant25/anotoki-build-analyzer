@@ -11,7 +11,7 @@ import { AuthService } from './auth';
  */
 export const authInterceptor: HttpInterceptorFn = (request, next) => {
   const auth = inject(AuthService);
-  if (!auth.usesSignIn() || !isApiRequest(request.url)) {
+  if (!auth.usesSignIn() || !isApiRequest(request.url) || isTranslationsRequest(request.url)) {
     return next(request);
   }
 
@@ -40,6 +40,19 @@ export function isApiRequest(url: string): boolean {
   try {
     const target = new URL(url, window.location.href);
     return target.origin === window.location.origin && (target.pathname === API_BASE || target.pathname.startsWith(`${API_BASE}/`));
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * "/api/translations/…": the site's own words, which the server gives to anybody. They are asked for before
+ * the first page is drawn, so they go without a token and never wait for one to be refreshed. (The owner's
+ * routes are under /api/admin/ and get their token like every other request.)
+ */
+export function isTranslationsRequest(url: string): boolean {
+  try {
+    return new URL(url, window.location.href).pathname.startsWith(`${API_BASE}/translations/`);
   } catch {
     return false;
   }

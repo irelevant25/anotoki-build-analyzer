@@ -12,16 +12,50 @@ import { MatSlideToggleModule } from '@angular/material/slide-toggle';
 import { MatSnackBar } from '@angular/material/snack-bar';
 import { MatTooltipModule } from '@angular/material/tooltip';
 import { RouterLink } from '@angular/router';
-import { Api, errorMessage } from '../../core/api';
+import { Api } from '../../core/api';
 import { GAME_LABELS, titleCase } from '../../core/format';
+import { GAME_TERMS, UID_TERM, level } from '../../core/game-terms';
+import { TranslationKey } from '../../core/i18n/en';
+import { ErrorTextPipe, errorText } from '../../core/i18n/error-text';
+import { importRunError, importStatusText } from '../../core/i18n/import-words';
+import { LocalDatePipe } from '../../core/i18n/local-date';
+import { recommendationText } from '../../core/i18n/recommendation-words';
+import { TranslatePipe } from '../../core/i18n/translate';
+import { TranslatePluralPipe } from '../../core/i18n/translate-plural';
+import { TranslationService, Worded } from '../../core/i18n/translation';
 import { MetaStore } from '../../core/meta-store';
 import { AccountDetail, CharacterOverview, ImportRun } from '../../core/models';
+import { BUILD_TERMS } from '../../shared/build-terms';
 import { Avatar } from '../../shared/char-avatar';
 import { GradeBadge } from '../../shared/grade-badge';
 import { ScoreBar } from '../../shared/score-bar';
-import { TimeAgoPipe } from '../../shared/stat-pipes';
 
 type SortKey = 'score-asc' | 'score-desc' | 'name' | 'level';
+
+/** The orders the characters can be put in; a label is a key, worded where it is drawn. */
+const SORTS: readonly { value: SortKey; label: TranslationKey }[] = [
+  { value: 'score-asc', label: 'account.sortScoreAsc' },
+  { value: 'score-desc', label: 'account.sortScoreDesc' },
+  { value: 'level', label: 'account.sortLevel' },
+  { value: 'name', label: 'account.sortName' },
+];
+
+/** Where an import's data came from, as a key. Anything that is not the showcase is a file, as it always was. */
+const IMPORT_SOURCES = new Map<string, TranslationKey>([
+  ['showcase', 'account.sourceShowcase'],
+  ['file', 'account.sourceFile'],
+]);
+const IMPORT_SOURCE_FALLBACK: TranslationKey = 'account.sourceFile';
+
+/** One line of the import history, worded: the run, where it came from, how it ended, and what came in - or why not. */
+interface HistoryRow {
+  run: ImportRun;
+  /** A key: the template words it. */
+  source: TranslationKey;
+  status: string;
+  /** The counts of what was imported, or a failed run's reason - `lang: 'en'` where that is the stored English sentence. */
+  outcome: Worded;
+}
 
 @Component({
   selector: 'app-account-page',
@@ -41,7 +75,10 @@ type SortKey = 'score-asc' | 'score-desc' | 'name' | 'level';
     Avatar,
     GradeBadge,
     ScoreBar,
-    TimeAgoPipe,
+    TranslatePipe,
+    TranslatePluralPipe,
+    LocalDatePipe,
+    ErrorTextPipe,
   ],
   templateUrl: './account-page.html',
   styleUrl: './account-page.scss',
@@ -50,6 +87,7 @@ export class AccountPage {
   private readonly api = inject(Api);
   private readonly meta = inject(MetaStore);
   private readonly snackBar = inject(MatSnackBar);
+  private readonly i18n = inject(TranslationService);
 
   /** Route parameter (component input binding). */
   readonly id = input.required<string>();
@@ -57,7 +95,8 @@ export class AccountPage {
   protected readonly account = signal<AccountDetail | null>(null);
   protected readonly imports = signal<ImportRun[]>([]);
   protected readonly loading = signal(true);
-  protected readonly error = signal<string | null>(null);
+  /** Why the account could not be loaded: the failed request itself, worded where it is shown. */
+  protected readonly error = signal<unknown>(null);
 
   protected readonly search = signal('');
   protected readonly element = signal<string>('all');
@@ -70,6 +109,16 @@ export class AccountPage {
 
   protected readonly gameLabels = GAME_LABELS;
   protected readonly titleCase = titleCase;
+  protected readonly sorts = SORTS;
+  /**
+   * The games' own words, the same in every language and never keys: Artifacts / Relics, Adventure Rank /
+   * Trailblaze Level, UID, "Lv. 90" - and the two parts of a build's score that the games name themselves
+   * ("Main stats", "Substats").
+   */
+  protected readonly gameTerms = GAME_TERMS;
+  protected readonly uidTerm = UID_TERM;
+  protected readonly level = level;
+  protected readonly buildTerms = BUILD_TERMS;
 
   protected readonly gameMeta = computed(() => {
     const account = this.account();
@@ -125,6 +174,55 @@ export class AccountPage {
 
   protected readonly unbuiltCount = computed(() => (this.account()?.characters ?? []).filter((c) => c.items_count === 0).length);
 
+  /**
+   * The first thing each character's best build recommends, by character id - worded from its kind and
+   * parameters in the language on the page. Where there is no kind to word it with (a newer server's, or
+   * none at all) it is the server's English sentence, and `lang` says so.
+   */
+  protected readonly issues = computed(() => {
+    const account = this.account();
+    const issues = new Map<number, Worded>();
+    for (const character of account?.characters ?? []) {
+      const best = character.best;
+      if (!account || !best || (!best.top_issue && !best.top_issue_kind)) {
+        continue;
+      }
+      const issue = recommendationText(this.i18n, this.meta, account.game, { kind: best.top_issue_kind, params: best.top_issue_params, message: best.top_issue });
+      if (issue.text !== '') {
+        issues.set(character.id, issue);
+      }
+    }
+    return issues;
+  });
+
+  /**
+   * The import history, worded. A run that failed says why - from its code, or as the sentence stored with
+   * it; whether it failed is its status, never its summary. Any other run says what came in: a count of
+   * characters, and the game's own noun with its number after a colon ("Artifacts: 187").
+   */
+  protected readonly history = computed<HistoryRow[]>(() => {
+    const account = this.account();
+    if (!account) {
+      return [];
+    }
+    const items = GAME_TERMS[account.game].items;
+    return this.imports().map((run) => {
+      const summary = run.summary;
+      let outcome: Worded = { text: '', lang: null };
+      if (run.status === 'failed') {
+        outcome = importRunError(this.i18n, run);
+      } else if (summary) {
+        outcome = { text: this.i18n.plural('account.runSummary', summary.characters, { items, itemCount: this.i18n.number(summary.items) }), lang: null };
+      }
+      return {
+        run,
+        source: IMPORT_SOURCES.get(run.source) ?? IMPORT_SOURCE_FALLBACK,
+        status: importStatusText(this.i18n, run.status),
+        outcome,
+      };
+    });
+  });
+
   constructor() {
     effect(() => {
       const id = Number(this.id());
@@ -141,8 +239,8 @@ export class AccountPage {
         this.error.set(null);
         this.loading.set(false);
       },
-      error: (err) => {
-        this.error.set(errorMessage(err));
+      error: (err: unknown) => {
+        this.error.set(err);
         this.loading.set(false);
       },
     });
@@ -160,19 +258,22 @@ export class AccountPage {
         this.account.set({ ...account, nickname: updated.nickname });
         this.renaming.set(false);
       },
-      error: (err) => this.snackBar.open(errorMessage(err), 'Close'),
+      // A snack bar takes a finished sentence: worded now, in the language the page is in.
+      error: (err: unknown) => this.snackBar.open(errorText(this.i18n, err), this.i18n.t('common.close')),
     });
   }
 
+  /** "C2" / "E2": the game's notation, with the game's own prefix where the metadata is missing. */
   protected rankLabel(c: CharacterOverview): string {
-    return `${this.gameMeta()?.rank_prefix ?? 'C'}${c.rank}`;
+    return `${this.gameMeta()?.rank_prefix ?? this.fallbackTerms().rankPrefix}${c.rank}`;
   }
 
-  protected refinement(level: number): string {
-    return `${this.gameMeta()?.refinement_prefix ?? 'R'}${level}`;
+  /** "R1" / "S1". */
+  protected refinement(rank: number): string {
+    return `${this.gameMeta()?.refinement_prefix ?? this.fallbackTerms().refinementPrefix}${rank}`;
   }
 
-  protected sourceLabel(run: ImportRun): string {
-    return run.source === 'showcase' ? 'Showcase (UID)' : 'Inventory file';
+  private fallbackTerms() {
+    return GAME_TERMS[this.account()?.game ?? 'genshin'];
   }
 }

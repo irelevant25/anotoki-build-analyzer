@@ -1,4 +1,3 @@
-import { LowerCasePipe } from '@angular/common';
 import { Component, computed, effect, inject, input, signal } from '@angular/core';
 import { MatButtonModule } from '@angular/material/button';
 import { MatIconModule } from '@angular/material/icon';
@@ -6,21 +5,58 @@ import { MatProgressBarModule } from '@angular/material/progress-bar';
 import { MatTabsModule } from '@angular/material/tabs';
 import { MatTooltipModule } from '@angular/material/tooltip';
 import { RouterLink } from '@angular/router';
-import { Api, errorMessage } from '../../core/api';
+import { Api } from '../../core/api';
 import { titleCase } from '../../core/format';
+import { GAME_TERMS, SET_KIND_TERMS, level } from '../../core/game-terms';
+import { TranslationKey } from '../../core/i18n/en';
+import { ErrorTextPipe } from '../../core/i18n/error-text';
+import { LocalDatePipe } from '../../core/i18n/local-date';
+import { recommendationText, setOptionText } from '../../core/i18n/recommendation-words';
+import { TranslatePipe } from '../../core/i18n/translate';
+import { TranslatePluralPipe } from '../../core/i18n/translate-plural';
+import { TranslationService } from '../../core/i18n/translation';
 import { MetaStore } from '../../core/meta-store';
 import { CharacterAnalysis, Evaluation, GameKey, Recommendation, Suggestion } from '../../core/models';
 import { BuildDetail } from '../../shared/build-detail';
+import { BUILD_TERMS } from '../../shared/build-terms';
 import { Avatar } from '../../shared/char-avatar';
 import { GradeBadge } from '../../shared/grade-badge';
 import { ItemCard, ItemView } from '../../shared/item-card';
 import { ScoreBar } from '../../shared/score-bar';
-import { SlotLabelPipe, StatLabelPipe, StatValuePipe, TimeAgoPipe } from '../../shared/stat-pipes';
+import { SlotLabelPipe, StatLabelPipe, StatValuePipe } from '../../shared/stat-pipes';
+
+/**
+ * What a recommendation is filed under, where that is the site's own word. The other categories are the
+ * game's words and come from the terms: the weapon's label, "Talents" / "Traces", "Main stat", "Substats".
+ * A category a newer server adds is "Other".
+ */
+const CATEGORY_KEYS = new Map<string, TranslationKey>([
+  ['sets', 'character.category.sets'],
+  ['targets', 'character.category.targets'],
+  ['levels', 'character.category.levels'],
+]);
+const CATEGORY_FALLBACK: TranslationKey = 'character.category.unknown';
+
+/**
+ * Why a piece from the inventory is suggested. "better_substats" is not here: it carries a number and is
+ * the plural family `character.reason.betterSubstats`. A reason a newer server adds reads "Better for this
+ * build".
+ */
+const REASON_KEYS = new Map<string, TranslationKey>([
+  ['completes_set', 'character.reason.completesSet'],
+  ['fixes_main_stat', 'character.reason.fixesMainStat'],
+]);
+const REASON_FALLBACK: TranslationKey = 'character.reason.unknown';
+
+const SEVERITY_ICONS = new Map<string, string>([
+  ['high', 'priority_high'],
+  ['medium', 'warning'],
+  ['low', 'info'],
+]);
 
 @Component({
   selector: 'app-character-page',
   imports: [
-    LowerCasePipe,
     RouterLink,
     MatButtonModule,
     MatIconModule,
@@ -35,7 +71,10 @@ import { SlotLabelPipe, StatLabelPipe, StatValuePipe, TimeAgoPipe } from '../../
     SlotLabelPipe,
     StatLabelPipe,
     StatValuePipe,
-    TimeAgoPipe,
+    ErrorTextPipe,
+    LocalDatePipe,
+    TranslatePipe,
+    TranslatePluralPipe,
   ],
   templateUrl: './character-page.html',
   styleUrl: './character-page.scss',
@@ -43,6 +82,7 @@ import { SlotLabelPipe, StatLabelPipe, StatValuePipe, TimeAgoPipe } from '../../
 export class CharacterPage {
   private readonly api = inject(Api);
   private readonly meta = inject(MetaStore);
+  private readonly i18n = inject(TranslationService);
 
   readonly id = input.required<string>();
   readonly key = input.required<string>();
@@ -50,12 +90,22 @@ export class CharacterPage {
   protected readonly data = signal<CharacterAnalysis | null>(null);
   protected readonly selectedBuildId = signal<number | null>(null);
   protected readonly loading = signal(true);
-  protected readonly error = signal<string | null>(null);
+  /** The failed request itself: the template words it, in the language on the page. */
+  protected readonly error = signal<unknown>(null);
 
   protected readonly titleCase = titleCase;
+  /** "Lv. 90" - the game's notation. */
+  protected readonly level = level;
+  protected readonly buildTerms = BUILD_TERMS;
 
   protected readonly game = computed<GameKey>(() => this.data()?.account.game ?? 'genshin');
   protected readonly gameMeta = computed(() => this.meta.game(this.game()));
+  /** The game's own words for this game: "Artifacts" / "Relics", "Constellations" / "Eidolons", "Talents" / "Traces". */
+  protected readonly terms = computed(() => GAME_TERMS[this.game()]);
+  /** "Weapon" / "Light Cone", as the metadata says it. */
+  protected readonly weaponTerm = computed(() => this.gameMeta()?.weapon_label ?? this.terms().weapon);
+  protected readonly rankPrefix = computed(() => this.gameMeta()?.rank_prefix ?? this.terms().rankPrefix);
+  protected readonly refinementPrefix = computed(() => this.gameMeta()?.refinement_prefix ?? this.terms().refinementPrefix);
 
   protected readonly evaluation = computed<Evaluation | null>(() => {
     const data = this.data();
@@ -78,11 +128,22 @@ export class CharacterPage {
     return this.slots().map((slot) => ({ slot, item: (evaluation?.items[slot.key] ?? null) as ItemView | null }));
   });
 
-  protected readonly recommendations = computed(() => this.evaluation()?.recommendations ?? []);
+  /**
+   * What the build recommends, worded here: the sentence from the recommendation's kind and parameters
+   * (a kind nobody knows shows its stored English, marked as such), and what it is filed under.
+   */
+  protected readonly recommendations = computed(() =>
+    (this.evaluation()?.recommendations ?? []).map((recommendation) => ({
+      recommendation,
+      category: this.categoryLabel(recommendation),
+      text: recommendationText(this.i18n, this.meta, this.game(), recommendation),
+    })),
+  );
 
   protected readonly suggestions = computed(() =>
     (this.data()?.suggestions ?? []).map((suggestion) => ({
       suggestion,
+      reason: this.suggestionReason(suggestion),
       view: { ...suggestion.item, slot: suggestion.slot } satisfies ItemView,
     })),
   );
@@ -116,11 +177,24 @@ export class CharacterPage {
       .map((slot) => ({ label: slot.label, stats: consensus!.main_stats[slot.key] }));
   });
 
+  /**
+   * The sets the builds agree on, by kind: the kind's heading is the game's term (a kind a newer server
+   * adds reads "Sets"), and each set is its pieces with the "(any N)" phrase where only some are needed.
+   */
   protected readonly consensusSets = computed(() => {
     const sets = this.data()?.consensus.sets ?? {};
-    const titles: Record<string, string> = { artifact: 'Artifact set', relic: 'Cavern relics', planar: 'Planar ornaments' };
-    return Object.entries(sets).map(([kind, list]) => ({ title: titles[kind] ?? kind, list }));
+    return Object.entries(sets).map(([kind, list]) => ({
+      kind,
+      title: Object.hasOwn(SET_KIND_TERMS, kind) ? SET_KIND_TERMS[kind as keyof typeof SET_KIND_TERMS] : this.i18n.t('character.consensus.sets'),
+      list: list.map((set) => ({ name: set.name, count: set.count, text: setOptionText(this.i18n, set.pieces ?? set.name, set.choose) })),
+    }));
   });
+
+  /** "No builds for {name} yet. ... (admins start one on the [Sources] page).", cut where the link stands. */
+  protected readonly noBuilds = computed(() => this.i18n.around('character.noBuilds', 'link', { name: this.data()?.character.name }));
+
+  /** "Substats in [color] matter most for this build; ...", cut where the coloured word stands. */
+  protected readonly legend = computed(() => this.i18n.around('character.legend', 'color'));
 
   constructor() {
     effect(() => {
@@ -141,35 +215,33 @@ export class CharacterPage {
   }
 
   protected severityIcon(recommendation: Recommendation): string {
-    return { high: 'priority_high', medium: 'warning', low: 'info' }[recommendation.severity];
+    return SEVERITY_ICONS.get(recommendation.severity) ?? 'info';
   }
 
-  protected categoryLabel(recommendation: Recommendation): string {
-    return {
-      weapon: this.gameMeta()?.weapon_label ?? 'Weapon',
-      sets: 'Sets',
-      main_stats: 'Main stat',
-      substats: 'Substats',
-      targets: 'Stat target',
-      talents: this.game() === 'hsr' ? 'Traces' : 'Talents',
-      levels: 'Levels',
-    }[recommendation.category];
+  /** Read inside a computed(): a category's word follows the language, a game term stays what it is. */
+  private categoryLabel(recommendation: Recommendation): string {
+    const category: string = recommendation.category;
+    switch (category) {
+      case 'weapon':
+        return this.weaponTerm();
+      case 'talents':
+        return this.terms().talents;
+      case 'main_stats':
+        return BUILD_TERMS.mainStat;
+      case 'substats':
+        return BUILD_TERMS.substats;
+      default:
+        return this.i18n.t(CATEGORY_KEYS.get(category) ?? CATEGORY_FALLBACK);
+    }
   }
 
-  protected suggestionReason(suggestion: Suggestion): string {
-    return {
-      better_substats: `+${suggestion.gain} points of substat quality`,
-      completes_set: 'Completes the recommended set bonus',
-      fixes_main_stat: 'Has the recommended main stat',
-    }[suggestion.reason];
-  }
-
-  protected rankPrefix(): string {
-    return this.gameMeta()?.rank_prefix ?? 'C';
-  }
-
-  protected refinementPrefix(): string {
-    return this.gameMeta()?.refinement_prefix ?? 'R';
+  /** Read inside a computed(), like categoryLabel(). */
+  private suggestionReason(suggestion: Suggestion): string {
+    const reason: string = suggestion.reason;
+    if (reason === 'better_substats') {
+      return this.i18n.plural('character.reason.betterSubstats', suggestion.gain);
+    }
+    return this.i18n.t(REASON_KEYS.get(reason) ?? REASON_FALLBACK);
   }
 
   private load(accountId: number, key: string, buildId: number | null): void {
@@ -182,7 +254,7 @@ export class CharacterPage {
         this.loading.set(false);
       },
       error: (err) => {
-        this.error.set(errorMessage(err));
+        this.error.set(err);
         this.loading.set(false);
       },
     });

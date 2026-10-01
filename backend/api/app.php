@@ -7,6 +7,8 @@
  *   accounts, imports,     members (MEMBER or ADMIN): their own accounts only
  *   builds, sources
  *   sync, admin            admins: syncs, sources on / off, migrations
+ *   translations           the site's own words: the strings of a language are public; the languages
+ *                          and the grid the strings are reworded in are for admins
  *
  * Middleware, outermost first: a fresh request scope, security headers, the setup gate (503 "not_set_up"
  * until config/*.local.php exist), JSON errors, body parsing, routing; then per group the role check.
@@ -26,7 +28,7 @@ function buildAnalyzerApi(App $app): Slim\App
 {
     $slim = AppFactory::create();
 
-    foreach (['meta', 'icons', 'accounts', 'imports', 'builds', 'sources', 'sync', 'admin'] as $routes) {
+    foreach (['meta', 'icons', 'accounts', 'imports', 'builds', 'sources', 'sync', 'admin', 'translations'] as $routes) {
         (require __DIR__."/routes/{$routes}.php")($slim, $app);
     }
 

@@ -53,7 +53,7 @@ class EnkaHsrParser
 
         $avatars = $detail['avatarDetailList'] ?? [];
         if ($avatars === []) {
-            throw new ImportException('This profile shows no characters. In-game open Phone > Profile, add characters to the Character Showcase and Support Characters, then try again in a few minutes.');
+            throw new ImportException('This profile shows no characters. In-game open Phone > Profile, add characters to the Character Showcase and Support Characters, then try again in a few minutes.', 'showcase_empty_hsr');
         }
 
         $seen = [];
@@ -93,7 +93,7 @@ class EnkaHsrParser
                 if ($item) {
                     $account->items[] = $item;
                 } else {
-                    $account->warnings[] = 'Skipped a relic with unknown data.';
+                    $account->warn('showcase_relic_skipped', [], 'Skipped a relic with unknown data.');
                 }
             }
         }

@@ -3,6 +3,32 @@
 Short records of choices that shape the code. Add a new entry (newest first) when you make a similar call.
 Older entries describe the Laravel version as it was; where a setting has since moved, the entry says so.
 
+**2026-10-01 — The member pages in English and Slovak, their words in the database (owner's decisions: "translate
+only text. The stuff from the game, like attack or ATK and the like, leave as they are everywhere").** The site's
+own words are rows (migration 003: `languages`, `translation_keys`, `translations`; 406 keys), like the genshin
+site's, because the host has no shell and every upload overwrites the build: the owner rewords a string on the
+Translations page and adds or hides a language on the Languages page, in the browser. One migration holds the
+tables and every string, so no database ever has the tables without their words. English is the fallback
+string by string, and Slovak is informal ("ty"). A key the database lacks shows as the key, on purpose: the
+owner wants to see which one is missing. The English compiled into the app (`core/i18n/en.ts` and its parts) is
+the list of keys and the last resort only - shown while no bundle is in memory (before 003 is applied, or while
+a first visit waits), never to fill one missing string - and a test holds it equal to the seeded English. What
+the server tells a member - a recommendation, an import's error or warning, a failed request - is a kind with
+params that the page words, so the page follows the reader's language; the English sentence stays beside it for
+the command line, the tests and rows stored before kinds (shown in English, with `lang="en"`). The game's words
+stay as the game writes them in every language: stat, slot, talent, set, weapon and character names, "Lv.",
+"4pc", UID, grades, and the game's notation ("62.4%", "R1", what `MetaStore.formatStat()` writes). They are
+never keys; they reach a sentence as a placeholder or stand before a colon, so Slovak never has to decline an
+English word. The admin's Sources page and the owner's two pages stay English (their code untouched,
+`<html lang="en">`), as do the server's admin-only sentences. A new language starts hidden, so its strings can be
+written before readers are offered it. The neutral-names rule covers every string, seeded or reworded
+(`TranslationCheck`, 422 `names_another_site`). Each installation's database holds its own strings; a language
+is carried between installations by export and import. The browser check at 390 px also found two phone-layout
+defects older than this work and fixed them in CSS: the toolbar's links painted over the buttons beside them
+(under 720 px the icon-only links and the user button drop Material's 64 px minimum width and the bar's padding
+is 8 px), and the account page's import history cut its last column to a few letters a line (under 600 px a row
+wraps and that text takes its own line). Neither showed in the page's scroll width; comparing the boxes did.
+
 **2026-09-29 — A source's builds move between installations as a file (owner's request: "every source should
 have buttons for import and export").** The live site could not sync two of its sources: the site behind them
 answers the hosting server 403 (bot protection that refuses datacenter addresses), while the owner's computer

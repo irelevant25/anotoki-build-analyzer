@@ -1,17 +1,17 @@
 <div class="page">
-  <a mat-button [routerLink]="['/builds', gameKey()]"><mat-icon>arrow_back</mat-icon>All characters</a>
+  <a mat-button [routerLink]="['/builds', gameKey()]"><mat-icon>arrow_back</mat-icon>{{ 'builds.allCharacters' | translate }}</a>
   @if (loading()) {
     <mat-progress-bar mode="indeterminate" />
   }
-  @if (error(); as message) {
-    <div class="panel">{{ message }}</div>
+  @if (error(); as problem) {
+    <div class="panel">{{ problem | errorText }}</div>
   }
   @if (data(); as d) {
     <header class="panel hero">
       <app-avatar [src]="d.character.icon_url" [alt]="d.character.name" [rarity]="d.character.rarity" [element]="d.character.element" size="lg" />
       <div>
         <h1>{{ d.character.name }}</h1>
-        <div class="muted">{{ titleCase(d.character.element) }}{{ d.character.weapon_type ? ' · ' + titleCase(d.character.weapon_type) : '' }} · {{ d.builds.length }} builds</div>
+        <div class="muted">{{ titleCase(d.character.element) }}{{ d.character.weapon_type ? ' · ' + titleCase(d.character.weapon_type) : '' }} · {{ 'builds.count' | translatePlural: d.builds.length }}</div>
       </div>
     </header>
 

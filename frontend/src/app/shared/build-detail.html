@@ -1,12 +1,12 @@
 @let b = build();
-@let prefix = gameMeta()?.refinement_prefix ?? 'R';
+@let prefix = gameMeta()?.refinement_prefix ?? terms().refinementPrefix;
 
 <div class="columns">
   <!-- Weapons / light cones -->
   <section class="block">
-    <h3>{{ gameMeta()?.weapon_label ?? 'Weapon' }}s</h3>
+    <h3>{{ terms().weapons }}</h3>
     @if (b.weapons.length === 0) {
-      <p class="muted small">This source lists none.</p>
+      <p class="muted small">{{ 'buildDetail.noWeapons' | translate }}</p>
     }
     <ol class="weapons">
       @for (weapon of b.weapons; track weapon.key + weapon.rank) {
@@ -21,13 +21,13 @@
               }
             </div>
             @if (weapon.note) {
-              <div class="note muted small" [matTooltip]="weapon.note">{{ weapon.note }}</div>
+              <div class="note muted small" [attr.lang]="storedLang()" [matTooltip]="weapon.note">{{ weapon.note }}</div>
             }
           </div>
           @if (weapon.key === equippedWeaponKey()) {
-            <span class="chip ok">Equipped</span>
+            <span class="chip ok">{{ 'buildDetail.equipped' | translate }}</span>
           } @else if (ownedWeaponKeys().has(weapon.key)) {
-            <span class="chip">Owned</span>
+            <span class="chip">{{ 'buildDetail.owned' | translate }}</span>
           }
         </li>
       }
@@ -51,20 +51,20 @@
               <div>
                 {{ pieceText(option) }}
                 @if (option.choose && option.choose < option.pieces.length) {
-                  <span class="muted small">(any {{ option.choose }})</span>
+                  <span class="muted small">{{ 'buildDetail.optionAny' | translatePlural: option.choose }}</span>
                 }
               </div>
               @for (piece of option.pieces; track $index) {
                 @if (piece.names.length > 1) {
-                  <div class="muted small" [matTooltip]="piece.names.join(', ')">{{ piece.label }}: {{ piece.names.length }} sets qualify</div>
+                  <div class="muted small" [matTooltip]="piece.names.join(', ')">{{ 'buildDetail.setsQualify' | translatePlural: piece.names.length : { label: piece.label } }}</div>
                 }
               }
               @if (option.note) {
-                <div class="note muted small" [matTooltip]="option.note">{{ option.note }}</div>
+                <div class="note muted small" [attr.lang]="storedLang()" [matTooltip]="option.note">{{ option.note }}</div>
               }
             </div>
             @if (group.matchedRank === $index + 1) {
-              <span class="chip ok">In use</span>
+              <span class="chip ok">{{ 'buildDetail.inUse' | translate }}</span>
             }
           </li>
         }
@@ -77,7 +77,7 @@
   <!-- Main stats -->
   @if (mainStatSlots().length > 0) {
     <section class="block">
-      <h3>Main stats</h3>
+      <h3>{{ buildTerms.mainStats }}</h3>
       <div class="stat-rows">
         @for (slot of mainStatSlots(); track slot.key) {
           <div class="stat-row">
@@ -93,7 +93,7 @@
             </span>
             @if (slot.check) {
               <mat-icon class="check" [class.bad]="!slot.check.ok"
-                [matTooltip]="slot.check.ok ? 'Your main stat matches' : 'Yours: ' + stat(slot.check.current ?? '-')">
+                [matTooltip]="slot.check.ok ? ('buildDetail.mainStatMatches' | translate) : ('buildDetail.mainStatYours' | translate: { stat: stat(slot.check.current ?? '-') })">
                 {{ slot.check.ok ? 'check_circle' : 'cancel' }}
               </mat-icon>
             }
@@ -105,9 +105,9 @@
 
   <!-- Substats, talents -->
   <section class="block">
-    <h3>Substat priority</h3>
+    <h3>{{ 'buildDetail.substatPriority' | translate }}</h3>
     @if (substatGroups().length === 0) {
-      <p class="muted small">Not listed by this source; the analysis borrows priorities from another source.</p>
+      <p class="muted small">{{ 'buildDetail.substatsBorrowed' | translate }}</p>
     } @else {
       <div class="priority">
         @for (group of substatGroups(); track $index; let last = $last) {
@@ -121,7 +121,7 @@
     }
 
     @if (talentGroups().length > 0) {
-      <h3 class="mt">{{ game() === 'hsr' ? 'Trace priority' : 'Talent priority' }}</h3>
+      <h3 class="mt">{{ 'buildDetail.talentPriority' | translate: { talents: terms().talents } }}</h3>
       <div class="priority">
         @for (label of talentGroups(); track $index; let last = $last) {
           <span class="chip">{{ label }}</span>
@@ -135,7 +135,7 @@
 <!-- Stat targets -->
 @if (targets().length > 0) {
   <section class="block">
-    <h3>Stat targets</h3>
+    <h3>{{ 'buildDetail.statTargets' | translate }}</h3>
     <div class="targets">
       @for (target of targets(); track target.stat) {
         <div class="target" [class.ok]="target.ok === true" [class.bad]="target.ok === false">
@@ -144,9 +144,9 @@
             {{ target.min | statValue: game() : target.stat }}@if (target.max) { – {{ target.max | statValue: game() : target.stat }} }+
           </span>
           @if (target.current !== undefined && target.current !== null) {
-            <span class="t-current">you: {{ target.current | statValue: game() : target.stat }}</span>
+            <span class="t-current">{{ 'buildDetail.targetYours' | translate: { value: (target.current | statValue: game() : target.stat) } }}</span>
           }
-          <span class="t-text muted small" [matTooltip]="target.text">{{ target.text }}</span>
+          <span class="t-text muted small" [attr.lang]="storedLang()" [matTooltip]="target.text">{{ target.text }}</span>
         </div>
       }
     </div>
@@ -156,14 +156,18 @@
 @if (b.notes) {
   <mat-expansion-panel class="notes">
     <mat-expansion-panel-header>
-      <mat-panel-title>Notes from {{ b.source.name }}</mat-panel-title>
+      <mat-panel-title>{{ 'buildDetail.notesFrom' | translate: { source: b.source.name } }}</mat-panel-title>
     </mat-expansion-panel-header>
-    <p class="notes-text">{{ b.notes }}</p>
+    <p class="notes-text" [attr.lang]="storedLang()">{{ b.notes }}</p>
   </mat-expansion-panel>
 }
 
 <footer class="muted small">
-  @if (b.game_version) { Version {{ b.game_version }} · }
-  @if (b.source_updated_at) { Updated at the source {{ b.source_updated_at | timeAgo }} · }
-  Checked {{ b.fetched_at | timeAgo }}
+  @if (b.game_version) { {{ 'buildDetail.version' | translate: { version: b.game_version } }} · }
+  @if (b.source_updated_at) { {{ 'buildDetail.updatedAtSource' | translate: { when: (b.source_updated_at | localDate: 'ago') } }} · }
+  @if (b.fetched_at) {
+    {{ 'buildDetail.checked' | translate: { when: (b.fetched_at | localDate: 'ago') } }}
+  } @else {
+    {{ 'buildDetail.checkedNever' | translate }}
+  }
 </footer>

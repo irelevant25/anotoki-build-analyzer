@@ -1,3 +1,4 @@
+import { TranslationKey } from '../../core/i18n/en';
 import { GameKey } from '../../core/models';
 
 /**
@@ -6,68 +7,73 @@ import { GameKey } from '../../core/models';
  *
  * The guides name no website, service or tool and link to none (the app credits nobody by name); they
  * describe what to look for instead - an exporter that writes the file format the backend reads.
+ *
+ * Every text here is a key, written out whole: the words are the site's own, in the reader's language,
+ * around the games' menu names ("Character Showcase", "Edit Profile", UID, GOOD), which every language
+ * keeps as they are. The template words a key with the translate pipe and tracks by it. No key is ever put
+ * together from the game or the method the address asks for - these two tables are all there is.
  */
 export type ImportMethodKey = 'showcase' | 'file';
 
 export interface ImportMethod {
   key: ImportMethodKey;
-  title: string;
+  title: TranslationKey;
   icon: string;
-  summary: string;
-  pros: string[];
-  cons: string[];
+  summary: TranslationKey;
+  pros: TranslationKey[];
+  cons: TranslationKey[];
 }
 
 export interface GuideStep {
-  title: string;
-  body: string;
+  title: TranslationKey;
+  body: TranslationKey;
   icon: string;
-  tip?: string;
+  tip?: TranslationKey;
 }
 
 export interface Guide {
-  intro: string;
+  intro: TranslationKey;
   steps: GuideStep[];
-  troubleshooting: string[];
+  troubleshooting: TranslationKey[];
   /** What the file to upload looks like, shown in the upload step. */
-  fileHint?: string;
+  fileHint?: TranslationKey;
 }
 
 export const METHODS: Record<GameKey, ImportMethod[]> = {
   genshin: [
     {
       key: 'showcase',
-      title: 'Character Showcase (UID)',
+      title: 'importGuide.genshin.showcase.title',
       icon: 'badge',
-      summary: 'Reads the characters you show on your public in-game profile.',
-      pros: ['Nothing to install, takes a minute', 'Includes your in-game total stats (ER, CRIT, EM...)', 'Repeat it with other characters to build up your roster'],
-      cons: ['Up to 12 characters per import', 'No unequipped artifacts, so no "better piece you own" suggestions'],
+      summary: 'importGuide.genshin.showcase.summary',
+      pros: ['importGuide.genshin.showcase.pro1', 'importGuide.genshin.showcase.pro2', 'importGuide.genshin.showcase.pro3'],
+      cons: ['importGuide.genshin.showcase.con1', 'importGuide.genshin.showcase.con2'],
     },
     {
       key: 'file',
-      title: 'Full inventory (exporter tool)',
+      title: 'importGuide.genshin.file.title',
       icon: 'inventory_2',
-      summary: 'An inventory exporter on your PC saves every character, weapon and artifact as a GOOD file.',
-      pros: ['All characters, weapons and artifacts at once', 'Finds better artifacts you already own', 'Talent levels and exact roll counts'],
-      cons: ['Needs an exporter tool on a Windows PC', 'No in-game total stats (combine with a UID import)'],
+      summary: 'importGuide.genshin.file.summary',
+      pros: ['importGuide.genshin.file.pro1', 'importGuide.genshin.file.pro2', 'importGuide.genshin.file.pro3'],
+      cons: ['importGuide.genshin.file.con1', 'importGuide.genshin.file.con2'],
     },
   ],
   hsr: [
     {
       key: 'showcase',
-      title: 'Character Showcase (UID)',
+      title: 'importGuide.hsr.showcase.title',
       icon: 'badge',
-      summary: 'Reads your showcase and support characters from your public in-game profile.',
-      pros: ['Nothing to install, takes a minute', 'Exact relic roll counts', 'Repeat it with other characters to build up your roster'],
-      cons: ['Only showcase + support characters (about 8)', 'No unequipped relics, so no "better piece you own" suggestions'],
+      summary: 'importGuide.hsr.showcase.summary',
+      pros: ['importGuide.hsr.showcase.pro1', 'importGuide.hsr.showcase.pro2', 'importGuide.hsr.showcase.pro3'],
+      cons: ['importGuide.hsr.showcase.con1', 'importGuide.hsr.showcase.con2'],
     },
     {
       key: 'file',
-      title: 'Full inventory (exporter tool)',
+      title: 'importGuide.hsr.file.title',
       icon: 'inventory_2',
-      summary: 'A relic exporter on your PC saves every character, light cone and relic as a JSON file.',
-      pros: ['All characters, light cones and relics at once', 'Finds better relics you already own', 'The file relic optimizers read, so one export serves both'],
-      cons: ['Needs an exporter tool on a Windows PC'],
+      summary: 'importGuide.hsr.file.summary',
+      pros: ['importGuide.hsr.file.pro1', 'importGuide.hsr.file.pro2', 'importGuide.hsr.file.pro3'],
+      cons: ['importGuide.hsr.file.con1'],
     },
   ],
 };
@@ -75,149 +81,144 @@ export const METHODS: Record<GameKey, ImportMethod[]> = {
 export const GUIDES: Record<GameKey, Record<ImportMethodKey, Guide>> = {
   genshin: {
     showcase: {
-      intro: 'Only what your public profile shows can be read, so first put the characters you want analyzed into your Character Showcase.',
+      intro: 'importGuide.genshin.showcase.intro',
       steps: [
         {
           icon: 'person',
-          title: 'Open your profile',
-          body: 'In the game press Esc to open the Paimon menu, click your avatar at the top left and choose "Edit Profile".',
+          title: 'importGuide.genshin.showcase.step1.title',
+          body: 'importGuide.genshin.showcase.step1.body',
         },
         {
           icon: 'view_carousel',
-          title: 'Fill the Character Showcase',
-          body: 'Open "Character Showcase" and pick up to 12 characters. Their weapons and artifacts are shown as they are equipped right now.',
-          tip: 'Start with the characters you want to improve; you can swap them later and import again.',
+          title: 'importGuide.genshin.showcase.step2.title',
+          body: 'importGuide.genshin.showcase.step2.body',
+          tip: 'importGuide.genshin.showcase.step2.tip',
         },
         {
           icon: 'visibility',
-          title: 'Turn on "Show Character Details"',
-          body: 'Still in the profile settings, enable "Show Character Details". Without it only names and levels are public.',
+          title: 'importGuide.genshin.showcase.step3.title',
+          body: 'importGuide.genshin.showcase.step3.body',
         },
         {
           icon: 'schedule',
-          title: 'Let the profile refresh',
-          body: 'The public profile updates when you log out or after a few minutes. Entering and leaving your Serenitea Pot also refreshes it.',
+          title: 'importGuide.genshin.showcase.step4.title',
+          body: 'importGuide.genshin.showcase.step4.body',
         },
         {
           icon: 'fingerprint',
-          title: 'Find your UID',
-          body: 'Your UID is the 9 or 10 digit number in the bottom-right corner of the game screen and on your profile.',
+          title: 'importGuide.genshin.showcase.step5.title',
+          body: 'importGuide.genshin.showcase.step5.body',
         },
       ],
       troubleshooting: [
-        '"Show Character Details is turned off": enable it in Edit Profile and wait a few minutes.',
-        'Old data: a public profile is cached for a few minutes; import again a bit later.',
-        'Characters from an earlier import stay in the app, so you can rotate your showcase and import several times.',
+        'importGuide.genshin.showcase.trouble1',
+        'importGuide.genshin.showcase.trouble2',
+        'importGuide.genshin.showcase.trouble3',
       ],
     },
     file: {
-      intro:
-        'An inventory exporter reads the data the game sends to your PC when you log in (or scans your inventory from screenshots) and saves it as a GOOD file, the common JSON format for Genshin Impact inventories. It does not change the game.',
-      fileHint: 'A .json file in the GOOD format',
+      intro: 'importGuide.genshin.file.intro',
+      fileHint: 'importGuide.genshin.file.fileHint',
       steps: [
         {
           icon: 'download',
-          title: 'Get an inventory exporter',
-          body: 'Use an exporter that saves the GOOD format. Download it from its official release page; most need no installation.',
-          tip: 'Exporters that read the game data need administrator rights for Windows\' packet monitor; screenshot scanners need English game text.',
+          title: 'importGuide.genshin.file.step1.title',
+          body: 'importGuide.genshin.file.step1.body',
+          tip: 'importGuide.genshin.file.step1.tip',
         },
         {
           icon: 'play_circle',
-          title: 'Start the exporter before the game',
-          body: 'Run the exporter and start its capture before you enter the world.',
+          title: 'importGuide.genshin.file.step2.title',
+          body: 'importGuide.genshin.file.step2.body',
         },
         {
           icon: 'sports_esports',
-          title: 'Log into Genshin Impact',
-          body: 'Start the game and click through the door into the world. Wait until the exporter shows that it has your characters, weapons and artifacts.',
-          tip: 'Already in the game? Log out to the title screen and enter again while the exporter is capturing.',
+          title: 'importGuide.genshin.file.step3.title',
+          body: 'importGuide.genshin.file.step3.body',
+          tip: 'importGuide.genshin.file.step3.tip',
         },
         {
           icon: 'save',
-          title: 'Export the GOOD file',
-          body: 'Save the export as a file, or copy it to the clipboard and paste it in the next step.',
+          title: 'importGuide.genshin.file.step4.title',
+          body: 'importGuide.genshin.file.step4.body',
         },
       ],
       troubleshooting: [
-        'Nothing captured: make sure the exporter was capturing before you entered the world, then relog.',
-        'After a game update the exporter may need an update too; check its release page.',
-        'Tools from other people are used at your own risk. An exporter only reads data; this app never asks for your game password.',
+        'importGuide.genshin.file.trouble1',
+        'importGuide.genshin.file.trouble2',
+        'importGuide.genshin.file.trouble3',
       ],
     },
   },
   hsr: {
     showcase: {
-      intro: 'Only your public profile can be read: the Character Showcase plus your Support Characters.',
+      intro: 'importGuide.hsr.showcase.intro',
       steps: [
         {
           icon: 'person',
-          title: 'Open your profile',
-          body: 'Press Esc to open the Phone menu and click your avatar to open your Trailblazer profile.',
+          title: 'importGuide.hsr.showcase.step1.title',
+          body: 'importGuide.hsr.showcase.step1.body',
         },
         {
           icon: 'view_carousel',
-          title: 'Set the Character Showcase',
-          body: 'Choose the characters to showcase. Their light cones and relics are read as currently equipped.',
+          title: 'importGuide.hsr.showcase.step2.title',
+          body: 'importGuide.hsr.showcase.step2.body',
         },
         {
           icon: 'group',
-          title: 'Set your Support Characters',
-          body: 'Support Characters are public too, so they are imported as well.',
-          tip: 'Rotate the showcase and import again to cover more characters; earlier imports are kept.',
+          title: 'importGuide.hsr.showcase.step3.title',
+          body: 'importGuide.hsr.showcase.step3.body',
+          tip: 'importGuide.hsr.showcase.step3.tip',
         },
         {
           icon: 'schedule',
-          title: 'Let the profile refresh',
-          body: 'Changes become visible after a few minutes or after logging out.',
+          title: 'importGuide.hsr.showcase.step4.title',
+          body: 'importGuide.hsr.showcase.step4.body',
         },
         {
           icon: 'fingerprint',
-          title: 'Find your UID',
-          body: 'Your UID is shown at the bottom left of the screen and on your profile (9 or 10 digits).',
+          title: 'importGuide.hsr.showcase.step5.title',
+          body: 'importGuide.hsr.showcase.step5.body',
         },
       ],
-      troubleshooting: [
-        '"This profile shows no characters": add characters to the showcase and wait a few minutes.',
-        'Old data: a public profile is cached for a few minutes; import again a bit later.',
-      ],
+      troubleshooting: ['importGuide.hsr.showcase.trouble1', 'importGuide.hsr.showcase.trouble2'],
     },
     file: {
-      intro:
-        'A relic exporter reads the data the game sends when you log in and saves your characters, light cones and relics as a JSON file, the format relic optimizers read. Files from screen-scanning exporters work too.',
-      fileHint: 'A .json file with your characters, light cones and relics',
+      intro: 'importGuide.hsr.file.intro',
+      fileHint: 'importGuide.hsr.file.fileHint',
       steps: [
         {
           icon: 'download',
-          title: 'Get a relic exporter',
-          body: 'Use an exporter that saves characters, light cones and relics as JSON. Download it from its official release page.',
-          tip: 'Screen-scanning exporters need English game text and a 16:9 window; do not move the mouse while they scan.',
+          title: 'importGuide.hsr.file.step1.title',
+          body: 'importGuide.hsr.file.step1.body',
+          tip: 'importGuide.hsr.file.step1.tip',
         },
         {
           icon: 'pause_circle',
-          title: 'Start the game, stop at "Click to Start"',
-          body: 'Launch Honkai: Star Rail and wait on the title screen. Do not enter the game yet.',
+          title: 'importGuide.hsr.file.step2.title',
+          body: 'importGuide.hsr.file.step2.body',
         },
         {
           icon: 'play_circle',
-          title: 'Run the exporter',
-          body: 'Start the exporter and wait until it is ready for your login.',
+          title: 'importGuide.hsr.file.step3.title',
+          body: 'importGuide.hsr.file.step3.body',
         },
         {
           icon: 'sports_esports',
-          title: 'Enter the game',
-          body: 'Click to start. The exporter connects and collects your characters, light cones and relics.',
+          title: 'importGuide.hsr.file.step4.title',
+          body: 'importGuide.hsr.file.step4.body',
         },
         {
           icon: 'save',
-          title: 'Save the export',
-          body: 'Save the JSON file the exporter offers.',
+          title: 'importGuide.hsr.file.step5.title',
+          body: 'importGuide.hsr.file.step5.body',
         },
       ],
       troubleshooting: [
-        'Already in the game? Log out to the title screen and enter again while the exporter is running.',
-        'A VPN can prevent the capture.',
-        'An "unsupported game version" message after a patch: wait for the exporter\'s next release.',
-        'Tools from other people are used at your own risk. They only read data; this app never asks for your game password.',
+        'importGuide.hsr.file.trouble1',
+        'importGuide.hsr.file.trouble2',
+        'importGuide.hsr.file.trouble3',
+        'importGuide.hsr.file.trouble4',
       ],
     },
   },

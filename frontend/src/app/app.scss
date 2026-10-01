@@ -68,6 +68,24 @@
   .brand {
     margin-right: 4px;
   }
+
+  // Icons only: a button keeps Material's 64 px minimum and the icon's gap before a label, which pushed
+  // the last link under the version button at 360-390 px. The nav shrinks without a scroll width, so
+  // the bar's pieces painted over each other rather than scrolling.
+  .toolbar {
+    padding: 0 8px;
+    gap: 4px;
+  }
+
+  .nav a,
+  .user {
+    min-width: 0;
+    padding: 0 8px;
+
+    .mat-icon {
+      margin: 0;
+    }
+  }
 }
 
 .version {
@@ -75,4 +93,13 @@
   padding: 0 8px;
   color: var(--app-muted);
   font-variant-numeric: tabular-nums;
+}
+
+// The name of a group in the bar's menu (the theme, the language).
+.menu-heading {
+  padding: 8px 16px 4px;
+  color: var(--app-muted);
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 16px;
 }

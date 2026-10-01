@@ -25,7 +25,11 @@ final class ParsedAccount
      */
     public array $items = [];
 
-    /** @var list<string> */
+    /**
+     * What was skipped or looks wrong, added through warn() only.
+     *
+     * @var list<array{message: string, kind: string, params: array<string, string|int>}>
+     */
     public array $warnings = [];
 
     public function __construct(
@@ -42,4 +46,16 @@ final class ParsedAccount
         /** Extra details for display, e.g. the tool that produced the file. */
         public array $meta = [],
     ) {}
+
+    /**
+     * A soft problem: the import goes on, and the person is told.
+     *
+     * @param  string  $kind  a key of ImportKinds::WARNINGS
+     * @param  array<string, string|int>  $params  exactly the parameters ImportKinds::WARNINGS lists for $kind
+     * @param  string  $message  the English sentence (the command line prints it, the history keeps it)
+     */
+    public function warn(string $kind, array $params, string $message): void
+    {
+        $this->warnings[] = ImportKinds::warning($kind, $params, $message);
+    }
 }

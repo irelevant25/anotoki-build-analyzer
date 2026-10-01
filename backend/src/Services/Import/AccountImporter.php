@@ -55,13 +55,19 @@ class AccountImporter
 
         if ($target && $target->user_id !== $owner->id) {
             // Callers only pass the owner's accounts; refuse anything else rather than write into it.
-            throw new ImportException('The selected account does not exist.');
+            throw new ImportException('The selected account does not exist.', 'account_missing');
         }
         if ($target && $target->game !== $parsed->game) {
-            throw new ImportException("The selected account is a {$target->game->label()} account, but the data is from {$parsed->game->label()}.");
+            throw new ImportException("The selected account is a {$target->game->label()} account, but the data is from {$parsed->game->label()}.", 'account_game_mismatch', [
+                'account_game' => $target->game->label(),
+                'data_game' => $parsed->game->label(),
+            ]);
         }
         if ($target && $target->uid && $parsed->uid && $target->uid !== $parsed->uid) {
-            throw new ImportException("The data belongs to UID {$parsed->uid}, but the selected account is UID {$target->uid}.");
+            throw new ImportException("The data belongs to UID {$parsed->uid}, but the selected account is UID {$target->uid}.", 'account_uid_mismatch', [
+                'data_uid' => $parsed->uid,
+                'account_uid' => $target->uid,
+            ]);
         }
 
         // Any catalog download happens here, before the write transaction, so no transaction is held
@@ -78,7 +84,8 @@ class AccountImporter
             foreach ($parsed->characters as $row) {
                 $character = $this->character($parsed->game, $row['ref']);
                 if (! $character) {
-                    $characterWarnings[] = 'Unknown character '.json_encode($row['ref']).' was skipped.';
+                    $characterWarnings[] = ImportKinds::warning('unknown_character', ['ref' => ImportKinds::ref($row['ref'])],
+                        'Unknown character '.json_encode($row['ref']).' was skipped.');
 
                     continue;
                 }
@@ -128,8 +135,16 @@ class AccountImporter
             }
             $skipped = [...$characterWarnings, ...$weaponWarnings, ...$itemWarnings];
             if ($skipped) {
-                $skipped[] = 'What the game catalog does not know yet was skipped. After an admin refreshes the catalog (Sources page), import again.';
+                $skipped[] = ImportKinds::warning('catalog_behind', [],
+                    'What the game catalog does not know yet was skipped. After an admin refreshes the catalog (Sources page), import again.');
             }
+
+            // Each sentence once, the first of its kind kept; the kinds stand index for index beside them.
+            $said = [];
+            foreach ([...$warnings, ...$skipped] as $warning) {
+                $said[$warning['message']] ??= $warning;
+            }
+            $said = array_values($said);
 
             return $this->runs->create($owner->id, $account->id, $parsed->game, $parsed->source, ($unmatched || $skipped) ? 'partial' : 'success', $fileName, [
                 'characters' => count($characterIds),
@@ -137,7 +152,8 @@ class AccountImporter
                 'items' => $itemCount,
                 'full_inventory' => $parsed->fullInventory,
                 'tool' => $parsed->meta['tool'] ?? null,
-                'warnings' => array_values(array_unique([...$warnings, ...$skipped])),
+                'warnings' => array_column($said, 'message'),
+                'warning_kinds' => array_map(fn (array $warning) => ['code' => $warning['kind'], 'params' => $warning['params']], $said),
                 'unmatched' => $unmatched,
             ])->id;
         });
@@ -147,7 +163,9 @@ class AccountImporter
 
     /**
      * Record a failed attempt so the import history shows it (on the account, when there is one of the owner's).
-     * The history is shown in the UI, so the message is kept free of other sites' names and addresses.
+     * The history is shown in the UI, so the message is kept free of other sites' names and addresses. What
+     * happened is kept as a kind too, in the summary ({"error": {code, params}}): the page words it from that,
+     * and the presenter lifts it out, so a failed run is still sent without a summary.
      */
     public function recordFailure(Game $game, string $source, Throwable $e, User $owner, ?Account $account = null, ?string $fileName = null): ImportRun
     {
@@ -155,8 +173,9 @@ class AccountImporter
         if (! $e instanceof ImportException) {
             Log::exception($e, 'Import');
         }
+        $error = $e instanceof ImportException ? ['code' => $e->kind, 'params' => $e->params] : ['code' => 'unexpected', 'params' => []];
 
-        return $this->runs->create($owner->id, $account?->user_id === $owner->id ? $account->id : null, $game, $source, 'failed', $fileName, null,
+        return $this->runs->create($owner->id, $account?->user_id === $owner->id ? $account->id : null, $game, $source, 'failed', $fileName, ['error' => $error],
             mb_substr((string) Neutral::text($message), 0, 2000));
     }
 
@@ -185,7 +204,7 @@ class AccountImporter
     }
 
     /**
-     * @return array{0: int, 1: list<string>}
+     * @return array{0: int, 1: list<array{message: string, kind: string, params: array<string, string|int>}>}
      */
     private function insertWeapons(Account $account, ParsedAccount $parsed): array
     {
@@ -196,7 +215,8 @@ class AccountImporter
         foreach ($parsed->weapons as $weapon) {
             $model = $this->weapon($parsed->game, $weapon['ref']);
             if (! $model) {
-                $warnings[] = 'Unknown '.strtolower($parsed->game->weaponLabel()).' '.json_encode($weapon['ref']).' was skipped.';
+                $warnings[] = ImportKinds::warning('unknown_weapon', ['weapon_label' => $parsed->game->weaponLabel(), 'ref' => ImportKinds::ref($weapon['ref'])],
+                    'Unknown '.strtolower($parsed->game->weaponLabel()).' '.json_encode($weapon['ref']).' was skipped.');
 
                 continue;
             }
@@ -221,7 +241,7 @@ class AccountImporter
     }
 
     /**
-     * @return array{0: int, 1: list<string>}
+     * @return array{0: int, 1: list<array{message: string, kind: string, params: array<string, string|int>}>}
      */
     private function insertItems(Account $account, ParsedAccount $parsed): array
     {
@@ -232,7 +252,8 @@ class AccountImporter
         foreach ($parsed->items as $item) {
             $set = $this->set($parsed->game, $item['set']);
             if (! $set) {
-                $warnings[] = 'Unknown set '.json_encode($item['set']).' was skipped.';
+                $warnings[] = ImportKinds::warning('unknown_set', ['ref' => ImportKinds::ref($item['set'])],
+                    'Unknown set '.json_encode($item['set']).' was skipped.');
 
                 continue;
             }

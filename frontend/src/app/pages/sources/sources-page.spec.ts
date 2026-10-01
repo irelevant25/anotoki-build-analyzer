@@ -3,6 +3,8 @@ import { TestBed } from '@angular/core/testing';
 import { MatSnackBar } from '@angular/material/snack-bar';
 import { Subject, of } from 'rxjs';
 import { Api } from '../../core/api';
+import { provideTestTranslations } from '../../core/i18n/testing';
+import { TranslationService } from '../../core/i18n/translation';
 import { SourceStatus } from '../../core/models';
 import { BUILD_FILE_MAX_BYTES } from './build-file';
 import { SourcesPage } from './sources-page';
@@ -35,6 +37,7 @@ describe('SourcesPage, moving builds through a file', () => {
       providers: [
         { provide: Api, useValue: api },
         { provide: MatSnackBar, useValue: snackBar },
+        provideTestTranslations({}),
       ],
     });
   });
@@ -85,5 +88,54 @@ describe('SourcesPage, moving builds through a file', () => {
     );
     expect(read).not.toHaveBeenCalled();
     expect(api['importSourceBuilds']).not.toHaveBeenCalled();
+  });
+});
+
+describe('SourcesPage, applying database updates', () => {
+  let api: Record<string, ReturnType<typeof vi.fn>>;
+
+  beforeEach(() => {
+    api = {
+      sources: vi.fn(() => of([])),
+      syncRuns: vi.fn(() => of([])),
+      migrations: vi.fn(() => of({ pending: ['003_languages_and_translations.sql'], applied_count: 2, last_applied: '002_schema.sql' })),
+      syncStatus: vi.fn(() => of({ active: false, wait_ms: null, runs: [] })),
+      applyMigrations: vi.fn(),
+    };
+    TestBed.configureTestingModule({
+      imports: [SourcesPage],
+      providers: [
+        { provide: Api, useValue: api },
+        { provide: MatSnackBar, useValue: { open: vi.fn() } },
+        provideTestTranslations({}),
+      ],
+    });
+    vi.spyOn(window, 'confirm').mockReturnValue(true);
+  });
+
+  afterEach(() => vi.restoreAllMocks());
+
+  async function apply(result: { ok: boolean; applied: string[] }) {
+    api['applyMigrations'].mockReturnValue(of({ ...result, pending: [], applied_count: 3, last_applied: '003_languages_and_translations.sql', output: '' }));
+    const reload = vi.spyOn(TestBed.inject(TranslationService), 'reload').mockResolvedValue();
+    const fixture = TestBed.createComponent(SourcesPage);
+    await fixture.whenStable();
+    const element: HTMLElement = fixture.nativeElement;
+    [...element.querySelectorAll<HTMLButtonElement>('button')].find((button) => button.textContent?.includes('Apply'))!.click();
+    await fixture.whenStable();
+    expect(api['applyMigrations']).toHaveBeenCalledTimes(1);
+    return reload;
+  }
+
+  it('reads the strings again after an Apply that applied something - they may only now exist', async () => {
+    expect(await apply({ ok: true, applied: ['003_languages_and_translations.sql'] })).toHaveBeenCalledTimes(1);
+  });
+
+  it('leaves the strings as they are after an Apply that applied nothing', async () => {
+    expect(await apply({ ok: true, applied: [] })).not.toHaveBeenCalled();
+  });
+
+  it('leaves the strings as they are after an Apply that failed', async () => {
+    expect(await apply({ ok: false, applied: [] })).not.toHaveBeenCalled();
   });
 });

@@ -76,6 +76,17 @@ function bootTests(): void
     T::$storage = sys_get_temp_dir().DIRECTORY_SEPARATOR.'build-analyzer-test-'.$suffix;
     @mkdir(T::$storage, 0777, true);
 
+    // Before the database is made: a migration that fails below ends the file, and its database must go too.
+    register_shutdown_function(static function () use ($server): void {
+        try {
+            $postgres = Db::pdo($server, 'postgres', false);
+            $postgres->exec('DROP DATABASE IF EXISTS "'.T::$database.'" WITH (FORCE)');
+        } catch (Throwable $e) {
+            fwrite(STDERR, 'could not drop '.T::$database.": {$e->getMessage()}\n");
+        }
+        removeTree(T::$storage);
+    });
+
     Migrator::ensureDatabase($server, T::$database);
     $pdo = Db::pdo($server, T::$database, false);
     $result = (new Migrator($pdo, Migrator::directory()))->applyPending(['local_user_id' => 1]);
@@ -104,16 +115,6 @@ function bootTests(): void
         T::$app->resetScope();
         Tests\Support\FakeBuildSource::reset();
         removeTree(T::$storage.DIRECTORY_SEPARATOR.'http-cache');
-    });
-
-    register_shutdown_function(static function () use ($server): void {
-        try {
-            $postgres = Db::pdo($server, 'postgres', false);
-            $postgres->exec('DROP DATABASE IF EXISTS "'.T::$database.'" WITH (FORCE)');
-        } catch (Throwable $e) {
-            fwrite(STDERR, 'could not drop '.T::$database.": {$e->getMessage()}\n");
-        }
-        removeTree(T::$storage);
     });
 }
 
@@ -209,11 +210,36 @@ function db(): Db
     return T::$app->db();
 }
 
-/** Every table empty again (what a test wrote goes; the schema stays). */
+/**
+ * Every table empty again (what a test wrote goes; the schema stays). The languages and the site's strings
+ * are not among them: they are what the migrations left, and no table here points at them.
+ */
 function resetDatabase(): void
 {
     db()->run('TRUNCATE users, game_characters, game_weapons, game_sets, accounts, import_runs, account_characters,
         account_weapons, account_items, build_sources, builds, sync_runs, cache, cache_locks RESTART IDENTITY CASCADE');
+}
+
+/**
+ * Another throwaway database of this file's own, empty: <the file's database>_<suffix>; dropped at the end.
+ *
+ * @param  array<string, mixed>  $server  config/database.local.php
+ */
+function scratchDatabase(array $server, string $suffix): PDO
+{
+    $name = T::$database.'_'.$suffix;
+    $postgres = Db::pdo($server, 'postgres', false);
+    $postgres->exec('DROP DATABASE IF EXISTS "'.$name.'" WITH (FORCE)');
+    $postgres->exec('CREATE DATABASE "'.$name.'"');
+    register_shutdown_function(static function () use ($server, $name): void {
+        try {
+            Db::pdo($server, 'postgres', false)->exec('DROP DATABASE IF EXISTS "'.$name.'" WITH (FORCE)');
+        } catch (Throwable $e) {
+            fwrite(STDERR, "could not drop {$name}: {$e->getMessage()}\n");
+        }
+    });
+
+    return Db::pdo($server, $name, false);
 }
 
 function removeTree(string $path): void

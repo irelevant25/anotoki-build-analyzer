@@ -38,9 +38,9 @@ function stringsOf(mixed $value, string $path = ''): array
  * Fails naming the first string that mentions another site. The only address an answer may carry is the
  * anotoki IAM's (meta says where to sign in).
  */
-function assertNeutral(Tests\Support\Answer $answer, string $what): void
+function assertNeutral(Tests\Support\Answer $answer, string $what, int $status = 200): void
 {
-    $answer->status(200);
+    $answer->status($status);
     foreach (stringsOf($answer->json()) as $line) {
         $line = str_replace(TEST_ISSUER, '(the IAM)', $line);
         check(! Neutral::mentionsAny($line) && ! preg_match('~https?://~i', $line), "{$what} names another site: {$line}");
@@ -79,7 +79,7 @@ test('what the Sources, build and account pages get names no other site', functi
         'last_status' => 'failed', 'last_error' => 'HTTP 500 from https://www.prydwen.gg/genshin/characters/hu-tao', 'last_synced_at' => $now]);
     db()->insert('builds', [
         'build_source_id' => $source, 'game_character_id' => idOf('game_characters', 'hutao'), 'variant' => 'Prydwen pick', 'recommended' => true,
-        'weapons' => Json::encode([['key' => 'staffofhoma', 'name' => 'Staff of Homa', 'rank' => 1, 'refinement' => null, 'note' => 'Best in slot per genshin-builds.com', 'known' => true]]),
+        'weapons' => Json::encode([['key' => 'staffofhoma', 'name' => 'Staff of Homa (prydwen.gg)','rank' => 1, 'refinement' => null, 'note' => 'Best in slot per genshin-builds.com', 'known' => true]]),
         'sets' => Json::encode([['rank' => 1, 'kind' => 'artifact', 'choose' => null, 'note' => 'See https://keqingmains.com/hu-tao', 'pieces' => [
             ['label' => 'Crimson Witch of Flames', 'count' => 4, 'keys' => ['crimsonwitchofflames'], 'names' => ['Crimson Witch of Flames']],
         ]]]),
@@ -98,8 +98,22 @@ test('what the Sources, build and account pages get names no other site', functi
     $account = seedAccount(1, 'genshin', ['uid' => '700000001', 'nickname' => 'Main']);
     db()->insert('import_runs', ['user_id' => 1, 'account_id' => $account, 'game' => 'genshin', 'source' => 'enka', 'status' => 'failed',
         'error' => 'enka.network answered HTTP 424 for https://enka.network/api/uid/700000001', 'created_at' => $now, 'updated_at' => $now]);
+    // Runs whose kinds carry parameters, which quote what an uploaded file said - here a site's name where a
+    // UID belongs, and a site's name and address where a set's name does.
+    db()->insert('import_runs', ['user_id' => 1, 'account_id' => $account, 'game' => 'genshin', 'source' => 'good', 'status' => 'failed',
+        'summary' => Json::encode(['error' => ['code' => 'account_uid_mismatch', 'params' => ['data_uid' => 'enka.network', 'account_uid' => '700000001']]]),
+        'error' => 'The data belongs to UID the source, but the selected account is UID 700000001.', 'created_at' => $now, 'updated_at' => $now]);
+    db()->insert('import_runs', ['user_id' => 1, 'account_id' => $account, 'game' => 'genshin', 'source' => 'good', 'status' => 'partial',
+        'summary' => Json::encode(['characters' => 1, 'weapons' => 0, 'items' => 0, 'full_inventory' => true, 'tool' => 'Inventory Kamera',
+            'warnings' => ['Unknown set {"name":"Prydwen"} was skipped.', 'Unknown weapon {"name":"https://www.prydwen.gg/blade"} was skipped.'],
+            'warning_kinds' => [
+                ['code' => 'unknown_set', 'params' => ['ref' => 'Prydwen']],
+                ['code' => 'unknown_weapon', 'params' => ['weapon_label' => 'Weapon', 'ref' => 'https://www.prydwen.gg/blade']],
+            ],
+            'unmatched' => ['genshin:sets' => ['prydwen.gg favourite']]]),
+        'created_at' => $now, 'updated_at' => $now]);
 
-    $admin = (new Client)->asIam(1, ['MEMBER', 'ADMIN']);
+    $admin =(new Client)->asIam(1, ['MEMBER', 'ADMIN']);
     assertNeutral($admin->get('/api/sources'), 'the sources');
     $sources = $admin->get('/api/sources')->json();
     check(in_array('Source 2', array_column($sources['sources'] ?? $sources, 'name'), true), 'the failed source is "Source 2": '.json_encode($sources));
@@ -112,8 +126,66 @@ test('what the Sources, build and account pages get names no other site', functi
     $file = $admin->get('/api/sources/genshin-2/export');
     assertNeutral($file, 'a builds file');
     same(1, count($file->json('builds')), 'the file holds the build');
-    assertNeutral($admin->get("/api/accounts/{$account}/imports"), 'the imports of an account');
+    $imports = $admin->get("/api/accounts/{$account}/imports");
+    assertNeutral($imports, 'the imports of an account');
+    // The parameters are there (newest first), with neutral words where the file named a site.
+    same(['code' => 'unknown_set', 'params' => ['ref' => 'The source']], $imports->json('0.summary.warning_kinds.0'), 'a warning\'s parameters');
+    same(['code' => 'unknown_weapon', 'params' => ['weapon_label' => 'Weapon', 'ref' => 'The source page']], $imports->json('0.summary.warning_kinds.1'), 'an address in a parameter');
+    same(1, count($imports->json('0.summary.unmatched.genshin:sets') ?? []), 'an unmatched name is still sent, neutral: '.json_encode($imports->json('0.summary.unmatched')));
+    same('account_uid_mismatch', $imports->json('1.error_code'), 'a failed run\'s code');
+    same(['data_uid' => 'The source', 'account_uid' => '700000001'], $imports->json('1.error_params'), 'a failed run\'s parameters');
+    same(null, $imports->json('2.error_code'), 'the run of an older version has no code');
+
+    // A character's analysis quotes the build's names in its recommendations: the weapons to aim for here,
+    // with none equipped - in the kind's parameters and in the English sentence beside them.
+    db()->insert('account_characters', ['account_id' => $account, 'game_character_id' => idOf('game_characters', 'hutao'), 'level' => 90, 'rank' => 0, 'source' => 'good']);
+    $analysis = $admin->get("/api/accounts/{$account}/characters/hutao");
+    assertNeutral($analysis, 'a character\'s analysis');
+    $weapon = array_values(array_filter($analysis->json('evaluations.0.recommendations') ?? [], fn (array $r) => ($r['kind'] ?? null) === 'weapon_none'));
+    same('Staff of Homa (the source)', $weapon[0]['params']['options'] ?? null, 'the weapon to aim for, neutral: '.json_encode($analysis->json()));
+    assertNeutral($admin->get("/api/accounts/{$account}"), 'the account, with its characters\' top issues');
+
+    // A file that gives a site's name where its UID belongs: the refusal's sentence quotes it.
+    $rail = seedAccount(1, 'hsr', ['uid' => '700000002', 'nickname' => 'Rail']);
+    $file = (string) json_encode(['source' => 'reliquary_archiver', 'version' => 4, 'metadata' => ['uid' => 'see prydwen.gg'],
+        'light_cones' => [], 'relics' => [], 'characters' => [['id' => '1005', 'name' => 'Kafka', 'level' => 80]]]);
+    $refusal = $admin->post('/api/imports/file', ['content' => $file, 'account_id' => $rail]);
+    assertNeutral($refusal, 'an import\'s refusal', 422);
+    same('account_uid_mismatch', $refusal->json('code'), 'refused for its UID');
     assertNeutral($admin->get('/api/meta'), 'meta');
+});
+
+test('the site\'s own words name no other site, in English and in Slovak', function () {
+    // Every string a page shows comes out of these two answers, so what the migrations seeded is held here:
+    // keys, English and Slovak. While no migration has written a string the bundle is not there to be read
+    // (503), and the answers are looked at with one key of the test's own.
+    $seeded = (new Client)->get('/api/translations/en')->status === 200;
+    if (! $seeded) {
+        echo "wait  the seeded strings of /api/translations/en and /sk name no other site - until a migration inserts into translation_keys\n";
+        db()->run("INSERT INTO translation_keys (name, description) VALUES ('test.neutral', 'A probe')");
+        db()->run("INSERT INTO translations (key_name, language_code, value) VALUES ('test.neutral', 'en', 'Builds from Source 1'), ('test.neutral', 'sk', 'Buildy zo zdroja Source 1')");
+    }
+    try {
+        $english = (new Client)->get('/api/translations/en');
+        assertNeutral($english, 'the English strings');
+        $slovak = (new Client)->get('/api/translations/sk');
+        assertNeutral($slovak, 'the Slovak strings');
+        same('sk', $slovak->json('language'), 'in Slovak');
+        check(count($slovak->json('values')) === count($english->json('values')) && $english->json('values') !== [], 'every key, in both');
+
+        // What the owner's pages read: the grid with its descriptions, and the languages.
+        $admin = (new Client)->asIam(1, ['ADMIN']);
+        assertNeutral($admin->get('/api/admin/translations'), 'the grid, with the keys\' descriptions');
+        assertNeutral($admin->get('/api/admin/languages'), 'the languages');
+
+        // And the check does find a site's name in such an answer.
+        db()->run("INSERT INTO translation_keys (name) VALUES ('test.named') ON CONFLICT DO NOTHING");
+        db()->run("INSERT INTO translations (key_name, language_code, value) VALUES ('test.named', 'sk', 'Pozri Prydwen')");
+        $named = throws(AssertionFailed::class, fn () => assertNeutral((new Client)->get('/api/translations/sk'), 'a bundle that names a site'), 'a site\'s name in a string');
+        check(str_contains($named->getMessage(), 'test.named: Pozri Prydwen'), $named->getMessage());
+    } finally {
+        db()->run("DELETE FROM translation_keys WHERE name IN ('test.neutral', 'test.named')");
+    }
 });
 
 finishTests();

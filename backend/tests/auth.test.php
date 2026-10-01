@@ -28,10 +28,32 @@ test('meta is public and says how to sign in', function () {
         ->path('games.0.key', 'genshin');
 });
 
+test('the site\'s strings are public too: nobody is asked who they are', function () use ($users) {
+    // The words are the same for everybody, and a page whose sign-in ran out still reads in its language.
+    db()->run("INSERT INTO translation_keys (name) VALUES ('test.public')");
+    db()->run("INSERT INTO translations (key_name, language_code, value) VALUES ('test.public', 'en', 'For everybody')");
+    try {
+        $anybody = (new Client)->get('/api/translations/sk')->status(200)->path('language', 'sk');
+        same('For everybody', $anybody->json('values')['test.public'] ?? null, 'the strings');
+        same('', $anybody->header('WWW-Authenticate'), 'no sign-in is asked for');
+        same($anybody->body, (new Client)->withToken('definitely-not-a-token')->get('/api/translations/sk')->status(200)->body, 'a token that does not check out is not looked at');
+        same($anybody->body, (new Client)->withToken(iamToken(5, claims: ['exp' => time() - 120]))->get('/api/translations/sk')->status(200)->body, 'nor one that ran out');
+        same($anybody->body, (new Client)->asIam(7, [])->get('/api/translations/sk')->status(200)->body, 'nor somebody with no role here');
+        same(0, $users(), 'and nobody was recorded');
+
+        // With sign-in off it answers other computers and other sites' pages as well: there is nothing of anybody's in it.
+        T::$app->config->set('auth.mode', 'none');
+        same($anybody->body, (new Client('203.0.113.9'))->withHeaders(['Origin' => 'https://elsewhere.example'])->get('/api/translations/sk')->status(200)->body, 'from anywhere');
+    } finally {
+        db()->run("DELETE FROM translation_keys WHERE name = 'test.public'");
+    }
+});
+
 test('requests without a valid access token are refused', function () use ($users) {
     $client = new Client;
-    $answer = $client->get('/api/accounts')->status(401)->path('message', 'Sign in to continue.');
+    $answer = $client->get('/api/accounts')->status(401)->path('message', 'Sign in to continue.')->path('code', 'sign_in_required');
     same('Bearer', $answer->header('WWW-Authenticate'), 'WWW-Authenticate');
+    same(['message' => 'Sign in to continue.', 'code' => 'sign_in_required'], $answer->json(), 'the whole answer');
 
     $otherKey = anotoki_iam_test_keypair('test-key'); // the same kid, but not the IAM's key
     $refused = [
@@ -66,13 +88,14 @@ test('a valid token signs the person in and keeps their name current', function 
 
 test('a token without a role in this application is forbidden', function () {
     (new Client)->asIam(7, [])->get('/api/accounts')->status(403)
-        ->path('message', 'Your account has no access to the build analyzer. Ask the owner to add you.');
+        ->path('message', 'Your account has no access to the build analyzer. Ask the owner to add you.')
+        ->path('code', 'no_access');
 
     // Roles are this application's only; a role name from elsewhere means nothing here.
-    (new Client)->asIam(7, ['EDITOR'])->get('/api/builds/genshin')->status(403);
+    (new Client)->asIam(7, ['EDITOR'])->get('/api/builds/genshin')->status(403)->path('code', 'no_access');
 });
 
-test('syncs, sources and migrations are for admins only', function () {
+test('syncs, sources, migrations, the languages and the site\'s strings are for admins only', function () {
     $member = (new Client)->asIam(3, [Role::MEMBER]);
 
     // Members read the state of the sources (the dashboard shows it) ...
@@ -93,11 +116,20 @@ test('syncs, sources and migrations are for admins only', function () {
         ['POST', '/api/sync-runs/1/cancel', []],
         ['GET', '/api/admin/migrations', null],
         ['POST', '/api/admin/migrations/apply', []],
+        ['GET', '/api/admin/languages', null],
+        ['POST', '/api/admin/languages', ['code' => 'de', 'name' => 'German', 'native_name' => 'Deutsch']],
+        ['PUT', '/api/admin/languages/sk', ['enabled' => false]],
+        ['DELETE', '/api/admin/languages/sk', null],
+        ['GET', '/api/admin/translations', null],
+        ['PUT', '/api/admin/translations', ['values' => []]],
+        ['GET', '/api/admin/translations/sk/export', null],
+        ['PUT', '/api/admin/translations/sk/import', []],
     ];
     foreach ($adminOnly as [$method, $url, $body]) {
         $answer = $member->request($method, $url, $body);
         same(403, $answer->status, "{$method} {$url}");
         same('Only an admin can do this.', $answer->json('message'), "{$method} {$url} message");
+        same('admin_only', $answer->json('code'), "{$method} {$url} code");
     }
 
     $admin = (new Client)->asIam(4, [Role::ADMIN]);
@@ -109,6 +141,17 @@ test('syncs, sources and migrations are for admins only', function () {
 
     // ADMIN includes everything a member may do.
     $admin->get('/api/accounts')->status(200);
+
+    // The languages are as they were: a member's requests did none of it. (An admin's own go past the role
+    // check to the strings themselves - translations.test.php.)
+    same([['code' => 'en', 'enabled' => true], ['code' => 'sk', 'enabled' => true]], db()->all('SELECT code, enabled FROM languages ORDER BY code'), 'the languages');
+    check(! in_array($admin->get('/api/admin/languages')->status, [401, 403], true), 'an admin is let through');
+    // Signed out, the same routes ask for sign-in.
+    foreach ($adminOnly as [$method, $url, $body]) {
+        if (str_starts_with($url, '/api/admin/')) {
+            same(401, (new Client)->request($method, $url, $body)->status, "{$method} {$url}, signed out");
+        }
+    }
 });
 
 test('auth mode "none" acts as the owner, with every role', function () use ($userName) {
@@ -129,16 +172,24 @@ test('auth mode "none" only answers this computer', function () {
     T::$app->config->set('auth.mode', 'none');
 
     (new Client('203.0.113.9'))->get('/api/accounts')->status(403)
-        ->path('message', 'Sign-in is switched off on this server (auth mode "none"), so it only answers its own pages on the computer it runs on.');
+        ->path('message', 'Sign-in is switched off on this server (auth mode "none"), so it only answers its own pages on the computer it runs on.')
+        ->path('code', 'local_only');
 });
 
 test('auth mode "none" refuses other sites open in the owner\'s browser', function () {
     T::$app->config->set('auth.mode', 'none');
 
     // Another site's page also connects from 127.0.0.1; a "simple" POST needs no CORS preflight.
-    (new Client)->withHeaders(['Sec-Fetch-Site' => 'cross-site'])->post('/api/sync/builds')->status(403);
-    (new Client)->withHeaders(['Origin' => 'https://elsewhere.example'])->get('/api/accounts')->status(403);
+    (new Client)->withHeaders(['Sec-Fetch-Site' => 'cross-site'])->post('/api/sync/builds')->status(403)->path('code', 'local_only');
+    (new Client)->withHeaders(['Origin' => 'https://elsewhere.example'])->get('/api/accounts')->status(403)->path('code', 'local_only');
     (new Client)->withHeaders(['Origin' => 'null'])->get('/api/accounts')->status(403);
+    // The owner's pages of the site's strings and languages are the owner's the same way: a page of another
+    // site cannot reword a string or add a language through the owner's browser.
+    (new Client)->withHeaders(['Origin' => 'https://elsewhere.example'])->request('PUT', '/api/admin/translations', ['values' => []])->status(403)->path('code', 'local_only');
+    (new Client)->withHeaders(['Origin' => 'https://elsewhere.example'])->request('PUT', '/api/admin/translations/sk/import', [])->status(403)->path('code', 'local_only');
+    (new Client)->withHeaders(['Sec-Fetch-Site' => 'cross-site'])->post('/api/admin/languages', ['code' => 'de', 'name' => 'German', 'native_name' => 'Deutsch'])->status(403)->path('code', 'local_only');
+    (new Client)->withHeaders(['Origin' => 'https://elsewhere.example'])->delete('/api/admin/languages/sk')->status(403)->path('code', 'local_only');
+    same(['en', 'sk'], db()->column('SELECT code FROM languages ORDER BY code'), 'the languages are as they were');
     // A DNS-rebound name that points at 127.0.0.1, and a name that only looks local.
     (new Client)->get('http://rebound.elsewhere.example/api/accounts')->status(403);
     (new Client)->get('http://127.elsewhere.example/api/accounts')->status(403);
@@ -161,10 +212,13 @@ test('no other site may read or call the API', function () {
 test('ids in paths are numbers', function () {
     $admin = (new Client)->asIam(3, [Role::ADMIN]);
 
-    $admin->get('/api/accounts/abc')->status(404);
+    $admin->get('/api/accounts/abc')->status(404)->path('code', 'not_found');
     $admin->get('/api/sync-runs/abc')->status(404);
     $answer = $admin->post('/api/imports/file', ['content' => '{}', 'account_id' => 'abc'])->status(422);
     check(isset($answer->json()['errors']['account_id']), 'a validation error for account_id: '.$answer->body);
+    // Input that did not pass is "invalid", whatever the field; the messages by field stay as they are.
+    same('invalid', $answer->json('code'), 'the code of a validation error');
+    same(['message', 'code', 'errors'], array_keys($answer->json()), 'the fields of a validation error');
 });
 
 test('an unknown auth mode asks for sign-in', function () {
@@ -177,7 +231,66 @@ test('an unknown auth mode asks for sign-in', function () {
 test('unknown API paths are JSON 404s', function () {
     $answer = (new Client)->get('/api/nothing-here')->status(404);
     same('Not found.', $answer->json('message'), 'message');
+    same('not_found', $answer->json('code'), 'code');
     check(str_starts_with($answer->header('Content-Type'), 'application/json'), 'JSON');
+});
+
+test('every error a member can meet says what happened as a code, beside its unchanged sentence', function () {
+    $member = (new Client)->asIam(3, [Role::MEMBER]);
+    $whole = fn (Tests\Support\Answer $answer, int $status, string $code, string $message) => same(
+        [$status, ['message' => $message, 'code' => $code]], [$answer->status, $answer->json()], $code);
+
+    $whole((new Client)->get('/api/accounts'), 401, 'sign_in_required', 'Sign in to continue.');
+    $whole((new Client)->asIam(7, [])->get('/api/accounts'), 403, 'no_access', 'Your account has no access to the build analyzer. Ask the owner to add you.');
+    $whole($member->get('/api/sync'), 403, 'admin_only', 'Only an admin can do this.');
+    // Not found three ways: no such path, an id that is not a number, and something that is not there (or not theirs).
+    $whole($member->get('/api/nothing-here'), 404, 'not_found', 'Not found.');
+    $whole($member->get('/api/accounts/abc'), 404, 'not_found', 'Not found.');
+    $whole($member->get('/api/accounts/999'), 404, 'not_found', 'Not found.');
+    $whole($member->get('/api/builds/chess/hutao'), 404, 'not_found', 'Not found.');
+    $whole($member->delete('/api/meta'), 405, 'method_not_allowed', 'Method not allowed.');
+
+    // Input that did not pass: one code, with the messages by field as before.
+    $invalid = $member->post('/api/imports/showcase', ['game' => 'chess', 'uid' => '1'])->status(422)->path('code', 'invalid');
+    same(['game', 'uid'], array_keys($invalid->json('errors')), 'the fields');
+    same($invalid->json('errors.game.0').' (and 1 more error)', $invalid->json('message'), 'the message is the first one, counting the rest');
+
+    // Too many imports in a minute (the limit counts every attempt, a refused UID too).
+    for ($i = 1; $i < 10; $i++) {
+        $member->post('/api/imports/showcase', ['game' => 'genshin', 'uid' => '1'])->status(422);
+    }
+    $limited = $member->post('/api/imports/showcase', ['game' => 'genshin', 'uid' => '1']);
+    $whole($limited, 429, 'too_many_imports', 'That is a lot of imports in one minute. Wait a moment and try again.');
+    same('60', $limited->header('Retry-After'), 'Retry-After');
+
+    // Anything the server did not expect: no detail, one code.
+    T::$app->set(App\Services\Import\ImportService::class, new class extends App\Services\Import\ImportService
+    {
+        public function __construct() {}
+
+        public function fromFile(string $contents, App\Models\User $owner, ?App\Enums\Game $expectedGame = null, ?App\Models\Account $target = null, ?string $fileName = null): App\Models\ImportRun
+        {
+            throw new LogicException('Something of the server\'s own, at C:\\somewhere\\on\\the\\host.');
+        }
+    });
+    try {
+        $whole((new Client)->asIam(4, [Role::MEMBER])->post('/api/imports/file', ['content' => '{}']), 500, 'server_error',
+            'Something went wrong on the server. Try again, and if it keeps happening, tell the admin.');
+    } finally {
+        T::$app->forget(App\Services\Import\ImportService::class);
+    }
+
+    // The admin-only routes keep their sentences and carry no code of their own.
+    $admin = (new Client)->asIam(4, [Role::ADMIN]);
+    same(['message' => 'No file arrived. A file larger than this server accepts arrives empty.'],
+        $admin->request('POST', '/api/sources/genshin-1/import', null, ['body' => ''])->status(422)->json(), 'an admin-only refusal');
+});
+
+test('auth mode "none" refuses another computer with a code too', function () {
+    T::$app->config->set('auth.mode', 'none');
+
+    same(['message' => 'Sign-in is switched off on this server (auth mode "none"), so it only answers its own pages on the computer it runs on.', 'code' => 'local_only'],
+        (new Client('203.0.113.9'))->get('/api/accounts')->status(403)->json(), 'the whole answer');
 });
 
 test('the development router serves the app for its own paths only', function () {

@@ -84,6 +84,7 @@ longer read and can be deleted.
 | Refresh the catalog | Sources page, or `backend: php sync-catalog.php [genshin\|hsr] [--force]` |
 | Move a source's builds to another installation | Sources page: **Export** on one, **Import** on the other ([docs/operations.md](docs/operations.md)) |
 | Import from the command line | `backend: php import-account.php genshin 700123456` or `… hsr path/to/export.json --account=3` |
+| Reword the site's strings, add or hide a language | the Translations and Languages pages (the toolbar's menu, admins); or `backend: php translations.php [--status \| --export=sk [file] \| --import=sk file]` |
 | Change the configuration | run `setup.php` again (the password field left empty keeps the saved one) |
 
 - **Database changes** are new files in `backend/migrations/` (`NNN_what_it_does.sql`), applied in order by
@@ -95,6 +96,12 @@ longer read and can be deleted.
 - **Nothing names another site** in the UI or in what the API sends to be shown: build sources are "Source 1",
   "Source 2" …, the showcase service and the tools are described, never named. See
   [docs/architecture.md](docs/architecture.md) ("Neutral names").
+- **Words a member reads are keys**: a template words a key with the `translate` pipe; a new string is its key
+  and English in `frontend/src/app/core/i18n/en/*.json` plus a new migration with the key, its description, the
+  English and informal Slovak ("ty"). What the server says to a member (recommendations, import errors and
+  warnings) is a kind with params that the page words. Game terms and the game's notation are never
+  translated. The Sources page and the owner's Translations and Languages pages stay English. See
+  [docs/architecture.md](docs/architecture.md) ("The site's words").
 - **A new release**: add an entry at the top of `frontend/public/changelog.json` (version, date, and what
   changed, in plain words for the people using the app) and raise `backend/src/Version.php` to the same
   version. The version shows in the app's top bar and opens "What's new".
@@ -114,7 +121,11 @@ fails a test on any request it was not told about. IAM tokens are signed by the 
 `.\dev.ps1 test` runs both suites.
 
 For a look at the UI in a real browser, the `verify-ui` skill (`.claude/skills/verify-ui/`) takes headless
-Edge screenshots.
+Edge screenshots - a member page in English and in Slovak (`?lang=sk`) at 390 px.
+
+`tests/translation_catalogue.test.php` holds the site's words together: the compiled English against the
+seeded English, every key the frontend uses against the database's, the server's kinds against the declared
+key families, and every seeded string against the checks a save makes. A new string with no migration fails it.
 
 ## Building
 
@@ -167,6 +178,17 @@ later changed from the Sources page.
 files; old hashed `*.js` do no harm). When it brings new migrations, the Sources page shows the waiting
 database updates; back the database up (hosting panel) and press **Apply**. `config/*.local.php` and
 `storage/` stay as they are.
+
+- **The release that brings the site's words** (migration 003): upload, then press **Apply** on the Sources
+  page. Until then the site reads the English compiled into the app - Slovak readers too - and afterwards its
+  words come from the database. A tab that was open keeps its words until its next navigation or reload.
+- **A later release that adds strings shows their keys until Apply is pressed** (a missing string shows its
+  key, by the owner's decision). Upload and press Apply in one sitting.
+- **Each installation holds its own strings.** Strings reworded in the browser live only in that
+  installation's database; your computer and the host each have their own, and no upload carries them.
+  Export a language (Translations page, or `php translations.php --export=sk file` on your computer) before a
+  database is replaced, and import it on the other installation to carry edits across. Deleting an added
+  language deletes its strings.
 
 **Replacing an install of the Laravel version**: its layout was different (a `public/` document root and
 Laravel's folders beside it). Upload the new build into a fresh folder, make that the site's document root,

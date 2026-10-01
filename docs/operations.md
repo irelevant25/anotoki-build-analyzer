@@ -16,6 +16,7 @@ page is the reference behind it.
 | Check parsers without writing (offline) | – | `cd backend && php sync-builds.php --dry-run --cache-hours=96 [-v]` |
 | Catalog | Sources page "Refresh catalog" | `cd backend && php sync-catalog.php [genshin\|hsr] [--force]` |
 | Import from the command line | – | `cd backend && php import-account.php genshin 700123456 [--user=ID]` or `… hsr path/to/file.json --account=3` |
+| The site's words | the Translations and Languages pages (the menu in the toolbar, admins) | `cd backend && php translations.php --status` (the frontend's keys against the database's), `--export=sk [file]`, `--import=sk file` |
 | Tests | `.\dev.ps1 test` | `cd backend && php tests/run.php` and `cd frontend && npx ng test --watch=false` |
 | Frontend build | `.\dev.ps1 build` (then the API server alone serves everything on :8400) | `cd frontend && npx ng build` |
 | Build for the host | `.\dev.ps1 dist` | `php scripts/build-dist.php [--skip-frontend]` |
@@ -118,6 +119,28 @@ repeat when you want fresher builds. Leave the source switched on there - the an
 switched-on sources only. Once the import is older than `stale_hours`, "Sync all" on the site tries the source
 itself again; when the site still refuses, that run fails without touching the imported builds.
 
+## The site's words
+
+The member pages read in English or Slovak; the words are rows of the database (migration 003,
+[architecture.md](architecture.md), "The site's words"). An admin (in auth mode "none", the owner) opens them
+from the toolbar's menu:
+
+- **Translations**: every key with its description and a cell per language. Change what you like and save
+  once; the whole save is checked first and refused with the key and language at fault (a placeholder the
+  English lacks, a stray brace, a web address or another site's name, a string over 2000 characters). An
+  empty cell in a language other than English means "no string of its own": that language reads the English.
+  What is not saved yet is kept for the tab, and leaving the page asks first. **Export** saves one
+  language's own strings as a `{key: text}` file; **Import** reads one back with the same checks (empty
+  strings are passed over, nothing is deleted).
+- **Languages**: add one (it starts hidden: write its strings, then offer it), rename, reorder, offer or hide,
+  delete (with its strings; never English or Slovak, and English is never hidden).
+
+**Each installation holds its own strings.** What is reworded in the browser lives only in that database: the
+owner's computer and the host each have their own, and no upload carries them. Export a language before a
+database is replaced, and import it on the other installation to carry edits across (the command line does the
+same: `php translations.php --export=sk file` / `--import=sk file`, for the database of
+`config/database.local.php`).
+
 ## Deploying (FTP-only shared hosting)
 
 The host: Apache with `.htaccess` support (`mod_rewrite`), **PHP 8.4** (the scrapers need PHP 8.4's
@@ -140,6 +163,12 @@ map, are in [DEV.md](../DEV.md) ("Deploying"); in short:
 5. A new version: upload `dist/build-analyzer/*` again (FTP never deletes remote files; old hashed `*.js` are
    harmless). New migrations show on the Sources page as waiting database updates; **Apply** runs them
    (`POST /api/admin/migrations/apply`, admins only). Back the database up first where the panel allows.
+   - **The release that brings the words (migration 003)**: until Apply, the site reads the English compiled
+     into the app - Slovak readers too - and the Translations and Languages pages say to apply the update
+     first; afterwards the words come from the database. The tab that pressed Apply reads them at once; another
+     tab that was open keeps its words until its next navigation or reload.
+   - **A later release that adds strings shows their keys until Apply is pressed** (the owner's decision: a
+     missing string shows its key). Upload and press Apply in one sitting.
 
 Check after an install: `https://builder.anotoki.eu/config/database.local.php`, `/storage/logs/app.log` and
 `/src/Config.php` must not download (403); `https://builder.anotoki.eu/api/meta` answers JSON with
@@ -202,3 +231,7 @@ accounts again and sync (cached pages make it quick).
 | "Cannot reach the server" in the UI | API not running on 127.0.0.1:8400 (the Angular dev server proxies `/api`) |
 | Icons missing | `/api/icons/…` could not fetch the image: `storage/icons/` writable? the provider reachable? |
 | Headless screenshots blank | timing only; see the `verify-ui` skill |
+| A key (`dashboard.title`) shows where a word should be | the database lacks that string: a migration with it waits (Sources page → Apply), or the key is new and its migration was not written; `php translations.php --status` lists the frontend's keys the database lacks |
+| Everything in English although Slovak is chosen; the owner pages say to apply an update first | 503 `translations_unavailable`: migration 003 is not applied yet - Apply on the Sources page |
+| A language is missing from the toolbar's menu | it is hidden: offer it on the Languages page |
+| A reworded string is back to the old words | the database was replaced, or this is the other installation: each keeps its own strings; import the language's exported file |

@@ -1,11 +1,13 @@
 import { Component, computed, input } from '@angular/core';
 import { scoreColor } from '../core/format';
+import { TranslatePipe } from '../core/i18n/translate';
 
 /**
- * Labelled 0-100 bar; "n/a" when the part could not be evaluated.
+ * Labelled 0-100 bar; "n/a" when the part could not be evaluated. The label comes worded from the page.
  */
 @Component({
   selector: 'app-score-bar',
+  imports: [TranslatePipe],
   templateUrl: './score-bar.html',
   styleUrl: './score-bar.scss',
 })

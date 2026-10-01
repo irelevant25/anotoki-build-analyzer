@@ -35,10 +35,21 @@ in-game ID, "Traveler"). Keep samples outside the repository.
 - Stats: map to canonical keys (`docs/stats-and-slots.md`); percentages in percent units (showcase ratios
   ×100); drop unknown substats with a warning instead of guessing. Fill `main_value` from the source, else
   `MainStatValues::compute()`.
-- Throw `ImportException` with a sentence the player can act on ("…turn on Show Character Details…"); it is
-  shown in the wizard as it is. Collect soft problems in `$account->warnings`. Neither may name a website,
-  service or tool: say "the showcase service", "a GOOD file", "the export" (the UI names nothing that is not
-  ours; `Neutral::text()` is only a safety net).
+- A problem is a **kind with params** that the wizard words in the reader's language; the English sentence
+  beside it ("…turn on Show Character Details…", short and actionable) is for the command line, the tests and
+  the fallback. Throw `new ImportException($message, $kind, $params)`; collect soft problems with
+  `$account->warn($kind, $params, $message)` (never by writing to `$account->warnings`). Neither may name a
+  website, service or tool: say "the showcase service", "a GOOD file", "the export" (the UI names nothing that
+  is not ours; `Neutral::text()` is only a safety net).
+- Reuse a kind of `src/Services/Import/ImportKinds.php` (`ERRORS`, `WARNINGS`) when the sentence is the same.
+  A new one touches, together: its row in `ImportKinds` (the names of its params, in order; params flat -
+  `Game::label()`, `Game::weaponLabel()`, `ImportKinds::ref()`, numbers as numbers; a clause the sentence may
+  or may not have is a kind of its own, never an English fragment in a param); its tail in
+  `frontend/src/app/core/i18n/dynamic-keys.ts` (`import.error.` / `import.warning.`); its row in
+  `core/i18n/import-words.ts`; its English in `core/i18n/en/core.json`; and a **new string migration** (003's
+  pattern: the key with a description, the English and informal Slovak, `ON CONFLICT DO NOTHING`, a `DO $$`
+  gate). Game terms and the player's names stay as they are, first and before a colon - no Slovak word agrees
+  with one. `docs/import-formats.md`, "Errors and warnings are kinds", has the whole picture.
 
 ## 3. Wire it in
 
@@ -63,7 +74,10 @@ in-game ID, "Traveler"). Keep samples outside the repository.
 
 Follow `backend/tests/import.test.php`: `seedGenshinCatalog()` / `seedHsrCatalog()`, `seedUser(1, 'owner')`, a
 small synthetic JSON with the real field names, and assertions on the stored account (and its `user_id`), items
-(slot, main stat, substats with rolls, equipped character), talents and the import run's summary. API calls need
+(slot, main stat, substats with rolls, equipped character), talents and the import run's summary (its
+`warning_kinds` beside the `warnings`; a refusal's `code` and `params`). The tests read every throw and `warn()`
+site in `src/` against `ImportKinds`, and `tests/translation_catalogue.test.php` fails until the kind, its
+declared tail, the compiled English and the migration's strings agree. API calls need
 a token: `(new Client)->asIam(1)`. Remote APIs are faked with `T::$http->fake([...])` (it fails the test on any
 request it was not told about) and the Genshin store with a fake `EnkaStore`, as the existing tests do.
 `backend/tests/isolation.test.php` shows the per-user checks a new endpoint should pass too, and
@@ -78,7 +92,10 @@ cd backend && php import-account.php <game> path/to/real-sample.json      # then
 
 - Wizard content: `frontend/src/app/pages/import/import-guides.ts` (`METHODS` pros/cons, `GUIDES` steps, tips,
   troubleshooting, `fileHint`) - describe tools by what they do ("an inventory exporter that saves the GOOD
-  format"), with no names and no links. A brand-new method key also needs handling in
+  format"), with no names and no links. Every text there is a key written out whole; a new or reworded one is
+  its English in `core/i18n/en/import.json` plus a string migration with English and informal Slovak (an
+  applied migration is never edited: a reworded string is a new migration plus the same change there). A
+  brand-new method key also needs handling in
   `import-wizard.ts/.html` and `ImportKind` in `core/models.ts`.
 - Update `docs/import-formats.md`, the README import table, and `docs/decisions.md` for notable choices.
 - Check the wizard visually with the `verify-ui` skill.

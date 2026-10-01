@@ -1,40 +1,38 @@
 <div class="page">
   <header class="page-header">
     <div>
-      <h1>Your accounts</h1>
-      <p class="subtitle">Import a Genshin Impact or Honkai: Star Rail account and compare every character with community builds.</p>
+      <h1>{{ 'dashboard.title' | translate }}</h1>
+      <p class="subtitle">{{ 'dashboard.subtitle' | translate }}</p>
     </div>
-    <a mat-flat-button routerLink="/import"><mat-icon>add</mat-icon>Import account</a>
+    <a mat-flat-button routerLink="/import"><mat-icon>add</mat-icon>{{ 'dashboard.importAccount' | translate }}</a>
   </header>
 
   @if (loading()) {
     <mat-progress-bar mode="indeterminate" />
   }
 
-  @if (error(); as message) {
+  @if (error(); as failure) {
     <div class="panel error-panel">
       <mat-icon>cloud_off</mat-icon>
       <div>
-        <strong>{{ message }}</strong>
+        <strong>{{ failure | errorText }}</strong>
         @if (auth.mode() !== 'iam') {
-          <p class="muted small">Is the backend running? DEV.md says how to start it; then try again.</p>
+          <p class="muted small">{{ 'dashboard.backendHint' | translate }}</p>
         }
       </div>
-      <button mat-stroked-button (click)="load()">Retry</button>
+      <button mat-stroked-button (click)="load()">{{ 'common.retry' | translate }}</button>
     </div>
   }
 
   @if (!loading() && !error() && accounts().length === 0) {
     <div class="panel hero">
       <mat-icon class="hero-icon">travel_explore</mat-icon>
-      <h2>Let's look at your characters</h2>
-      <p class="muted">
-        The import guide walks you through it step by step. The quickest way needs only your UID; a full
-        inventory export also finds better artifacts and relics you already own.
-      </p>
+      <h2>{{ 'dashboard.emptyTitle' | translate }}</h2>
+      <p class="muted">{{ 'dashboard.emptyText' | translate }}</p>
       <div class="row wrap center">
-        <a mat-flat-button routerLink="/import" [queryParams]="{ game: 'genshin' }">Import Genshin Impact</a>
-        <a mat-flat-button routerLink="/import" [queryParams]="{ game: 'hsr' }">Import Honkai: Star Rail</a>
+        @for (game of games; track game) {
+          <a mat-flat-button routerLink="/import" [queryParams]="{ game: game }">{{ 'dashboard.importGame' | translate: { game: gameLabels[game] } }}</a>
+        }
       </div>
     </div>
   }
@@ -51,33 +49,41 @@
                   <mat-icon class="game-icon" [class.hsr]="game === 'hsr'">{{ game === 'hsr' ? 'rocket_launch' : 'auto_awesome' }}</mat-icon>
                   <div class="names">
                     <div class="nickname">{{ account.nickname }}</div>
+                    <!-- UID, and AR / TL, are the games' own words: written as they are, never worded. -->
                     <div class="muted small">
-                      @if (account.uid) { UID {{ account.uid }} } @else { No UID }
-                      @if (account.level) { · {{ game === 'hsr' ? 'TL' : 'AR' }} {{ account.level }} }
+                      @if (account.uid) { {{ uidTerm }} {{ account.uid }} } @else { {{ 'dashboard.noUid' | translate }} }
+                      @if (account.level) { · {{ terms[game].accountLevelShort }} {{ account.level }} }
                     </div>
                   </div>
                 </div>
+                <!-- A number with its label under it. What a character wears and wields is named by the game. -->
                 <div class="counts">
-                  <div><strong>{{ account.counts.characters }}</strong><span class="muted small">characters</span></div>
-                  <div><strong>{{ account.counts.items }}</strong><span class="muted small">{{ game === 'hsr' ? 'relics' : 'artifacts' }}</span></div>
-                  <div><strong>{{ account.counts.weapons }}</strong><span class="muted small">{{ game === 'hsr' ? 'light cones' : 'weapons' }}</span></div>
+                  <div><strong>{{ account.counts.characters }}</strong><span class="muted small">{{ 'account.characters' | translate }}</span></div>
+                  <div><strong>{{ account.counts.items }}</strong><span class="muted small">{{ terms[game].items }}</span></div>
+                  <div><strong>{{ account.counts.weapons }}</strong><span class="muted small">{{ terms[game].weapons }}</span></div>
                 </div>
                 <div class="row wrap">
                   @if (account.has_full_inventory) {
-                    <span class="chip ok" matTooltip="Imported from an inventory exporter: suggestions can use every piece you own">Full inventory</span>
+                    <span class="chip ok" [matTooltip]="'account.fullInventoryHint' | translate">{{ 'account.fullInventory' | translate }}</span>
                   } @else {
-                    <span class="chip" matTooltip="Imported from the in-game Character Showcase by UID">Showcase only</span>
+                    <span class="chip" [matTooltip]="'account.showcaseOnlyHint' | translate">{{ 'account.showcaseOnly' | translate }}</span>
                   }
-                  <span class="muted small">Imported {{ account.last_import_at | timeAgo }}</span>
+                  <span class="muted small">
+                    @if (account.last_import_at) {
+                      {{ 'dashboard.imported' | translate: { when: (account.last_import_at | localDate: 'ago') } }}
+                    } @else {
+                      {{ 'dashboard.notImportedYet' | translate }}
+                    }
+                  </span>
                 </div>
               </a>
               <div class="account-actions">
-                <a mat-button [routerLink]="['/accounts', account.id]">Open</a>
-                <a mat-button routerLink="/import" [queryParams]="{ game: account.game, account: account.id }">Update data</a>
+                <a mat-button [routerLink]="['/accounts', account.id]">{{ 'dashboard.open' | translate }}</a>
+                <a mat-button routerLink="/import" [queryParams]="{ game: account.game, account: account.id }">{{ 'dashboard.updateData' | translate }}</a>
                 <span class="spacer"></span>
-                <button mat-icon-button [matMenuTriggerFor]="menu" aria-label="More actions"><mat-icon>more_vert</mat-icon></button>
+                <button mat-icon-button [matMenuTriggerFor]="menu" [attr.aria-label]="'dashboard.moreActions' | translate"><mat-icon>more_vert</mat-icon></button>
                 <mat-menu #menu="matMenu">
-                  <button mat-menu-item (click)="deleteAccount(account)"><mat-icon>delete</mat-icon>Delete account</button>
+                  <button mat-menu-item (click)="deleteAccount(account)"><mat-icon>delete</mat-icon>{{ 'dashboard.deleteAccount' | translate }}</button>
                 </mat-menu>
               </div>
             </article>
@@ -90,18 +96,20 @@
   @if (sources().length > 0) {
     <section class="game-section">
       <div class="row">
-        <h2 class="section-title">Build sources</h2>
+        <h2 class="section-title">{{ 'dashboard.sources' | translate }}</h2>
         <span class="spacer"></span>
         @if (auth.isAdmin()) {
-          <a mat-button routerLink="/sources">Manage<mat-icon iconPositionEnd>chevron_right</mat-icon></a>
+          <a mat-button routerLink="/sources">{{ 'dashboard.manageSources' | translate }}<mat-icon iconPositionEnd>chevron_right</mat-icon></a>
         }
       </div>
       @if (buildsTotal() === 0) {
         <p class="muted">
           @if (auth.isAdmin()) {
-            No builds downloaded yet. Start the first sync on the <a routerLink="/sources">Sources</a> page.
+            <!-- One sentence, cut where the link stands; a language that leaves the page's name out gets no link. -->
+            @let sentence = noBuildsAdmin();
+            {{ sentence[0] }}@if (sentence[2]) {<a routerLink="/sources">{{ 'nav.sources' | translate }}</a>}{{ sentence[1] }}
           } @else {
-            No builds downloaded yet. They appear once an admin syncs the build sites.
+            {{ 'dashboard.noBuildsMember' | translate }}
           }
         </p>
       }
@@ -113,9 +121,17 @@
               <div class="source-row">
                 <span class="status-dot" [class]="source.running ? 'running' : (source.last_status ?? 'never')"></span>
                 <span class="source-name">{{ source.name }}</span>
-                <span class="muted small">{{ source.characters }} characters</span>
+                <span class="muted small">{{ 'dashboard.sourceCharacters' | translatePlural: source.characters }}</span>
                 <span class="spacer"></span>
-                <span class="muted small">{{ source.running ? 'syncing…' : (source.last_synced_at | timeAgo) }}</span>
+                <span class="muted small">
+                  @if (source.running) {
+                    {{ 'dashboard.syncing' | translate }}
+                  } @else if (source.last_synced_at) {
+                    {{ source.last_synced_at | localDate: 'ago' }}
+                  } @else {
+                    {{ 'dashboard.notSyncedYet' | translate }}
+                  }
+                </span>
               </div>
             }
           </div>

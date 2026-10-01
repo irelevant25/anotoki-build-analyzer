@@ -6,7 +6,8 @@ weapons / items reference the catalog by `['external_id' => …]`, `['name' => �
 `AccountImporter` resolves them (lookups only: whatever the shared catalog lacks is skipped and reported) and
 writes them into an account of the importing user ([data-model.md](data-model.md)). The showcase import is
 throttled to `showcase.per_minute` (10, `config/app.php`) a minute per user. User-facing steps for each method
-live in the wizard: `frontend/src/app/pages/import/import-guides.ts`.
+live in the wizard: `frontend/src/app/pages/import/import-guides.ts` (keys, written out whole; their English in
+`frontend/src/app/core/i18n/en/import.json`, every language in the database).
 
 This page names the services, tools and formats: it is internal. The UI calls the two methods "Character
 Showcase (UID)" and "Full inventory (exporter tool)", describes the tools without naming or linking them, and
@@ -78,6 +79,34 @@ metadata{uid, trailblazer}, light_cones[], relics[], characters[]}`.
 Detection (`ImportService::fromFile`): `format === "GOOD"` → GOOD; `relics` array + known `source` or
 (`light_cones` + `version ≥ 3`) → HSR scanner; anything else → readable error. A UTF-8 BOM is tolerated.
 Error messages name the format ("a GOOD file"), never a tool.
+
+## Errors and warnings are kinds
+
+What an import says reaches the page as a **kind with params**, which the page words in the reader's
+language; the English sentence beside it is kept for the command line, the tests and rows stored before kinds.
+`src/Services/Import/ImportKinds.php` lists them: `ERRORS` (kind → the names of its params; `unexpected` for a
+failure that is not an `ImportException`) and `WARNINGS`.
+
+- An error: `throw new ImportException($message, $kind, $params)`. The API answers 422 `{message, code,
+  params}`; a failed run keeps `{"error": {code, params}}` as its summary and is sent with `error_code` /
+  `error_params` (null for a run stored before kinds) and no summary ([data-model.md](data-model.md)).
+- A warning: `ParsedAccount::warn($kind, $params, $message)` in a parser; the importer's own (a character,
+  weapon or set the catalog lacks, a catalog behind the game) go through `ImportKinds::warning()`. A run that
+  went through keeps `summary.warnings` (the English) and `summary.warning_kinds` (`[{code, params}]`, index
+  for index); the API sends the kinds only when they are as many as the sentences.
+- Params are flat strings and numbers: a game is `Game::label()`, `weapon_label` is `Game::weaponLabel()`,
+  `ref` is a catalog reference's name, else its key, else its in-game ID (`ImportKinds::ref()`), `count` a
+  number. What comes from an uploaded file goes through `Neutral` on the way out, like the messages.
+- The page: `frontend/src/app/core/i18n/import-words.ts` maps each code to its key (`import.error.<code>`,
+  `import.warning.<code>`) and the params its sentence needs. A code it does not know, a stored row without
+  one, or one missing a param is shown as the stored English with `lang="en"`; a request that fails now never
+  is (it falls back to the general error words).
+- A new kind is, together: its row in `ImportKinds`, its throw or `warn()` site, its tail in
+  `frontend/src/app/core/i18n/dynamic-keys.ts`, its row in `import-words.ts`, its English in
+  `core/i18n/en/core.json`, and a new string migration with the key, its description, the English and
+  informal Slovak (game terms first, then a colon). `tests/import.test.php` reads every throw and `warn()`
+  site in `src/` against `ImportKinds`; `tests/translation_catalogue.test.php` holds `ImportKinds`, the
+  declared tails, the compiled English and the database to each other.
 
 ## The tools players use
 

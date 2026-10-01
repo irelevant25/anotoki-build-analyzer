@@ -2,30 +2,26 @@
   <div class="panel hero">
     <mat-icon class="hero-icon">auto_awesome</mat-icon>
     <h1>Build Analyzer</h1>
-    <p class="muted">
-      Import your Genshin Impact and Honkai: Star Rail accounts and see, per character, what to improve.
-      Sign in with your anotoki account to continue.
-    </p>
+    <p class="muted">{{ 'signIn.intro' | translate }}</p>
 
-    @if (auth.lastError(); as message) {
-      <p class="notice" role="alert">{{ message }}</p>
+    @if (auth.lastError(); as problem) {
+      <p class="notice" role="alert">{{ problem.key | translate: problem.params }}</p>
     }
 
     @if (noAccess()) {
+      <!-- One sentence, cut where the account's name stands; a language that leaves the name out gets no name. -->
+      @let sentence = noAccessSentence();
       <p class="notice">
-        Your anotoki account <strong>{{ auth.displayName() }}</strong> has no access to the build analyzer yet. Ask the
-        owner to add you.
+        {{ sentence[0] }}@if (sentence[2]) {<strong>{{ accountName() }}</strong>}{{ sentence[1] }}
       </p>
       <div class="row wrap center">
-        <button mat-stroked-button (click)="auth.login(target(), { anotherAccount: true })">
-          <mat-icon>switch_account</mat-icon>Use another account
-        </button>
-        <button mat-button (click)="auth.logout()"><mat-icon>logout</mat-icon>Sign out</button>
+        <button mat-stroked-button (click)="useAnotherAccount()"><mat-icon>switch_account</mat-icon>{{ 'signIn.anotherAccount' | translate }}</button>
+        <button mat-button (click)="auth.logout()"><mat-icon>logout</mat-icon>{{ 'common.signOut' | translate }}</button>
       </div>
     } @else if (auth.mode() === 'iam') {
-      <button mat-flat-button (click)="auth.login(target())"><mat-icon>login</mat-icon>Sign in</button>
+      <button mat-flat-button (click)="signIn()"><mat-icon>login</mat-icon>{{ 'common.signIn' | translate }}</button>
     } @else {
-      <p class="notice">The server could not be reached, so signing in is not possible right now. Reload the page to try again.</p>
+      <p class="notice">{{ 'signIn.unreachable' | translate }}</p>
     }
   </div>
 </div>

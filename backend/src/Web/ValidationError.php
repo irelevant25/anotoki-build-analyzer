@@ -4,7 +4,7 @@ namespace App\Web;
 
 /**
  * Input that did not pass: 422 with every message by field, and the first one (with how many more there
- * are) as the message - the shape the frontend's errorMessage() reads.
+ * are) as the message - the shape the frontend's errorMessage() reads. Its code is always "invalid".
  */
 final class ValidationError extends HttpError
 {
@@ -16,6 +16,6 @@ final class ValidationError extends HttpError
         $message = ($messages[0] ?? 'The given data was invalid.')
             .($more > 0 ? " (and {$more} more error".($more === 1 ? '' : 's').')' : '');
 
-        parent::__construct(422, $message, ['errors' => $errors]);
+        parent::__construct(422, $message, ['code' => 'invalid', 'errors' => $errors]);
     }
 }

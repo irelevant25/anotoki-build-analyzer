@@ -67,9 +67,9 @@ class EnkaGenshinParser
         $avatars = $json['avatarInfoList'] ?? [];
         if ($avatars === []) {
             $shown = count($player['showAvatarInfoList'] ?? []);
-            throw new ImportException($shown > 0
-                ? 'The profile shows characters, but "Show Character Details" is turned off. Enable it in-game (Profile > Character Showcase) and try again in a few minutes.'
-                : 'This profile has no characters in its Character Showcase. Add characters in-game (Profile > Character Showcase), enable "Show Character Details", then try again.');
+            throw $shown > 0
+                ? new ImportException('The profile shows characters, but "Show Character Details" is turned off. Enable it in-game (Profile > Character Showcase) and try again in a few minutes.', 'showcase_details_off')
+                : new ImportException('This profile has no characters in its Character Showcase. Add characters in-game (Profile > Character Showcase), enable "Show Character Details", then try again.', 'showcase_empty');
         }
 
         foreach ($avatars as $avatar) {
@@ -106,7 +106,7 @@ class EnkaGenshinParser
                     if ($item) {
                         $account->items[] = $item;
                     } else {
-                        $account->warnings[] = 'Skipped an artifact with unknown data.';
+                        $account->warn('showcase_artifact_skipped', [], 'Skipped an artifact with unknown data.');
                     }
                 }
             }

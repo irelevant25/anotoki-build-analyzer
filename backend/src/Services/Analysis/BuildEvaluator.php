@@ -18,14 +18,48 @@ use App\Support\Talents;
  *
  * Produces a 0-100 score per part (weapon, sets, main stats, substats, stat targets), an overall grade and
  * a prioritized list of recommendations. Parts a build has no data for are left out of the overall score.
+ *
+ * A recommendation says what it is about twice: as a kind with its parameters (KINDS), which a page can word
+ * in any language, and as the English sentence in "message".
  */
 final class BuildEvaluator
 {
     public const PART_WEIGHTS = ['weapon' => 20, 'sets' => 25, 'main_stats' => 20, 'substats' => 25, 'targets' => 10];
 
+    /**
+     * Every kind of recommendation with the names of its parameters, in the order they are sent.
+     *
+     * A clause a sentence may or may not have is a kind of its own (_owned, _on, _empty), never an English
+     * fragment inside a parameter. Parameters are flat: names and labels as the message uses them
+     * ("slot_label" is the label; the recommendation's own "slot" is the key), numbers as numbers, lists
+     * joined as in the message. "weapon_label" and "set_label" start with a capital, "refinement" is
+     * prefix plus number ("R1", "S1"), "best" is the option without its "(any N)" and "best_choose" that N
+     * or null.
+     */
+    public const KINDS = [
+        'weapon_none' => ['weapon_label', 'options'],
+        'weapon_level' => ['name', 'level', 'max_level'],
+        'weapon_unlisted' => ['name', 'weapon_label', 'options'],
+        'weapon_unlisted_owned' => ['name', 'weapon_label', 'options', 'owned', 'refinement'],
+        'weapon_unlisted_owned_on' => ['name', 'weapon_label', 'options', 'owned', 'refinement', 'character'],
+        'weapon_better_owned' => ['owned', 'refinement', 'owned_rank', 'name', 'rank'],
+        'weapon_better_owned_on' => ['owned', 'refinement', 'owned_rank', 'name', 'rank', 'character'],
+        'weapon_low_rank' => ['name', 'rank', 'options'],
+        'sets_missing' => ['set_label', 'best', 'best_choose', 'current'],
+        'sets_missing_empty' => ['set_label', 'best', 'best_choose'],
+        'sets_lower_option' => ['set_label', 'current', 'rank', 'best', 'best_choose'],
+        'main_stat_missing' => ['slot_label', 'wanted'],
+        'main_stat_wrong' => ['slot_label', 'stat', 'wanted'],
+        'item_level' => ['slot_label', 'level', 'max_level'],
+        'substats_weak' => ['slot_label', 'percent', 'stats'],
+        'target_below' => ['stat', 'stat_key', 'current', 'min'],
+        'talent_level' => ['talent', 'level'],
+        'character_level' => ['level'],
+    ];
+
     private Game $game;
 
-    /** @var list<array{severity: string, category: string, message: string, slot?: string}> */
+    /** @var list<array{severity: string, category: string, kind: string, params: array<string, string|int|float|null>, message: string, slot?: string}> */
     private array $recommendations = [];
 
     public function __construct(private readonly AccountContext $context, private readonly BuildSourceRegistry $registry) {}
@@ -99,11 +133,15 @@ final class BuildEvaluator
             return null;
         }
 
-        $label = strtolower($this->game->weaponLabel());
+        // The label goes out as it is ("Weapon", "Light Cone"); only the English sentence lower-cases it.
+        $weaponLabel = $this->game->weaponLabel();
+        $label = strtolower($weaponLabel);
         $top = array_map(fn ($w) => $w['name'], array_slice($list, 0, 3));
+        $options = implode(', ', $top);
 
         if (! $weapon) {
-            $this->recommend('high', 'weapon', "No {$label} equipped. Best options: ".implode(', ', $top).'.');
+            $this->recommend('high', 'weapon', 'weapon_none', ['weapon_label' => $weaponLabel, 'options' => $options],
+                "No {$label} equipped. Best options: ".implode(', ', $top).'.');
 
             return ['score' => 0, 'equipped' => null, 'rank' => null, 'owned_better' => [], 'total' => count($list)];
         }
@@ -121,7 +159,8 @@ final class BuildEvaluator
         $maxLevel = $this->game === Game::Genshin ? 90 : 80;
         if ($weapon->level < $maxLevel - 10) {
             $score = (int) round($score * 0.9);
-            $this->recommend('low', 'weapon', "Level up {$weapon->weapon->name} (level {$weapon->level}/{$maxLevel}).");
+            $this->recommend('low', 'weapon', 'weapon_level', ['name' => $weapon->weapon->name, 'level' => $weapon->level, 'max_level' => $maxLevel],
+                "Level up {$weapon->weapon->name} (level {$weapon->level}/{$maxLevel}).");
         }
 
         // Better-ranked weapons the player already owns.
@@ -144,17 +183,26 @@ final class BuildEvaluator
         }
 
         $refinementPrefix = $this->game === Game::Genshin ? 'R' : 'S';
+        // The best better-ranked weapon owned, as the sentences name it; who holds it is the "_on" kind.
+        $owned = $ownedBetter ? ['owned' => $ownedBetter[0]['name'], 'refinement' => $refinementPrefix.$ownedBetter[0]['refinement']] : [];
+        $on = $ownedBetter && $ownedBetter[0]['equipped_on'] ? ['character' => $ownedBetter[0]['equipped_on']] : [];
         if ($rank === null) {
+            $kind = 'weapon_unlisted';
+            $params = ['name' => $weapon->weapon->name, 'weapon_label' => $weaponLabel, 'options' => $options];
             $message = "{$weapon->weapon->name} is not on this build's {$label} list. Recommended: ".implode(', ', $top).'.';
             if ($ownedBetter) {
+                $kind = $on ? 'weapon_unlisted_owned_on' : 'weapon_unlisted_owned';
+                $params += $owned + $on;
                 $message .= ' You already own '.$this->describeOwned($ownedBetter[0], $refinementPrefix).'.';
             }
-            $this->recommend('medium', 'weapon', $message);
+            $this->recommend('medium', 'weapon', $kind, $params, $message);
         } elseif ($rank > 1 && $ownedBetter) {
-            $this->recommend($rank > 3 ? 'medium' : 'low', 'weapon',
+            $this->recommend($rank > 3 ? 'medium' : 'low', 'weapon', $on ? 'weapon_better_owned_on' : 'weapon_better_owned',
+                $owned + ['owned_rank' => $ownedBetter[0]['rank'], 'name' => $weapon->weapon->name, 'rank' => $rank] + $on,
                 'You own '.$this->describeOwned($ownedBetter[0], $refinementPrefix)." (#{$ownedBetter[0]['rank']}), which ranks above {$weapon->weapon->name} (#{$rank}).");
         } elseif ($rank > 3) {
-            $this->recommend('low', 'weapon', "{$weapon->weapon->name} is option #{$rank}. Upgrades to aim for: ".implode(', ', $top).'.');
+            $this->recommend('low', 'weapon', 'weapon_low_rank', ['name' => $weapon->weapon->name, 'rank' => $rank, 'options' => $options],
+                "{$weapon->weapon->name} is option #{$rank}. Upgrades to aim for: ".implode(', ', $top).'.');
         }
 
         $recommendedRefinement = $rank !== null ? ($list[$rank - 1]['refinement'] ?? null) : null;
@@ -171,7 +219,7 @@ final class BuildEvaluator
             ],
             'rank' => $rank,
             'recommended_refinement' => $recommendedRefinement,
-            'owned_better' => $ownedBetter,
+            'owned_better' => Neutral::deep($ownedBetter),
             'total' => count($list),
         ];
     }
@@ -260,13 +308,26 @@ final class BuildEvaluator
         };
         $current = $equipped === [] ? 'nothing' : implode(' + ', array_map(fn ($e) => "{$e['count']}pc {$e['name']}", $equipped));
 
+        // For a page: the noun with a capital (it can open a sentence before a colon) and the top option
+        // without its "(any N)", which the page words itself. The English sentences keep their own nouns.
+        $setLabel = match ($kind) {
+            'planar' => 'Planar Ornament set',
+            'relic' => 'Cavern Relic set',
+            default => 'Artifact set',
+        };
+        $bestParams = ['best' => self::optionPieces($best), 'best_choose' => self::optionChoose($best)];
+
         if ($matchedRank === null) {
             $score = (int) round(10 + 60 * $bestFraction);
-            $this->recommend('high', 'sets', "Use the recommended {$noun}: {$bestLabel}. Currently: {$current}.");
+            // Nothing equipped is a kind of its own: "nothing" is an English word, not a list of sets.
+            $this->recommend('high', 'sets', $equipped === [] ? 'sets_missing_empty' : 'sets_missing',
+                ['set_label' => $setLabel] + $bestParams + ($equipped === [] ? [] : ['current' => $current]),
+                "Use the recommended {$noun}: {$bestLabel}. Currently: {$current}.");
         } else {
             $score = max(70, 100 - ($matchedRank - 1) * 8);
             if ($matchedRank > 1) {
-                $this->recommend($matchedRank > 2 ? 'medium' : 'low', 'sets',
+                $this->recommend($matchedRank > 2 ? 'medium' : 'low', 'sets', 'sets_lower_option',
+                    ['set_label' => $setLabel, 'current' => $current, 'rank' => $matchedRank] + $bestParams,
                     "Your {$noun} ({$current}) is option #{$matchedRank}. The top choice is {$bestLabel}.");
             }
         }
@@ -276,14 +337,28 @@ final class BuildEvaluator
             'score' => $score,
             'matched_rank' => $matchedRank,
             'equipped' => $equipped,
-            'best' => $bestLabel,
+            'best' => Neutral::text($bestLabel),
         ];
     }
 
+    /** A set option in English: its pieces, and "(any N)" when only some of them are needed. */
     public static function optionLabel(array $option): string
     {
-        return implode(' + ', array_map(fn ($piece) => "{$piece['count']}pc {$piece['label']}", $option['pieces'] ?? []))
-            .(! empty($option['choose']) && $option['choose'] < count($option['pieces'] ?? []) ? " (any {$option['choose']})" : '');
+        $choose = self::optionChoose($option);
+
+        return self::optionPieces($option).($choose === null ? '' : " (any {$choose})");
+    }
+
+    /** The pieces of a set option, "2pc A + 2pc B": game terms and names, the same in every language. */
+    public static function optionPieces(array $option): string
+    {
+        return implode(' + ', array_map(fn ($piece) => "{$piece['count']}pc {$piece['label']}", $option['pieces'] ?? []));
+    }
+
+    /** How many of the option's pieces are needed, when that is fewer than it lists; null: all of them. */
+    public static function optionChoose(array $option): ?int
+    {
+        return ! empty($option['choose']) && $option['choose'] < count($option['pieces'] ?? []) ? (int) $option['choose'] : null;
     }
 
     // ---------------------------------------------------------------- main stats
@@ -309,7 +384,8 @@ final class BuildEvaluator
 
             if (! $item) {
                 $rows[$slot] = ['current' => null, 'recommended' => $recommended, 'score' => 0, 'ok' => false];
-                $this->recommend('high', 'main_stats', "No {$slotLabel} equipped. Look for one with {$wantedLabel}.", $slot);
+                $this->recommend('high', 'main_stats', 'main_stat_missing', ['slot_label' => $slotLabel, 'wanted' => $wantedLabel],
+                    "No {$slotLabel} equipped. Look for one with {$wantedLabel}.", $slot);
 
                 continue;
             }
@@ -331,8 +407,9 @@ final class BuildEvaluator
             $rows[$slot] = ['current' => $item->main_stat, 'recommended' => $recommended, 'score' => $score, 'ok' => $match !== null];
 
             if ($match === null) {
-                $this->recommend('high', 'main_stats',
-                    "{$slotLabel} has ".Stats::label($item->main_stat, $this->game)." as main stat; this build wants {$wantedLabel}.", $slot);
+                $statLabel = Stats::label($item->main_stat, $this->game);
+                $this->recommend('high', 'main_stats', 'main_stat_wrong', ['slot_label' => $slotLabel, 'stat' => $statLabel, 'wanted' => $wantedLabel],
+                    "{$slotLabel} has ".$statLabel." as main stat; this build wants {$wantedLabel}.", $slot);
             }
         }
 
@@ -375,7 +452,8 @@ final class BuildEvaluator
             ] + $score;
 
             if ($item->level < $maxLevel) {
-                $this->recommend($item->level <= $maxLevel - 8 ? 'medium' : 'low', 'levels',
+                $this->recommend($item->level <= $maxLevel - 8 ? 'medium' : 'low', 'levels', 'item_level',
+                    ['slot_label' => $this->game->slotLabel($slot), 'level' => $item->level, 'max_level' => $maxLevel],
                     "Level up your {$this->game->slotLabel($slot)} (+{$item->level} → +{$maxLevel}).", $slot);
             }
         }
@@ -390,7 +468,8 @@ final class BuildEvaluator
         $wantedSubs = array_keys(array_filter($scorer->weights(), fn ($w) => $w >= 0.8));
         $subsLabel = implode(', ', array_map(fn ($s) => Stats::label($s, $this->game, true), array_slice($wantedSubs, 0, 3)));
         foreach (array_slice($weak, 0, 2, true) as $slot => $result) {
-            $this->recommend('medium', 'substats',
+            $this->recommend('medium', 'substats', 'substats_weak',
+                ['slot_label' => $this->game->slotLabel($slot), 'percent' => $result['percent'], 'stats' => $subsLabel],
                 "Your {$this->game->slotLabel($slot)} has weak substats ({$result['percent']}% of an ideal piece). Replace it with one rolling {$subsLabel}.", $slot);
         }
 
@@ -426,8 +505,12 @@ final class BuildEvaluator
 
             if (! $ok) {
                 $unit = Stats::isPercent($target['stat']) ? '%' : '';
-                $this->recommend('medium', 'targets', sprintf('%s is %s%s; the build aims for %s%s+.',
-                    Stats::label($target['stat'], $this->game), $this->number($current), $unit, $this->number($target['min']), $unit));
+                // The two values go out as numbers ("+ 0": whatever the stored JSON held); the page writes
+                // them in the game's notation for the stat, which is why it gets the stat's key too.
+                $this->recommend('medium', 'targets', 'target_below',
+                    ['stat' => Stats::label($target['stat'], $this->game), 'stat_key' => $target['stat'], 'current' => $current + 0, 'min' => $target['min'] + 0],
+                    sprintf('%s is %s%s; the build aims for %s%s+.',
+                        Stats::label($target['stat'], $this->game), $this->number($current), $unit, $this->number($target['min']), $unit));
             }
         }
 
@@ -450,7 +533,8 @@ final class BuildEvaluator
             }
             $level = (int) $levels[$entry['talent']];
             if ($level < 8) {
-                $this->recommend('low', 'talents', sprintf('Level %s first (priority #1, currently %d).', Talents::label($this->game, $entry['talent']), $level));
+                $this->recommend('low', 'talents', 'talent_level', ['talent' => Talents::label($this->game, $entry['talent']), 'level' => $level],
+                    sprintf('Level %s first (priority #1, currently %d).', Talents::label($this->game, $entry['talent']), $level));
             }
         }
     }
@@ -459,7 +543,8 @@ final class BuildEvaluator
     {
         $target = $this->game === Game::Genshin ? 80 : 70;
         if ($owned->level < $target) {
-            $this->recommend('medium', 'levels', "Level the character up (level {$owned->level}); most of their stats come from character level.");
+            $this->recommend('medium', 'levels', 'character_level', ['level' => $owned->level],
+                "Level the character up (level {$owned->level}); most of their stats come from character level.");
         }
     }
 
@@ -523,9 +608,17 @@ final class BuildEvaluator
         return $result;
     }
 
-    private function recommend(string $severity, string $category, string $message, ?string $slot = null): void
+    /**
+     * @param  string  $kind  a key of KINDS
+     * @param  array<string, string|int|float|null>  $params  exactly the parameters KINDS names for the kind
+     * @param  string  $message  the same in English, for the command line and for whoever has no words for the kind
+     */
+    private function recommend(string $severity, string $category, string $kind, array $params, string $message, ?string $slot = null): void
     {
-        $this->recommendations[] = array_filter(compact('severity', 'category', 'message', 'slot'), fn ($v) => $v !== null);
+        // Both quote names a build was read with (weapons, sets), as the build page shows them: neutral.
+        $params = Neutral::deep($params);
+        $message = (string) Neutral::text($message);
+        $this->recommendations[] = array_filter(compact('severity', 'category', 'kind', 'params', 'message', 'slot'), fn ($v) => $v !== null);
     }
 
     private function sortedRecommendations(): array

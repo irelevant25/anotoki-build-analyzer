@@ -66,17 +66,20 @@ class ImportService
             // Some exporters write a UTF-8 BOM.
             $json = json_decode(preg_replace('/^\xEF\xBB\xBF/', '', $contents) ?? $contents, true);
             if (! is_array($json)) {
-                throw new ImportException('The file is not valid JSON.');
+                throw new ImportException('The file is not valid JSON.', 'file_not_json');
             }
 
             [$game, $source, $parsed] = match (true) {
                 GoodParser::matches($json) => [Game::Genshin, 'good', $this->good->parse($json)],
                 HsrScannerParser::matches($json) => [Game::Hsr, 'hsr_scanner', $this->hsrScanner->parse($json)],
-                default => throw new ImportException('Unknown file format. Upload a Genshin Impact inventory export in the GOOD format, or a Honkai: Star Rail inventory export (with "relics" and "light_cones").'),
+                default => throw new ImportException('Unknown file format. Upload a Genshin Impact inventory export in the GOOD format, or a Honkai: Star Rail inventory export (with "relics" and "light_cones").', 'file_unknown_format'),
             };
 
             if ($expectedGame && $expectedGame !== $game) {
-                throw new ImportException("This file contains {$game->label()} data, but you chose {$expectedGame->label()}.");
+                throw new ImportException("This file contains {$game->label()} data, but you chose {$expectedGame->label()}.", 'file_game_mismatch', [
+                    'file_game' => $game->label(),
+                    'chosen_game' => $expectedGame->label(),
+                ]);
             }
 
             return $this->importer->import($parsed, $owner, $target, $fileName);

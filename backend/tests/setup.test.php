@@ -196,7 +196,7 @@ test('the database check says what it found, and never repeats the password', fu
 
     $ours = $installer->testDatabase(['database' => T::$database] + $server);
     same(true, $ours['ok'], $ours['message']);
-    check(str_contains($ours['message'], '2 migration(s) applied, 0 waiting'), $ours['message']);
+    check(str_contains($ours['message'], '3 migration(s) applied, 0 waiting'), $ours['message']);
 
     $missing = $installer->testDatabase(['database' => T::$database.'_missing'] + $server);
     same(true, $missing['ok'], $missing['message']);
@@ -218,7 +218,7 @@ test('installing creates the database and builds it, and a second run finds it u
         Db::pdo($server, 'postgres', false)->exec('DROP DATABASE IF EXISTS "'.$database['database'].'" WITH (FORCE)');
     });
 
-    same(['Created the database "'.$database['database'].'".', 'Applied 2 migration(s).'], $installer->buildDatabase($database, 1), 'first run');
+    same(['Created the database "'.$database['database'].'".', 'Applied 3 migration(s).'], $installer->buildDatabase($database, 1), 'first run');
     same(['The database is up to date.'], $installer->buildDatabase($database, 1), 'second run');
     $pdo = Db::pdo($server, $database['database'], false);
     same(1, (int) $pdo->query("SELECT count(*) FROM information_schema.tables WHERE table_name = 'builds'")->fetchColumn(), 'the tables are there');

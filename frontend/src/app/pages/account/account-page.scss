@@ -137,3 +137,24 @@
     border-bottom: 1px solid var(--app-border);
   }
 }
+
+// On a phone the four columns squeezed the last one (what came in, or why it failed) to a few letters a
+// line, cut off at the panel's edge: there a row wraps, and that text takes a line of its own.
+@media (max-width: 600px) {
+  .history-table tr {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    padding: 4px 0;
+    border-bottom: 1px solid var(--app-border);
+  }
+
+  .history-table td {
+    padding: 2px 8px;
+    border-bottom: 0;
+  }
+
+  .history-table td:last-child {
+    flex-basis: 100%;
+  }
+}

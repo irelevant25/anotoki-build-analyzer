@@ -1,5 +1,6 @@
 import { Component, computed, input } from '@angular/core';
 import { gradeColor } from '../core/format';
+import { TranslatePipe } from '../core/i18n/translate';
 import { Grade } from '../core/models';
 
 /**
@@ -7,6 +8,7 @@ import { Grade } from '../core/models';
  */
 @Component({
   selector: 'app-grade-badge',
+  imports: [TranslatePipe],
   templateUrl: './grade-badge.html',
   styleUrl: './grade-badge.scss',
 })

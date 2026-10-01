@@ -72,4 +72,32 @@ describe('authInterceptor', () => {
 
     expect(requests.expectOne('/api/accounts').request.headers.has('Authorization')).toBe(false);
   });
+
+  it('leaves the site\'s own words alone: no token, no waiting for one, no second try', async () => {
+    let status = 0;
+    http.get('/api/translations/sk').subscribe({ error: (error) => (status = error.status) });
+
+    // Sent at once - the token is not even asked for.
+    const request = requests.expectOne('/api/translations/sk');
+    expect(request.request.headers.has('Authorization')).toBe(false);
+    expect(auth.accessToken).not.toHaveBeenCalled();
+
+    request.flush({ message: 'Sign in to continue.' }, { status: 401, statusText: 'Unauthorized' });
+    await settle();
+    requests.expectNone('/api/translations/sk');
+    expect(auth.refreshedToken).not.toHaveBeenCalled();
+    expect(status).toBe(401);
+  });
+
+  it('still sends the token to the owner\'s translation routes', async () => {
+    http.get('/api/admin/translations').subscribe();
+    http.put('/api/admin/translations/sk/import', {}).subscribe();
+    // Not the bundle's address, only one that begins like it.
+    http.get('/api/translations').subscribe();
+    await settle();
+
+    expect(requests.expectOne('/api/admin/translations').request.headers.get('Authorization')).toBe('Bearer old-token');
+    expect(requests.expectOne('/api/admin/translations/sk/import').request.headers.get('Authorization')).toBe('Bearer old-token');
+    expect(requests.expectOne('/api/translations').request.headers.get('Authorization')).toBe('Bearer old-token');
+  });
 });

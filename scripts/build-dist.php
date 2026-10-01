@@ -142,12 +142,14 @@ foreach (new RecursiveIteratorIterator(new RecursiveDirectoryIterator($site, Fil
         }
     }
 }
-foreach (['index.html', 'changelog.json', 'api/index.php', 'api/.htaccess', 'vendor/autoload.php', 'config/app.php', 'migrations/002_schema.sql'] as $required) {
+foreach (['index.html', 'changelog.json', 'api/index.php', 'api/.htaccess', 'vendor/autoload.php', 'config/app.php', 'migrations/002_schema.sql',
+    'migrations/003_languages_and_translations.sql'] as $required) {
     if (! is_file("{$site}/{$required}")) {
         $problems[] = "missing: build-analyzer/{$required}";
     }
 }
-foreach (['tests', 'node_modules', 'router.php', 'migration.php', 'sync-builds.php', 'sync-catalog.php', 'import-account.php', 'setup.php', 'composer.json'] as $absent) {
+foreach (['tests', 'node_modules', 'router.php', 'migration.php', 'sync-builds.php', 'sync-catalog.php', 'import-account.php', 'translations.php', 'setup.php',
+    'composer.json'] as $absent) {
     if (file_exists("{$site}/{$absent}")) {
         $problems[] = "should not be there: build-analyzer/{$absent}";
     }
