@@ -1,9 +1,10 @@
 # Data model
 
 The schema is `backend/migrations/*.sql`, applied in order by one engine (`src/Db/Migrator.php`) whichever
-way it runs: `php migration.php`, "Apply" on the Sources page, or `setup.php`. There is no separate schema
+way it runs: `php migration.php`, "Apply pending" on the admin panel's Migrations page, or `setup.php`. There is no separate schema
 file; a database is what you get by replaying the migrations. `migrations(id, filename, applied_at)` records
-what has run.
+what has run - in the file's own transaction, which first takes a PostgreSQL advisory lock and looks again, so
+two runs at once never apply a file twice (the second waits, then passes over it).
 
 - `001_adopt_laravel_database.sql` brings a database made by the first (Laravel) version forward, with all
   its rows (see [operations.md](operations.md)); on a new database it does nothing.
@@ -15,13 +16,28 @@ what has run.
   it is released in and every string, English and Slovak, in one file: a database never has the tables
   without the strings. It alters no existing table, so everything but the words works on a database that has
   not run it yet. Later string migrations follow its pattern.
+- `004_visitors_and_family_bar.sql` (version 0.3) adds the visitor accounts to `users` (below) and every
+  word 0.3 brings - the visitor notice, the ways in for somebody new, the "Your data" card, the new error
+  sentences, and the family's top bar and footer (`brand.*`, `topbar.*`, `footer.version`, `language.button`)
+  - in 003's form, retiring the keys of the sign-in modes, the old owner's menu and the toolbar the bar
+  replaced (`nav.dashboard`, `nav.import`, `nav.builds`, `toolbar.menu`, `toolbar.version`,
+  `toolbar.yourAccount`, `toolbar.account`, `language.label`), and rewording the descriptions that told of
+  the toolbar. What it changes: the schema part is additive; its new strings never write over one reworded in
+  the browser; the 15 retired keys go with their strings, reworded ones included; 13 descriptions are
+  rewritten. Gated: the schema, every key with an English string, the 67 keys it adds with a Slovak one too
+  (an older key's Slovak may have been cleared in the Translations grid on purpose - it then reads the
+  English, and 004 applies all the same), the retired ones gone, no description still telling of the
+  toolbar, and the number of keys (406 + 67 - 15 = 458). It is complete;
+  applied on the host at once after the upload (Migrations page, ADMIN), before the IAM's 007
+  ([operations.md](operations.md), "Deploying").
 
 Rules: never edit a migration that has run somewhere; add `NNN_what.sql`. A migration runs in one transaction
 (PostgreSQL DDL is transactional), so a failing one leaves nothing behind. A migration that changes data ends
 with a `DO $$ … $$` block that checks the result and raises an exception when it is wrong. A closed set of
 values is a `CHECK (col IN (…))` on the column (`<table>_game_check`, `game_sets_kind_check`,
-`sync_runs_kind_check`), not a lookup table or an enum type. The engine passes `local_user_id` to migrations
-as the setting `build_analyzer.local_user_id`.
+`sync_runs_kind_check`), not a lookup table or an enum type. `Migrator::apply()` can pass settings to a migration
+(`build_analyzer.<name>`); only the Laravel adoption reads one, `build_analyzer.local_user_id`, and nothing but
+its own test passes it any more.
 
 All times are `TIMESTAMPTZ`, written and read in UTC (the connection sets `TIME ZONE 'UTC'`); the API sends
 ISO 8601 with `Z`, the UI converts them. Nested data is `JSON` (not `JSONB`: key order, such as the slots of a
@@ -31,10 +47,13 @@ build's main stats, is kept as written).
 
 | Table | Notes |
 | --- | --- |
-| `users` | `id` = the anotoki IAM user id (the token's `sub`, not a sequence), `name` = `preferred_username` (refreshed from each token). Rows are created on a person's first request (`Auth/UserProvisioner`); roles are never stored, and there are no passwords |
+| `users` | A person: `id` = the anotoki IAM user id (the token's `sub`, always a positive number; not a sequence), `name` = `preferred_username` (refreshed from each token). Rows are created on a person's first request (`Auth/UserProvisioner`, which refuses an id below 1); roles are never stored, and there are no passwords. Deleting a row (the People page, ADMIN: `Users::deletePerson()`) deletes the person's accounts with everything in them and their import runs by the foreign keys; `sync_runs.started_by` becomes NULL, and the strings they saved keep their words with `translations.updated_by` NULL. **A visitor** (migration 004): a negative `id` from the sequence `visitor_ids` (-1, -2 ...), `name` `visitor`, `visitor_key_hash` (CHAR(64), the SHA-256 of its key in lowercase hex, UNIQUE - the key itself is never stored), `last_seen_at` (written at most once an hour). `users_visitor_check`: a negative id has a hash and a last-seen time, a positive one neither; partial index `users_visitors_last_seen_at_index` on `last_seen_at` for `id < 0`. Only `App\Auth\Visitors` (through `Users`) makes, finds, sweeps and moves them; a visitor never starts a sync or saves a string, so `started_by` and `updated_by` are always people. The People list shows `id > 0` only and counts visitors apart |
 
-A database adopted from the Laravel version gives every account and import run without an owner to
-`local_user_id` (the owner), creating that user's row.
+A database adopted from the Laravel version gives every account and import run without an owner to IAM user
+1 (the owner), creating that user's row.
+
+Tests never assume which negative id a visitor gets: `TRUNCATE ... RESTART IDENTITY` does not reset
+`visitor_ids` (no column owns it).
 
 ## Catalog (reference data, filled by catalog runs)
 
@@ -176,11 +195,79 @@ between installations". Format version 1:
   from a file exported …" and ends with the "Done: …" line; and it leaves the source as a successful full sync
   does, with `last_synced_at` the file's `synced_at` (else `exported_at`).
 
+## Accounts files
+
+A signed-in person's own game accounts, exported (`GET /api/me/export`) and imported on this or another
+installation (`POST /api/me/import`, the file as the body; `?dry_run=1` only says what would happen):
+`Services/Transfer/AccountsFile` is the format, `AccountsTransfer` the export and import. Never a visitor's
+(401 `sign_in_required`): a visitor's accounts become a person's by the move at sign-in. Format version 1,
+written as compact JSON (one line), saved as `build-analyzer-accounts-YYYY-MM-DD.json`:
+
+```jsonc
+{
+  "format": "build-analyzer.accounts", "format_version": 1,
+  "exported_at": "2026-10-04T08:15:00Z",             // UTC, to the second, like every time in the file
+  "app_version": "0.2",                              // Version::CURRENT where it was written
+  "accounts": [{                                     // by game, then when they were made
+    "game": "genshin", "uid": "700000001",           // uid null for an account from a file
+    "nickname": "Alice", "level": 58, "world_level": 8, "signature": "…", "has_full_inventory": true,
+    "last_import_at": "2026-09-20T08:00:00Z", "created_at": "2026-09-01T10:00:00Z",
+    "meta": {"region": "EU"},                        // AccountPresenter::META_KEYS only (never the tool)
+    "characters": [{"key": "hutao", "level": 90, "ascension": 6, "rank": 1,
+      "talents": {"normal": 10, "skill": 9, "burst": 9, "bonus": {"skill": 3}}, "final_stats": {"hp": 30512},
+      "source": "showcase", "synced_at": "2026-09-20T08:00:00Z"}],
+    "weapons": [{"key": "staffofhoma", "level": 90, "ascension": 6, "refinement": 1, "equipped": "hutao",
+      "locked": true, "external_uid": "…", "source": "file"}],
+    "items": [{"set": "crimsonwitchofflames", "slot": "flower", "rarity": 5, "level": 20, "main_stat": "hp",
+      "main_value": 4780, "substats": [{"key": "critRate_", "value": 10.5, "rolls": 3}], "equipped": "hutao",
+      "locked": false, "external_uid": null, "source": "file"}],
+    "imports": [{"source": "showcase", "status": "success", "file_name": null,   // its newest 200, oldest first
+      "summary": {"characters": 1, "warnings": [], "warning_kinds": []}, "error": null,
+      "created_at": "2026-09-10T08:00:00Z"}]
+  }]
+}
+```
+
+- Nothing in it only makes sense here: catalog entries by key (`game_characters.key` …, matched by (game,
+  key)), never an internal id; no user id, no account id; a source is `showcase` or `file` (`enka` comes back
+  as `enka`, a file as the game's file format: `good` / `hsr_scanner`); a run's summary without `tool`; every
+  text through `Neutral::text()` and within its column. Import runs without an account (a failed attempt that
+  found none) are not in it.
+- Times are UTC to the second, on the way out and when compared: an account without a UID is found again by
+  game and `created_at`, so the same moment written by a copy in another time zone, or with fractions, is the
+  same account.
+- **Reading** is strict, the whole file before anything is written, naming the first problem as a kind
+  (422 `{message, code, params}`): `no_file` (an empty body - what PHP makes of one past `post_max_size`),
+  `file_too_big` `{max_mb}` (the raw body past `config/app.php` `me.file_max_mb`, 8, checked before it is
+  read as an accounts file - PHP has the whole body by then, and Slim's body parser has decoded one sent as
+  `application/json`: the host's `post_max_size` is what bounds a body), `not_a_data_file`, `newer_version` `{version}`, `bad_entry` `{path}` (`accounts[2].items[14].slot`:
+  a field missing or unknown, a wrong type, a slot of the other game, a stat or catalog key of the wrong form, a
+  time without its offset, a meta key the account page does not show, one UID twice, a character twice, a text
+  longer than its column), `too_many_accounts` `{max}` (the import would leave more than 500 accounts). Caps
+  well above a game's own: 500 accounts, 1000 characters, 10000 weapons and 10000 items an account, 200 import
+  runs, 10 substats.
+- **The export always imports**: it writes only what the reader accepts (a stored value of another shape stays
+  behind), and refuses as a whole - 422 `export_too_big` `{max_mb, max_accounts}` - when the file would pass
+  the size or the caps, rather than write a file no copy reads back. A few thousand artifacts take well under
+  2 MB.
+- **Importing** (one transaction, the person's `users` row taken `FOR UPDATE` first): each account of the file
+  is matched with one of the person's - by game and UID, else by game and `created_at`; several made in the
+  same second pair up in order. No match: **added**, with what it holds and its import runs (its
+  `created_at` and `last_import_at` the file's, so the same file again finds it). A match: the **newer copy
+  wins** by `last_import_at` (to the second; none is the oldest; a tie keeps this one) - newer in the file:
+  **replaced** (its details and `last_import_at`, all its characters, weapons and items the file's; the file's
+  meta over this one's, keys the file does not carry kept; the file's import runs it lacks - by time and kind -
+  added); otherwise **kept**, nothing of it changed. An account the file lacks is never touched; an import never
+  deletes an account. A character, weapon or set the catalog lacks is left out and counted (**skipped**); an
+  equipped character it lacks leaves the weapon or item equipped on nobody. Answer: `{dry_run, added,
+  replaced, kept, skipped, accounts: [{game, uid, nickname, outcome, skipped}]}`; no import run is recorded for
+  it.
+
 ## The site's words (migration 003)
 
 | Table | Notes |
 | --- | --- |
-| `languages` | `code` (key; `^[a-z]{2}(-[a-z]{2})?$`, as a browser and the IAM's token write it), `name` (in English, for the owner's pages), `native_name` (for the reader's chooser), `enabled` (offered to readers; a hidden one keeps its strings), `sort_order`. `en` and `sk` are seeded and cannot be deleted (`TranslationCheck::SEEDED`); English cannot be switched off. At most 20 |
+| `languages` | `code` (key; `^[a-z]{2}(-[a-z]{2})?$`, as a browser and the IAM's token write it), `name` (in English, for the admin pages), `native_name` (for the reader's chooser), `enabled` (offered to readers; a hidden one keeps its strings), `sort_order`. `en` and `sk` are seeded and cannot be deleted (`TranslationCheck::SEEDED`); English cannot be switched off. At most 20 |
 | `translation_keys` | `name` (key: `namespace.thing[.detail]`), `description` (where it is shown and what its `{placeholders}` stand for - all a translator has to go by), `created_at`. Only migrations write keys; the browser changes values |
 | `translations` | key (`key_name`, `language_code`), both cascading on delete and rename; `value` (never empty: a language with no string of its own has no row and reads the English), `updated_at`, `updated_by` (the IAM user id of whoever last reworded it; null as a migration wrote it; no foreign key) |
 

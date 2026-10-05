@@ -21,11 +21,17 @@ require_once __DIR__.'/app.php';
 use App\App;
 use App\Config;
 use App\Support\Log;
+use App\Web\AfterResponse;
 
 // The tests build the app themselves and hand it requests; nothing is served while they load this file.
 if (! defined('BUILD_ANALYZER_NO_RUN')) {
     $config = Config::load();
     Log::to($config->storage('logs/app.log'));
 
+    // What a request leaves for after its answer (the visitors' clean-up) runs once the answer is out, and
+    // is not cut short when the browser goes.
+    AfterResponse::hold();
+    ignore_user_abort(true);
     buildAnalyzerApi(new App($config, web: true))->run();
+    AfterResponse::runHeld();
 }

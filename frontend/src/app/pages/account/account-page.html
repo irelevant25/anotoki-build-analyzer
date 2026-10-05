@@ -3,8 +3,13 @@
     <mat-progress-bar mode="indeterminate" />
   }
 
-  @if (error(); as failure) {
-    <div class="panel"><mat-icon>error</mat-icon> {{ failure | errorText }}</div>
+  @if (signedOut()) {
+    <app-visitor-hero />
+  } @else {
+    <app-visitor-notice />
+    @if (error(); as failure) {
+      <div class="panel"><mat-icon>error</mat-icon> {{ failure | errorText }}</div>
+    }
   }
 
   @if (account(); as acc) {

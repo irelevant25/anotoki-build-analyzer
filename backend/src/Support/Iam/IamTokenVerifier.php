@@ -4,8 +4,8 @@ namespace App\Support\Iam;
 
 use App\Config;
 
-// The anotoki IAM's verifier (anotoki-iam/sdk/php/anotoki_iam.php, v1.0.1), copied unchanged: plain
-// functions, no dependencies, so an update is a clean copy. Required here rather than autoloaded because
+// The anotoki IAM's PHP SDK (anotoki-iam/sdk/php/anotoki_iam.php, v1.1.0), copied unchanged: plain
+// functions, no dependencies, so an update is a clean copy (App\Auth\IamSignInPolicy uses its sign-in reader). Required here rather than autoloaded because
 // it declares no class.
 require_once __DIR__.'/anotoki_iam.php';
 
@@ -39,6 +39,16 @@ final class IamTokenVerifier
     public function bearer(?string $header): ?string
     {
         return anotoki_iam_bearer_token($header);
+    }
+
+    /**
+     * Whether an Authorization header value claims to be somebody: the Bearer scheme, with or without a token
+     * after it. Any other scheme ("Basic ..." from a host behind a password file) says nothing about who is
+     * using the site.
+     */
+    public function sentBearer(?string $header): bool
+    {
+        return anotoki_iam_sent_bearer($header);
     }
 
     /**

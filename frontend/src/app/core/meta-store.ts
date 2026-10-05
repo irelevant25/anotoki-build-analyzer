@@ -1,5 +1,5 @@
 import { HttpErrorResponse } from '@angular/common/http';
-import { Injectable, inject, signal } from '@angular/core';
+import { Injectable, computed, inject, signal } from '@angular/core';
 import { Api } from './api';
 import { GameKey, GameMeta, Meta } from './models';
 
@@ -17,6 +17,8 @@ export class MetaStore {
   readonly loaded = signal(false);
   /** The setup page to open ("/setup.php") when the server has not been set up yet; null otherwise. */
   readonly notSetUp = signal<string | null>(null);
+  /** How many days a visitor's data is kept after its last visit (the visitor notice): the server's word, else 30. */
+  readonly visitorDays = computed(() => this.meta()?.visitors?.keep_days ?? 30);
 
   /** The metadata, or null when the backend could not be reached. */
   load(): Promise<Meta | null> {

@@ -74,14 +74,19 @@ export const DYNAMIC_KEYS: Record<string, readonly string[]> = {
   ],
   // An import run's status (import-words.ts).
   'import.status.': ['success', 'partial', 'failed'],
-  // The whole-request failures errorKey() words (error-text.ts): the API's own codes verbatim, and the
-  // four the page decides itself - offline, sign_in_required (any 401), http, unknown.
+  // The whole-request failures errorKey() words (error-text.ts): the API's own codes verbatim, a visitor's
+  // two limits (visitor_limit {limit}), and the four the page decides itself - offline, sign_in_required
+  // (any other 401), http, unknown.
   'error.': [
     'offline',
     'sign_in_required',
-    'local_only',
-    'no_access',
+    'editor_only',
     'admin_only',
+    'visitor_unknown',
+    'too_many_visitors',
+    'visitors_unavailable',
+    'visitor_limit_accounts',
+    'visitor_limit_file_size',
     'too_many_imports',
     'not_found',
     'server_error',
@@ -90,4 +95,9 @@ export const DYNAMIC_KEYS: Record<string, readonly string[]> = {
     'http',
     'unknown',
   ],
+  // Why the own-data file could not be imported or exported (shared/data-card): the API's codes verbatim
+  // (AccountsFileException's kinds), and `unreadable` - the browser could not read the chosen file.
+  'data.error.': ['unreadable', 'no_file', 'file_too_big', 'not_a_data_file', 'newer_version', 'bad_entry', 'too_many_accounts', 'export_too_big'],
+  // What an import of the own-data file does to each game account (shared/data-card).
+  'data.outcome.': ['added', 'replaced', 'kept'],
 };

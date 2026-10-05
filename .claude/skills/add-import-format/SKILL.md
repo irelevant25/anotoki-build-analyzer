@@ -61,14 +61,16 @@ in-game ID, "Traveler"). Keep samples outside the repository.
 - New online source: a client class like `Import/Enka/EnkaClient` (errors mapped to neutral messages, response
   caching in the cache table, polite delays through `Fetcher`, no long sleeps inside a web request, its address
   in `config/app.php`), a method on `ImportService`, a route in `api/routes/imports.php` with `Web\Input`
-  validation, `requireRole($app, Role::MEMBER)` and a per-user `throttle()`, and an `Api` method in
+  validation, `requireOwner($app, mayMakeVisitor: true)` on the group and `->add(makeVisitor($app))->add(throttle(...))`
+  on the route (the throttle counts a visitor per address; `makeVisitor` innermost, so a refused import makes no
+  visitor), the visitor caps (`$roomForAccount`, `$smallEnough`), and an `Api` method in
   `frontend/src/app/core/api.ts`. The route path must not carry the service's name (the showcase import is
   `/api/imports/showcase`).
 - Credentials (e.g. the official web account's cookies): ask the user before building this. Never log or return
   them, store them encrypted (with a key in a `config/*.local.php` that `setup.php` writes) or not at all,
   scoped to the user, and say in the wizard what they grant.
 - CLI: `import-account.php` (`src/Commands/ImportAccount.php`) routes UIDs to the showcase and files to
-  `fromFile` for `--user` (default `local_user_id`); extend it if the new path needs it.
+  `fromFile` for `--user` (required: an IAM user id); extend it if the new path needs it.
 
 ## 4. Test
 
@@ -85,7 +87,7 @@ request it was not told about) and the Genshin store with a fake `EnkaStore`, as
 
 ```bash
 cd backend && php tests/run.php
-cd backend && php import-account.php <game> path/to/real-sample.json      # then look at the account in the UI
+cd backend && php import-account.php <game> path/to/real-sample.json --user=<your IAM id>   # then look at the account in the UI
 ```
 
 ## 5. User-facing guide and docs

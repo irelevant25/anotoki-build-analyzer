@@ -12,7 +12,7 @@ scripts outside the repository.
 ## Setup
 
 - The Bash tool resets its working directory: start commands with `cd <repo root> &&`.
-- PHP 8.4+ (`php` on PATH; where it is older, `scripts/php.sh`). The installation's configuration is
+- PHP 8.4+ (`php` on PATH; where it is older, `backend/tools/php.sh`). The installation's configuration is
   `backend/config/*.local.php` - never print `database.local.php`.
 - Query through a scratch PHP file outside the repo, run from the repo root with `php <file>`:
 

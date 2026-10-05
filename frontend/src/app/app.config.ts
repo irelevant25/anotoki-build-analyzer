@@ -15,6 +15,7 @@ import { Changelog } from './core/changelog';
 import { AppTitleStrategy } from './core/i18n/title-strategy';
 import { TranslationService } from './core/i18n/translation';
 import { MetaStore } from './core/meta-store';
+import { VisitorKey } from './core/visitor-key';
 
 export const appConfig: ApplicationConfig = {
   providers: [
@@ -28,7 +29,10 @@ export const appConfig: ApplicationConfig = {
       // Everything is injected before the first await: inject() does not work after one.
       const auth = inject(AuthService);
       const i18n = inject(TranslationService);
-      // /api/meta says how this server signs people in (or that it has not been set up); the sign-in (or
+      // The visitor key, read from storage - and, once somebody is signed in with one held, the move of what
+      // the visitor imported into their account (an effect there: AuthService never reads VisitorKey).
+      inject(VisitorKey);
+      // /api/meta says where this server's IAM is (or that it has not been set up); the sign-in (or
       // its callback) completes before the first page is drawn. The changelog gives the version shown.
       const [meta] = await Promise.all([inject(MetaStore).load(), inject(Changelog).load()]);
       await auth.init(meta?.auth ?? null);

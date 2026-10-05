@@ -13,7 +13,7 @@ import shell from './en/shell.json';
  *    every template and class.
  *
  * 2. The English shown while no bundle is in memory - and only then. A new build runs on the old database
- *    until an admin presses Apply on the Sources page; the bundle route answers 503 meanwhile, and the
+ *    until an admin presses Apply pending on the Migrations page; the bundle route answers 503 meanwhile, and the
  *    pages must still be readable. Once a bundle has arrived, the bundle is what is shown: a key it has
  *    no string for appears on the page as the key itself. These strings never paper over a single missing
  *    one.

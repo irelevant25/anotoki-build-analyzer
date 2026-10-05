@@ -9,15 +9,16 @@ import { TEST_LANGUAGES } from './core/i18n/testing';
 import { AppTitleStrategy } from './core/i18n/title-strategy';
 import { TranslationService } from './core/i18n/translation';
 import { Meta, TranslationBundle } from './core/models';
+import { VISITOR_STORAGE_KEY, VisitorKey } from './core/visitor-key';
 
-const META: Meta = { games: [], version: '0.1', auth: { mode: 'none', issuer: null, client_id: null } };
-const IAM_META: Meta = { ...META, auth: { mode: 'iam', issuer: 'https://iam.example.test', client_id: 'build-analyzer' } };
+const META: Meta = { games: [], version: '0.1', auth: { issuer: null, client_id: null } };
+const IAM_META: Meta = { ...META, auth: { issuer: 'https://iam.example.test', client_id: 'build-analyzer' } };
 
 const ENGLISH = { 'theme.label': 'Appearance' };
 const SK_BUNDLE: TranslationBundle = { language: 'sk', languages: TEST_LANGUAGES, values: { 'theme.label': 'Vzhľad' }, english: ENGLISH };
 const EN_BUNDLE: TranslationBundle = { language: 'en', languages: TEST_LANGUAGES, values: ENGLISH };
 
-const MONA: AnotokiUser = { sub: '7', preferred_username: 'mona', email: 'mona@example.test', email_verified: true, locale: 'sk', roles: ['MEMBER'] };
+const MONA: AnotokiUser = { sub: '7', preferred_username: 'mona', email: 'mona@example.test', email_verified: true, locale: 'sk', roles: [] };
 
 /** Everything already on its way has run. */
 const settle = () => new Promise((resolve) => setTimeout(resolve, 0));
@@ -119,6 +120,31 @@ describe('the start of the app (app.config.ts)', () => {
     expect(TestBed.inject(TranslationService).t('theme.label')).toBe('Vzhľad');
     TestBed.tick();
     expect(document.documentElement.lang).toBe('sk');
+  });
+
+  it('moves what this browser imported as a visitor into the account once somebody is signed in - outside the sign-in, with no circle', async () => {
+    const key = 'K'.repeat(43);
+    localStorage.setItem(VISITOR_STORAGE_KEY, key);
+    const { client, finish } = fakeClient(MONA);
+    start(client);
+    requests.expectOne('changelog.json').flush([]);
+    requests.expectOne('/api/meta').flush(IAM_META);
+    finish();
+    await settle();
+    translations()[0].flush(SK_BUNDLE);
+    await started();
+    TestBed.tick();
+    await settle();
+
+    const move = requests.expectOne('/api/visitor/move');
+    expect(move.request.method).toBe('POST');
+    expect(move.request.headers.get('Authorization')).toBe('Bearer token-1');
+    expect(move.request.headers.get('X-Visitor-Key')).toBe(key);
+    move.flush({ found: true, moved: 1, kept: 0, imports: 1 });
+    await settle();
+
+    expect(localStorage.getItem(VISITOR_STORAGE_KEY)).toBeNull();
+    expect(TestBed.inject(VisitorKey).moved()).toEqual({ found: true, moved: 1, kept: 0, imports: 1 });
   });
 
   it('asks for no words while the server is not set up: the pages read the English compiled into the app', async () => {

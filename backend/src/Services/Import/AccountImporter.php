@@ -2,6 +2,7 @@
 
 namespace App\Services\Import;
 
+use App\Auth\Visitors;
 use App\Cache\Cache;
 use App\Config;
 use App\Db\Db;
@@ -15,6 +16,7 @@ use App\Models\ImportRun;
 use App\Models\User;
 use App\Repositories\Accounts;
 use App\Repositories\ImportRuns;
+use App\Repositories\Users;
 use App\Services\Catalog\Catalog;
 use App\Services\Catalog\CatalogSync;
 use App\Support\Clock;
@@ -45,6 +47,7 @@ class AccountImporter
         private readonly Db $db,
         private readonly Accounts $accounts,
         private readonly ImportRuns $runs,
+        private readonly Users $users,
         private readonly Cache $cache,
         private readonly Config $config,
     ) {}
@@ -52,29 +55,25 @@ class AccountImporter
     public function import(ParsedAccount $parsed, User $owner, ?Account $target = null, ?string $fileName = null): ImportRun
     {
         $this->catalog->resetUnmatched();
-
-        if ($target && $target->user_id !== $owner->id) {
-            // Callers only pass the owner's accounts; refuse anything else rather than write into it.
-            throw new ImportException('The selected account does not exist.', 'account_missing');
-        }
-        if ($target && $target->game !== $parsed->game) {
-            throw new ImportException("The selected account is a {$target->game->label()} account, but the data is from {$parsed->game->label()}.", 'account_game_mismatch', [
-                'account_game' => $target->game->label(),
-                'data_game' => $parsed->game->label(),
-            ]);
-        }
-        if ($target && $target->uid && $parsed->uid && $target->uid !== $parsed->uid) {
-            throw new ImportException("The data belongs to UID {$parsed->uid}, but the selected account is UID {$target->uid}.", 'account_uid_mismatch', [
-                'data_uid' => $parsed->uid,
-                'account_uid' => $target->uid,
-            ]);
-        }
+        $this->checkTarget($parsed, $owner, $target);
 
         // Any catalog download happens here, before the write transaction, so no transaction is held
         // open across a network request.
         $this->prepareCatalog($parsed);
 
         $id = $this->db->transaction(function () use ($parsed, $owner, $target, $fileName) {
+            // One writer of an owner's accounts at a time: another import, an accounts file, the move. What
+            // the request found before this may have changed meanwhile - the owner's row moved, swept or
+            // deleted, the account deleted or moved - so it is all read again under the lock.
+            if (! $this->users->lockForWrite($owner->id)) {
+                throw Visitors::ownerGone($owner);
+            }
+            if ($target !== null) {
+                $target = $this->accounts->findOwned($owner->id, $target->id, withCounts: false)
+                    ?? throw new ImportException('The selected account does not exist.', 'account_missing');
+                $this->checkTarget($parsed, $owner, $target);
+            }
+            $this->roomForAccount($parsed, $owner, $target);
             $account = $this->account($parsed, $owner, $target);
             $warnings = $parsed->warnings;
             $now = Clock::now();
@@ -166,8 +165,11 @@ class AccountImporter
      * The history is shown in the UI, so the message is kept free of other sites' names and addresses. What
      * happened is kept as a kind too, in the summary ({"error": {code, params}}): the page words it from that,
      * and the presenter lifts it out, so a failed run is still sent without a summary.
+     *
+     * Null when there is nobody to record it for: the owner's row went while the import ran (a visitor moved
+     * or swept, a person's data deleted). The account is named only while it is still the owner's.
      */
-    public function recordFailure(Game $game, string $source, Throwable $e, User $owner, ?Account $account = null, ?string $fileName = null): ImportRun
+    public function recordFailure(Game $game, string $source, Throwable $e, User $owner, ?Account $account = null, ?string $fileName = null): ?ImportRun
     {
         $message = $e instanceof ImportException ? $e->getMessage() : 'The import stopped with an unexpected error: '.$e->getMessage();
         if (! $e instanceof ImportException) {
@@ -175,8 +177,55 @@ class AccountImporter
         }
         $error = $e instanceof ImportException ? ['code' => $e->kind, 'params' => $e->params] : ['code' => 'unexpected', 'params' => []];
 
-        return $this->runs->create($owner->id, $account?->user_id === $owner->id ? $account->id : null, $game, $source, 'failed', $fileName, ['error' => $error],
-            mb_substr((string) Neutral::text($message), 0, 2000));
+        return $this->db->transaction(function () use ($game, $source, $owner, $account, $fileName, $error, $message): ?ImportRun {
+            if (! $this->users->lockForWrite($owner->id)) {
+                return null;
+            }
+            $accountId = $account !== null && $account->user_id === $owner->id
+                && $this->accounts->findOwned($owner->id, $account->id, withCounts: false) !== null ? $account->id : null;
+
+            return $this->runs->create($owner->id, $accountId, $game, $source, 'failed', $fileName, ['error' => $error],
+                mb_substr((string) Neutral::text($message), 0, 2000));
+        });
+    }
+
+    /** The account an import targets must be the owner's, of the data's game, and of its UID when both have one. */
+    private function checkTarget(ParsedAccount $parsed, User $owner, ?Account $target): void
+    {
+        if ($target && $target->user_id !== $owner->id) {
+            // Callers only pass the owner's accounts; refuse anything else rather than write into it.
+            throw new ImportException('The selected account does not exist.', 'account_missing');
+        }
+        if ($target && $target->game !== $parsed->game) {
+            throw new ImportException("The selected account is a {$target->game->label()} account, but the data is from {$parsed->game->label()}.", 'account_game_mismatch', [
+                'account_game' => $target->game->label(),
+                'data_game' => $parsed->game->label(),
+            ]);
+        }
+        if ($target && $target->uid && $parsed->uid && $target->uid !== $parsed->uid) {
+            throw new ImportException("The data belongs to UID {$parsed->uid}, but the selected account is UID {$target->uid}.", 'account_uid_mismatch', [
+                'data_uid' => $parsed->uid,
+                'account_uid' => $target->uid,
+            ]);
+        }
+    }
+
+    /**
+     * Under the owner's lock: a visitor's import that would add a game account past visitors.max_accounts is
+     * refused (the route checked before any work; two imports at once could both have passed that).
+     */
+    private function roomForAccount(ParsedAccount $parsed, User $owner, ?Account $target): void
+    {
+        if (! $owner->isVisitor() || $target !== null) {
+            return;
+        }
+        if ($parsed->uid && $this->accounts->findOwnedByUid($owner->id, $parsed->game, $parsed->uid) !== null) {
+            return;
+        }
+        $max = (int) $this->config->get('visitors.max_accounts', 5);
+        if ($this->accounts->countOwned($owner->id) >= $max) {
+            throw Visitors::accountLimit($max);
+        }
     }
 
     private function account(ParsedAccount $parsed, User $owner, ?Account $target): Account

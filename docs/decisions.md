@@ -3,6 +3,263 @@
 Short records of choices that shape the code. Add a new entry (newest first) when you make a similar call.
 Older entries describe the Laravel version as it was; where a setting has since moved, the entry says so.
 
+**2026-10-05 — Whether sign-in is required is the IAM's switch, read by the server (the owner's request, for the whole family).**
+- *The IAM decides, per application*: "Sign-in required" on its admin panel, and which roles may sign in. This
+  site keeps no setting of its own; it reads `GET {issuer}/api/public/applications/build-analyzer` through the
+  IAM's PHP SDK 1.1.0 (`anotoki_iam_login_required()`, vendored unchanged) - one reader for the five sites, so
+  the rule cannot drift: a 404 (an unknown or switched-off application) and an IAM never reached both mean
+  **required** (fail closed - an open site is the IAM's word, never a guess); an IAM out of reach after a read
+  keeps the last answer; kept a minute in `storage/cache/iam/` (a folder only the site writes), one request
+  asking at a time. `App\Auth\SignInPolicy` wraps it only so that the tests can put a fixed answer in its place
+  (no test calls a real issuer); the reader's own cases run against the stand-in IAM and the SDK's file seam.
+- *The server relays it* (`/api/meta`, `auth.login_required`): the page never asks the IAM.
+- *Required means nobody and every visitor key get 401 `sign_in_required`* everywhere but meta, the strings and
+  the icons; the key is refused before it is looked up, so a refused request neither sees, counts, makes nor
+  sweeps a visitor. *The move at sign-in still takes a key*: switching sign-in on stops a key from being
+  somebody, not from being handed in with a token - what a visitor imported comes into the account when they
+  sign in, and switching it off again within 30 days brings the key back.
+- *Only `Authorization: Bearer` counts as credentials*: a `Basic` header (a host behind a password file sends it
+  with every request) is no header, so it neither refuses a visitor nor makes anybody somebody.
+- *MEMBER is an ordinary person*: every account holds it (IAM 010); no check here needs or refuses it. Taking it
+  away blocks signing in, not visiting while sign-in is not required - to keep somebody out, require sign-in.
+- *In the browser, whose a request is is decided when it is issued* (`Api` marks it, `ISSUED_AS`), never by
+  whether a token is there when it leaves: before, a signed-in person's import whose token could not be
+  refreshed went out as a visitor's and could make a visitor of the person's data. A person's request with no
+  token is now never sent (a local 401 `sign_in_required`). The key goes, and a new one is kept, only on a
+  visitor's request while sign-in is not required; while it is required the key is kept, never sent (the
+  move at the next sign-in still takes it). Every page asks for a sign-in first while required
+  (`siteSignInGuard`; unknown = required); a sign-in the IAM refused is shown once on the sign-in page even
+  while visiting (else a person whose MEMBER was taken would see nothing); `/admin` stays sign-in only; and
+  a sign-in waits for the writes on their way (a visitor's first import brings the key in its answer).
+**2026-10-04 — "Admin panel", and a Migrations page of its own (the owner's request, for the whole family).**
+- *Named "Admin panel" everywhere*, as on the IAM, Piano and Japanese: the person's menu ("Admin panel" /
+  "Administrátorský panel", `topbar.admin`), the brand beside the mark in the panel ("anotoki admin panel", as
+  the IAM's: the new key `brand.admin`; on a phone still "Analyzer"), its link's name, which names the app
+  ("anotoki Build Analyzer: the admin panel", `topbar.homeAdmin`),
+  the tab titles ("Migrations · Admin panel · Build Analyzer", `title-strategy.ts`) and the docs. 004 was not
+  applied anywhere yet, so its strings and its gate (67 keys added, 458 in all) changed in place, with the
+  compiled English. "Back to Build Analyzer" stays.
+- *The IAM's Migrations page, in this site's pieces* (`/admin/migrations`, ADMIN only - server and
+  `adminOnlyGuard`; a link in the panel's bar): Pending in the order they will run, Applied with their dates,
+  Apply pending after a confirmation; after it "Up to date", "There was nothing to apply" or "Stopped at
+  <file>" with what went first and the database's error. The API took the IAM's shape: `GET` {applied: [{name,
+  applied_at}], pending: [{name}]}, `POST .../apply` {applied, failed, error} - 200 even when a file failed (the
+  page shows where it stopped; the IAM answers 500, whose body its page cannot show), 409 `migrations_busy`
+  under the `migrate` lock. One transaction per file, the first failure stops the run, no copy of the tables
+  is taken (there was none before either - the page and the docs say to back up first). After the review:
+  each file's transaction first takes a PostgreSQL advisory lock and looks again whether the file is recorded,
+  so an apply that outlives the 300 s `migrate` lock, or `php migration.php` meanwhile, waits and then runs
+  nothing twice (before, `ON CONFLICT DO NOTHING` recorded a data migration applied twice as once). The
+  `migrate` lock stays: it answers "busy" at once instead of a wait.
+- *Apply left the Sources page*: it only says that updates wait, with a link to Migrations, for an admin.
+  Nothing on this site waits for a pending migration (no "being updated" page): members keep using it, the
+  routes that need the new tables answer 503 `translations_unavailable` / `visitors_unavailable`, and those
+  sentences (and the Languages / Translations pages, which link it for an admin) now name the Migrations page.
+- *The bar has a breakpoint per area*: the panel's row (five sections) needs 954 px with a sync running, so
+  `ADMIN_PHONE_BAR_MAX` = 960 is its own and the member pages keep 880; the scss follows the bar's classes
+  (`is-phone`, `is-nameless`) instead of a media query, because one query cannot know the area. Rejected:
+  "anotoki Build Analyzer - admin panel" beside the mark (the first try: 1075 px with a sync, so a 1024 px
+  laptop got the phone's bar and a 1280 px screen no name - the review); one breakpoint for every page
+  (members on a 900 px tablet would lose their row).
+- *The browser check takes `SITE_PORT` / `IAM_PORT`* (8590-8599 only): checks of several sites run at once.
+
+**2026-10-04 — After the review of 0.3: what a request found may be gone by the time it writes.**
+- *004's gate asks Slovak only of its own keys*: the Translations grid deletes a string whose cell is emptied,
+  so on a database with real use an older key may have no Slovak on purpose; a gate demanding it of every key
+  would make Apply fail until somebody retyped it. English is asked of every key (it cannot be cleared). The
+  header now says what the file really does: additive schema, new strings that never write over reworded
+  ones, retired keys deleted with their strings (reworded ones too), 13 descriptions rewritten.
+- *Every writer answers the lock's "no such row"*: an owner's row can go between the request finding it and
+  the import writing (a visitor moved at sign-in in another tab, or swept; a person's data deleted on the
+  People page). `Users::lockForWrite()`'s false is now 401 (`visitor_unknown`, or for a person
+  `sign_in_required` - their next request, the page's retry with a fresh token, starts them afresh), with
+  nothing written and no failed run recorded, instead of a foreign-key 500. Rejected: 404 for a person (the
+  page would word it as a missing page), or re-making the person's row inside the import (it would undo the
+  admin's deletion behind their back). The target account and a visitor's account count are read again under
+  the lock.
+- *A forwarding list is read from the right*: `client_address.client_ip_header` is meant to be one address
+  the proxy writes whole (`CF-Connecting-IP`); should it ever be set to `X-Forwarded-For`, its leftmost entry
+  is whatever the visitor wrote, so the first address from the right that is not a trusted proxy is counted.
+- *The size of a body is bounded by PHP*, not by `me.file_max_mb` / `visitors.file_max_kb`: those are checked
+  after PHP and Slim's body parser have the body. The docs say so now; a Content-Length check before the parser
+  was not added (`post_max_size` already bounds it, and the host sets that).
+
+**2026-10-04 — The family's top bar; 004 closed; version 0.3; a browser check on a throwaway database.**
+The anotoki sites share one bar (the owner's decision of the family's design; the survey's bar is the
+reference, and this site keeps Angular Material underneath).
+
+- *The menus are this app's own markup, not `mat-menu`*: the family's rule is that Tab or Shift+Tab from a
+  menu item closes the menu with the focus on its button (`preventDefault()`), so the next Tab moves on from
+  there and the focus never falls to `<body>`. A spec test of exactly that, with `mat-menu`, came back
+  `defaultPrevented: false` - it closes and focuses its trigger, then leaves the Tab to the browser, which
+  moves the focus on past the trigger. So the survey's markup (one `openMenu` signal, focus in after the next
+  render, arrows / Home / End, Escape and an outside click), with Material's icons and button inside. The
+  language's menu keeps the same Tab rule (the survey's language menu let the focus go on; here it does not).
+- *The breakpoint is this site's own*: 880 px, measured with the real labels (`run.mjs --measure`): the row
+  without the person's name needs 772 px in English and 781 in Slovak signed out, 799 for an admin with a sync
+  running, and 872 in the admin area (four English sections) with a sync running. Rejected: the survey's 760,
+  under which the admin area's row overlaps. The name shows from 1081 px (+200, as the survey's 760 / 960) and
+  is what gives way. On a phone the brand is the mark and `brand.short` ("Analyzer": "Build Analyzer" does not
+  fit beside the language, the theme and the menu button at 360 px), and the sync spinner - an app widget left
+  of the language on a desktop - is an item of the menu and a dot on its button.
+- *Where things went*: the toolbar's links are the bar's sections (Dashboard with `/accounts/` under it,
+  Import, Builds - the same for nobody, a visitor and a person); "Admin" moved into the person's menu (and
+  "Back to Build Analyzer" in the admin area, whose sections are the bar's links there, English, staff only);
+  the theme and the language left the "Settings" menu for controls of their own; the version and What's new
+  moved into a footer on every page. Sign out asks first about strings typed on the Translations and Languages
+  pages and not saved (in the reader's language), instead of the browser's own "Leave site?".
+- *004 is closed*: the bar's 21 keys (English and informal Slovak) joined it, the 8 keys the toolbar used
+  retired, and the descriptions that told of the toolbar reworded; the gate checks all of it (457 keys). Its
+  header now says how it is applied on a host: upload, Apply at once (ADMIN), then IAM 007.
+- *Version 0.3* (the owner: the builder adds the entry and the version): one changelog entry in plain words -
+  the Slovak pages (which shipped without one), using the app without an account, a member's own data as a
+  file, the one bar and the footer. Nothing in it says anyone can sign in: that is true only once IAM 007 is
+  live, after the upload.
+- *The browser check runs on a throwaway database*: `BUILD_ANALYZER_TEST_CONFIG` names a settings folder that
+  stands in for `config/` and `storage/`, honoured only for a `build_analyzer_test_` database (anything else
+  is "not set up", never the owner's database) - the one environment variable the site reads, and only the
+  check sets it. Rejected: a copy of `backend/` with its own `config/` (vendor and all, every run), and pointing
+  the check at the owner's database (the owner's data, and their migration 004 not applied). playwright-core
+  stays in the temp folder (the earlier screenshot scripts already used it), never in the repository.
+
+**2026-10-04 — The frontend in step: IAM only, three kinds of reader, the admin area under `/admin/`.** The
+frontend follows the backend of the three entries below.
+
+- *No sign-in mode*: `AuthService` has `available` (the server said where its IAM is), `signedIn`, `isStaff`,
+  `isAdmin`; MEMBER, `isMember`, `usesSignIn` and `LOCAL_OWNER` are gone. Every Sign in button goes through
+  `signInOrSayWhy()`: the IAM's pages in the reader's language, and a snack bar when the browser refuses the
+  storage the SDK needs (`storage_unavailable`) - the survey's way, so a button never silently does nothing.
+- *Who looks*: nobody, a visitor, somebody signed in - one computed state on the dashboard, and the notice on the
+  visitor's pages. Nobody's pages ask for no own data (the server would only answer 401), and an account page
+  opened by nobody shows the ways in, not an error.
+- *The key in the browser*: localStorage (every tab shares it), read again at send time and followed through
+  the `storage` event; the first key stays - a second tab's first import never replaces it (rejected: last key
+  wins, which strands the first visitor's data). Sent only without a token; the move is the one request with
+  both.
+- *The move outside AuthService*: an effect in `VisitorKey` on `auth.signedIn()` (rejected: calling it from
+  `AuthService.init()`, a DI cycle, NG0200 - VisitorKey reads AuthService). A 200, found or not, ends the key;
+  a network error or a 5xx keeps it and asks again (Retry-After, else 2 / 10 / 30 s, then the next page load).
+- *The admin area* is `/admin/...` behind `signInGuard` (the only guarded route), English, with a layout that
+  tells staff, the signed-out and the role-less apart; editors see Sources and Translations, admins also
+  Languages and People. The old addresses redirect. Its sections live in that layout until the shared top bar
+  takes them.
+- *Words*: the new strings are in migration 004's strings part, the form of 003, with the keys this retires
+  (`error.local_only`, `error.no_access`, `signIn.noAccess`, `signIn.anotherAccount`, `dashboard.backendHint`,
+  `nav.translations`, `nav.languages`) deleted there; the Slovak avoids gendered past forms ("Používaš stránku bez
+  prihlásenia", not "Nie si prihlásený"), and a number that would need agreement stands after a colon.
+
+**2026-10-04 — A person's own accounts as a file: the newer copy wins, and an import never deletes (the
+owner's words: "builder-analyzer project can have import/export for user's data as well as japanese or piano
+project has", and "logically the import/export available only for signin users").** `GET /api/me/export`,
+`POST /api/me/import` (`src/Services/Transfer/`), for a signed-in person only - `requireSignIn()`, so a visitor
+is refused like nobody, as the visitor decision above already said.
+
+- *Never delete*: the file is a backup and a way between copies, not a mirror. An account the file lacks may be
+  one made here after the export, or on purpose kept out of it; deleting it would lose data nobody asked to
+  lose, and the account page deletes an account when somebody wants that. So an import only adds or replaces.
+- *The newer copy wins, as a whole*: an account here and in the file is the same game account read at two
+  moments. `last_import_at` says which reading is newer; that copy's contents - characters, weapons, items -
+  stand, the other's do not mix in. Merging entry by entry would invent a state the game never had (gear on
+  two characters, an artifact the player has since salvaged). A tie keeps this copy, so the same file twice
+  changes nothing. What is not the game's state is kept from both: the file's import runs that are not here
+  are added, and meta keys the file does not carry (it carries only the neutral ones) stay.
+- *Matching without a UID by when the account was made*: a file import has no UID, and nothing else names the
+  account across copies; `created_at` travels in the file and comes back on an added account. Written and
+  compared in UTC to the second (the critique's point: two installations, two time zones, different
+  precision), so a re-import or a copy elsewhere finds the same account instead of adding a duplicate.
+- *Strict and neutral like the builds file*: keys, never ids; `showcase` / `file`, never a tool; refused whole
+  with a kind and the first problem's path. The export never writes what the import would refuse (a value of
+  another shape stays behind; past `me.file_max_mb` or the caps it says so instead), so every export imports.
+- *Taking turns*: the import first takes the person's `users` row `FOR UPDATE`, and so does every game import
+  (`AccountImporter`) and the move at sign-in, so two writers of one person's accounts never interleave. A dry
+  run reads only and takes nothing.
+- *Rejected*: an import that mirrors the file (deletes what it lacks); merging entry by entry; matching an
+  account without a UID by its nickname (people rename them; two file accounts can share one); keeping the
+  person's id in the file (another copy's ids mean nothing, and a file must never point at anybody).
+
+**2026-10-04 — The visitor account: the one deliberate second identity in the family (the owner's words of
+2026-10-02: visitors get "pretty much everything a member see", their data in the database under a visitor
+identity "with key or hash ... generated and saved in localstorage", "transfered from visitor to member" on
+sign-in; import / export of one's data and other special features need a sign-in).** Everywhere else in the
+anotoki family a request is a person of the IAM or nobody. Here a third kind exists on purpose, and only here:
+
+- *What it is*: a row of `users` with a **negative id** from the sequence `visitor_ids` (migration 004). An IAM
+  id is always positive (`anotoki_iam_user_id()`), so the two kinds can never meet, and a CHECK holds them
+  apart (a negative id has a key's hash and a last-seen time; a positive one neither). `accounts` and
+  `import_runs` already point at `users` with cascades, so a visitor's data is a member's data in shape - the
+  same routes, the same `Accounts::owned()` isolation, the same analysis - and goes with its row.
+- *The key*: 32 random bytes made by the server only, base64url (43 characters). It leaves the server once, in
+  the `X-Visitor-Key` **response header** of the import that made the visitor (`Cache-Control: no-store`;
+  never in a body, a URL or a log), and comes back in the `X-Visitor-Key` request header. The row keeps only
+  its SHA-256 (256 bits: a plain lookup is safe). Why a header and not a cookie: nothing rides along on a
+  request another site makes, and the API has no CORS, so no other site can send it.
+- *Who a request is*: a token (present means it must verify - a bad or expired one is 401 and never falls back
+  to the key), else a visitor key (unknown or malformed: 401 `visitor_unknown`), else nobody. Only
+  `requireOwner()` reads the key, so a visitor reaches its own accounts and imports and nothing else: no role,
+  no admin area, no syncs, no export / import of one's data, no other row.
+- *Made lazily*: only by `POST /api/imports/showcase` or `/file` sent with neither token nor key, and only once
+  the import's throttles let it through (`makeVisitor()` is the innermost middleware); when that first import
+  fails, the visitor is deleted again and its counts given back. Page views never make one.
+- *Bounded*: new visitors an hour per address (10; an IPv6 address counts by its /64) and from everywhere (60),
+  visitors at once (1000) - past any, 429 `too_many_visitors`, whose sentence says to sign in; a visitor keeps
+  5 game accounts and imports files of 5 MB (422 `visitor_limit`); a visitor's imports count per address, so a
+  fresh key starts nothing over, and all visitors' showcase imports share 20 a minute. The address is
+  `REMOTE_ADDR` unless a trusted proxy (`client_address` in `config/app.php`, the IAM's pattern) names it;
+  `X-Forwarded-For` alone is never believed.
+- *Swept*: unseen for 30 days (`last_seen_at`, written at most once an hour) - 20 at a time, the statement
+  allowed 2 s, skipping rows another request holds, after the answer has gone out (`App\Web\AfterResponse`),
+  inside a try/catch that logs: the clean-up never fails the request it runs in. It runs when a visitor is
+  made and at most once an hour on an own-data request; never on a public page. No cron: FTP-only hosting.
+- *Moved at sign-in*: `POST /api/visitor/move` with the token **and** the key, in one transaction with both
+  rows locked (`FOR UPDATE`, the visitor's first): a game account both have (same game and UID) stays the
+  person's as it is and the visitor's copy goes; everything else becomes the person's; the visitor row goes. A
+  key nobody has is `{found: false}` (asked again safely); a lock not had in 5 s, a unique violation or a
+  serialization failure is 503 `visitor_move_retry` with nothing moved.
+- *A pending 004* (upload done, Apply not yet): the visitor paths answer 503 `visitors_unavailable` - like the
+  strings' routes before 003 - and the clean-up does nothing; members are untouched.
+- *Rejected*: a cookie (rides along cross-site); a client-made key (guessable, collisions); keeping the data in
+  the browser only (the owner asked for the database); a separate visitors table (every account query would
+  need a second owner column - the negative id reuses the one isolation the code already has).
+
+**2026-10-04 — The IAM is the only way in; EDITOR and ADMIN; the root holds only the project's own (the anotoki
+family made one way, the owner's decisions of 2026-10-01 and 10-02: "There is no need from project to support no
+iam alternative/version of the projects. The IAM should be the only option."; "Every project should be
+available for every user not just admin or editor.").** The backend's part, first of the port's stages:
+
+- *Sign-in mode "none" is gone* (`AuthMode`, `IamGuard::localOwner()` / `fromOwnPages()`, the `local_only`
+  refusal, setup's choice and its owner's-id field, `local_user_id` in the CLI and the migration engine). Who a
+  request is comes from a verified IAM token only. A `mode` / `local_user_id` left in an older
+  `auth.local.php` is ignored - a test proves a leftover "none" opens nothing. The owner's own copy signs in
+  through their local IAM like any other.
+- *Credentials that are sent must verify*: a request with an `Authorization` header is that person or a 401
+  `sign_in_required` - on public routes too - and is never answered as if it had sent nothing. Why: the next
+  stage adds a second way in (a browser's visitor key, for requests without a token), and an expired token
+  must never quietly fall back to it (the plan's critique).
+- *Roles*: ADMIN and EDITOR; MEMBER is gone (`User::withRoles()` keeps `Role::STAFF` only, so a leftover
+  MEMBER is just "signed in"). A signed-in person with no role uses their own accounts and imports. EDITOR:
+  syncs, the sync history, a source's builds file (export / import - they go with the syncs), the strings
+  grid and a language's strings file, the languages' list. ADMIN also: sources on / off, migrations, adding /
+  renaming / switching / deleting a language, and the People routes. Each check is on a route *group*
+  (`requireRole(...Role::STAFF)` / `requireRole(Role::ADMIN)`), so a route added later cannot forget it; the
+  tests go through every route for each role. 403 `editor_only` / `admin_only`; `no_access` is gone.
+- *Public*: the builds browser and the sources' list (`optionalSignIn()`; who started a run only for editors),
+  as visitors are to see what members see.
+- *People* (ADMIN): `GET /api/admin/people`, `DELETE /api/admin/people/{id}` - deleting a person's data
+  deletes their row, and with it their accounts and import runs; the syncs they started and the strings they
+  saved stay, by nobody; their anotoki account is untouched.
+- *Setup asks for the database and the IAM only* (and the token on a host): defaults `anotoki_builder`, port
+  5432; "Test connection" in the family's words (the survey's); the saved values are shown on this computer
+  only. The fetch settings left the form: `fetch.local.php` is optional (defaults in `Config::FETCH_DEFAULTS`)
+  and setup writes it with the defaults only when it is missing. `import-account.php --user` is required.
+- *The root*: `AGENTS.md` and `dev.ps1` deleted (every command is a plain one in DEV.md);
+  `scripts/build-dist.php` → `backend/tools/build.php`, `scripts/php.sh` → `backend/tools/php.sh` (reads
+  `BUILD_ANALYZER_PHP` only). `.vscode/` is gitignored (its one tracked file leaves git with the next commit
+  that untracks it, the file itself staying on disk).
+- *Tests*: every mode-none test became a token test; `tests/tools/fake-iam.php` (the survey's stand-in IAM) is
+  here, and `stand_in_iam.test.php` signs in through it as a browser does. Throwaway servers use 8590-8599.
+
+The 2026-09-28 entries below on sign-in and its hardening describe the "none" mode as it was.
+
 **2026-10-01 — The member pages in English and Slovak, their words in the database (owner's decisions: "translate
 only text. The stuff from the game, like attack or ATK and the like, leave as they are everywhere").** The site's
 own words are rows (migration 003: `languages`, `translation_keys`, `translations`; 406 keys), like the genshin

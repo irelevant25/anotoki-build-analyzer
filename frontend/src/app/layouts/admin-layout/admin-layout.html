@@ -1,0 +1,44 @@
+<div class="admin" lang="en">
+  <app-top-bar area="admin" />
+  <main>
+    @if (auth.isStaff()) {
+      <router-outlet />
+    } @else if (!auth.signedIn()) {
+      <div class="page">
+        <div class="panel no-access">
+          <mat-icon class="no-access-icon">lock</mat-icon>
+          @if (auth.lastError()) {
+            <!-- A sign-in that came back without one (or could not start): nobody had a session to end. -->
+            <h1>You are not signed in</h1>
+            <p class="muted">
+              The admin panel is for the people who run the site, signed in with their anotoki
+              account. The sign-in did not complete - sign in to try again.
+            </p>
+          } @else {
+            <h1>You are signed out</h1>
+            <p class="muted">
+              Your session has ended. Sign in again: what you typed on the Translations and
+              Languages pages is kept in this tab, and will be in its boxes again.
+            </p>
+          }
+          @if (auth.available()) {
+            <button mat-flat-button (click)="signIn()"><mat-icon>login</mat-icon>Sign in</button>
+          }
+        </div>
+      </div>
+    } @else {
+      <div class="page">
+        <div class="panel no-access">
+          <mat-icon class="no-access-icon">lock</mat-icon>
+          <h1>This part is for editors and admins</h1>
+          <p class="muted">
+            Your anotoki account has no editor role here. The site's administrator can give it to
+            you in the anotoki IAM's admin panel.
+          </p>
+          <a mat-flat-button routerLink="/">To your accounts</a>
+        </div>
+      </div>
+    }
+  </main>
+  <app-footer />
+</div>

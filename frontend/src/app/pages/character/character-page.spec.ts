@@ -1,4 +1,5 @@
 import { HttpErrorResponse } from '@angular/common/http';
+import { signal } from '@angular/core';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { By } from '@angular/platform-browser';
 import { MATERIAL_ANIMATIONS } from '@angular/material/core';
@@ -6,6 +7,7 @@ import { MatTooltip } from '@angular/material/tooltip';
 import { provideRouter } from '@angular/router';
 import { Observable, of, throwError } from 'rxjs';
 import { Api } from '../../core/api';
+import { AuthService } from '../../core/auth';
 import { en } from '../../core/i18n/en';
 import { provideTestTranslations } from '../../core/i18n/testing';
 import { TranslationService } from '../../core/i18n/translation';
@@ -15,7 +17,7 @@ import { CharacterPage } from './character-page';
 
 /** The informal Slovak of the strings these cases look at: every game term stays as it is, first or after a colon. */
 const SLOVAK: Record<string, string> = {
-  'error.no_access': 'Tvoj účet nemá prístup do aplikácie Build Analyzer. Požiadaj vlastníka o prístup.',
+  'error.editor_only': 'Toto môže urobiť len editor alebo správca.',
   'builds.sourcesPage': 'Zdroje',
   'buildDetail.optionAny.one': '(ľubovoľný 1)',
   'buildDetail.optionAny.few': '(ľubovoľné {count})',
@@ -89,7 +91,7 @@ function gameMeta(key: GameKey): GameMeta {
   };
 }
 
-const META: Meta = { games: [gameMeta('genshin'), gameMeta('hsr')], version: '1.0.0', auth: { mode: 'none', issuer: null, client_id: null } };
+const META: Meta = { games: [gameMeta('genshin'), gameMeta('hsr')], version: '1.0.0', auth: { issuer: null, client_id: null } };
 
 const RECOMMENDATIONS: Recommendation[] = [
   {
@@ -253,12 +255,14 @@ describe('CharacterPage: the site’s words are keys, the game’s words stay', 
   const text = (selector: string) => [...host.querySelectorAll<HTMLElement>(selector)].map((element) => element.textContent?.replace(/\s+/g, ' ').trim() ?? '');
   const tooltip = (selector: string) => fixture.debugElement.query(By.css(selector)).injector.get(MatTooltip).message;
 
-  async function open(language: 'en' | 'sk' | 'marked', answer: Observable<CharacterAnalysis> = of(analysis())): Promise<void> {
+  /** Who looks: somebody signed in (an editor: the Sources page is a link), or nobody. */
+  async function open(language: 'en' | 'sk' | 'marked', answer: Observable<CharacterAnalysis> = of(analysis()), who: 'editor' | 'member' | 'nobody' = 'editor'): Promise<void> {
     TestBed.configureTestingModule({
       providers: [
         provideRouter([]),
         language === 'en' ? provideTestTranslations(en) : provideTestTranslations(language === 'sk' ? SLOVAK : MARKED, { language: 'sk', english: en }),
         { provide: Api, useValue: { meta: () => of(META), character: () => answer } },
+        { provide: AuthService, useValue: { signedIn: signal(who !== 'nobody'), isStaff: signal(who === 'editor'), available: signal(true), lastError: signal(null), user: signal(null) } },
         { provide: MATERIAL_ANIMATIONS, useValue: { animationsDisabled: true } },
       ],
     });
@@ -369,7 +373,22 @@ describe('CharacterPage: the site’s words are keys, the game’s words stay', 
     expect(text('.empty-state p')).toEqual(['Hu Tao: zatiaľ žiadne buildy. Pribudnú po ďalšej synchronizácii buildov (správcovia ju spúšťajú na stránke Zdroje).']);
     const link = host.querySelector<HTMLAnchorElement>('.empty-state a')!;
     expect(link.textContent).toBe('Zdroje');
-    expect(link.getAttribute('href')).toBe('/sources');
+    expect(link.getAttribute('href')).toBe('/admin/sources');
+  });
+
+  it('names the Sources page without a link for somebody who cannot open it', async () => {
+    await open('sk', of(analysis('genshin', { evaluations: [] })), 'member');
+
+    expect(text('.empty-state p')).toEqual(['Hu Tao: zatiaľ žiadne buildy. Pribudnú po ďalšej synchronizácii buildov (správcovia ju spúšťajú na stránke Zdroje).']);
+    expect(host.querySelector('.empty-state a')).toBeNull();
+  });
+
+  it('shows nobody the ways in, not an error, when the account is not theirs to open (401)', async () => {
+    await open('en', throwError(() => new HttpErrorResponse({ status: 401, error: { message: 'Sign in.', code: 'sign_in_required' } })), 'nobody');
+
+    expect(host.querySelector('app-visitor-hero')).not.toBeNull();
+    expect(text('.panel mat-icon')).not.toContain('error');
+    expect(host.textContent).toContain(en['home.title']);
   });
 
   it('draws no link and no coloured word where a language’s sentence leaves the placeholder out', async () => {
@@ -426,13 +445,13 @@ describe('CharacterPage: the site’s words are keys, the game’s words stay', 
   });
 
   it('words a failed request from its code, never with the server’s sentence, and follows the language', async () => {
-    await open('sk', throwError(() => new HttpErrorResponse({ status: 403, error: { message: 'Your account has no access to the build analyzer. Ask the owner to add you.', code: 'no_access' } })));
+    await open('sk', throwError(() => new HttpErrorResponse({ status: 403, error: { message: 'Only an editor or an admin can do this.', code: 'editor_only' } })));
 
-    expect(text('.panel')).toEqual(['error Tvoj účet nemá prístup do aplikácie Build Analyzer. Požiadaj vlastníka o prístup.']);
+    expect(text('.panel')).toEqual(['error Toto môže urobiť len editor alebo správca.']);
 
     await TestBed.inject(TranslationService).setLanguage('en');
     await fixture.whenStable();
-    expect(text('.panel')).toEqual(['error Your account has no access to the build analyzer. Ask the owner to add you.']);
+    expect(text('.panel')).toEqual(['error Only an editor or an admin can do this.']);
   });
 
   it('words again when the language changes: state holds kinds and keys, not sentences', async () => {

@@ -1,0 +1,23 @@
+<section class="panel visitor-hero">
+  <mat-icon class="hero-icon" aria-hidden="true">travel_explore</mat-icon>
+  <h2>{{ 'home.title' | translate }}</h2>
+  <p class="muted">{{ 'home.text' | translate }}</p>
+  <div class="actions">
+    <a mat-flat-button routerLink="/import"
+      ><mat-icon>upload</mat-icon>{{ 'home.import' | translate }}</a
+    >
+    @for (game of games; track game) {
+      <a mat-stroked-button [routerLink]="['/builds', game]">{{
+        'home.browse' | translate: { game: gameLabels[game] }
+      }}</a>
+    }
+  </div>
+  @if (auth.available()) {
+    <div class="sign-in">
+      <p class="muted small">{{ 'home.signInText' | translate }}</p>
+      <button mat-button (click)="signIn()">
+        <mat-icon>login</mat-icon>{{ 'common.signIn' | translate }}
+      </button>
+    </div>
+  }
+</section>

@@ -9,7 +9,9 @@
  * made from the migrations and dropped at the end - no other database is touched. The server's address and
  * credentials come from config/database.local.php (setup.php writes it); only the database name is the
  * test's own. Nothing reaches the network: every outgoing request goes to a FakeHttpClient, which fails the
- * test on any request it was not told to answer.
+ * test on any request it was not told to answer, and whether the IAM requires sign-in is a fixed answer
+ * (T::$signIn, false unless a test sets it) - realSignInPolicy() puts the SDK's reader back for a test that
+ * means to try it.
  */
 
 declare(strict_types=1);
@@ -22,13 +24,14 @@ foreach (glob(__DIR__.'/support/*.php') ?: [] as $support) {
 }
 
 use App\App;
-use App\Auth\Role;
+use App\Auth\SignInPolicy;
 use App\Config;
 use App\Db\Db;
 use App\Db\Migrator;
 use App\Http\HttpClient;
 use App\Support\Clock;
 use Tests\Support\FakeHttpClient;
+use Tests\Support\FixedSignInPolicy;
 
 const TEST_ISSUER = 'https://iam.example.test';
 const TEST_CLIENT = 'build-analyzer';
@@ -38,6 +41,9 @@ final class T
     public static App $app;
 
     public static FakeHttpClient $http;
+
+    /** Whether the IAM requires sign-in here, as the tests set it (false at the start of each test). */
+    public static FixedSignInPolicy $signIn;
 
     public static Slim\App $api;
 
@@ -89,7 +95,7 @@ function bootTests(): void
 
     Migrator::ensureDatabase($server, T::$database);
     $pdo = Db::pdo($server, T::$database, false);
-    $result = (new Migrator($pdo, Migrator::directory()))->applyPending(['local_user_id' => 1]);
+    $result = (new Migrator($pdo, Migrator::directory()))->applyPending();
     if ($result['failed'] !== null) {
         fwrite(STDERR, "migration {$result['failed']} failed: {$result['error']}\n");
         exit(1);
@@ -104,14 +110,20 @@ function bootTests(): void
     T::$app->set(Db::class, new Db($pdo));
     T::$http = new FakeHttpClient;
     T::$app->set(HttpClient::class, T::$http);
+    T::$signIn = new FixedSignInPolicy;
+    T::$app->set(SignInPolicy::class, T::$signIn);
     T::$api = buildAnalyzerApi(T::$app);
 
-    // Every test starts from empty tables, this configuration, no faked answers and nothing cached.
+    // Every test starts from empty tables, this configuration, no faked answers, nothing cached, and a site
+    // the IAM does not require sign-in for.
     $snapshot = $config->snapshot();
     beforeEach(function () use ($snapshot): void {
         resetDatabase();
         T::$app->config->restore($snapshot);
         T::$http->reset();
+        T::$signIn->required = false;
+        T::$signIn->asked = 0;
+        T::$app->set(SignInPolicy::class, T::$signIn);
         T::$app->resetScope();
         Tests\Support\FakeBuildSource::reset();
         removeTree(T::$storage.DIRECTORY_SEPARATOR.'http-cache');
@@ -127,7 +139,7 @@ function testConfig(array $values = []): Config
 {
     return Config::fromArray($values + [
         'database' => [],
-        'auth' => ['mode' => 'iam', 'issuer' => TEST_ISSUER, 'client_id' => TEST_CLIENT, 'local_user_id' => 1, 'jwks_file' => T::$jwks],
+        'auth' => ['issuer' => TEST_ISSUER, 'client_id' => TEST_CLIENT, 'jwks_file' => T::$jwks],
         'fetch' => ['user_agent' => 'build-analyzer-tests', 'delay_ms' => 0],
     ], (string) realpath(__DIR__.'/..'), T::$storage);
 }
@@ -253,6 +265,17 @@ function removeTree(string $path): void
     @rmdir($path);
 }
 
+/**
+ * From here on in this test, the app's own App\Auth\IamSignInPolicy - the IAM SDK's reader, its answer kept
+ * in the test's storage/cache/iam - instead of the fixed answer; and a new request's worth of it each call
+ * (the SDK remembers its answer for the rest of a request, and the tests hand one process many).
+ */
+function realSignInPolicy(): void
+{
+    T::$app->forget(SignInPolicy::class);
+    anotoki_iam_login_required_reset();
+}
+
 // ── Tokens ───────────────────────────────────────────────────────────────────────────────────────
 
 /**
@@ -262,7 +285,7 @@ function removeTree(string $path): void
  * @param  array<string, mixed>  $claims
  * @param  array{kid: string, private_pem: string}|null  $key
  */
-function iamToken(int $userId, array $roles = [Role::MEMBER], array $claims = [], string $typ = 'at+jwt', ?array $key = null): string
+function iamToken(int $userId, array $roles = [], array $claims = [], string $typ = 'at+jwt', ?array $key = null): string
 {
     $key ??= T::$key;
     $config = ['issuer' => TEST_ISSUER, 'client_id' => TEST_CLIENT];

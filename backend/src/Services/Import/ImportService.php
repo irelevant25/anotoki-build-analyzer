@@ -12,6 +12,7 @@ use App\Services\Import\Enka\EnkaGenshinParser;
 use App\Services\Import\Enka\EnkaHsrParser;
 use App\Services\Import\Files\GoodParser;
 use App\Services\Import\Files\HsrScannerParser;
+use App\Web\HttpError;
 use Throwable;
 
 /**
@@ -46,6 +47,9 @@ class ImportService
             $parsed->uid ??= $uid;
 
             return $this->importer->import($parsed, $owner, $target);
+        } catch (HttpError $e) {
+            // A refusal of the request (its owner gone meanwhile, a visitor's limit), not a failed import: nothing to record.
+            throw $e;
         } catch (Throwable $e) {
             $this->importer->recordFailure($game, 'enka', $e, $owner,
                 $target ?? $this->accounts->findOwnedByUid($owner->id, $game, $uid));
@@ -83,6 +87,9 @@ class ImportService
             }
 
             return $this->importer->import($parsed, $owner, $target, $fileName);
+        } catch (HttpError $e) {
+            // A refusal of the request (its owner gone meanwhile, a visitor's limit), not a failed import: nothing to record.
+            throw $e;
         } catch (Throwable $e) {
             $this->importer->recordFailure($game, $source, $e, $owner, $target, $fileName);
 

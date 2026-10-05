@@ -2,17 +2,21 @@ import { Injectable, effect, inject, signal } from '@angular/core';
 import { Title } from '@angular/platform-browser';
 import { RouterStateSnapshot, TitleStrategy } from '@angular/router';
 import { isTranslationKey } from './en';
-import { TranslationService } from './translation';
+import { TranslationService, isEnglishPath } from './translation';
 
 /** The app's name: a brand, the same in every language. */
 export const BRAND = 'Build Analyzer';
 
+/** What the admin panel's titles say between the page and the brand (English, as the panel). */
+export const ADMIN_PANEL = 'Admin panel';
+
 /**
  * The browser tab's title: "Builds · Build Analyzer" - a page's own title first, where a tab shows the
- * start of it; the brand alone for a route without one (the dashboard).
+ * start of it; the brand alone for a route without one (the dashboard). A page of the admin panel says so
+ * between the two: "Translations · Admin panel · Build Analyzer".
  *
  * A route's `title` is a translation key on the pages members read, and plain English on the English
- * pages (Sources, Translations, Languages); either works here. The title follows the language: switching
+ * pages (the admin panel's); either works here. The title follows the language: switching
  * it renames the tab without a navigation. With no bundle in memory the key is worded from the compiled
  * English, like everything else.
  *
@@ -27,12 +31,19 @@ export class AppTitleStrategy extends TitleStrategy {
 
   /** The current route's title as the route wrote it: a key, or English. Undefined: the route has none. */
   private readonly _page = signal<string | undefined>(undefined);
+  /** Whether the page is the admin panel's (/admin/...: the English pages). */
+  private readonly _admin = signal(false);
 
   constructor() {
     super();
     effect(() => {
       const page = this._page();
-      this._title.setTitle(page === undefined ? BRAND : `${isTranslationKey(page) ? this._i18n.t(page) : page} · ${BRAND}`);
+      const brand = this._admin() ? `${ADMIN_PANEL} · ${BRAND}` : BRAND;
+      this._title.setTitle(
+        page === undefined
+          ? brand
+          : `${isTranslationKey(page) ? this._i18n.t(page) : page} · ${brand}`,
+      );
     });
   }
 
@@ -42,6 +53,7 @@ export class AppTitleStrategy extends TitleStrategy {
    */
   override updateTitle(snapshot: RouterStateSnapshot): void {
     this._i18n.noteAddress(snapshot.url);
+    this._admin.set(isEnglishPath(snapshot.url));
     this._page.set(this.buildTitle(snapshot));
   }
 }

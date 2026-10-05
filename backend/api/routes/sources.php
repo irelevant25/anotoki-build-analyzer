@@ -20,28 +20,31 @@ use Psr\Http\Message\ServerRequestInterface as Request;
 use Slim\Routing\RouteCollectorProxy;
 
 /**
- * The build sources and their sync history. Listing is for every member (the dashboard shows how fresh the
- * builds are); switching sources, the history and moving a source's builds through a file are for admins.
- * A source is "Source N" with a key like "genshin-2" - the API never names the site.
+ * The build sources and their sync history. Listing is public (the dashboard shows how fresh the builds
+ * are); the history and moving a source's builds through a file are for editors (EDITOR or ADMIN), and
+ * switching a source on or off is for admins. A source is "Source N" with a key like "genshin-2" - the API
+ * never names the site.
  *
- *   GET   /api/sources                          members
+ *   GET   /api/sources                          public; who started the latest run only for editors
  *   PATCH /api/sources/{key}  {enabled}         admins
- *   GET   /api/sources/{key}/export             admins: the source's builds as a file to save,
+ *   GET   /api/sources/{key}/export             editors: the source's builds as a file to save,
  *                                               "builds-genshin-2-2026-09-29.json" (format: BuildFile)
- *   POST  /api/sources/{key}/import  <file>     admins: the file's JSON as the body; the source's builds
+ *   POST  /api/sources/{key}/import  <file>     editors: the file's JSON as the body; the source's builds
  *                                               become the file's. Answers the counts, the characters the
  *                                               catalog lacks and the source as GET /api/sources lists it;
  *                                               422 when the file does not fit this source (nothing is
  *                                               written), 409 while the source syncs or a step runs
- *   GET   /api/sync-runs?source=&kind=&limit=   admins: history, newest first
- *   GET   /api/sync-runs/{id}                   admins: one run with its log
+ *   GET   /api/sync-runs?source=&kind=&limit=   editors: history, newest first
+ *   GET   /api/sync-runs/{id}                   editors: one run with its log
+ *
+ * Each group carries its role check, so a route added to one cannot go without it.
  */
 return function (Slim\App $slim, App $app): void {
     /**
      * A source as the Sources page lists it: its state, its counts ($counts from BuildSources::counts()),
-     * whether a sync of it is going, and its latest run - with who started it when $admin.
+     * whether a sync of it is going, and its latest run - with who started it when $staff.
      */
-    $summary = function (BuildSource $source, array $counts, bool $admin) use ($app): array {
+    $summary = function (BuildSource $source, array $counts, bool $staff) use ($app): array {
         $model = $app->get(BuildSourceRegistry::class)->model($source);
         $latest = $app->get(SyncRuns::class)->latestFor($model->id);
         $presenter = $app->get(SyncRunPresenter::class);
@@ -50,7 +53,7 @@ return function (Slim\App $slim, App $app): void {
             'builds' => $counts[$model->id]['builds'] ?? 0,
             'characters' => $counts[$model->id]['characters'] ?? 0,
             'running' => (bool) $latest?->isActive(),
-            'latest_run' => $latest ? $presenter->summary($latest, withStarter: $admin) : null,
+            'latest_run' => $latest ? $presenter->summary($latest, withStarter: $staff) : null,
         ];
     };
 
@@ -58,17 +61,17 @@ return function (Slim\App $slim, App $app): void {
         $registry = $app->get(BuildSourceRegistry::class);
         $registry->ensureModels();
         $counts = $app->get(BuildSources::class)->counts();
-        // Who started a run (an admin's IAM id and name) is for admins only.
-        $admin = currentUser($request)->isAdmin();
+        // Who started a run (an editor's IAM id and name) is for editors and admins only.
+        $staff = currentUserOrNull($request)?->isStaff() ?? false;
 
-        $sources = array_map(fn (BuildSource $source) => $summary($source, $counts, $admin), array_values($registry->all()));
+        $sources = array_map(fn (BuildSource $source) => $summary($source, $counts, $staff), array_values($registry->all()));
         // By game, then in the order of their numbers.
         usort($sources, fn ($a, $b) => [$a['game'], $a['key']] <=> [$b['game'], $b['key']]);
 
         return Json::send($response, $sources);
-    })->add(requireRole($app, Role::MEMBER));
+    })->add(optionalSignIn($app));
 
-    $slim->group('', function (RouteCollectorProxy $group) use ($app, $summary) {
+    $slim->group('', function (RouteCollectorProxy $group) use ($app) {
         $group->patch('/api/sources/{key}', function (Request $request, Response $response, array $args) use ($app): Response {
             $registry = $app->get(BuildSourceRegistry::class);
             $source = $registry->find((string) $args['key']) ?? throw HttpError::notFound();
@@ -81,7 +84,9 @@ return function (Slim\App $slim, App $app): void {
 
             return Json::send($response, $app->get(SyncRunPresenter::class)->source($model));
         });
+    })->add(requireRole($app, Role::ADMIN));
 
+    $slim->group('', function (RouteCollectorProxy $group) use ($app, $summary) {
         $group->get('/api/sources/{key}/export', function (Request $request, Response $response, array $args) use ($app): Response {
             $source = $app->get(BuildSourceRegistry::class)->find((string) $args['key']) ?? throw HttpError::notFound();
             $file = $app->get(BuildTransfer::class)->export($source);
@@ -140,5 +145,5 @@ return function (Slim\App $slim, App $app): void {
 
             return Json::send($response, $app->get(SyncRunPresenter::class)->withLog($run));
         });
-    })->add(requireRole($app, Role::ADMIN));
+    })->add(requireRole($app, ...Role::STAFF));
 };

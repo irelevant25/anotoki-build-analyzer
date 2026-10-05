@@ -1,6 +1,6 @@
 import { signal } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
-import { AuthMode, AuthService } from '../../core/auth';
+import { AuthService } from '../../core/auth';
 import { en } from '../../core/i18n/en';
 import { provideTestTranslations } from '../../core/i18n/testing';
 import { NotSetUpPage } from './not-set-up-page';
@@ -29,7 +29,7 @@ describe('the page shown while the server is not set up', () => {
     TestBed.configureTestingModule({
       providers: [
         language === 'sk' ? provideTestTranslations(SLOVAK, { language: 'sk', english: en }) : [],
-        { provide: AuthService, useValue: { mode: signal<AuthMode>('unavailable'), user: signal(null) } },
+        { provide: AuthService, useValue: { available: signal(false), user: signal(null) } },
       ],
     });
     const fixture = TestBed.createComponent(NotSetUpPage);

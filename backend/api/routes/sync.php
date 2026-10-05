@@ -16,7 +16,7 @@ use Psr\Http\Message\ServerRequestInterface as Request;
 use Slim\Routing\RouteCollectorProxy;
 
 /**
- * Build and catalog syncs, run in steps by the admin's browser (admins only).
+ * Build and catalog syncs, run in steps by an editor's browser (EDITOR or ADMIN).
  *
  * The Sources page starts a sync, then calls POST /api/sync/step again and again - waiting wait_ms in
  * between - until nothing is active. Each step is a short request (fetch.local.php step_seconds), so no
@@ -94,5 +94,5 @@ return function (Slim\App $slim, App $app): void {
 
             return Json::send($response, $app->get(SyncRunPresenter::class)->summary($app->get(SyncRuns::class)->find((int) $run->id) ?? $run));
         });
-    })->add(requireRole($app, Role::ADMIN));
+    })->add(requireRole($app, ...Role::STAFF));
 };

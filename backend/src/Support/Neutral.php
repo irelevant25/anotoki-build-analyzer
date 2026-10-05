@@ -74,7 +74,7 @@ final class Neutral
     }
 
     /**
-     * The names of other sites, services and tools found in a text, lowercased (scripts/build-dist.php runs
+     * The names of other sites, services and tools found in a text, lowercased (tools/build.php runs
      * it over the built frontend, whose framework code carries web addresses of its own).
      *
      * @return list<string>

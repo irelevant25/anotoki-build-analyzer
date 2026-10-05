@@ -7,6 +7,7 @@ import { MatInputModule } from '@angular/material/input';
 import { MatProgressBarModule } from '@angular/material/progress-bar';
 import { Router, RouterLink } from '@angular/router';
 import { Api } from '../../core/api';
+import { AuthService } from '../../core/auth';
 import { GAME_LABELS, titleCase } from '../../core/format';
 import { ErrorTextPipe } from '../../core/i18n/error-text';
 import { TranslatePipe } from '../../core/i18n/translate';
@@ -37,6 +38,7 @@ export class BuildsPage {
   private readonly api = inject(Api);
   private readonly router = inject(Router);
   private readonly i18n = inject(TranslationService);
+  protected readonly auth = inject(AuthService);
 
   readonly game = input.required<string>();
 

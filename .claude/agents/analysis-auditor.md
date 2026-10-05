@@ -15,7 +15,7 @@ outside the repository.
 - Read `docs/analysis.md` (every formula and constant) and `docs/stats-and-slots.md` (stat keys, roll values).
 - Tool shells reset their working directory: start commands with `cd <repo root> &&`.
 - Query through a scratch PHP file outside the repo, run from the repo root with `php <file>` (PHP 8.4+; where
-  `php` is older, `scripts/php.sh <file>`). It uses the configured installation (`backend/config/*.local.php`):
+  `php` is older, `backend/tools/php.sh <file>`). It uses the configured installation (`backend/config/*.local.php`):
 
   ```php
   <?php

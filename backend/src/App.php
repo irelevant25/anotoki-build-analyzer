@@ -2,7 +2,10 @@
 
 namespace App;
 
+use App\Auth\IamSignInPolicy;
+use App\Auth\SignInPolicy;
 use App\Db\Db;
+use App\Db\Migrator;
 use App\Http\CurlHttpClient;
 use App\Http\Fetcher;
 use App\Http\HttpClient;
@@ -110,9 +113,13 @@ final class App
         return match ($id) {
             Config::class => $this->config,
             Db::class => Db::connect((array) $this->config->get('database')),
+            // The app's migrations folder (a test puts in one of its own, with a file that fails).
+            Migrator::class => new Migrator($this->get(Db::class)->raw(), Migrator::directory()),
             HttpClient::class => new CurlHttpClient,
             Fetcher::class => new Fetcher($this->get(HttpClient::class), $this->get(Cache\Cache::class), $this->config, $this->web),
             IamTokenVerifier::class => IamTokenVerifier::fromConfig($this->config),
+            // Whether the IAM requires sign-in here (the tests put a fixed answer in its place).
+            SignInPolicy::class => IamSignInPolicy::fromConfig($this->config),
             BuildSourceRegistry::class => new BuildSourceRegistry((array) $this->config->get('sources', []), $this, $this->get(BuildSources::class)),
             default => $this->make($id),
         };

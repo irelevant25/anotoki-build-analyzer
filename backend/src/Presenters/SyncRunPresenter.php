@@ -18,7 +18,7 @@ final class SyncRunPresenter
     public function __construct(private readonly BuildSourceRegistry $registry) {}
 
     /**
-     * @param  bool  $withStarter  include who started the run (their IAM id and name): admins only
+     * @param  bool  $withStarter  include who started the run (their IAM id and name): editors and admins only
      */
     public function summary(SyncRun $run, bool $withStarter = true): array
     {

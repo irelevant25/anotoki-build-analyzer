@@ -26,6 +26,12 @@ const NAMESPACES = [
   'time',
   'stepper',
   'confirm',
+  'topbar',
+  'home',
+  'visitor',
+  'data',
+  'brand',
+  'footer',
 ];
 
 /** A key: namespace.thing[.detail] - the same shape the backend's key scan reads. */
@@ -88,7 +94,7 @@ describe('the compiled English (en.ts and its parts)', () => {
   it('has every key the run-time families declare, and no key under their prefixes that is not declared', () => {
     const strings = en as Record<string, string>;
     const prefixes = Object.keys(DYNAMIC_KEYS);
-    expect(prefixes).toEqual(['recommendation.', 'import.error.', 'import.warning.', 'import.status.', 'error.']);
+    expect(prefixes).toEqual(['recommendation.', 'import.error.', 'import.warning.', 'import.status.', 'error.', 'data.error.', 'data.outcome.']);
     for (const prefix of prefixes) {
       const declared = DYNAMIC_KEYS[prefix].map((tail) => prefix + tail);
       expect(new Set(declared).size, prefix).toBe(declared.length);

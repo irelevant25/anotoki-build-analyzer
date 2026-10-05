@@ -1,0 +1,41 @@
+<button
+  #button
+  type="button"
+  class="switcher"
+  id="language-button"
+  aria-haspopup="menu"
+  [attr.aria-expanded]="open()"
+  aria-controls="language-menu"
+  [attr.aria-label]="'language.button' | translate: { name: currentName(), code: currentCode() }"
+  [attr.aria-busy]="switching() ? 'true' : null"
+  (click)="toggle()"
+>
+  {{ currentCode() }}
+</button>
+
+@if (open()) {
+  <div
+    #menu
+    class="menu"
+    role="menu"
+    id="language-menu"
+    aria-labelledby="language-button"
+    (keydown)="onMenuKeydown($event)"
+  >
+    @for (language of i18n.languages(); track language.code) {
+      <button
+        type="button"
+        role="menuitemradio"
+        class="menu-item"
+        [attr.aria-checked]="language.code === i18n.language()"
+        [attr.lang]="language.code"
+        (click)="choose(language.code)"
+      >
+        <span class="menu-label">{{ language.native_name }}</span>
+        @if (language.code === i18n.language()) {
+          <mat-icon aria-hidden="true">check</mat-icon>
+        }
+      </button>
+    }
+  </div>
+}

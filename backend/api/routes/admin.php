@@ -3,7 +3,6 @@
 use App\App;
 use App\Auth\Role;
 use App\Cache\Locks;
-use App\Db\Db;
 use App\Db\Migrator;
 use App\Support\Log;
 use App\Web\HttpError;
@@ -13,14 +12,26 @@ use Psr\Http\Message\ServerRequestInterface as Request;
 use Slim\Routing\RouteCollectorProxy;
 
 /**
- * Schema changes on a host without a shell (admins only): upload the new files in migrations/ by FTP, then
- * apply them here. The same engine as `php migration.php` and setup.php.
+ * Schema changes on a host without a shell (admins only; the admin panel's Migrations page): upload the new
+ * files in migrations/ by FTP, then apply them here. The same engine as `php migration.php` and setup.php,
+ * and the IAM's shape of the two answers.
  *
- *   GET  /api/admin/migrations         {pending, applied_count, last_applied}
- *   POST /api/admin/migrations/apply   {ok, applied, output} + the status after
+ *   GET  /api/admin/migrations         {applied: [{name, applied_at}], pending: [{name}]}
+ *   POST /api/admin/migrations/apply   {applied: [name], failed: name|null, error: string|null}
+ *                                      - 200 whether or not a file failed (the page says where it stopped:
+ *                                      the failed file rolled back whole, the ones before it applied);
+ *                                      409 migrations_busy while another apply runs
+ *
+ * The `migrate` lock answers that early, and it expires after 300 s. What keeps a file from running twice
+ * when an apply outlives it (or `php migration.php` runs meanwhile, which takes no such lock) is the
+ * Migrator's own advisory lock, taken in each file's transaction: a second run waits, then passes over
+ * what the first one applied.
+ *
+ * Nothing here asks whether the database is behind: these routes, signing in and the admin panel's frame
+ * work with a migration pending, so an admin can always reach the page that applies it.
  */
 return function (Slim\App $slim, App $app): void {
-    $migrator = fn () => new Migrator($app->get(Db::class)->raw(), Migrator::directory());
+    $migrator = fn (): Migrator => $app->get(Migrator::class);
 
     $slim->group('/api/admin/migrations', function (RouteCollectorProxy $group) use ($app, $migrator) {
         $group->get('', function (Request $request, Response $response) use ($migrator): Response {
@@ -33,31 +44,29 @@ return function (Slim\App $slim, App $app): void {
 
             $lock = $app->get(Locks::class)->lock('migrate', 300);
             if (! $lock->get()) {
-                throw new HttpError(409, 'The migrations are being applied already.');
+                throw new HttpError(409, 'The migrations are being applied already.', ['code' => 'migrations_busy']);
             }
 
             try {
                 // A failing migration is reported, not thrown: on a host without a shell the admin has only
                 // this answer to go on (the log is FTP-only).
-                $result = $migrator()->applyPending(['local_user_id' => (int) $app->config->get('auth.local_user_id', 1)]);
+                $result = $migrator()->applyPending();
             } finally {
                 $lock->release();
             }
 
-            $output = [];
-            foreach ($result['applied'] as $file) {
-                $output[] = "Applied {$file}.";
-            }
             if ($result['failed'] !== null) {
-                $output[] = "{$result['failed']} failed: {$result['error']}";
                 Log::error("Migration {$result['failed']} failed: {$result['error']}");
+            }
+            foreach ($result['applied'] as $file) {
+                Log::info("Migration {$file} applied.");
             }
 
             return Json::send($response, [
-                'ok' => $result['failed'] === null,
                 'applied' => $result['applied'],
-                'output' => $output === [] ? 'Nothing to apply.' : implode("\n", $output),
-            ] + $migrator()->status());
+                'failed' => $result['failed'],
+                'error' => $result['error'],
+            ]);
         });
     })->add(requireRole($app, Role::ADMIN));
 };

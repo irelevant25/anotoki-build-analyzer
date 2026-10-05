@@ -8,9 +8,10 @@ use Psr\Http\Message\ServerRequestInterface;
 use Psr\Http\Server\RequestHandlerInterface;
 
 /**
- * Until config/database.local.php, auth.local.php and fetch.local.php exist (setup.php writes them), every
- * API request is answered 503 {"code": "not_set_up"}, and the frontend shows a "not set up yet" page with
- * the way to /setup.php. Which file is missing is said in the log only.
+ * Until config/database.local.php and auth.local.php exist and name a database and an IAM (setup.php writes
+ * them; fetch.local.php is optional), every API request is answered 503 {"code": "not_set_up"}, and the
+ * frontend shows a "not set up yet" page with the way to /setup.php. Which file is missing is said in the
+ * log only.
  */
 function setupGate(App $app): Closure
 {

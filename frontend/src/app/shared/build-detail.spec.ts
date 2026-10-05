@@ -64,7 +64,7 @@ function gameMeta(key: GameKey): GameMeta {
   };
 }
 
-const META: Meta = { games: [gameMeta('genshin'), gameMeta('hsr')], version: '1.0.0', auth: { mode: 'none', issuer: null, client_id: null } };
+const META: Meta = { games: [gameMeta('genshin'), gameMeta('hsr')], version: '1.0.0', auth: { issuer: null, client_id: null } };
 
 const hoursAgo = (hours: number) => new Date(Date.now() - hours * 3600 * 1000 - 5000).toISOString();
 

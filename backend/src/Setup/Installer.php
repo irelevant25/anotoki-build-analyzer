@@ -2,7 +2,6 @@
 
 namespace App\Setup;
 
-use App\Auth\IamGuard;
 use App\Config;
 use App\Db\Db;
 use App\Db\Migrator;
@@ -16,13 +15,14 @@ use Throwable;
  * What setup.php does, apart from drawing the page: which values it accepts, the config files it writes,
  * the connection tests, the requirements, the database build. Kept here so it can be tested.
  *
+ * It asks for the database and the anotoki IAM - and, on a host, the setup token - and nothing else.
  * Two situations, told apart by where the request comes from (local()):
  *
  *   this computer   a loopback client asking for a localhost address. No token (a CSRF nonce instead), it can
- *                   be run again and again (the saved values are shown, the password never is), sign-in may
- *                   be switched off ("none") for the owner's own copy, and it never deletes itself.
+ *                   be run again and again (the saved values are shown, the password never is), and it never
+ *                   deletes itself.
  *   a real host     proves the visitor owns the server with a token only FTP can read, refuses to run once
- *                   storage/installed.lock exists, and deletes itself when done. Sign-in is always "iam".
+ *                   storage/installed.lock exists, shows no saved value, and deletes itself when done.
  */
 final class Installer
 {
@@ -50,8 +50,49 @@ final class Installer
      */
     public static function local(array $server): bool
     {
-        return IamGuard::isLoopback((string) ($server['REMOTE_ADDR'] ?? ''))
-            && IamGuard::isLocalHost(IamGuard::hostOf((string) ($server['HTTP_HOST'] ?? '')));
+        return self::isLoopback((string) ($server['REMOTE_ADDR'] ?? ''))
+            && self::isLocalHost(self::hostOf((string) ($server['HTTP_HOST'] ?? '')));
+    }
+
+    /**
+     * 127.0.0.0/8, ::1, or an IPv4-mapped 127.x address.
+     */
+    public static function isLoopback(?string $ip): bool
+    {
+        $ip = strtolower(trim((string) $ip, '[]'));
+        if (str_starts_with($ip, '::ffff:')) {
+            $ip = substr($ip, 7);
+        }
+        if (filter_var($ip, FILTER_VALIDATE_IP, FILTER_FLAG_IPV4) !== false) {
+            return str_starts_with($ip, '127.');
+        }
+
+        return filter_var($ip, FILTER_VALIDATE_IP, FILTER_FLAG_IPV6) !== false && inet_pton($ip) === inet_pton('::1');
+    }
+
+    /**
+     * A host name or address that can only mean this computer.
+     */
+    public static function isLocalHost(?string $host): bool
+    {
+        $host = strtolower(trim((string) $host, '[]'));
+
+        return $host === 'localhost' || str_ends_with($host, '.localhost') || self::isLoopback($host);
+    }
+
+    /**
+     * The host a request was sent to, without the port ("localhost:4600" is "localhost", "[::1]:8400" "::1").
+     */
+    public static function hostOf(string $hostHeader): string
+    {
+        $host = strtolower(trim($hostHeader));
+        if (str_starts_with($host, '[')) {
+            $end = strpos($host, ']');
+
+            return $end === false ? $host : substr($host, 1, $end - 1);
+        }
+
+        return substr_count($host, ':') === 1 ? explode(':', $host)[0] : $host;
     }
 
     public function lockFile(): string
@@ -67,8 +108,9 @@ final class Installer
     // ── the values ────────────────────────────────────────────────────────────────────────────────
 
     /**
-     * What the form starts with: the saved configuration where there is one (never its password), else
-     * development values on this computer and the host's own on a real host.
+     * What the form starts with: development values on this computer - over them the saved configuration
+     * where there is one (never its password) - and the host's own on a real host, which never shows what a
+     * file there holds.
      *
      * @return array<string, string>
      */
@@ -78,23 +120,17 @@ final class Installer
         $values = [
             'db_host' => '127.0.0.1',
             'db_port' => '5432',
-            'db_database' => 'build_analyzer',
+            'db_database' => 'anotoki_builder',
             'db_username' => $local ? 'postgres' : '',
-            'mode' => $local ? 'none' : 'iam',
             // On a host the IAM is expected beside the site: builds.example.com -> iam.example.com.
             'issuer' => $local ? 'http://localhost:4300' : 'https://iam.'.preg_replace('/^[^.]+\./', '', $host),
             'client_id' => 'build-analyzer',
-            'local_user_id' => '1',
-            'user_agent' => 'build-analyzer/1.0 ('.($local ? 'personal build analyzer' : $siteUrl).')',
-            'delay_ms' => '1200',
-            'cache_hours' => '12',
-            'step_seconds' => '20',
-            'stale_hours' => '20',
         ];
 
-        $saved = $this->saved();
-        foreach ($saved as $key => $value) {
-            $values[$key] = (string) $value;
+        if ($local) {
+            foreach ($this->saved() as $key => $value) {
+                $values[$key] = (string) $value;
+            }
         }
 
         return $values;
@@ -107,33 +143,17 @@ final class Installer
      */
     public function saved(): array
     {
-        $read = function (string $file): array {
-            $path = $this->root.'/config/'.$file;
-            if (! is_file($path)) {
-                return [];
-            }
-            $data = (static fn (string $path) => require $path)($path);
-
-            return is_array($data) ? $data : [];
-        };
-
         $values = [];
-        $database = $read('database.local.php');
+        $database = $this->readConfig('database.local.php');
         foreach (['host' => 'db_host', 'port' => 'db_port', 'database' => 'db_database', 'username' => 'db_username'] as $key => $field) {
             if (isset($database[$key]) && is_scalar($database[$key])) {
                 $values[$field] = $database[$key];
             }
         }
-        $auth = $read('auth.local.php');
-        foreach (['mode', 'issuer', 'client_id', 'local_user_id'] as $key) {
+        $auth = $this->readConfig('auth.local.php');
+        foreach (['issuer', 'client_id'] as $key) {
             if (isset($auth[$key]) && is_scalar($auth[$key])) {
                 $values[$key] = $auth[$key];
-            }
-        }
-        $fetch = $read('fetch.local.php');
-        foreach (['user_agent', 'delay_ms', 'cache_hours', 'step_seconds', 'stale_hours'] as $key) {
-            if (isset($fetch[$key]) && is_scalar($fetch[$key])) {
-                $values[$key] = $fetch[$key];
             }
         }
 
@@ -143,23 +163,20 @@ final class Installer
     /** The saved database password, for a re-run on this computer that leaves the field empty. */
     public function savedPassword(): ?string
     {
-        $path = $this->root.'/config/database.local.php';
-        if (! is_file($path)) {
-            return null;
-        }
-        $data = (static fn (string $path) => require $path)($path);
+        $data = $this->readConfig('database.local.php');
 
-        return is_array($data) && is_string($data['password'] ?? null) ? $data['password'] : null;
+        return is_string($data['password'] ?? null) ? $data['password'] : null;
     }
 
     /**
-     * Checks and cleans the form into the three config files' contents. The password is kept apart so it is
-     * never echoed back into the form.
+     * Checks and cleans the form into the two config files' contents. The password is kept apart so it is
+     * never echoed back into the form. Anything else the form sends (an old page's sign-in switch, an owner's
+     * id, fetch settings) is not read.
      *
      * @param  array<string, mixed>  $input
-     * @return array{0: array{database: array<string, mixed>, auth: array<string, mixed>, fetch: array<string, mixed>}, 1: list<string>}
+     * @return array{0: array{database: array<string, mixed>, auth: array{issuer: string, client_id: string}}, 1: list<string>}
      */
-    public function validate(array $input, string $password, bool $local): array
+    public function validate(array $input, string $password): array
     {
         $errors = [];
         $value = fn (string $key) => trim((string) ($input[$key] ?? ''));
@@ -179,73 +196,70 @@ final class Installer
             $errors[] = 'The database values cannot contain line breaks or other control characters.';
         }
 
-        $mode = $local && $value('mode') === 'none' ? 'none' : 'iam';
         $issuer = rtrim($value('issuer'), '/');
         $clientId = $value('client_id');
-        $userId = $value('local_user_id');
-        if ($mode === 'iam') {
-            if (! filter_var($issuer, FILTER_VALIDATE_URL) || ! in_array(parse_url($issuer, PHP_URL_SCHEME), ['http', 'https'], true)) {
-                $errors[] = 'The IAM address must be a URL, like https://iam.anotoki.eu.';
-            }
-            if (! preg_match('/^[a-z0-9-]{2,64}$/', $clientId)) {
-                $errors[] = 'The client id is lowercase letters, digits and dashes (build-analyzer).';
-            }
+        if (! filter_var($issuer, FILTER_VALIDATE_URL) || ! in_array(parse_url($issuer, PHP_URL_SCHEME), ['http', 'https'], true)) {
+            $errors[] = 'The IAM address must be a URL, like https://iam.anotoki.eu.';
         }
-        if (! ctype_digit($userId) || (int) $userId < 1) {
-            $errors[] = 'The owner\'s user id is a positive number (your anotoki IAM user id; 1 on a copy of your own).';
+        if (! preg_match('/^[a-z0-9-]{2,64}$/', $clientId)) {
+            $errors[] = 'The client id is lowercase letters, digits and dashes (build-analyzer).';
         }
 
-        $fetch = ['user_agent' => $value('user_agent')];
-        if ($fetch['user_agent'] === '' || preg_match('/[\x00-\x1f]/', $fetch['user_agent'])) {
-            $errors[] = 'Say how the app identifies itself to other sites (the user agent).';
-        }
-        foreach (['delay_ms' => [0, 600000], 'cache_hours' => [0, 720], 'step_seconds' => [12, 120], 'stale_hours' => [1, 720]] as $key => [$min, $max]) {
-            $number = $value($key);
-            if (! ctype_digit($number) || (int) $number < $min || (int) $number > $max) {
-                $errors[] = "{$key} is a whole number from {$min} to {$max}.";
-            } else {
-                $fetch[$key] = (int) $number;
-            }
-        }
+        return [['database' => $database, 'auth' => ['issuer' => $issuer, 'client_id' => $clientId]], $errors];
+    }
 
-        $auth = ['mode' => $mode, 'local_user_id' => (int) $userId];
-        if ($mode === 'iam') {
-            $auth += ['issuer' => $issuer, 'client_id' => $clientId];
-        } else {
-            // Kept for the day the copy switches sign-in on; unused while the mode is "none".
-            $auth += ['issuer' => $issuer !== '' ? $issuer : 'http://localhost:4300', 'client_id' => $clientId !== '' ? $clientId : 'build-analyzer'];
+    /** @return array<string, mixed> a config file's values, or none */
+    private function readConfig(string $file): array
+    {
+        $path = $this->root.'/config/'.$file;
+        if (! is_file($path)) {
+            return [];
         }
+        $data = (static fn (string $path) => require $path)($path);
 
-        return [['database' => $database, 'auth' => $auth, 'fetch' => $fetch], $errors];
+        return is_array($data) ? $data : [];
     }
 
     // ── the files ─────────────────────────────────────────────────────────────────────────────────
 
     /** A config file: PHP returning the values, so any password reads back exactly as it was entered. */
-    public static function phpFile(array $values, string $what): string
+    public static function phpFile(array $values, string $what, string $change = 'Run setup.php again to change it.'): string
     {
         return "<?php\n\n// Written by setup.php on ".gmdate('Y-m-d H:i')." UTC: {$what}.\n"
-            ."// Per installation and never committed (config/*.local.php is gitignored). Run setup.php again to change it.\n\n"
+            ."// Per installation and never committed (config/*.local.php is gitignored). {$change}\n\n"
             .'return '.var_export($values, true).";\n";
     }
 
+    /** How the app names itself to the sites it reads: the site's address on a host. */
+    public static function userAgent(bool $local, string $siteUrl): string
+    {
+        return 'build-analyzer/1.0 ('.($local ? 'personal build analyzer' : $siteUrl).')';
+    }
+
     /**
-     * Writes the three config files.
+     * Writes the database and sign-in files, and the outgoing requests' file with its defaults when there is
+     * none yet (one that is there - its values perhaps edited by hand - is kept as it is).
      *
-     * @param  array{database: array<string, mixed>, auth: array<string, mixed>, fetch: array<string, mixed>}  $settings
+     * @param  array{database: array<string, mixed>, auth: array<string, mixed>}  $settings
+     * @param  string  $userAgent  for a new fetch.local.php (userAgent())
      * @return list<string> the files written
      */
-    public function writeConfig(array $settings): array
+    public function writeConfig(array $settings, string $userAgent = 'build-analyzer/1.0'): array
     {
         $files = [
-            'database.local.php' => [$settings['database'], 'the database connection'],
-            'auth.local.php' => [$settings['auth'], 'how people sign in'],
-            'fetch.local.php' => [$settings['fetch'], 'outgoing requests and sync steps'],
+            'database.local.php' => [$settings['database'], 'the database connection', null],
+            'auth.local.php' => [$settings['auth'], 'where people sign in: the anotoki IAM', null],
         ];
+        if (! is_file($this->root.'/config/fetch.local.php')) {
+            $fetch = ['user_agent' => $userAgent] + array_intersect_key(Config::FETCH_DEFAULTS, array_flip(['delay_ms', 'cache_hours', 'step_seconds', 'stale_hours']));
+            $files['fetch.local.php'] = [$fetch, 'outgoing requests and sync steps, the defaults',
+                'Edit it by hand (step_seconds 12-120); setup.php keeps it as it is.'];
+        }
 
         $written = [];
-        foreach ($files as $name => [$values, $what]) {
-            if (! $this->writeSecret($this->root.'/config/'.$name, self::phpFile($values, $what))) {
+        foreach ($files as $name => [$values, $what, $change]) {
+            $contents = $change === null ? self::phpFile($values, $what) : self::phpFile($values, $what, $change);
+            if (! $this->writeSecret($this->root.'/config/'.$name, $contents)) {
                 throw new RuntimeException("config/{$name} could not be written. Make the config/ folder writable for the web server and try again.");
             }
             $written[] = 'config/'.$name;
@@ -338,42 +352,62 @@ final class Installer
     // ── tests of a connection ─────────────────────────────────────────────────────────────────────
 
     /**
-     * Connects with these values and says what is there, in a sentence (never the password).
+     * Connects with these values and says what is there, in the words every anotoki setup page answers in
+     * (never the password). Reads only: it makes nothing, not even the migrations' table.
+     *
+     *   Connected to the database "<name>": it is empty - Save makes the tables.
+     *   Connected to the database "<name>": N update(s) to apply - Save applies them.
+     *   Connected to the database "<name>": it is up to date.
+     *   Connected to the server. The database "<name>" does not exist yet - Save creates it.
+     *   Connected to the server, but there is no database "<name>" and this user may not create one. Make it in the hosting panel first.
+     *   The server is there, but "<user>" cannot open the database "<name>": <reason>
+     *   Cannot connect: <reason>
+     *
+     * A database of the first (Laravel) version counts its migrations like any other: Save brings it forward.
      *
      * @param  array<string, mixed>  $database
      * @return array{ok: bool, message: string}
      */
     public function testDatabase(array $database): array
     {
+        $name = (string) $database['database'];
+        $password = (string) ($database['password'] ?? '');
+
         try {
-            $pdo = Db::pdo($database, (string) $database['database'], false, 5);
+            $pdo = Db::pdo($database, $name, false, 5);
+            $tables = (int) $pdo->query("SELECT count(*) FROM information_schema.tables WHERE table_schema = current_schema() AND table_type = 'BASE TABLE'")->fetchColumn();
+            $pending = count((new Migrator($pdo, Migrator::directory()))->pending());
+
+            return ['ok' => true, 'message' => "Connected to the database \"{$name}\": "
+                .($tables === 0 ? 'it is empty - Save makes the tables.' : ($pending > 0 ? "{$pending} update(s) to apply - Save applies them." : 'it is up to date.'))];
         } catch (Throwable $e) {
-            $reason = $this->without($e->getMessage(), (string) ($database['password'] ?? ''));
-            if (str_contains($reason, 'does not exist')) {
-                try {
-                    Db::pdo($database, 'postgres', false, 5);
-
-                    return ['ok' => true, 'message' => "Connected to the server. The database \"{$database['database']}\" does not exist yet; setup will create it (or create it in the hosting panel first, if your user may not)."];
-                } catch (Throwable) {
-                    // fall through to the original reason
-                }
-            }
-
-            return ['ok' => false, 'message' => 'Cannot connect: '.$reason];
+            $first = $e->getMessage();
         }
 
-        $version = (string) $pdo->query('SHOW server_version')->fetchColumn();
-        $migrator = new Migrator($pdo, Migrator::directory());
-        $tables = (int) $pdo->query("SELECT count(*) FROM information_schema.tables WHERE table_schema = current_schema()")->fetchColumn();
+        try {
+            $server = Db::pdo($database, 'postgres', false, 5);
+            $exists = $server->prepare('SELECT 1 FROM pg_database WHERE datname = ?');
+            $exists->execute([$name]);
+            if ($exists->fetchColumn()) {
+                return ['ok' => false, 'message' => "The server is there, but \"{$database['username']}\" cannot open the database \"{$name}\": ".$this->shortError($first, $password)];
+            }
+            $create = (bool) $server->query('SELECT rolcreatedb OR rolsuper FROM pg_roles WHERE rolname = current_user')->fetchColumn();
 
-        $what = match (true) {
-            $migrator->isLaravelDatabase() && $migrator->applied() === [] => 'It was made by the first version of the app (Laravel); setup brings it forward and keeps all its data.',
-            $migrator->applied() !== [] => 'It is a build analyzer database: '.count($migrator->applied()).' migration(s) applied, '.count($migrator->pending()).' waiting.',
-            $tables === 0 => 'It is empty; setup creates the tables.',
-            default => "It already holds {$tables} other table(s); a database of its own is better.",
-        };
+            return $create
+                ? ['ok' => true, 'message' => "Connected to the server. The database \"{$name}\" does not exist yet - Save creates it."]
+                : ['ok' => false, 'message' => "Connected to the server, but there is no database \"{$name}\" and this user may not create one. Make it in the hosting panel first."];
+        } catch (Throwable) {
+            return ['ok' => false, 'message' => 'Cannot connect: '.$this->shortError($first, $password)];
+        }
+    }
 
-        return ['ok' => true, 'message' => "Connected to \"{$database['database']}\" (PostgreSQL {$version}). {$what}"];
+    /** A driver message without its SQLSTATE noise, on one line, short - and without the password. */
+    private function shortError(string $message, string $password): string
+    {
+        $message = (string) preg_replace('/^SQLSTATE\[\w+\]\s*(\[\d+\]\s*)?/', '', trim($this->without($message, $password)));
+        $message = (string) preg_replace('/\s+/', ' ', $message);
+
+        return mb_strlen($message) > 300 ? mb_substr($message, 0, 299).'…' : $message;
     }
 
     /**
@@ -439,12 +473,13 @@ final class Installer
     // ── the database ──────────────────────────────────────────────────────────────────────────────
 
     /**
-     * Creates the database when allowed, applies every migration, and says what it did.
+     * Creates the database when allowed, applies every migration, and says what it did. The accounts of a
+     * database of the first (Laravel) version go to IAM user 1 (001_adopt_laravel_database.sql).
      *
      * @param  array<string, mixed>  $database
      * @return list<string> a line per step
      */
-    public function buildDatabase(array $database, int $localUserId): array
+    public function buildDatabase(array $database): array
     {
         $log = [];
         try {
@@ -464,7 +499,7 @@ final class Installer
 
         $migrator = new Migrator($pdo, Migrator::directory());
         $wasLaravel = $migrator->isLaravelDatabase() && $migrator->applied() === [];
-        $result = $migrator->applyPending(['local_user_id' => $localUserId]);
+        $result = $migrator->applyPending();
         if ($result['failed'] !== null) {
             throw new RuntimeException("Migration {$result['failed']} failed: {$result['error']}");
         }

@@ -13,7 +13,7 @@ use App\Services\Import\ImportService;
 /**
  * import-account.php: import a game account from the command line.
  *
- *   php import-account.php <genshin|hsr> <uid | path to an exported JSON file> [--account=ID] [--user=IAM_ID]
+ *   php import-account.php <genshin|hsr> <uid | path to an exported JSON file> --user=IAM_ID [--account=ID]
  */
 final class ImportAccount
 {
@@ -23,7 +23,7 @@ final class ImportAccount
         [$options, $positional] = Cli::arguments($argv);
 
         if (count($positional) < 2) {
-            Cli::error('Usage: php import-account.php <genshin|hsr> <uid|file> [--account=ID] [--user=IAM_ID]');
+            Cli::error('Usage: php import-account.php <genshin|hsr> <uid|file> --user=IAM_ID [--account=ID]');
 
             return 1;
         }
@@ -35,9 +35,10 @@ final class ImportAccount
         }
         $source = $positional[1];
 
-        $userId = (int) ($options['user'] ?? $app->config->get('auth.local_user_id', 1));
+        $user = $options['user'] ?? null;
+        $userId = is_string($user) && ctype_digit($user) ? (int) $user : 0;
         if ($userId < 1) {
-            Cli::error('--user must be an IAM user id (a positive number).');
+            Cli::error('--user=IAM_ID is required: the anotoki IAM user id (a positive number) whose account this is.');
 
             return 1;
         }

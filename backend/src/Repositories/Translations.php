@@ -21,9 +21,9 @@ final class Translations
     public function __construct(private readonly Db $db) {}
 
     /**
-     * Are the strings there to be read? Between an upload and "Apply" on the Sources page the tables do not
-     * exist; the first query asks for the table in a way that never fails, the second whether English - what
-     * everything falls back to - has a string. A database that cannot be asked is not available either.
+     * Are the strings there to be read? Between an upload and "Apply pending" on the Migrations page the
+     * tables do not exist; the first query asks for the table in a way that never fails, the second whether
+     * English - what everything falls back to - has a string. A database that cannot be asked is not available either.
      */
     public function available(): bool
     {
@@ -225,5 +225,18 @@ final class Translations
     public function remove(string $key, string $code): void
     {
         $this->db->delete('translations', ['key_name' => $key, 'language_code' => $code]);
+    }
+
+    /**
+     * A person's data is deleted: the strings they saved stay, saved by nobody. Nothing to do while the
+     * tables are not there yet. Answers how many strings it changed.
+     */
+    public function forgetWhoSaved(int $userId): int
+    {
+        if (! $this->db->value("SELECT to_regclass('public.translations') IS NOT NULL")) {
+            return 0;
+        }
+
+        return $this->db->run('UPDATE translations SET updated_by = NULL WHERE updated_by = ?', [$userId]);
     }
 }

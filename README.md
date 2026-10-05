@@ -2,8 +2,9 @@
 
 Import your **Genshin Impact** and **Honkai: Star Rail** accounts, collect recommended builds from community
 build sites, and see per character what to change: set bonuses, main stats, substats, weapon / light cone,
-stat targets and better pieces you already own. Hosted at builder.anotoki.eu (sign-in through the anotoki IAM,
-each person with their own accounts), or on your own computer without sign-in.
+stat targets and better pieces you already own. Hosted at builder.anotoki.eu: sign-in through the anotoki IAM,
+open to every anotoki account, each person with their own accounts; the builds browser is public, and without
+signing in what you import is kept for your browser for 30 days after your last visit.
 
 - **Backend:** PHP 8.4+, Slim 4, PostgreSQL, in `backend/`
 - **Frontend:** Angular 21 + Angular Material, in `frontend/`
@@ -17,33 +18,38 @@ Setting it up, running, testing, building and deploying: **[DEV.md](DEV.md)**.
   - from a **full inventory export** written by a tool on your PC: a GOOD file (Genshin) or a relic
     scanner's JSON export (Star Rail).
 - **Build sync** from three community build sites, with every build variant a site lists (e.g. Raiden "DPS &
-  Energy Support" and "Hyperbloom"), started by an admin on the Sources page and run in short steps from the
+  Energy Support" and "Hyperbloom"), started by an editor on the Sources page and run in short steps from the
   browser: no queue worker, scheduler or long-running process. The app shows the sources as "Source 1",
   "Source 2" …; it names no other site anywhere in its UI.
-- **Sign-in through the anotoki IAM** (iam.anotoki.eu): members import accounts and see their analysis, admins
-  also run the syncs. Everyone's game accounts are their own.
+- **Sign-in through the anotoki IAM** (iam.anotoki.eu): anybody with an anotoki account imports accounts and
+  sees their analysis; editors also run the syncs and reword the site's strings; admins do everything.
+  Everyone's game accounts are their own.
 - **Analysis per character and per build**: a 0–100 score and grade, prioritized recommendations, your pieces
   graded against the build, stat targets checked against your in-game totals, where the sources agree, and
   (with a full inventory) the best replacement you already own for each slot.
-- **English and Slovak**: the member pages read in either, chosen in the toolbar's menu (or taken from the
-  browser). The words live in the database, so the owner rewords them and adds or hides languages in the
-  browser (the Translations and Languages pages, in English like the Sources page). The game's own words -
+- **English and Slovak**: the member pages read in either, chosen in the top bar (or taken from the
+  browser). The words live in the database, so editors reword them, and admins add or hide languages, in the
+  browser (the admin panel's Translations and Languages pages, in English like the rest of `/admin/`). The game's own words -
   stat, set, weapon and character names, "Lv.", "4pc", values like "62.4%" - stay as the game writes them.
-- **What's new**: the version in the top bar opens the changelog (`frontend/public/changelog.json`).
+- **The anotoki top bar**: the same bar as on the other anotoki sites - the brand, the sections, the language,
+  the theme and the person's menu (their anotoki account, the admin panel for editors and admins, Sign out); on
+  a phone (up to 880 px) the sections and the menu fold into one menu button.
+- **What's new**: the version at the foot of every page, and its button, open the changelog
+  (`frontend/public/changelog.json`).
 
-## Quick start (Windows)
+## Quick start
 
-Requirements: PHP 8.4+ (`pdo_pgsql`, `openssl`, `mbstring`, `curl`, `dom`), PostgreSQL, Node.js 22.12+.
+Requirements: PHP 8.4+ (`pdo_pgsql`, `openssl`, `mbstring`, `curl`, `dom`), PostgreSQL, Node.js 22.12+, and
+the anotoki IAM running locally (`../anotoki-iam`) to sign in.
 
-```powershell
-.\dev.ps1 setup   # Composer + npm packages
-.\dev.ps1 start   # API on :8400 and the app at http://localhost:4600
+```bash
+cd backend && composer install && composer start   # the API on http://localhost:8400
+cd frontend && npm ci && npm start                 # the app at http://localhost:4600
 ```
 
-The app then leads you to `setup.php`: the database, sign-in (the anotoki IAM, or switched off for a copy of
-your own) and the owner's user id. Then **Sources → Refresh catalog → Sync all**, and import an account.
-Other commands: `.\dev.ps1 test`, `.\dev.ps1 sync`, `.\dev.ps1 migrate`, `.\dev.ps1 build`, `.\dev.ps1 dist`
-(what to upload to a host). Other systems: the same steps by hand, in [DEV.md](DEV.md).
+The app then leads you to `setup.php`: the database (`anotoki_builder`, port 5432) and the IAM (address and
+client id) - nothing else. Then, signed in as the IAM's administrator, **Sources → Refresh catalog → Sync all**,
+and import an account. Testing, the command line and the upload for a host: [DEV.md](DEV.md).
 
 ## Importing your data
 
@@ -54,23 +60,22 @@ Other commands: `.\dev.ps1 test`, `.\dev.ps1 sync`, `.\dev.ps1 migrate`, `.\dev.
 
 Both can be combined on one account: import by UID for in-game totals, then upload a file for the full
 inventory. The wizard shows the in-game steps. Accounts belong to the person who imported them (two people can
-import the same UID, each into their own account). From the command line (the owner is `local_user_id` of
-`config/auth.local.php` unless `--user` names another IAM user id):
+import the same UID, each into their own account). From the command line, `--user` names whose account it is
+(an IAM user id; required):
 
 ```bash
 cd backend
-php import-account.php genshin 700123456                       # the Character Showcase of a UID
-php import-account.php hsr path/to/export.json --account=3
-php import-account.php genshin 700123456 --user=5              # for IAM user 5
+php import-account.php genshin 700123456 --user=1              # the Character Showcase of a UID, for IAM user 1
+php import-account.php hsr path/to/export.json --user=5 --account=3
 ```
 
 A name the game catalog does not know yet (a brand-new character or set) is skipped and listed in the import
-result; after an admin refreshes the catalog, import again. The formats and the services behind them are
+result; after an editor refreshes the catalog, import again. The formats and the services behind them are
 described in [docs/import-formats.md](docs/import-formats.md).
 
 ## Syncing builds
 
-- An admin syncs on the **Sources** page: **Sync all** (every enabled source not synced successfully in the last
+- An editor (or an admin) syncs on the **Sources** page: **Sync all** (every enabled source not synced successfully in the last
   20 hours, so extra clicks never hit a site twice a day), **Sync now** on one source, and **Refresh catalog**.
   A stale catalog is refreshed first automatically.
 - A sync runs in short steps while the page is open: each step is one request that fetches a page or two,
@@ -105,17 +110,40 @@ the best replacement you own for each slot; a suggestion never makes your set bo
 
 ## Sign-in and roles
 
-Hosted, people sign in at the **anotoki IAM** (iam.anotoki.eu, OpenID Connect); this app is its client
-`build-analyzer`. Only accounts with a role here can use it: **MEMBER** imports accounts and sees their
-analysis, **ADMIN** also syncs builds and the catalog, switches sources on and off, applies database
-updates and keeps the site's words and languages. Roles are granted in the IAM's admin console. The backend checks every access token itself (signature
-against the IAM's published keys, issuer, audience, expiry). On your own computer sign-in can be switched off;
-the app then answers only its own pages on that computer. See [docs/operations.md](docs/operations.md).
+People sign in at the **anotoki IAM** (iam.anotoki.eu, OpenID Connect) - on a host and on your own computer
+alike; there is no other way in. This app is its client `build-analyzer`, and every anotoki account may use
+it: signed in, a person imports their own accounts and sees their analysis. Without signing in, a visitor does
+the same: their first import makes a visitor account on the server, which their browser opens with a key the
+server gave it; it is deleted 30 days after the last visit, and moves into the person's account when they
+sign in. Whether visitors are welcome at all is the IAM's switch for the application ("Sign-in required" in its
+admin panel, off for this site): when it is on, nobody gets anything without signing in - the server reads the
+switch from the IAM and refuses visitors and the signed-out builds browser, and every page sends people to sign
+in first; the visitor key a browser holds is kept meanwhile, and what that visitor imported still moves into their
+account when they sign in. A signed-in person can also save their game accounts as a file and import such a file here or on
+another copy: an account the file has newer data for is replaced, one only the file has is added, and an
+import never deletes an account. **EDITOR** also syncs builds and
+the catalog, reads the sync history, moves a source's builds through a file and rewords the site's strings;
+**ADMIN** does all of that and also switches sources on and off, applies database updates, adds, renames,
+switches and deletes languages and deletes a person's data (the People routes). Roles are granted in the IAM's
+admin panel. The backend checks every access token itself (signature against the IAM's published keys,
+issuer, audience, expiry), and checks the roles on every route. See [docs/operations.md](docs/operations.md).
+
+**Current state**: backend and frontend are as described here - sign-in through the IAM only, visitors
+(somebody not signed in imports and uses their accounts; the dashboard shows nobody the ways in, a visitor their
+accounts under a notice of how long they are kept; at sign-in they move into the account - unless the IAM says
+this site requires a sign-in: then every page asks for one first), the admin panel under
+`/admin/` (editors: Sources and Translations; admins also Languages, People and Migrations - the database's
+updates seen and applied, as on the IAM), and the "Your data" card for
+every signed-in person (export, import with a preview), under the anotoki top bar with the version in the
+footer - version 0.3. Migration 004 (the visitors' schema and every word of 0.3) is complete; it is applied
+when 0.3 is handed over and deployed: on the host Apply pending on the Migrations page, by an ADMIN, at once
+after the upload - and only then the IAM's migration 007 (DEV.md, docs/operations.md). The browser check
+(`node .claude/skills/verify-ui/scripts/run.mjs`) goes through all of it on a throwaway database.
 
 ## Deploying
 
 The host needs only Apache, PHP 8.4 and PostgreSQL, with files uploaded by FTP: no shell, cron or worker.
-`.\dev.ps1 dist` assembles `dist/` (the whole web root, with `vendor/` and the built frontend, and no
+`php tools/build.php` (in `backend/`) assembles `dist/` (the whole web root, with `vendor/` and the built frontend, and no
 configuration or tests); `setup.php` writes the host's configuration and builds the database; later database
 updates are applied from the Sources page. The steps and the upload map: [DEV.md](DEV.md)
 ("Deploying").
@@ -134,24 +162,27 @@ backend/
                         Translations/ (the checks and the editing of the site's words)
   config/               app.php (committed) and *.local.php (per installation, written by setup.php)
   migrations/           the schema and the site's words, as SQL files applied in order
-  tests/                php tests/run.php: throwaway PostgreSQL databases, fixtures, a fake network
+  tests/                php tests/run.php: throwaway PostgreSQL databases, fixtures, a fake network;
+                        tools/fake-iam.php (the stand-in IAM)
+  tools/                build.php (the upload), php.sh (PHP 8.4+ for bash)
   setup.php, router.php, migration.php, sync-builds.php, sync-catalog.php, import-account.php, translations.php
 frontend/src/app/
-  core/                 API client, models, metadata store, changelog, sign-in (iam/ = the IAM's browser SDK), sync driver,
-                        i18n/ (the site's words: service, pipes, the compiled English), game terms
-  shared/               build detail, item card, grade badge, changelog dialog, confirm dialog, ...
-  pages/                dashboard, import wizard, account, character analysis, builds, sources, translations,
-                        languages, sign-in, not set up
+  core/                 API client, models, metadata store, changelog, sign-in (iam/ = the IAM's browser SDK), the
+                        visitor key, sync driver, i18n/ (the site's words: service, pipes, the compiled English), game terms
+  layouts/              admin-layout (the admin panel's frame)
+  shared/               build detail, item card, grade badge, changelog dialog, confirm dialog, the visitor notice,
+                        the ways in for somebody new, the "Your data" card, ...
+  pages/                dashboard, import wizard, account, character analysis, builds, sign-in, not set up;
+                        admin/ (sources, translations, languages, people)
 frontend/public/        changelog.json, favicon
 docs/                   knowledge base (start at docs/README.md)
 .claude/                project skills and agents for AI-assisted work
-scripts/                build-dist.php (the upload), php.sh (PHP 8.4+ for bash)
 ```
 
 ## Working on the project with AI
 
 - [CLAUDE.md](CLAUDE.md) is loaded automatically by Claude Code and routes each kind of task to the right
-  documentation, skill and agent. [AGENTS.md](AGENTS.md) points other AI tools to it.
+  documentation, skill and agent; other AI tools can read it, and `.claude/`, as plain Markdown.
 - [docs/](docs/README.md) is the knowledge base: architecture, data model, stats and slots, name matching,
   build sources, import formats, analysis, operations and decisions.
 - Project skills (`.claude/skills/`): `add-build-source`, `debug-build-sync`, `add-import-format`,

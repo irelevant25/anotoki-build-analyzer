@@ -2,6 +2,8 @@
 
 namespace App\Db;
 
+use App\Support\Clock;
+use DateTimeImmutable;
 use PDO;
 use PDOException;
 use RuntimeException;
@@ -11,7 +13,7 @@ use RuntimeException;
  *
  * Reads backend/migrations/*.sql, applies the files a database has not seen, and records each in its
  * `migrations` table. It prints nothing and reads no request, so the command line (migration.php), the
- * admins' "Apply" button on the Sources page and the installer (setup.php) build a database the same way.
+ * admins' "Apply pending" on the Migrations page and the installer (setup.php) build a database the same way.
  * The same engine as the genshin site's and the IAM's, so a migration reads the same in every repository.
  *
  * The migrations are the schema: a database is what you get by applying them in order, and a file already
@@ -25,6 +27,9 @@ use RuntimeException;
  */
 final class Migrator
 {
+    /** The advisory lock every apply takes: one migration at a time in a database (an arbitrary number of its own). */
+    private const APPLY_LOCK = 4_270_031_001;
+
     public function __construct(private readonly PDO $pdo, private readonly string $directory) {}
 
     public static function directory(): string
@@ -220,12 +225,16 @@ final class Migrator
      */
     public function applied(): array
     {
-        $ours = (bool) $this->pdo->query(
+        return $this->hasTable() ? $this->pdo->query('SELECT filename FROM migrations')->fetchAll(PDO::FETCH_COLUMN) : [];
+    }
+
+    /** Whether this engine's `migrations` table is there (not Laravel's, not none). */
+    private function hasTable(): bool
+    {
+        return (bool) $this->pdo->query(
             "SELECT EXISTS (SELECT 1 FROM information_schema.columns
               WHERE table_schema = current_schema() AND table_name = 'migrations' AND column_name = 'filename')"
         )->fetchColumn();
-
-        return $ours ? $this->pdo->query('SELECT filename FROM migrations')->fetchAll(PDO::FETCH_COLUMN) : [];
     }
 
     /** @return list<string> */
@@ -235,19 +244,28 @@ final class Migrator
     }
 
     /**
-     * What the Sources page shows: the files not applied yet, how many are, and the newest applied.
+     * What the admin panel's Migrations page shows, in the IAM's shape: every file recorded as applied, in
+     * the order it was, with when (ISO 8601, UTC); and the files not applied yet, in the order they will run.
      *
-     * @return array{pending: list<string>, applied_count: int, last_applied: string|null}
+     * @return array{applied: list<array{name: string, applied_at: string|null}>, pending: list<array{name: string}>}
      */
     public function status(): array
     {
-        $files = $this->files();
-        $applied = array_values(array_intersect($files, $this->applied()));
+        $applied = [];
+        if ($this->hasTable()) {
+            // applied_at is a TIMESTAMP written in the session's time zone, which Db sets to UTC.
+            foreach ($this->pdo->query('SELECT filename, applied_at FROM migrations ORDER BY id')->fetchAll(PDO::FETCH_ASSOC) as $row) {
+                $applied[] = [
+                    'name' => (string) $row['filename'],
+                    'applied_at' => $row['applied_at'] === null ? null
+                        : Clock::iso(new DateTimeImmutable((string) $row['applied_at'], Clock::utc())),
+                ];
+            }
+        }
 
         return [
-            'pending' => array_values(array_diff($files, $applied)),
-            'applied_count' => count($applied),
-            'last_applied' => $applied === [] ? null : end($applied),
+            'applied' => $applied,
+            'pending' => array_map(static fn (string $name): array => ['name' => $name], $this->pending()),
         ];
     }
 
@@ -255,12 +273,20 @@ final class Migrator
      * Applies one file, all of it or none of it. PostgreSQL takes DDL inside a transaction, and the row
      * saying the file ran is written in the same one.
      *
+     * One file at a time, whoever applies it: the transaction first takes a PostgreSQL advisory lock (held
+     * until it ends), so a second run - another "Apply pending", `php migration.php`, setup.php - waits for
+     * the first one's file, and then finds it recorded and runs nothing of it. The admins' `migrate` lock
+     * only answers "busy" early and expires; this one is what keeps a file from running twice. Answers
+     * whether this call applied the file (false: another run had).
+     *
      * $settings become session settings the SQL can read with current_setting('build_analyzer.<name>', true)
-     * - the owner's user id, which the adoption of a Laravel database needs.
+     * - build_analyzer.local_user_id, whom the adoption of a Laravel database gives accounts that belonged to
+     * nobody yet. Nothing passes it any more but the adoption's own test; without it the migration uses IAM
+     * user 1.
      *
      * @param  array<string, scalar>  $settings
      */
-    public function apply(string $filename, array $settings = []): void
+    public function apply(string $filename, array $settings = []): bool
     {
         $this->ensureTable();
         $statements = self::splitStatements((string) file_get_contents($this->directory.'/'.$filename));
@@ -268,6 +294,16 @@ final class Migrator
         $this->pdo->beginTransaction();
 
         try {
+            $this->pdo->query('SELECT pg_advisory_xact_lock('.self::APPLY_LOCK.')');
+            // A statement after the lock: it sees what the run that held it committed.
+            $recorded = $this->pdo->prepare('SELECT 1 FROM migrations WHERE filename = ?');
+            $recorded->execute([$filename]);
+            if ($recorded->fetchColumn() !== false) {
+                $this->pdo->commit();
+
+                return false;
+            }
+
             foreach ($settings as $name => $value) {
                 $set = $this->pdo->prepare('SELECT set_config(?, ?, true)');
                 $set->execute(['build_analyzer.'.$name, (string) $value]);
@@ -284,8 +320,10 @@ final class Migrator
                 }
             }
 
-            $this->pdo->prepare('INSERT INTO migrations (filename) VALUES (?) ON CONFLICT DO NOTHING')->execute([$filename]);
+            $this->pdo->prepare('INSERT INTO migrations (filename) VALUES (?)')->execute([$filename]);
             $this->pdo->commit();
+
+            return true;
         } catch (\Throwable $e) {
             if ($this->pdo->inTransaction()) {
                 $this->pdo->rollBack();
@@ -297,7 +335,7 @@ final class Migrator
 
     /**
      * Every pending file, stopping at the first failure - each migration is written expecting the ones
-     * before it to have run.
+     * before it to have run. A file another run applied meanwhile is passed over, not listed as applied.
      *
      * @param  array<string, scalar>  $settings
      * @return array{applied: list<string>, failed: string|null, error: string|null, laravel: bool}
@@ -309,8 +347,9 @@ final class Migrator
 
         foreach ($this->pending() as $filename) {
             try {
-                $this->apply($filename, $settings);
-                $applied[] = $filename;
+                if ($this->apply($filename, $settings)) {
+                    $applied[] = $filename;
+                }
             } catch (\Throwable $e) {
                 return ['applied' => $applied, 'failed' => $filename, 'error' => $e->getMessage(), 'laravel' => $laravel];
             }

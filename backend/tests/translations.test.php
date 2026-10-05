@@ -30,7 +30,8 @@ bootTests();
 $server = require __DIR__.'/../config/database.local.php';
 
 const OWNER = 1;   // ADMIN
-const MONA = 2;    // MEMBER
+const MONA = 2;    // signed in, no role here
+const EDITOR_ID = 3;   // EDITOR
 
 const ENGLISH = ['code' => 'en', 'name' => 'English', 'native_name' => 'English'];
 const SLOVAK = ['code' => 'sk', 'name' => 'Slovak', 'native_name' => 'Slovenčina'];
@@ -56,7 +57,12 @@ function owner(): Client
 
 function mona(): Client
 {
-    return (new Client)->asIam(MONA, [Role::MEMBER]);
+    return (new Client)->asIam(MONA, []);
+}
+
+function editor(): Client
+{
+    return (new Client)->asIam(EDITOR_ID, [Role::EDITOR]);
 }
 
 /**
@@ -213,7 +219,7 @@ test('the bundle: a language\'s strings with English underneath, the same for ev
     (new Client)->get('/api/translations/de-at')->status(200)->path('language', 'en');
 
     // Nobody is asked who they are: a token is not looked at - not a good one, not a bad one.
-    same($slovak->body, (new Client)->asIam(555, [Role::MEMBER])->get('/api/translations/sk')->body, 'with a token');
+    same($slovak->body, (new Client)->asIam(555, [])->get('/api/translations/sk')->body, 'with a token');
     same(0, (int) db()->value('SELECT count(*) FROM users WHERE id = 555'), 'nobody was recorded as having been here');
     same($slovak->body, (new Client)->withToken('not.a.token')->get('/api/translations/sk')->status(200)->body, 'a sign-in that ran out still reads in its language');
     same($slovak->body, (new Client)->asIam(7, [])->get('/api/translations/sk')->status(200)->body, 'and somebody with no role here');
@@ -343,27 +349,34 @@ test('the strings are not there to be read: 503 translations_unavailable on ever
 
 // ── Who may do what ──────────────────────────────────────────────────────────────────────────────
 
-test('the languages and the grid are for admins; the token says who, and nothing else does', function () {
+test('the strings are for editors, the languages themselves for admins; the token says who, and nothing else does', function () {
     ownStrings();
     language('de', 'German');
     $before = [everyString(), languageRows()];
-    $routes = [
+    $strings = [
         ['GET', '/api/admin/languages', null],
-        ['POST', '/api/admin/languages', ['code' => 'xx', 'name' => 'Nobody\'s', 'native_name' => 'Nobody\'s']],
-        ['PUT', '/api/admin/languages/sk', ['enabled' => false, 'name' => 'Changed']],
-        ['DELETE', '/api/admin/languages/de', null],
         ['GET', '/api/admin/translations', null],
         ['PUT', '/api/admin/translations', ['values' => ['test.bye' => ['en' => 'Changed']]]],
         ['GET', '/api/admin/translations/sk/export', null],
         ['PUT', '/api/admin/translations/sk/import', ['test.bye' => 'Changed']],
     ];
-    foreach ($routes as [$method, $url, $body]) {
+    $languages = [
+        ['POST', '/api/admin/languages', ['code' => 'xx', 'name' => 'Nobody\'s', 'native_name' => 'Nobody\'s']],
+        ['PUT', '/api/admin/languages/sk', ['enabled' => false, 'name' => 'Changed']],
+        ['DELETE', '/api/admin/languages/de', null],
+    ];
+    foreach ([...$strings, ...$languages] as [$method, $url, $body]) {
+        $admins = in_array([$method, $url, $body], $languages, true);
+        $notAllowed = $admins ? 'admin_only' : 'editor_only';
         refused((new Client)->request($method, $url, $body), 401, 'sign_in_required', "{$method} {$url}, signed out");
-        refused(mona()->request($method, $url, $body), 403, 'admin_only', "{$method} {$url}, a member");
-        refused((new Client)->asIam(7, [])->request($method, $url, $body), 403, 'admin_only', "{$method} {$url}, with no role here");
+        refused(mona()->request($method, $url, $body), 403, $notAllowed, "{$method} {$url}, a person with no role");
+        refused((new Client)->asIam(7, ['MEMBER'])->request($method, $url, $body), 403, $notAllowed, "{$method} {$url}, a role left over from before");
         refused((new Client)->withToken(iamToken(OWNER, [Role::ADMIN], ['exp' => time() - 120]))->request($method, $url, $body), 401, 'sign_in_required', "{$method} {$url}, a token that ran out");
         // A role in the address or a header of the request is nobody's role.
-        refused(mona()->withHeaders(['X-Roles' => 'ADMIN'])->request($method, $url.'?role=ADMIN', $body), 403, 'admin_only', "{$method} {$url}, a role in the request");
+        refused(mona()->withHeaders(['X-Roles' => 'ADMIN'])->request($method, $url.'?role=ADMIN', $body), 403, $notAllowed, "{$method} {$url}, a role in the request");
+        if ($admins) {
+            refused(editor()->request($method, $url, $body), 403, 'admin_only', "{$method} {$url}, an editor");
+        }
     }
     same($before, [everyString(), languageRows()], 'and nothing of it was done');
 
@@ -376,29 +389,32 @@ test('the languages and the grid are for admins; the token says who, and nothing
     same(['Dovidenia', OWNER], array_slice(stored('test.bye', 'sk'), 0, 2), 'by the owner');
 });
 
-test('with sign-in off the owner\'s pages are this computer\'s own: another site open in the browser is refused', function () {
+test('an editor rewords the strings and moves a language\'s strings out and back in - and keeps the languages as they are', function () {
     ownStrings();
-    T::$app->config->set('auth.mode', 'none');
-    T::$app->config->set('auth.local_user_id', 9);
+    language('de', 'German');
 
-    (new Client)->get('/api/admin/languages')->status(200);
-    (new Client)->withHeaders(['Origin' => 'http://localhost:4600', 'Sec-Fetch-Site' => 'same-origin'])
-        ->request('PUT', '/api/admin/translations', ['values' => ['test.bye' => ['sk' => 'Dovidenia']]])->status(200);
-    same(['Dovidenia', 9], array_slice(stored('test.bye', 'sk'), 0, 2), 'saved by the owner of this computer');
+    same(['en', 'sk', 'de'], array_column(editor()->get('/api/admin/languages')->status(200)->json('languages'), 'code'), 'the languages, to translate into');
+    editor()->get('/api/admin/translations')->status(200);
+    editor()->request('PUT', '/api/admin/translations', ['values' => ['test.bye' => ['sk' => 'Dovidenia']]])->status(200);
+    same(['Dovidenia', EDITOR_ID], array_slice(stored('test.bye', 'sk'), 0, 2), 'saved by the editor');
+    same(['test.bye' => 'Dovidenia', 'test.hello' => 'Dobrý deň, {name}!'], editor()->get('/api/admin/translations/sk/export')->status(200)->json(), 'out as a file');
+    editor()->request('PUT', '/api/admin/translations/de/import', ['test.bye' => 'Auf Wiedersehen'])->status(200);
+    same(['Auf Wiedersehen', EDITOR_ID], array_slice(stored('test.bye', 'de'), 0, 2), 'and in');
 
+    $languages = languageRows();
+    refused(editor()->post('/api/admin/languages', ['code' => 'fr', 'name' => 'French', 'native_name' => 'Français']), 403, 'admin_only', 'adding one');
+    refused(editor()->request('PUT', '/api/admin/languages/de', ['name' => 'Deutsch']), 403, 'admin_only', 'renaming one');
+    refused(editor()->request('PUT', '/api/admin/languages/de', ['enabled' => false]), 403, 'admin_only', 'switching one off');
+    refused(editor()->delete('/api/admin/languages/de'), 403, 'admin_only', 'deleting one');
+    same($languages, languageRows(), 'the languages are as they were');
+});
+
+test('every write here takes JSON and nothing else: a form is refused as a malformed body is', function () {
+    ownStrings();
     $before = everyString();
-    $elsewhere = fn (): Client => (new Client)->withHeaders(['Origin' => 'https://elsewhere.example']);
-    refused($elsewhere()->request('PUT', '/api/admin/translations', ['values' => ['test.bye' => ['sk' => 'Zbohom']]]), 403, 'local_only');
-    refused($elsewhere()->request('PUT', '/api/admin/translations/sk/import', ['test.bye' => 'Zbohom']), 403, 'local_only');
-    refused($elsewhere()->post('/api/admin/languages', ['code' => 'de', 'name' => 'German', 'native_name' => 'Deutsch']), 403, 'local_only');
-    refused((new Client)->withHeaders(['Sec-Fetch-Site' => 'cross-site'])->delete('/api/admin/languages/sk'), 403, 'local_only');
-    refused((new Client('203.0.113.9'))->get('/api/admin/translations'), 403, 'local_only', 'another computer');
 
-    // A page on another port of this computer is the same site to the browser, and a form it sends needs no
-    // asking first: every write here takes JSON and nothing else.
-    $otherPort = fn (): Client => (new Client)->withHeaders(['Origin' => 'http://localhost:4300', 'Sec-Fetch-Site' => 'same-site']);
     $form = fn (string $method, string $url, string $body, string $type = 'application/x-www-form-urlencoded'): Answer
-        => $otherPort()->request($method, $url, null, ['body' => $body, 'type' => $type]);
+        => owner()->request($method, $url, null, ['body' => $body, 'type' => $type]);
     refused($form('POST', '/api/admin/languages', 'code=xx&name=Test&native_name=Test'), 422, 'invalid_language', 'a form adding a language');
     refused($form('POST', '/api/admin/languages', '--b--', 'multipart/form-data; boundary=b'), 422, 'invalid_language', 'a multipart form');
     refused($form('PUT', '/api/admin/languages/sk', 'enabled=0'), 422, 'invalid_language', 'a form changing one');
@@ -407,12 +423,12 @@ test('with sign-in off the owner\'s pages are this computer\'s own: another site
     refused($form('PUT', '/api/admin/translations/sk/import', '{"test.bye": "Zbohom"}', 'text/plain'), 422, 'invalid_value', 'JSON sent as text');
     same($before, everyString(), 'nothing was written');
     same(['en', 'sk'], array_column(languageRows(), 'code'), 'nor a language added');
-    // The same page's own requests, JSON, are the owner's - with a charset too.
-    $otherPort()->request('POST', '/api/admin/languages', null, ['body' => '{"code": "xx", "name": "Test", "native_name": "Test"}', 'type' => 'application/json; charset=utf-8'])->status(201);
-    $otherPort()->delete('/api/admin/languages/xx')->status(200);
+    // JSON is the admin's own - with a charset too.
+    owner()->request('POST', '/api/admin/languages', null, ['body' => '{"code": "xx", "name": "Test", "native_name": "Test"}', 'type' => 'application/json; charset=utf-8'])->status(201);
+    owner()->delete('/api/admin/languages/xx')->status(200);
 
     // The strings a page reads are everybody's, as ever.
-    $elsewhere()->get('/api/translations/sk')->status(200)->path('language', 'sk');
+    (new Client('203.0.113.9'))->withHeaders(['Origin' => 'https://elsewhere.example'])->get('/api/translations/sk')->status(200)->path('language', 'sk');
 });
 
 // ── Languages ────────────────────────────────────────────────────────────────────────────────────

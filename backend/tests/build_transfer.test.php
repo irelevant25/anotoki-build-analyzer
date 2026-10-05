@@ -470,17 +470,22 @@ test('no import while the source syncs, or while a step runs', function () use (
     $client->post('/api/sources/genshin-1/import', $file)->status(200)->path('unchanged', 3);
 });
 
-test('only an admin exports or imports', function () use ($admin) {
+test('only an editor or an admin exports or imports', function () use ($admin) {
     seedSource();
     $file = $admin()->get('/api/sources/genshin-1/export')->json();
-    $member = (new Client)->asIam(3, [Role::MEMBER]);
+    $person = (new Client)->asIam(3, []);
 
-    $member->get('/api/sources/genshin-1/export')->status(403)->path('message', 'Only an admin can do this.');
-    $member->post('/api/sources/genshin-1/import', ['builds' => []] + $file)->status(403)->path('message', 'Only an admin can do this.');
+    $person->get('/api/sources/genshin-1/export')->status(403)->path('message', 'Only an editor or an admin can do this.');
+    $person->post('/api/sources/genshin-1/import', ['builds' => []] + $file)->status(403)->path('message', 'Only an editor or an admin can do this.');
     (new Client)->get('/api/sources/genshin-1/export')->status(401);
 
     same(3, (int) db()->value('SELECT count(*) FROM builds'), 'nothing removed');
     same(0, runCount(), 'no run');
+
+    // An editor moves a source's builds as an admin does.
+    $editor = (new Client)->asIam(4, [Role::EDITOR]);
+    same($file['builds'], $editor->get('/api/sources/genshin-1/export')->status(200)->json('builds'), 'the same file');
+    $editor->post('/api/sources/genshin-1/import', $file)->status(200)->path('unchanged', 3);
 });
 
 test('a build keeps the page address it has here: importing it changes nothing, nor does the next sync', function () use ($admin) {

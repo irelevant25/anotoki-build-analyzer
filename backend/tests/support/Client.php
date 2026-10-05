@@ -21,8 +21,8 @@ final class Client
 
     public function __construct(private string $ip = '127.0.0.1') {}
 
-    /** The next requests carry a valid access token for this IAM user. */
-    public function asIam(int $userId, array $roles = ['MEMBER'], array $claims = []): self
+    /** The next requests carry a valid access token for this IAM user, with these roles here (none: a signed-in person). */
+    public function asIam(int $userId, array $roles = [], array $claims = []): self
     {
         $this->token = iamToken($userId, $roles, $claims);
 

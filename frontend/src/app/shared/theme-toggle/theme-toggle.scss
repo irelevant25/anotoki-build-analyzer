@@ -1,0 +1,43 @@
+:host {
+  display: inline-flex;
+}
+
+// 102 x 40: three 30 px choices in a pill - the family's compact theme switch.
+.segmented {
+  display: inline-flex;
+  padding: 3px;
+  gap: 2px;
+  border: 1px solid var(--app-border);
+  border-radius: 999px;
+  background: var(--app-surface-2);
+}
+
+.segment {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 32px;
+  padding: 0;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--app-muted);
+  cursor: pointer;
+
+  &:hover {
+    color: var(--app-text);
+  }
+
+  &[aria-checked='true'] {
+    background: var(--app-surface);
+    color: var(--app-text);
+    box-shadow: 0 1px 2px rgb(0 0 0 / 14%);
+  }
+
+  .mat-icon {
+    width: 18px;
+    height: 18px;
+    font-size: 18px;
+  }
+}

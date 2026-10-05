@@ -1,7 +1,6 @@
 <?php
 
 use App\App;
-use App\Auth\Role;
 use App\Db\Db;
 use App\Enums\Game;
 use App\Models\GameCharacter;
@@ -20,7 +19,8 @@ use Psr\Http\Message\ServerRequestInterface as Request;
 use Slim\Routing\RouteCollectorProxy;
 
 /**
- * The builds browser, independent of any account (members).
+ * The builds browser, independent of any account. Public: signed in or not, everybody reads the same, and
+ * nothing in it is anybody's own.
  *
  *   GET /api/builds/{game}        characters with builds, with how many and from which sources
  *   GET /api/builds/{game}/{key}  every build of one character, from the switched-on sources
@@ -87,5 +87,5 @@ return function (Slim\App $slim, App $app): void {
                 'builds' => $app->get(BuildPresenter::class)->collection($builds),
             ]);
         });
-    })->add(requireRole($app, Role::MEMBER));
+    })->add(optionalSignIn($app));
 };

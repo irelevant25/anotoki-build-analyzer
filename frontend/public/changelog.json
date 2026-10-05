@@ -1,5 +1,22 @@
 [
   {
+    "version": "0.3",
+    "date": "2026-10-04",
+    "changes": {
+      "added": [
+        "The pages can be read in Slovak: choose the language at the top of the page",
+        "You can use the app without an account: what you import is kept for this browser for 30 days after your last visit, and moves into your anotoki account when you sign in",
+        "Once signed in, you can export your game accounts to a file and import them again - an import adds what is missing and keeps the newer copy of an account you have twice",
+        "When the site asks everybody to sign in first, what you imported without an account is kept, and moves into your account when you sign in"
+      ],
+      "updated": [
+        "One top bar, as on the other anotoki sites: the sections, the language, the theme and your menu - on a phone, all in one menu button",
+        "The version and What's new are now at the foot of every page",
+        "Database updates have a Migrations page of their own in the admin panel: what is applied, what waits, and where an update stopped"
+      ]
+    }
+  },
+  {
     "version": "0.2",
     "date": "2026-09-29",
     "changes": {

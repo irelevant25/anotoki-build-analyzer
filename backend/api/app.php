@@ -3,18 +3,32 @@
 /**
  * The application: every route and middleware of the API, not yet running.
  *
- *   meta, icons            public: what the frontend reads before anybody is signed in
- *   accounts, imports,     members (MEMBER or ADMIN): their own accounts only
- *   builds, sources
- *   sync, admin            admins: syncs, sources on / off, migrations
- *   translations           the site's own words: the strings of a language are public; the languages
- *                          and the grid the strings are reworded in are for admins
+ *   meta, icons            public: what the frontend reads before anybody is signed in (always, even when
+ *                          the IAM says this site requires sign-in - meta is where the page learns it)
+ *   builds, GET sources    public while the site is open to everybody: the builds browser and how fresh the
+ *                          sources are (sign-in required: 401 sign_in_required without a token)
+ *   accounts, imports      whose own data it is (requireOwner): the signed-in person, any role or none - or,
+ *                          without a sign-in, this browser's visitor (X-Visitor-Key), whom the first import
+ *                          that goes through makes; each reaches their own accounts only (sign-in required:
+ *                          no visitor - a key is refused unread)
+ *   visitor                the move of a visitor's accounts into the signed-in person's (token and key;
+ *                          whether or not sign-in is required)
+ *   me                     a signed-in person's own accounts as a file, out and back (never a visitor's)
+ *   sync, sources          editors (EDITOR or ADMIN): syncs, their history, a source's builds as a file;
+ *                          admins: switching a source on or off
+ *   admin                  admins: migrations
+ *   translations           the site's own words: the strings of a language are public (always); the grid the
+ *                          strings are reworded in is for editors; adding, renaming, switching and
+ *                          deleting a language for admins
+ *   people                 admins: the people who used the site, and deleting a person's data
  *
  * Middleware, outermost first: a fresh request scope, security headers, the setup gate (503 "not_set_up"
- * until config/*.local.php exist), JSON errors, body parsing, routing; then per group the role check.
+ * until config/*.local.php exist), JSON errors, body parsing, routing; then per group the sign-in or role
+ * check (api/middleware/auth.php), so that a route added to a group cannot go without it.
  */
 
 use App\App;
+use App\Web\AfterResponse;
 use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\ServerRequestInterface;
 use Slim\Factory\AppFactory;
@@ -28,7 +42,7 @@ function buildAnalyzerApi(App $app): Slim\App
 {
     $slim = AppFactory::create();
 
-    foreach (['meta', 'icons', 'accounts', 'imports', 'builds', 'sources', 'sync', 'admin', 'translations'] as $routes) {
+    foreach (['meta', 'icons', 'accounts', 'imports', 'visitor', 'me', 'builds', 'sources', 'sync', 'admin', 'translations', 'people'] as $routes) {
         (require __DIR__."/routes/{$routes}.php")($slim, $app);
     }
 
@@ -39,11 +53,16 @@ function buildAnalyzerApi(App $app): Slim\App
     $slim->add(setupGate($app));
     $slim->add(securityHeaders());
     // Each request starts with fresh services (the catalog's cached rows, a sync runner), as each request of
-    // the host's PHP would; in the tests one process handles many.
+    // the host's PHP would; in the tests one process handles many. What it leaves for after its answer runs
+    // here unless api/index.php holds it until the answer is sent (App\Web\AfterResponse).
     $slim->add(function (ServerRequestInterface $request, $handler) use ($app): ResponseInterface {
         $app->resetScope();
 
-        return $handler->handle($request);
+        try {
+            return $handler->handle($request);
+        } finally {
+            AfterResponse::runUnlessHeld();
+        }
     });
 
     return $slim;

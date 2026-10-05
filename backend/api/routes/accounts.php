@@ -1,7 +1,6 @@
 <?php
 
 use App\App;
-use App\Auth\Role;
 use App\Models\Account;
 use App\Presenters\AccountPresenter;
 use App\Presenters\BuildPresenter;
@@ -17,8 +16,9 @@ use Psr\Http\Message\ServerRequestInterface as Request;
 use Slim\Routing\RouteCollectorProxy;
 
 /**
- * The signed-in person's game accounts. An {account} id only ever finds one of theirs: somebody else's
- * account answers 404, exactly like one that does not exist.
+ * The game accounts of the one this request's data belongs to (requireOwner(): the signed-in person, any
+ * role or none, or this browser's visitor). An {account} id only ever finds one of theirs: somebody else's
+ * account - another person's, another visitor's - answers 404, exactly like one that does not exist.
  *
  *   GET    /api/accounts                              list, with counts
  *   GET    /api/accounts/{id}                         overview: every character with its best build
@@ -91,5 +91,5 @@ return function (Slim\App $slim, App $app): void {
                 'builds' => $app->get(BuildPresenter::class)->collection($builds),
             ]);
         });
-    })->add(requireRole($app, Role::MEMBER));
+    })->add(requireOwner($app));
 };

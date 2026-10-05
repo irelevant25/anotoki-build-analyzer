@@ -1,4 +1,6 @@
 <div class="page">
+  <!-- Not signed in: what will be kept, and for how long - before the first import too. -->
+  <app-visitor-notice />
   <header class="page-header">
     <div>
       <h1>{{ 'importWizard.title' | translate }}</h1>
@@ -203,7 +205,7 @@
           <div class="row wrap center">
             <button mat-flat-button (click)="openAccount()"><mat-icon>insights</mat-icon>{{ 'importWizard.done.open' | translate }}</button>
             <button mat-stroked-button (click)="restart()">{{ 'importWizard.done.more' | translate }}</button>
-            <a mat-button routerLink="/">{{ 'nav.dashboard' | translate }}</a>
+            <a mat-button routerLink="/">{{ 'topbar.dashboard' | translate }}</a>
           </div>
         </div>
       }

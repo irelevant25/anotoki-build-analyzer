@@ -1,8 +1,9 @@
 <?php
 
 /**
- * The installer behind setup.php: what it accepts, the config files it writes (and reads back), where it
- * counts as "this computer", the setup token, the requirements, and the database and IAM checks.
+ * The installer behind setup.php: what it accepts (the database and the IAM, nothing else), the config files
+ * it writes (and reads back), where it counts as "this computer", the setup token, the requirements, and
+ * the database and IAM checks - "Test connection" in the words every anotoki setup page answers in.
  *
  * Each test works in a folder of its own that stands in for backend/ (config/, storage/), so no real
  * config file is read or written.
@@ -14,6 +15,7 @@ require __DIR__.'/lib.php';
 
 use App\Config;
 use App\Db\Db;
+use App\Db\Migrator;
 use App\Http\ConnectionFailed;
 use App\Setup\Installer;
 use Tests\Support\FakeHttpClient;
@@ -37,10 +39,8 @@ function installRoot(): string
 function form(array $overrides = []): array
 {
     return $overrides + [
-        'db_host' => 'db.example.test', 'db_port' => '5432', 'db_database' => 'build_analyzer', 'db_username' => 'build_app',
-        'mode' => 'iam', 'issuer' => 'https://iam.example.test/', 'client_id' => 'build-analyzer', 'local_user_id' => '7',
-        'user_agent' => 'build-analyzer/1.0 (https://builds.example.test)',
-        'delay_ms' => '1200', 'cache_hours' => '12', 'step_seconds' => '20', 'stale_hours' => '20',
+        'db_host' => 'db.example.test', 'db_port' => '5432', 'db_database' => 'anotoki_builder', 'db_username' => 'build_app',
+        'issuer' => 'https://iam.example.test/', 'client_id' => 'build-analyzer',
     ];
 }
 
@@ -48,7 +48,7 @@ test('every password reads back exactly as it was typed', function () {
     $installer = new Installer(installRoot());
     $passwords = ['plain', 'with space', 'dollar$HOME and ${KEY}', 'back\\slash', 'quote "double"', "single 'quote'", '#hash', '<?php ?>', 'ünïcödé', ''];
     foreach ($passwords as $password) {
-        [$settings, $errors] = $installer->validate(form(), $password, false);
+        [$settings, $errors] = $installer->validate(form(), $password);
         same([], $errors, "no errors for {$password}");
         $installer->writeConfig($settings);
 
@@ -58,31 +58,38 @@ test('every password reads back exactly as it was typed', function () {
     }
 });
 
-test('a host\'s install signs in through its IAM, and makes a set-up installation', function () {
+test('it takes the database and the IAM, and nothing else: no sign-in switch, no owner, no fetch settings', function () {
     $installer = new Installer(installRoot());
-    // "none" is not offered on a host: whatever the form says, sign-in stays on.
-    [$settings, $errors] = $installer->validate(form(['mode' => 'none']), 's3cr3t', false);
+    // What an older page posted beside them is not read.
+    [$settings, $errors] = $installer->validate(form(['mode' => 'none', 'local_user_id' => '7', 'user_agent' => 'x', 'delay_ms' => '1', 'step_seconds' => '5']), 's3cr3t');
     same([], $errors, 'errors');
-    same(['mode' => 'iam', 'local_user_id' => 7, 'issuer' => 'https://iam.example.test', 'client_id' => 'build-analyzer'], $settings['auth'], 'auth');
-    same(['user_agent' => 'build-analyzer/1.0 (https://builds.example.test)', 'delay_ms' => 1200, 'cache_hours' => 12, 'step_seconds' => 20, 'stale_hours' => 20],
-        $settings['fetch'], 'fetch');
+    same(['database', 'auth'], array_keys($settings), 'two files\' worth');
+    same(['issuer' => 'https://iam.example.test', 'client_id' => 'build-analyzer'], $settings['auth'], 'auth: where people sign in, only');
 
-    same(['config/database.local.php', 'config/auth.local.php', 'config/fetch.local.php'], $installer->writeConfig($settings), 'files');
+    same(['config/database.local.php', 'config/auth.local.php', 'config/fetch.local.php'],
+        $installer->writeConfig($settings, Installer::userAgent(false, 'https://builds.example.test')), 'files');
     $config = Config::load($installer->root);
     same([], $config->problems(), 'problems');
-    same('iam', $config->get('auth.mode'), 'mode');
+    same(null, $config->get('auth.mode'), 'no mode');
+    same(null, $config->get('auth.local_user_id'), 'no owner');
     same('db.example.test', $config->get('database.host'), 'database host');
+    same(['build-analyzer/1.0 (https://builds.example.test)', 1200, 12, 20, 20],
+        [$config->get('fetch.user_agent'), $config->get('fetch.delay_ms'), $config->get('fetch.cache_hours'), $config->get('fetch.step_seconds'), $config->get('fetch.stale_hours')],
+        'fetch.local.php: the defaults, with the site\'s address');
     check(str_starts_with((string) file_get_contents($installer->root.'/config/auth.local.php'), "<?php\n\n// Written by setup.php"), 'a PHP file saying where it came from');
+    same('build-analyzer/1.0 (personal build analyzer)', Installer::userAgent(true, 'http://localhost:4600'), 'on this computer');
 });
 
-test('on this computer sign-in can be switched off', function () {
+test('fetch.local.php is written only when there is none: one edited by hand is kept', function () {
     $installer = new Installer(installRoot());
-    [$settings, $errors] = $installer->validate(form(['mode' => 'none', 'issuer' => '', 'client_id' => '', 'local_user_id' => '1']), 'pw', true);
-    same([], $errors, 'errors');
-    same(['mode' => 'none', 'local_user_id' => 1, 'issuer' => 'http://localhost:4300', 'client_id' => 'build-analyzer'], $settings['auth'], 'auth');
-
+    [$settings] = $installer->validate(form(), 'pw');
     $installer->writeConfig($settings);
-    same('none', Config::load($installer->root)->get('auth.mode'), 'mode');
+    $edited = "<?php return ['user_agent' => 'build-analyzer/1.0 (mine)', 'delay_ms' => 5000];\n";
+    file_put_contents($installer->root.'/config/fetch.local.php', $edited);
+
+    same(['config/database.local.php', 'config/auth.local.php'], $installer->writeConfig($settings), 'only the two');
+    same($edited, file_get_contents($installer->root.'/config/fetch.local.php'), 'kept as it was');
+    same(5000, Config::load($installer->root)->get('fetch.delay_ms'), 'and read');
 });
 
 test('it refuses what it cannot use', function () {
@@ -93,52 +100,53 @@ test('it refuses what it cannot use', function () {
         'no username' => ['db_username' => ' '],
         'a line break in the host' => ['db_host' => "db\nhost"],
         'a client id with capitals' => ['client_id' => 'Build Analyzer'],
+        'no client id' => ['client_id' => ''],
         'an IAM that is not a URL' => ['issuer' => 'iam'],
         'an IAM that is not on the web' => ['issuer' => 'ftp://iam.example.test'],
-        'no owner' => ['local_user_id' => '0'],
-        'an owner that is not a number' => ['local_user_id' => 'me'],
-        'no user agent' => ['user_agent' => ''],
-        'steps too short to finish a request' => ['step_seconds' => '5'],
-        'a delay that is not a number' => ['delay_ms' => '1.5'],
+        'no IAM' => ['issuer' => ''],
     ];
     foreach ($cases as $case => $override) {
-        [, $errors] = $installer->validate(form($override), 'p', false);
+        [, $errors] = $installer->validate(form($override), 'p');
         check($errors !== [], "refused: {$case}");
     }
 
-    [, $errors] = $installer->validate(form(), "two\nlines", false);
+    [, $errors] = $installer->validate(form(), "two\nlines");
     check($errors !== [], 'a password with a line break');
-
-    // On this computer with sign-in off, the IAM fields do not matter - the owner still does.
-    [, $errors] = $installer->validate(form(['mode' => 'none', 'issuer' => 'nonsense', 'client_id' => 'No!']), 'p', true);
-    same([], $errors, 'IAM fields are not checked when sign-in is off');
-    [, $errors] = $installer->validate(form(['mode' => 'none', 'local_user_id' => '']), 'p', true);
-    check($errors !== [], 'the owner is needed when sign-in is off');
+    // An older page's "sign-in off" does not let an IAM go unnamed.
+    [, $errors] = $installer->validate(form(['mode' => 'none', 'issuer' => 'nonsense', 'client_id' => 'No!']), 'p');
+    same(2, count($errors), 'the IAM is always needed');
 });
 
-test('the form starts from the saved values, never the password', function () {
+test('the form starts from the family\'s defaults; the saved values are shown on this computer only, never the password', function () {
     $installer = new Installer(installRoot());
 
     $fresh = $installer->defaults(true, 'http://localhost:8400');
-    same(['127.0.0.1', '5432', 'build_analyzer', 'postgres', 'none', 'http://localhost:4300'],
-        [$fresh['db_host'], $fresh['db_port'], $fresh['db_database'], $fresh['db_username'], $fresh['mode'], $fresh['issuer']], 'development values on this computer');
+    same(['db_host' => '127.0.0.1', 'db_port' => '5432', 'db_database' => 'anotoki_builder', 'db_username' => 'postgres',
+        'issuer' => 'http://localhost:4300', 'client_id' => 'build-analyzer'], $fresh, 'development values on this computer - and nothing else is asked');
     $hosted = $installer->defaults(false, 'https://builds.example.com');
-    same(['', 'iam', 'https://iam.example.com'], [$hosted['db_username'], $hosted['mode'], $hosted['issuer']], 'a host\'s values: its IAM beside it');
+    same(['127.0.0.1', '5432', 'anotoki_builder', '', 'https://iam.example.com'],
+        [$hosted['db_host'], $hosted['db_port'], $hosted['db_database'], $hosted['db_username'], $hosted['issuer']], 'a host\'s values: its IAM beside it');
 
-    [$settings] = $installer->validate(form(['db_database' => 'my_builds', 'delay_ms' => '2500']), 'hidden-pass', false);
+    [$settings] = $installer->validate(form(['db_database' => 'my_builds', 'db_port' => '5433']), 'hidden-pass');
     $installer->writeConfig($settings);
     $again = $installer->defaults(true, 'http://localhost:8400');
-    same(['my_builds', 'build_app', '2500', 'https://iam.example.test'], [$again['db_database'], $again['db_username'], $again['delay_ms'], $again['issuer']], 'saved values');
+    same(['my_builds', '5433', 'build_app', 'https://iam.example.test'], [$again['db_database'], $again['db_port'], $again['db_username'], $again['issuer']], 'saved values, on this computer');
     check(! in_array('hidden-pass', $again, true) && ! array_key_exists('db_password', $again), 'no password in the form');
+
+    $host = $installer->defaults(false, 'https://builds.example.com');
+    same(['anotoki_builder', '5432', '', 'https://iam.example.com'], [$host['db_database'], $host['db_port'], $host['db_username'], $host['issuer']], 'a host shows nothing it holds');
 });
 
 test('"this computer" is a loopback client asking for a local name', function () {
     same(true, Installer::local(['REMOTE_ADDR' => '127.0.0.1', 'HTTP_HOST' => 'localhost:8400']), 'localhost');
     same(true, Installer::local(['REMOTE_ADDR' => '::1', 'HTTP_HOST' => '[::1]:8400']), 'IPv6');
+    same(true, Installer::local(['REMOTE_ADDR' => '::ffff:127.0.0.1', 'HTTP_HOST' => 'app.localhost']), 'IPv4-mapped, a .localhost name');
     same(true, Installer::local(['REMOTE_ADDR' => '127.0.0.1', 'HTTP_HOST' => '127.0.0.1:4600']), 'through the dev proxy');
     same(false, Installer::local(['REMOTE_ADDR' => '127.0.0.1', 'HTTP_HOST' => 'attacker.example']), 'a name rebound to 127.0.0.1');
+    same(false, Installer::local(['REMOTE_ADDR' => '127.0.0.1', 'HTTP_HOST' => '127.elsewhere.example']), 'a name that only looks local');
     same(false, Installer::local(['REMOTE_ADDR' => '203.0.113.9', 'HTTP_HOST' => 'localhost']), 'a remote client');
     same(false, Installer::local([]), 'nothing known');
+    same(['localhost', '::1', 'builds.example.test'], [Installer::hostOf('LocalHost:4600'), Installer::hostOf('[::1]:8400'), Installer::hostOf('builds.example.test')], 'hosts without ports');
 });
 
 test('the setup token is made once, read back, and removed with setup.php', function () {
@@ -191,24 +199,79 @@ test('the IAM check reads the OpenID configuration', function () {
     same(false, $installer->testIam('not a url')['ok'], 'not a URL, nothing sent');
 });
 
-test('the database check says what it found, and never repeats the password', function () use ($server) {
+test('"Test connection" answers in the family\'s words: up to date, empty, updates to apply, not there yet', function () use ($server) {
     $installer = new Installer(installRoot());
 
-    $ours = $installer->testDatabase(['database' => T::$database] + $server);
-    same(true, $ours['ok'], $ours['message']);
-    check(str_contains($ours['message'], '3 migration(s) applied, 0 waiting'), $ours['message']);
+    same(['ok' => true, 'message' => 'Connected to the database "'.T::$database.'": it is up to date.'],
+        $installer->testDatabase(['database' => T::$database] + $server), 'a database with every migration');
 
-    $missing = $installer->testDatabase(['database' => T::$database.'_missing'] + $server);
-    same(true, $missing['ok'], $missing['message']);
-    check(str_contains($missing['message'], 'does not exist yet'), $missing['message']);
+    $emptyName = T::$database.'_empty';
+    $empty = scratchDatabase($server, 'empty');
+    same(['ok' => true, 'message' => "Connected to the database \"{$emptyName}\": it is empty - Save makes the tables."],
+        $installer->testDatabase(['database' => $emptyName] + $server), 'an empty database');
+
+    $migrator = new Migrator($empty, Migrator::directory());
+    $files = $migrator->files();
+    $migrator->apply($files[0]);
+    same(['ok' => true, 'message' => "Connected to the database \"{$emptyName}\": ".(count($files) - 1).' update(s) to apply - Save applies them.'],
+        $installer->testDatabase(['database' => $emptyName] + $server), 'a database with updates to apply');
+    $empty = null;
+
+    $mayCreate = (bool) Db::pdo($server, 'postgres', false)->query('SELECT rolcreatedb OR rolsuper FROM pg_roles WHERE rolname = current_user')->fetchColumn();
+    $missingName = T::$database.'_missing';
+    $missing = $installer->testDatabase(['database' => $missingName] + $server);
+    same($mayCreate
+        ? ['ok' => true, 'message' => "Connected to the server. The database \"{$missingName}\" does not exist yet - Save creates it."]
+        : ['ok' => false, 'message' => "Connected to the server, but there is no database \"{$missingName}\" and this user may not create one. Make it in the hosting panel first."],
+        $missing, 'a database not there yet');
+    same(0, (int) Db::pdo($server, 'postgres', false)->query("SELECT count(*) FROM pg_database WHERE datname = '{$missingName}'")->fetchColumn(), 'testing made nothing');
 
     // A server that trusts local connections accepts any password; one that checks them says why it refused.
     $wrong = 'Wrong-Pass-'.bin2hex(random_bytes(4));
-    $refused = $installer->testDatabase(['database' => T::$database, 'password' => $wrong] + $server);
-    if (! $refused['ok']) {
-        check(str_starts_with($refused['message'], 'Cannot connect: '), $refused['message']);
-    }
+    $refused = $installer->testDatabase(['database' => T::$database, 'username' => 'build_analyzer_test_nobody', 'password' => $wrong] + $server);
+    same(false, $refused['ok'], $refused['message']);
+    check(str_starts_with($refused['message'], 'Cannot connect: '), 'said as the family says it: '.$refused['message']);
     check(! str_contains($refused['message'], $wrong), 'the password is not in the message');
+    check(! str_contains($refused['message'], 'SQLSTATE'), 'without the driver\'s noise: '.$refused['message']);
+});
+
+test('"Test connection" for a login that may not create a database, and for a database the login may not open', function () use ($server) {
+    $admin = Db::pdo($server, 'postgres', false);
+    if (! (bool) $admin->query('SELECT rolcreaterole OR rolsuper FROM pg_roles WHERE rolname = current_user')->fetchColumn()) {
+        echo "      (skipped: the test login may not make the throwaway login these answers need)\n";
+
+        return;
+    }
+
+    // A throwaway login of this run's own, with no right to make databases, and a throwaway database nobody
+    // but its owner may open. Both go at the end of the run.
+    $login = T::$database.'_nocreate';
+    $password = bin2hex(random_bytes(16));
+    $admin->exec('CREATE ROLE "'.$login.'" LOGIN NOCREATEDB NOSUPERUSER NOCREATEROLE PASSWORD '.$admin->quote($password));
+    register_shutdown_function(static function () use ($server, $login): void {
+        try {
+            Db::pdo($server, 'postgres', false)->exec('DROP ROLE IF EXISTS "'.$login.'"');
+        } catch (Throwable $e) {
+            fwrite(STDERR, "could not drop the login {$login}: {$e->getMessage()}\n");
+        }
+    });
+    $closed = T::$database.'_closed';
+    scratchDatabase($server, 'closed');
+    $admin->exec('REVOKE CONNECT ON DATABASE "'.$closed.'" FROM PUBLIC');
+
+    $installer = new Installer(installRoot());
+    $as = fn (string $name): array => $installer->testDatabase(['database' => $name, 'username' => $login, 'password' => $password] + $server);
+
+    $never = T::$database.'_never';
+    same(['ok' => false, 'message' => "Connected to the server, but there is no database \"{$never}\" and this user may not create one. Make it in the hosting panel first."],
+        $as($never), 'a database not there, and a login that may not make it');
+
+    $shut = $as($closed);
+    $opening = "The server is there, but \"{$login}\" cannot open the database \"{$closed}\": ";
+    same(false, $shut['ok'], 'a database the login may not open: '.$shut['message']);
+    check(str_starts_with($shut['message'], $opening), 'said as the family says it: '.$shut['message']);
+    check(strlen($shut['message']) > strlen($opening), 'with the server\'s reason');
+    check(! str_contains($shut['message'], $password), 'no answer repeats the login\'s password');
 });
 
 test('installing creates the database and builds it, and a second run finds it up to date', function () use ($server) {
@@ -218,8 +281,9 @@ test('installing creates the database and builds it, and a second run finds it u
         Db::pdo($server, 'postgres', false)->exec('DROP DATABASE IF EXISTS "'.$database['database'].'" WITH (FORCE)');
     });
 
-    same(['Created the database "'.$database['database'].'".', 'Applied 3 migration(s).'], $installer->buildDatabase($database, 1), 'first run');
-    same(['The database is up to date.'], $installer->buildDatabase($database, 1), 'second run');
+    $count = count((new Migrator(Db::pdo($server, T::$database, false), Migrator::directory()))->files());
+    same(['Created the database "'.$database['database'].'".', "Applied {$count} migration(s)."], $installer->buildDatabase($database), 'first run');
+    same(['The database is up to date.'], $installer->buildDatabase($database), 'second run');
     $pdo = Db::pdo($server, $database['database'], false);
     same(1, (int) $pdo->query("SELECT count(*) FROM information_schema.tables WHERE table_name = 'builds'")->fetchColumn(), 'the tables are there');
 });

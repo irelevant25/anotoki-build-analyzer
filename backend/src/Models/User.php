@@ -7,7 +7,10 @@ use App\Auth\Role;
 /**
  * A person as the anotoki IAM knows them. The IAM owns identity: the row is only the IAM user id (the
  * token's "sub") and a copy of the preferred_username for display. Roles are never stored; they come with
- * each token (or, in auth mode "none", are all granted to the owner) and live on this object only.
+ * each token and live on this object only.
+ *
+ * Or a visitor: somebody using the site without signing in, whose imports are kept under a row with a
+ * negative id (App\Auth\Visitors) - an IAM id is always positive. A visitor never has a role.
  */
 final class User
 {
@@ -26,11 +29,14 @@ final class User
     }
 
     /**
+     * This application's roles of the token: ADMIN and EDITOR, nothing else (a leftover MEMBER, or a role
+     * name from elsewhere, means nothing here).
+     *
      * @param  list<string>  $roles
      */
     public function withRoles(array $roles): self
     {
-        $this->roles = array_values(array_intersect(Role::ALL, $roles));
+        $this->roles = $this->isVisitor() ? [] : array_values(array_intersect(Role::STAFF, $roles));
 
         return $this;
     }
@@ -42,16 +48,28 @@ final class User
     }
 
     /**
-     * ADMIN includes everything a MEMBER may do.
+     * ADMIN includes everything an EDITOR may do.
      */
     public function hasRole(string $role): bool
     {
         return in_array($role, $this->roles, true)
-            || ($role === Role::MEMBER && in_array(Role::ADMIN, $this->roles, true));
+            || ($role === Role::EDITOR && in_array(Role::ADMIN, $this->roles, true));
+    }
+
+    /** An EDITOR or an ADMIN: the admin panel. */
+    public function isStaff(): bool
+    {
+        return $this->hasRole(Role::EDITOR);
     }
 
     public function isAdmin(): bool
     {
         return $this->hasRole(Role::ADMIN);
+    }
+
+    /** A browser's visitor (a negative id), not a person the IAM signed in. */
+    public function isVisitor(): bool
+    {
+        return $this->id < 0;
     }
 }

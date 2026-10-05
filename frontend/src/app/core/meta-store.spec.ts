@@ -6,7 +6,7 @@ import { Meta } from './models';
 
 const META: Meta = {
   version: '1.0',
-  auth: { mode: 'iam', issuer: 'https://iam.example.test', client_id: 'build-analyzer' },
+  auth: { issuer: 'https://iam.example.test', client_id: 'build-analyzer' },
   games: [
     {
       key: 'genshin',

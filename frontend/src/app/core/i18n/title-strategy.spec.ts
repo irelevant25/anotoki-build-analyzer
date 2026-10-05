@@ -4,7 +4,7 @@ import { Route, Router, TitleStrategy, provideRouter } from '@angular/router';
 import { routes } from '../../app.routes';
 import { isTranslationKey } from './en';
 import { provideTestTranslations } from './testing';
-import { AppTitleStrategy, BRAND } from './title-strategy';
+import { ADMIN_PANEL, AppTitleStrategy, BRAND } from './title-strategy';
 import { TranslationService, isEnglishPath } from './translation';
 
 const ENGLISH = { 'title.import': 'Import account', 'title.builds': 'Builds' };
@@ -20,7 +20,8 @@ describe('AppTitleStrategy: the browser tab’s title', () => {
           { path: '', pathMatch: 'full', children: [] },
           { path: 'import', title: 'title.import', children: [] },
           { path: 'builds/:game', title: 'title.builds', children: [] },
-          { path: 'sources', title: 'Build sources', children: [] },
+          { path: 'admin/sources', title: 'Build sources', children: [] },
+          { path: 'admin/migrations', title: 'Migrations', children: [] },
           { path: 'sign-in', title: 'title.signIn', children: [] },
         ]),
         { provide: TitleStrategy, useClass: AppTitleStrategy },
@@ -54,9 +55,12 @@ describe('AppTitleStrategy: the browser tab’s title', () => {
     expect(await go('/')).toBe('Build Analyzer');
   });
 
-  it('keeps an English page’s title as it is written - and tells the service the page is English', async () => {
-    const { title, go, i18n } = await at('/sources');
-    expect(title).toBe('Build sources · Build Analyzer');
+  it('keeps an English page’s title as it is written, says it is the admin panel’s - and tells the service the page is English', async () => {
+    const { title, go, i18n } = await at('/admin/sources');
+    expect(title).toBe('Build sources · Admin panel · Build Analyzer');
+    expect(i18n.englishOnly()).toBe(true);
+    expect(i18n.effectiveLanguage()).toBe('en');
+    expect(await go('/admin/migrations?x=1')).toBe(`Migrations · ${ADMIN_PANEL} · ${BRAND}`);
     expect(i18n.englishOnly()).toBe(true);
     expect(i18n.effectiveLanguage()).toBe('en');
 
@@ -80,19 +84,25 @@ describe('AppTitleStrategy: the browser tab’s title', () => {
 });
 
 describe('the routes’ titles', () => {
-  const titled = (routes as Route[]).filter((route) => route.title !== undefined);
+  /** Every route with its whole path - the admin panel's pages are its layout's children. */
+  const flat = (list: Route[], parent = ''): Route[] =>
+    list.flatMap((route) => {
+      const path = [parent, route.path ?? ''].filter(Boolean).join('/');
+      return [{ ...route, path }, ...flat(route.children ?? [], path)];
+    });
+  const titled = flat(routes as Route[]).filter((route) => route.title !== undefined);
 
-  it('are keys on the pages members read, and plain English on the three English pages', () => {
+  it('are keys on the pages members read, and plain English in the admin panel', () => {
     for (const route of titled) {
       const english = isEnglishPath(`/${route.path}`);
       expect(typeof route.title, route.path).toBe('string');
       expect(isTranslationKey(route.title as string), route.path).toBe(!english);
     }
-    expect(titled.map((route) => route.path)).toContain('sources');
+    expect(titled.map((route) => route.path)).toEqual(expect.arrayContaining(['admin/sources', 'admin/translations', 'admin/languages', 'admin/people', 'admin/migrations']));
   });
 
   it('leave the dashboard with the brand alone, and carry the brand nowhere themselves', () => {
     expect((routes as Route[]).find((route) => route.path === '')?.title).toBeUndefined();
-    expect(titled.filter((route) => String(route.title).includes(BRAND))).toEqual([]);
+    expect(titled.filter((route) => String(route.title).includes(BRAND) || String(route.title).includes(ADMIN_PANEL))).toEqual([]);
   });
 });

@@ -44,7 +44,7 @@ foreach ($app->get(App\Services\Analysis\CharacterAnalyzer::class)->overview($ac
 ```
 
 The database may have no accounts; import one first (the user's UID via the app, or a sample file with
-`cd backend && php import-account.php <game> <file>`). Remove sample accounts you imported once you're done.
+`cd backend && php import-account.php <game> <file> --user=<IAM id>`). Remove sample accounts you imported once you're done.
 
 ## 2. Change the rule
 

@@ -1,10 +1,11 @@
 import { HttpErrorResponse } from '@angular/common/http';
-import { Type } from '@angular/core';
+import { Type, signal } from '@angular/core';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { MATERIAL_ANIMATIONS } from '@angular/material/core';
 import { provideRouter } from '@angular/router';
 import { Observable, of, throwError } from 'rxjs';
 import { Api } from '../../core/api';
+import { AuthService } from '../../core/auth';
 import { en } from '../../core/i18n/en';
 import { provideTestTranslations } from '../../core/i18n/testing';
 import { TranslationService } from '../../core/i18n/translation';
@@ -80,6 +81,8 @@ describe('the builds pages: the list of characters and one character’s builds'
         // The metadata is not loaded: a build's detail then shows stat keys, which no case here looks at.
         { provide: Api, useValue: api },
         { provide: MATERIAL_ANIMATIONS, useValue: { animationsDisabled: true } },
+        // An editor: the Sources page is a link for them.
+        { provide: AuthService, useValue: { isStaff: signal(true), user: signal(null) } },
       ],
     });
     const fixture = TestBed.createComponent(page);
@@ -125,7 +128,7 @@ describe('the builds pages: the list of characters and one character’s builds'
 
     expect(text('.empty-state p')).toEqual(['Zatiaľ tu nie sú žiadne buildy. Synchronizáciu spustíš na stránke Zdroje.']);
     expect(text('.empty-state a')).toEqual(['Zdroje']);
-    expect(host.querySelector('.empty-state a')?.getAttribute('href')).toBe('/sources');
+    expect(host.querySelector('.empty-state a')?.getAttribute('href')).toBe('/admin/sources');
 
     await TestBed.inject(TranslationService).setLanguage('en');
     await fixture.whenStable();

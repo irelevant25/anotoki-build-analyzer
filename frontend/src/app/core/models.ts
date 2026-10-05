@@ -11,9 +11,13 @@ export type Grade = 'S' | 'A' | 'B' | 'C' | 'D' | '-';
  */
 export type ApiErrorCode =
   | 'sign_in_required'
-  | 'local_only'
-  | 'no_access'
+  | 'editor_only'
   | 'admin_only'
+  | 'visitor_unknown'
+  | 'too_many_visitors'
+  | 'visitor_limit'
+  | 'visitors_unavailable'
+  | 'visitor_move_retry'
   | 'too_many_imports'
   | 'not_found'
   | 'method_not_allowed'
@@ -138,18 +142,23 @@ export interface GameMeta {
   talents: Record<string, string>;
 }
 
-/** How this deployment signs people in (GET /api/meta), read before anything is drawn. */
+/** Where people sign in (GET /api/meta): the anotoki IAM's address and this site's client id there - the only way in. */
 export interface AuthConfig {
-  /** "iam": sign in at the anotoki IAM; "none": no sign-in, everything is the owner's (a local copy). */
-  mode: 'iam' | 'none';
   issuer: string | null;
   client_id: string | null;
+  /**
+   * The IAM's "Sign-in required" switch for this site, as the server read it (it fails closed: true when it
+   * could never ask). Missing counts as required, as does no answer at all (AuthService.loginRequired).
+   */
+  login_required?: boolean;
 }
 
 export interface Meta {
   games: GameMeta[];
   version: string;
   auth: AuthConfig;
+  /** How many days a visitor's data is kept after its last visit (the visitor notice says it). */
+  visitors?: { keep_days: number };
 }
 
 // ------------------------------------------------------------------ accounts & imports
@@ -641,17 +650,24 @@ export interface SyncStartResult extends SyncStatus {
   skipped: { key: string; name: string; reason: string }[];
 }
 
-/** Database migrations (ADMIN): the files in backend/migrations not applied yet. */
+/**
+ * Database migrations (ADMIN, the admin panel's Migrations page), in the IAM's shape: the files applied, in
+ * the order they were, with when (ISO 8601, UTC); and the files in backend/migrations not applied yet, in
+ * the order they will run.
+ */
 export interface MigrationStatus {
-  pending: string[];
-  applied_count: number;
-  last_applied: string | null;
+  applied: { name: string; applied_at: string | null }[];
+  pending: { name: string }[];
 }
 
-export interface MigrationResult extends MigrationStatus {
-  ok: boolean;
+/**
+ * What "Apply pending" did: the files applied, in order; the one it stopped at (rolled back whole) and why,
+ * or null for both when nothing failed.
+ */
+export interface MigrationResult {
   applied: string[];
-  output: string;
+  failed: string | null;
+  error: string | null;
 }
 
 /** A build source as the API shows it: "Source 1" with a key like "genshin-1", never the site. */
@@ -681,4 +697,52 @@ export interface BuildImportResult {
   skipped: { key: string; name: string }[];
   /** The source afterwards, as GET /api/sources lists it. */
   source: SourceStatus;
+}
+
+// ------------------------------------------------------------------ visitors and a person's own data
+
+/** What POST /api/visitor/move did: the visitor's accounts moved into the person's, and the ones they both had (kept, the person's copy). */
+export interface VisitorMove {
+  found: boolean;
+  moved: number;
+  kept: number;
+  imports: number;
+}
+
+/** What importing the own-data file does (dry run) or did, to each game account in it. */
+export type DataOutcome = 'added' | 'replaced' | 'kept';
+
+/** POST /api/me/import[?dry_run=1]. */
+export interface DataImportResult {
+  dry_run: boolean;
+  added: number;
+  replaced: number;
+  kept: number;
+  skipped: number;
+  accounts: { game: GameKey; uid: string | null; nickname: string | null; outcome: DataOutcome; skipped: number }[];
+}
+
+// ------------------------------------------------------------------ admin: people
+
+/** A person who signed in here, as GET /api/admin/people lists them (ADMIN). */
+export interface Person {
+  /** The IAM's id. */
+  id: number;
+  name: string;
+  accounts: number;
+  import_runs: number;
+  created_at: string | null;
+  last_import_at: string | null;
+}
+
+export interface PeopleList {
+  people: Person[];
+  /** Visitors are counted, never listed: each goes by itself, keep_days after its last visit. */
+  visitors: { count: number; accounts: number };
+}
+
+/** What DELETE /api/admin/people/{id} deleted. */
+export interface PersonDeleted {
+  accounts: number;
+  import_runs: number;
 }

@@ -1,6 +1,6 @@
 import { BreakpointObserver } from '@angular/cdk/layout';
 import { HttpErrorResponse } from '@angular/common/http';
-import { Component, computed, inject, signal, viewChild } from '@angular/core';
+import { Component, afterNextRender, computed, inject, signal, viewChild } from '@angular/core';
 import { toSignal } from '@angular/core/rxjs-interop';
 import { FormsModule } from '@angular/forms';
 import { MatButtonModule } from '@angular/material/button';
@@ -14,6 +14,7 @@ import { MatStepper, MatStepperIntl, MatStepperModule } from '@angular/material/
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { map } from 'rxjs';
 import { Api } from '../../core/api';
+import { AuthService } from '../../core/auth';
 import { GAME_LABELS } from '../../core/format';
 import { GAME_TERMS, UID_TERM } from '../../core/game-terms';
 import { errorCode } from '../../core/i18n/error-text';
@@ -21,6 +22,8 @@ import { importFailure, importWarnings } from '../../core/i18n/import-words';
 import { TranslatePipe } from '../../core/i18n/translate';
 import { TranslationService, Worded, Wording } from '../../core/i18n/translation';
 import { AccountSummary, GameKey, ImportRun } from '../../core/models';
+import { VisitorKey } from '../../core/visitor-key';
+import { VisitorNotice } from '../../shared/visitor-notice/visitor-notice';
 import { GUIDES, ImportMethodKey, METHODS } from './import-guides';
 import { StepperWords } from './stepper-words';
 
@@ -48,6 +51,7 @@ export interface ChosenFile {
     MatProgressBarModule,
     MatExpansionModule,
     TranslatePipe,
+    VisitorNotice,
   ],
   // The stepper's own words ("Completed", "Editable") follow the language on the page.
   providers: [{ provide: MatStepperIntl, useClass: StepperWords }],
@@ -114,7 +118,13 @@ export class ImportWizard {
   protected readonly warnings = computed<Worded[]>(() => importWarnings(this.i18n, this.result()?.summary));
 
   constructor() {
-    this.api.accounts().subscribe({ next: (accounts) => this.applyPrefill(accounts) });
+    // Somebody signed in, or a visitor: their accounts, to import into one of them. Nobody has none - and the
+    // server would only answer 401 - so nobody's page asks for nothing.
+    if (inject(AuthService).signedIn() || inject(VisitorKey).current() !== null) {
+      this.api.accounts().subscribe({ next: (accounts) => this.applyPrefill(accounts) });
+    } else {
+      afterNextRender(() => this.applyPrefill([]));
+    }
   }
 
   protected chooseGame(game: GameKey): void {

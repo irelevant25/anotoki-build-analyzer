@@ -4,6 +4,7 @@ import { Api } from '../api';
 import { AuthService } from '../auth';
 import { MetaStore } from '../meta-store';
 import { SiteLanguage, TranslationBundle } from '../models';
+import { readStorage, writeStorage } from '../storage';
 import { PluralKey, TranslationKey, en } from './en';
 
 /**
@@ -35,10 +36,10 @@ const BROWSER_ALIASES: Record<string, string> = { cs: 'sk' };
 const LOCALES: Record<string, string> = { en: 'en-GB', sk: 'sk-SK' };
 
 /**
- * The pages that are English whatever the person reads: the admin's Sources page and the owner's two.
- * The address itself, or anything under it.
+ * The pages that are English whatever the person reads: the admin panel (Sources, Translations, Languages,
+ * People). The address itself, or anything under it.
  */
-const ENGLISH_PATHS = ['/sources', '/translations', '/languages'];
+const ENGLISH_PATHS = ['/admin'];
 
 /** How long a start with a cached bundle waits for the fresh one (a 304, usually). */
 export const CACHE_WAIT_MS = 1000;
@@ -128,7 +129,7 @@ export function pickLanguage(candidates: readonly LanguageCandidate[], offered: 
   return FALLBACK_LANGUAGE;
 }
 
-/** Whether an address is one of the English pages: `/sources`, `/translations`, `/languages`, or under one. */
+/** Whether an address is one of the English pages: `/admin`, or under it. */
 export function isEnglishPath(url: string): boolean {
   const path = url.split(/[?#]/)[0];
   return ENGLISH_PATHS.some((english) => path === english || path.startsWith(`${english}/`));
@@ -141,13 +142,13 @@ const COMPILED: ReadonlyMap<string, string> = new Map(Object.entries(en));
  * The site's own words: which language the pages are read in, and the strings for it. They live in the
  * database (the Translations page edits them) and arrive as one bundle - GET /api/translations/{code}.
  *
- * Only what a member reads is translated. The Sources page and the owner's Translations and Languages
- * pages are English whatever is chosen: `effectiveLanguage` says `en` while the address is one of them,
- * and everything that words a string goes through it - so the toolbar they share is English there too.
+ * Only what a member reads is translated. The admin panel's pages (/admin/...: Sources, Translations,
+ * Languages, People, Migrations) are English whatever is chosen: `effectiveLanguage` says `en` while the
+ * address is one of them, and everything that words a string goes through it - so the bar is English there too.
  *
  * With a bundle in memory, the bundle is what is shown: a key it has no string for comes back as itself,
  * on the page, and warns once - the owner wants to see which key is missing. The compiled English (en.ts)
- * is read only while there is no bundle at all: between an upload and Apply on the Sources page the
+ * is read only while there is no bundle at all: between an upload and Apply pending on the Migrations page the
  * database has no strings yet and the route answers 503, and the pages must be readable all the same.
  *
  * Game terms are not in here at all: they reach a sentence as a {placeholder} (core/game-terms.ts, or
@@ -363,7 +364,7 @@ export class TranslationService {
 
   /**
    * The strings again, from the server: for whoever has just changed them, or the languages on offer (the
-   * Translations and Languages pages after a save), and for the Sources page after an Apply that applied
+   * Translations and Languages pages after a save), and for the Migrations page after an Apply that applied
    * something - the strings may only now exist. Asks for the bundle of the language the person reads (the
    * first wish while there is none) and settles against the list that comes with it - so a language
    * hidden or offered a moment ago is followed - then puts the answer in force and in the cache. Never
@@ -636,9 +637,9 @@ export class TranslationService {
     }
   }
 
-  /** The token's `locale` - only where people sign in at the IAM; with sign-in off there is no token. */
+  /** The token's `locale`, while somebody is signed in. */
   private _tokenLocale(): string | null {
-    return this._auth.mode() === 'iam' ? languageCode(this._auth.user()?.locale) : null;
+    return languageCode(this._auth.user()?.locale);
   }
 
   /**
@@ -780,28 +781,7 @@ function bundleFrom(raw: unknown): TranslationBundle | null {
   return english ? { language, languages, values, english } : null;
 }
 
-/** localStorage that never throws: it can be missing or refuse writes (a private window, a full quota). */
-function readStorage(key: string): string | null {
-  try {
-    return globalThis.localStorage?.getItem(key) ?? null;
-  } catch {
-    return null;
-  }
-}
-
-function writeStorage(key: string, value: string | null): void {
-  try {
-    if (value === null) {
-      globalThis.localStorage?.removeItem(key);
-    } else {
-      globalThis.localStorage?.setItem(key, value);
-    }
-  } catch {
-    // Nothing to do: the value just will not survive a reload.
-  }
-}
-
-/** The same for sessionStorage. */
+/** sessionStorage that never throws, as readStorage() / writeStorage() (core/storage.ts) are for localStorage. */
 function readTab(key: string): string | null {
   try {
     return globalThis.sessionStorage?.getItem(key) ?? null;

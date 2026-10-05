@@ -37,7 +37,8 @@
       @if (!loading()) {
         <div class="empty-state">
           <mat-icon>menu_book</mat-icon>
-          <p>{{ empty()[0] }}@if (empty()[2]) {<a routerLink="/sources">{{ 'builds.sourcesPage' | translate }}</a>}{{ empty()[1] }}</p>
+          <!-- The Sources page is the admin panel's: a link for an editor or an admin, its name alone for everybody else. -->
+          <p>{{ empty()[0] }}@if (empty()[2]) {@if (auth.isStaff()) {<a routerLink="/admin/sources">{{ 'builds.sourcesPage' | translate }}</a>} @else {<span>{{ 'builds.sourcesPage' | translate }}</span>}}{{ empty()[1] }}</p>
         </div>
       }
     }

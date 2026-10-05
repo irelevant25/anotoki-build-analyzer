@@ -64,6 +64,18 @@ final class Cache
         );
     }
 
+    /**
+     * Takes back one hit() of a counter that is still running (a new visitor whose first import failed);
+     * never below zero, and an expired or missing counter stays as it is.
+     */
+    public function giveBack(string $key): void
+    {
+        $this->db->run(
+            'UPDATE cache SET value = GREATEST((value)::BIGINT - 1, 0)::TEXT WHERE key = ? AND expiration > ?',
+            [$key, Clock::timestamp()],
+        );
+    }
+
     public function forget(string $key): void
     {
         $this->db->run('DELETE FROM cache WHERE key = ?', [$key]);

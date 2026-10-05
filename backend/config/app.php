@@ -57,8 +57,81 @@ return [
     'showcase' => [
         'api' => 'https://enka.network/api',
         'genshin_avatars' => 'https://raw.githubusercontent.com/EnkaNetwork/API-docs/master/store/gi/avatars.json',
-        // Imports by UID per user and minute.
+        // Imports by UID per user and minute (a visitor's: per address, see client_address).
         'per_minute' => 10,
+    ],
+
+    /*
+    | File imports per user and minute (a visitor's: per address). A member's file may be up to 20 MB.
+    */
+    'imports' => [
+        'file_per_minute' => 20,
+    ],
+
+    /*
+    | A signed-in person's own accounts as a file (GET /api/me/export, POST /api/me/import): imports a
+    | minute per person (a dry run counts too), and the largest file - the import refuses a larger body
+    | before reading it as an accounts file, and the export refuses to write one, so every export imports.
+    | PHP has taken the body by then (and Slim's body parser has decoded one sent as application/json):
+    | what bounds a request's body is the host's PHP post_max_size, so keep this at or below it (a larger
+    | body arrives empty: "No file arrived"). The export is compact JSON; a few thousand artifacts take
+    | well under 2 MB.
+    */
+    'me' => [
+        'import_per_minute' => 5,
+        'file_max_mb' => 8,
+    ],
+
+    /*
+    | Visitors: people who use the site without signing in. What they import is kept under a visitor
+    | account (App\Auth\Visitors), made by their first import that goes through and deleted keep_days after
+    | it was last used. Everything here bounds what strangers can make the site store and fetch:
+    |
+    |   new_per_hour_per_address  new visitors an hour from one address (an IPv6 address counts by its /64)
+    |   new_per_hour              new visitors an hour from everywhere together
+    |   max_visitors              visitors at once; past it nobody new gets one (429 too_many_visitors)
+    |   max_accounts              game accounts one visitor may keep
+    |   file_max_kb               the largest file a visitor may import (checked once PHP has taken the
+    |                             body: post_max_size is what bounds any request's body)
+    |   showcase_per_minute_all   showcase imports a minute by all visitors together (the outside service
+    |                             sees no more than members already cause)
+    |   sweep_batch, sweep_timeout_ms   how many unseen visitors one clean-up deletes, and how long its
+    |                             statement may take - it runs inside somebody's request, after the answer
+    |   move_lock_timeout_ms      how long the move at sign-in waits for an import that is still writing
+    |                             (then 503 visitor_move_retry, and the page asks again)
+    |
+    | Watch the count on the People page (or SELECT count(*) FROM users WHERE id < 0) after a launch, and
+    | lower these if the database grows faster than it should.
+    */
+    'visitors' => [
+        'keep_days' => 30,
+        'new_per_hour_per_address' => 10,
+        'new_per_hour' => 60,
+        'max_visitors' => 1000,
+        'max_accounts' => 5,
+        'file_max_kb' => 5120,
+        'showcase_per_minute_all' => 20,
+        'sweep_batch' => 20,
+        'sweep_timeout_ms' => 2000,
+        'move_lock_timeout_ms' => 5000,
+    ],
+
+    /*
+    | Which address a request comes from, for the limits counted per address (visitors, and imports by
+    | somebody who is not signed in). REMOTE_ADDR, always - unless the connection comes from one of
+    | trusted_proxies (CIDR ranges, v4 and v6: a proxy such as Cloudflare in front of the site), and then
+    | the address in client_ip_header, which only such a proxy is believed to write. A forwarding header
+    | from anybody else is whatever the sender wrote, so it is never read on its own (X-Forwarded-For
+    | included).
+    |
+    | client_ip_header should be a header the proxy writes whole, overwriting what the visitor sent, with
+    | one address in it (Cloudflare's CF-Connecting-IP). Set to a list a proxy appends to
+    | (X-Forwarded-For), it is read from the right: the trusted proxies' own addresses are skipped and
+    | the first other one is counted - never the leftmost, which is whatever the visitor wrote.
+    */
+    'client_address' => [
+        'trusted_proxies' => [],
+        'client_ip_header' => 'CF-Connecting-IP',
     ],
 
     /*

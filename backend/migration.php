@@ -12,9 +12,10 @@
  * again, so editing one that has been applied changes nothing where it ran - write another instead.
  *
  * A database made by the first (Laravel) version of the app is recognised and brought forward by
- * 001_adopt_laravel_database.sql, with every row it holds.
+ * 001_adopt_laravel_database.sql, with every row it holds (accounts that belonged to nobody yet go to IAM
+ * user 1).
  *
- * The engine (App\Db\Migrator) is shared with the admins' "Apply" button on the Sources page and with
+ * The engine (App\Db\Migrator) is shared with "Apply pending" on the admin panel's Migrations page and with
  * setup.php, so a database built any of the three ways is the same database.
  */
 
@@ -72,12 +73,11 @@ if ($dryRun) {
     exit(0);
 }
 
-$settings = ['local_user_id' => (int) $app->config->get('auth.local_user_id', 1)];
 foreach ($pending as $file) {
     echo '  ', $file, ' ... ';
     try {
-        $migrator->apply($file, $settings);
-        Cli::info('done');
+        // false: another run (the Migrations page, setup.php) applied it while this one waited.
+        Cli::info($migrator->apply($file) ? 'done' : 'already applied by another run');
     } catch (Throwable $e) {
         Cli::error('FAILED');
         Cli::error('    '.$e->getMessage());

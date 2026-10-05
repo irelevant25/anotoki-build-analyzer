@@ -1,4 +1,4 @@
-import { Component, computed, inject, signal } from '@angular/core';
+import { Component, computed, effect, inject, signal, untracked } from '@angular/core';
 import { MatButtonModule } from '@angular/material/button';
 import { MatDialog } from '@angular/material/dialog';
 import { MatIconModule } from '@angular/material/icon';
@@ -7,7 +7,7 @@ import { MatProgressBarModule } from '@angular/material/progress-bar';
 import { MatSnackBar } from '@angular/material/snack-bar';
 import { MatTooltipModule } from '@angular/material/tooltip';
 import { RouterLink } from '@angular/router';
-import { forkJoin } from 'rxjs';
+import { forkJoin, of } from 'rxjs';
 import { Api } from '../../core/api';
 import { AuthService } from '../../core/auth';
 import { GAME_LABELS } from '../../core/format';
@@ -18,7 +18,17 @@ import { TranslatePipe } from '../../core/i18n/translate';
 import { TranslatePluralPipe } from '../../core/i18n/translate-plural';
 import { TranslationService } from '../../core/i18n/translation';
 import { AccountSummary, GameKey, SourceStatus } from '../../core/models';
+import { VisitorKey } from '../../core/visitor-key';
 import { askConfirm } from '../../shared/confirm-dialog';
+import { DataCard } from '../../shared/data-card/data-card';
+import { VisitorHero } from '../../shared/visitor-hero/visitor-hero';
+import { VisitorNotice } from '../../shared/visitor-notice/visitor-notice';
+
+/**
+ * Who is looking: somebody signed in (`person`), somebody who imported without signing in and whose
+ * browser holds the visitor key (`visitor`), or neither (`nobody`).
+ */
+export type DashboardState = 'person' | 'visitor' | 'nobody';
 
 @Component({
   selector: 'app-dashboard-page',
@@ -33,6 +43,9 @@ import { askConfirm } from '../../shared/confirm-dialog';
     TranslatePluralPipe,
     LocalDatePipe,
     ErrorTextPipe,
+    DataCard,
+    VisitorHero,
+    VisitorNotice,
   ],
   templateUrl: './dashboard-page.html',
   styleUrl: './dashboard-page.scss',
@@ -43,6 +56,16 @@ export class DashboardPage {
   private readonly dialog = inject(MatDialog);
   private readonly i18n = inject(TranslationService);
   protected readonly auth = inject(AuthService);
+  protected readonly visitor = inject(VisitorKey);
+
+  /**
+   * The page has three states. Nobody: what the site does and the ways on (import, browse the builds, sign
+   * in) and the sources' freshness - no request for anybody's own data. A visitor: the accounts as a member
+   * has them, under the notice that says how long they are kept. Somebody signed in: the accounts, and the
+   * "Your data" card. The accounts are loaded again when the state changes (a sign-in, a key forgotten) and
+   * after the move of a visitor's accounts into the person's.
+   */
+  protected readonly state = computed<DashboardState>(() => (this.auth.signedIn() ? 'person' : this.visitor.key() !== null ? 'visitor' : 'nobody'));
 
   protected readonly accounts = signal<AccountSummary[]>([]);
   protected readonly sources = signal<SourceStatus[]>([]);
@@ -77,20 +100,39 @@ export class DashboardPage {
   /** "No builds yet ... on the Sources page", cut where the link to that page stands: [before, after, whether it stands at all]. */
   protected readonly noBuildsAdmin = computed(() => this.i18n.around('dashboard.noBuildsAdmin', 'sources'));
 
+  /** Counts the loads, so that only the last one's answer is shown. */
+  private loads = 0;
+
   constructor() {
-    this.load();
+    effect(() => {
+      this.state();
+      this.visitor.moves();
+      untracked(() => this.load());
+    });
   }
 
   protected load(): void {
+    const load = ++this.loads;
+    const state = untracked(this.state);
     this.loading.set(true);
-    forkJoin({ accounts: this.api.accounts(), sources: this.api.sources() }).subscribe({
+    // Nobody has no accounts to ask for: the server would only answer 401.
+    const accounts = state === 'nobody' ? of<AccountSummary[]>([]) : this.api.accounts();
+    forkJoin({ accounts, sources: this.api.sources() }).subscribe({
       next: ({ accounts, sources }) => {
+        if (load !== this.loads) {
+          return;
+        }
         this.accounts.set(accounts);
         this.sources.set(sources);
         this.error.set(null);
         this.loading.set(false);
       },
       error: (err: unknown) => {
+        // A visitor key the server no longer knows is forgotten on the way (authInterceptor): the state has
+        // changed, and the load that follows is the one to show.
+        if (load !== this.loads || untracked(this.state) !== state) {
+          return;
+        }
         this.error.set(err);
         this.loading.set(false);
       },

@@ -1,6 +1,6 @@
 import { signal } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
-import { AuthMode, AuthService } from './auth';
+import { AuthService } from './auth';
 import { AnotokiUser } from './iam/anotoki-auth';
 import { LOCALIZATION_DRAFTS_KEY, LanguageDraft, LocalizationDrafts } from './localization-drafts';
 
@@ -12,7 +12,6 @@ const STRINGS = { 'home.title': { sk: 'Povedz nám svoj názor' }, 'common.close
 const CZECH: LanguageDraft = { name: 'Czech', native_name: 'Česky', sort_order: '7' };
 
 describe('LocalizationDrafts', () => {
-  const mode = signal<AuthMode>('iam');
   const user = signal<AnotokiUser | null>(ANNA);
   /** As the sign-in tells it: in this tab or another, signed in, out, or as somebody else - heard as the page next draws. */
   const signedInAs = (who: AnotokiUser | null) => {
@@ -24,7 +23,7 @@ describe('LocalizationDrafts', () => {
   function load(): LocalizationDrafts {
     TestBed.resetTestingModule();
     TestBed.configureTestingModule({
-      providers: [{ provide: AuthService, useValue: { mode, user } }],
+      providers: [{ provide: AuthService, useValue: { user } }],
     });
     return TestBed.inject(LocalizationDrafts);
   }
@@ -41,7 +40,6 @@ describe('LocalizationDrafts', () => {
 
   beforeEach(() => {
     sessionStorage.clear();
-    mode.set('iam');
     user.set(ANNA);
   });
 
@@ -100,17 +98,12 @@ describe('LocalizationDrafts', () => {
       expect(drafts.strings()).toEqual({});
     });
 
-    it("keeps them for this computer's owner with sign-in off, through a page load", () => {
-      mode.set('none');
-      user.set(null);
+    it('are the IAM person\'s, by their id: there is no other owner', () => {
       const drafts = load();
       drafts.strings.set(STRINGS);
       drawn();
 
-      expect(JSON.parse(stored()!).owner).toBe('local');
-      expect(load().strings()).toEqual(STRINGS);
-      // Somebody is always there: closing the tab asks.
-      expect(closing().defaultPrevented).toBe(true);
+      expect(JSON.parse(stored()!).owner).toBe(ANNA.sub);
     });
 
     it('takes the first person to sign in as the owner, with nothing to let go of', () => {

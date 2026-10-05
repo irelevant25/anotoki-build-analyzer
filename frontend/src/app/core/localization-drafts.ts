@@ -12,9 +12,6 @@ export interface LanguageDraft {
 /** Where the drafts are kept for the tab: whose they are, the strings' cells and the languages' rows. */
 export const LOCALIZATION_DRAFTS_KEY = 'build-analyzer-localization-drafts';
 
-/** Whose drafts they are with sign-in off: the owner of this computer, the one person there is. */
-export const LOCAL_OWNER = 'local';
-
 /** The drafts as the tab keeps them. */
 interface StoredDrafts {
   owner: string;
@@ -121,8 +118,7 @@ function writeTab(value: string | null): boolean {
  *
  * Only ANOTHER person signing in lets go of them. A sign-out - here, in
  * another tab, or the session ending - keeps them, and signing in again as the
- * same person finds them. With sign-in off they are the owner's of this
- * computer (LOCAL_OWNER).
+ * same person finds them.
  *
  * The one `beforeunload` question for both pages is asked here: closing the
  * tab loses the drafts, whichever page is showing - or none. It is not asked
@@ -143,8 +139,8 @@ export class LocalizationDrafts {
   /** How many cells and rows are changed and not saved. */
   readonly count = computed(() => Object.values(this.strings()).reduce((cells, row) => cells + Object.keys(row).length, 0) + Object.keys(this.languages()).length);
 
-  /** Who is signed in now, or null: with sign-in off, the computer's owner. */
-  private readonly person = computed(() => (this.auth.mode() === 'none' ? LOCAL_OWNER : (this.auth.user()?.sub ?? null)));
+  /** Who is signed in now (the IAM's id), or null. */
+  private readonly person = computed(() => this.auth.user()?.sub ?? null);
   /** Whose drafts these are: the person who typed them, signed in or not just now. */
   private readonly owner = signal<string | null>(null);
 

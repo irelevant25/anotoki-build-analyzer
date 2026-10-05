@@ -38,6 +38,12 @@ final class Accounts
         ));
     }
 
+    /** How many accounts the user has. */
+    public function countOwned(int $userId): int
+    {
+        return (int) $this->db->value('SELECT count(*) FROM accounts WHERE user_id = ?', [$userId]);
+    }
+
     /** One of the user's accounts, or null - also for an account that exists but is somebody else's. */
     public function findOwned(int $userId, int $id, bool $withCounts = true): ?Account
     {

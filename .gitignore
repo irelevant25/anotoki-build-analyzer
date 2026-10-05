@@ -1,13 +1,10 @@
-# Local tooling
-/tools/composer.phar
-/dev.local.ps1
-
-# What scripts/build-dist.php assembles for the upload
+# What backend/tools/build.php assembles for the upload
 /dist/
 
 # OS / editor noise
 .DS_Store
 Thumbs.db
+/.vscode/
 
 # Backend and frontend have their own .gitignore files.
 

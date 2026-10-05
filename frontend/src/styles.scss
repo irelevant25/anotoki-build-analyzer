@@ -21,6 +21,17 @@ html {
   --app-muted: light-dark(#6b6878, #a09cb0);
   --app-text: light-dark(#1c1b20, #ebe8f4);
 
+  // The family's top bar and its menus (layouts/top-bar), in this theme's colours.
+  --app-surface-3: light-dark(#e9e6f2, #2d2c38);
+  --app-raised: light-dark(#ffffff, #24232e);
+  --app-primary-soft: color-mix(in srgb, var(--mat-sys-primary) 14%, transparent);
+  --app-primary-soft-text: var(--mat-sys-primary);
+  --app-shadow-lg: 0 12px 32px rgb(0 0 0 / 16%), 0 2px 6px rgb(0 0 0 / 10%);
+  --topbar-height: 60px;
+  // The anotoki mark (a dark navy picture, shared/brand) in the bar: the family's soft shadow in light; in dark a
+  // light halo (below), or it sinks into the dark bar. A filter, so not light-dark(): set per theme.
+  --mark-shadow: drop-shadow(0 2px 6px rgb(0 0 0 / 18%));
+
   --grade-s: #e0a526;
   --grade-a: #3fae6a;
   --grade-b: #3b9ad9;
@@ -59,6 +70,14 @@ html.theme-light {
 
 html.theme-dark {
   color-scheme: dark;
+  --mark-shadow: drop-shadow(0 0 1px rgb(255 255 255 / 70%)) drop-shadow(0 0 6px rgb(255 255 255 / 22%));
+}
+
+// Dark by the OS setting, unless the toggle forced light.
+@media (prefers-color-scheme: dark) {
+  html:not(.theme-light) {
+    --mark-shadow: drop-shadow(0 0 1px rgb(255 255 255 / 70%)) drop-shadow(0 0 6px rgb(255 255 255 / 22%));
+  }
 }
 
 html,

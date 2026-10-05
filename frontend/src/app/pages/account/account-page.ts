@@ -13,10 +13,11 @@ import { MatSnackBar } from '@angular/material/snack-bar';
 import { MatTooltipModule } from '@angular/material/tooltip';
 import { RouterLink } from '@angular/router';
 import { Api } from '../../core/api';
+import { AuthService } from '../../core/auth';
 import { GAME_LABELS, titleCase } from '../../core/format';
 import { GAME_TERMS, UID_TERM, level } from '../../core/game-terms';
 import { TranslationKey } from '../../core/i18n/en';
-import { ErrorTextPipe, errorText } from '../../core/i18n/error-text';
+import { ErrorTextPipe, errorText, isSignInRefusal } from '../../core/i18n/error-text';
 import { importRunError, importStatusText } from '../../core/i18n/import-words';
 import { LocalDatePipe } from '../../core/i18n/local-date';
 import { recommendationText } from '../../core/i18n/recommendation-words';
@@ -29,6 +30,8 @@ import { BUILD_TERMS } from '../../shared/build-terms';
 import { Avatar } from '../../shared/char-avatar';
 import { GradeBadge } from '../../shared/grade-badge';
 import { ScoreBar } from '../../shared/score-bar';
+import { VisitorHero } from '../../shared/visitor-hero/visitor-hero';
+import { VisitorNotice } from '../../shared/visitor-notice/visitor-notice';
 
 type SortKey = 'score-asc' | 'score-desc' | 'name' | 'level';
 
@@ -79,6 +82,8 @@ interface HistoryRow {
     TranslatePluralPipe,
     LocalDatePipe,
     ErrorTextPipe,
+    VisitorHero,
+    VisitorNotice,
   ],
   templateUrl: './account-page.html',
   styleUrl: './account-page.scss',
@@ -88,6 +93,7 @@ export class AccountPage {
   private readonly meta = inject(MetaStore);
   private readonly snackBar = inject(MatSnackBar);
   private readonly i18n = inject(TranslationService);
+  protected readonly auth = inject(AuthService);
 
   /** Route parameter (component input binding). */
   readonly id = input.required<string>();
@@ -97,6 +103,8 @@ export class AccountPage {
   protected readonly loading = signal(true);
   /** Why the account could not be loaded: the failed request itself, worded where it is shown. */
   protected readonly error = signal<unknown>(null);
+  /** Opened by somebody this account is not theirs to open - not signed in, no key that opens it: the ways in instead. */
+  protected readonly signedOut = computed(() => isSignInRefusal(this.error()) && !this.auth.signedIn());
 
   protected readonly search = signal('');
   protected readonly element = signal<string>('all');

@@ -1,10 +1,12 @@
 import { HttpErrorResponse } from '@angular/common/http';
+import { signal } from '@angular/core';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { MATERIAL_ANIMATIONS } from '@angular/material/core';
 import { MatSnackBar } from '@angular/material/snack-bar';
 import { provideRouter } from '@angular/router';
 import { Observable, of, throwError } from 'rxjs';
 import { Api } from '../../core/api';
+import { AuthService } from '../../core/auth';
 import { en } from '../../core/i18n/en';
 import { provideTestTranslations } from '../../core/i18n/testing';
 import { TranslationService } from '../../core/i18n/translation';
@@ -166,6 +168,8 @@ describe('the account page', () => {
     language?: 'en' | 'sk';
     account?: AccountDetail | Observable<AccountDetail>;
     imports?: ImportRun[];
+    /** False: nobody signed in - a visitor, or nobody at all. */
+    signedIn?: boolean;
   }
 
   async function setup(options: Options = {}): Promise<void> {
@@ -180,6 +184,7 @@ describe('the account page', () => {
       // No metadata: the page falls back on the games' own prefixes.
       game: (_key: GameKey) => null,
       formatStat: (_game: GameKey, _stat: string, value: number) => `${value.toFixed(1)}%`,
+      visitorDays: () => 30,
     };
     TestBed.configureTestingModule({
       providers: [
@@ -189,6 +194,8 @@ describe('the account page', () => {
         { provide: MetaStore, useValue: meta },
         { provide: MatSnackBar, useValue: snackBar },
         { provide: MATERIAL_ANIMATIONS, useValue: { animationsDisabled: true } },
+        // Somebody signed in: no visitor notice; one who is not is a case of its own.
+        { provide: AuthService, useValue: { signedIn: signal(options.signedIn ?? true), available: signal(true), user: signal(null), lastError: signal(null) } },
       ],
     });
     fixture = TestBed.createComponent(AccountPage);
@@ -416,6 +423,32 @@ describe('the account page', () => {
       await setup({ imports: [] });
 
       expect(host.querySelector('.history')).toBeNull();
+    });
+  });
+
+  describe('for somebody not signed in', () => {
+    it('shows a visitor their account under the notice that says how long it is kept', async () => {
+      await setup({ language: 'en', signedIn: false });
+
+      expect(text(host.querySelector('app-visitor-notice p'))).toBe(
+        'You are not signed in. What you import is kept for this browser on our server for 30 days after your last visit. Signing in keeps it in your anotoki account.',
+      );
+      expect(host.querySelector('.page-header')).not.toBeNull();
+    });
+
+    it('shows nobody the ways in, not an error, for an account that is not theirs to open (401)', async () => {
+      await setup({ language: 'en', signedIn: false, account: throwError(() => new HttpErrorResponse({ status: 401, error: { message: 'Sign in.', code: 'sign_in_required' } })) });
+
+      expect(host.querySelector('app-visitor-hero')).not.toBeNull();
+      expect(host.querySelector('app-visitor-notice')).toBeNull();
+      expect(host.textContent).not.toContain(en['error.sign_in_required']);
+    });
+
+    it('says a 401 as an error to somebody signed in: their sign-in has ended', async () => {
+      await setup({ language: 'en', account: throwError(() => new HttpErrorResponse({ status: 401, error: { message: 'Sign in.', code: 'sign_in_required' } })) });
+
+      expect(host.querySelector('app-visitor-hero')).toBeNull();
+      expect(text(host.querySelector('.panel'))).toBe(en['error.sign_in_required']);
     });
   });
 

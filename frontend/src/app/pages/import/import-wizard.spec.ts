@@ -1,14 +1,17 @@
 import { HttpErrorResponse } from '@angular/common/http';
+import { signal } from '@angular/core';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { MATERIAL_ANIMATIONS } from '@angular/material/core';
 import { MatStepperIntl } from '@angular/material/stepper';
 import { provideRouter } from '@angular/router';
 import { of, throwError } from 'rxjs';
 import { Api } from '../../core/api';
+import { AuthService } from '../../core/auth';
 import { en } from '../../core/i18n/en';
 import { provideTestTranslations } from '../../core/i18n/testing';
 import { TranslationService } from '../../core/i18n/translation';
 import { AccountSummary, ImportRun } from '../../core/models';
+import { VisitorKey } from '../../core/visitor-key';
 import { ImportWizard } from './import-wizard';
 import { StepperWords } from './stepper-words';
 
@@ -111,7 +114,9 @@ describe('the import wizard', () => {
   let i18n: TranslationService;
   let api: { accounts: ReturnType<typeof vi.fn>; importShowcase: ReturnType<typeof vi.fn>; importFile: ReturnType<typeof vi.fn> };
 
-  async function wizard(options: { language?: 'en' | 'sk'; strings?: Record<string, string>; accounts?: AccountSummary[] } = {}): Promise<void> {
+  /** `who`: somebody signed in (the default), a visitor (a key held), or nobody. */
+  async function wizard(options: { language?: 'en' | 'sk'; strings?: Record<string, string>; accounts?: AccountSummary[]; who?: 'person' | 'visitor' | 'nobody' } = {}): Promise<void> {
+    const who = options.who ?? 'person';
     api = { accounts: vi.fn(() => of(options.accounts ?? [])), importShowcase: vi.fn(), importFile: vi.fn() };
     TestBed.configureTestingModule({
       providers: [
@@ -119,6 +124,8 @@ describe('the import wizard', () => {
         options.language === 'en' ? provideTestTranslations(en) : provideTestTranslations(options.strings ?? SLOVAK, { language: 'sk', english: en }),
         { provide: Api, useValue: api },
         { provide: MATERIAL_ANIMATIONS, useValue: { animationsDisabled: true } },
+        { provide: AuthService, useValue: { signedIn: signal(who === 'person'), available: signal(true), user: signal(null), lastError: signal(null) } },
+        { provide: VisitorKey, useValue: { current: () => (who === 'visitor' ? 'K'.repeat(43) : null) } },
       ],
     });
     fixture = TestBed.createComponent(ImportWizard);
@@ -250,6 +257,45 @@ describe('the import wizard', () => {
     await settle();
     const options = [...document.querySelectorAll('.cdk-overlay-container mat-option')].map(text);
     expect(options.slice(1)).toEqual(['Mona · UID 700000001', 'Second · UID zatiaľ chýba']);
+  });
+
+  // ── Somebody not signed in ─────────────────────────────────────────────────
+
+  it('asks nobody for accounts they cannot have, and says before the first import what will be kept', async () => {
+    await wizard({ language: 'en', who: 'nobody' });
+
+    expect(api.accounts).not.toHaveBeenCalled();
+    expect(text(host.querySelector('app-visitor-notice p'))).toBe(
+      'You are not signed in. What you import is kept for this browser on our server for 30 days after your last visit. Signing in keeps it in your anotoki account.',
+    );
+    // The way on is the same as anybody's.
+    await choose('genshin', 'showcase');
+    expect(host.querySelector('.account-field')).toBeNull();
+  });
+
+  it('lists a visitor\'s own accounts, under the notice', async () => {
+    await wizard({ language: 'en', who: 'visitor', accounts: [account(1)] });
+
+    expect(api.accounts).toHaveBeenCalledTimes(1);
+    expect(host.querySelector('app-visitor-notice aside')).not.toBeNull();
+  });
+
+  it('words a visitor\'s limits from their code and {max} - each one offering the sign-in', async () => {
+    await wizard({ language: 'en', who: 'visitor' });
+    await choose('genshin', 'showcase');
+    await typeUid('700123456');
+    const cases: [HttpErrorResponse, string][] = [
+      [refusedWith(422, { message: SERVER_ENGLISH, code: 'visitor_limit', params: { limit: 'accounts', max: 5 } }), 'Without signing in, this browser keeps at most 5 game accounts. Import into one of them, or sign in to add more.'],
+      [refusedWith(422, { message: SERVER_ENGLISH, code: 'visitor_limit', params: { limit: 'file_size', max: 5120 } }), 'Without signing in, a file can be up to 5120 KB. Sign in to import a larger one.'],
+      [refusedWith(429, { message: SERVER_ENGLISH, code: 'too_many_visitors' }), 'Too many people are importing without signing in right now. Sign in, or try again later.'],
+      [refusedWith(503, { message: SERVER_ENGLISH, code: 'visitors_unavailable' }), 'Importing without signing in is not ready on this server yet. Sign in to import.'],
+    ];
+    for (const [answer, sentence] of cases) {
+      api.importShowcase.mockReturnValueOnce(throwError(() => answer));
+      buttonWith('download').click();
+      await settle();
+      expect(text(problem()), JSON.stringify(answer.error)).toBe(sentence);
+    }
   });
 
   // ── A request that fails ───────────────────────────────────────────────────

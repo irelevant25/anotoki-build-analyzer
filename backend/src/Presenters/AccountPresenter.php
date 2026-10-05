@@ -13,8 +13,8 @@ use App\Support\Neutral;
  */
 final class AccountPresenter
 {
-    /** What an account's meta may show: nothing that names the tool or service the data came from. */
-    private const META_KEYS = ['region', 'achievements', 'platform', 'format_version', 'trailblazer'];
+    /** What an account's meta may show (and an accounts file carry): nothing that names the tool or service the data came from. */
+    public const META_KEYS = ['region', 'achievements', 'platform', 'format_version', 'trailblazer'];
 
     public static function summary(Account $account): array
     {

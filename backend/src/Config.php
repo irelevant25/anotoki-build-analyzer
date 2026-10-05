@@ -3,25 +3,41 @@
 namespace App;
 
 /**
- * The configuration: the application's own settings (config/app.php, committed) and the three files that
+ * The configuration: the application's own settings (config/app.php, committed) and the files that
  * describe one installation (config/*.local.php, gitignored, written by setup.php):
  *
- *   database.local.php   the PostgreSQL connection
- *   auth.local.php       how people sign in: mode "iam" (the anotoki IAM's issuer and this app's client id)
- *                        or "none" (a copy on the owner's own computer), and the owner's user id
- *   fetch.local.php      outgoing requests: how the app identifies itself, the delay between two requests
- *                        to one site, the page cache, and how long one sync step may run
+ *   database.local.php   required: the PostgreSQL connection
+ *   auth.local.php       required: where people sign in - the anotoki IAM's address (issuer) and this
+ *                        app's client id there. Sign-in through the IAM is the only way in; a "mode" or
+ *                        "local_user_id" left in an older file means nothing and opens nothing.
+ *   fetch.local.php      optional: outgoing requests - how the app identifies itself, the delay between two
+ *                        requests to one site, the page cache, and how long one sync step may run. Each value
+ *                        it leaves out is FETCH_DEFAULTS'.
  *
- * The local files are required. There is no environment variable and no committed default to fall back
- * on: an installation that has not been set up says so (503 "not_set_up", see api/middleware) instead of
- * quietly running against a database or an IAM nobody chose.
+ * There is no committed default for the required files: an installation that has not been set up says so
+ * (503 "not_set_up", see api/middleware) instead of quietly running against a database or an IAM nobody
+ * chose. One environment variable exists, for the browser check alone: BUILD_ANALYZER_TEST_CONFIG names a
+ * folder that stands in for config/ (its database.local.php, auth.local.php, fetch.local.php) and whose
+ * storage/ stands in for backend/storage - honoured only when the database it names is a throwaway one
+ * (build_analyzer_test_...); naming any other database leaves the API "not set up". A host never sets it.
  */
 final class Config
 {
-    public const LOCAL_FILES = ['database.local.php', 'auth.local.php', 'fetch.local.php'];
+    /** The files setup.php writes and the app cannot run without. */
+    public const LOCAL_FILES = ['database.local.php', 'auth.local.php'];
 
-    /** Defaults for the optional fetch settings; the user agent itself has none. */
-    private const FETCH_DEFAULTS = [
+    /** The file that may be there: its values over FETCH_DEFAULTS. */
+    public const OPTIONAL_FILES = ['fetch.local.php'];
+
+    /** The browser check's settings folder (see the class comment). */
+    public const TEST_CONFIG_ENV = 'BUILD_ANALYZER_TEST_CONFIG';
+
+    /** What the name of a database the test settings may point at begins with: the tests' throwaway ones. */
+    public const TEST_DATABASE_PREFIX = 'build_analyzer_test_';
+
+    /** The fetch settings without fetch.local.php, and the ones it leaves out. */
+    public const FETCH_DEFAULTS = [
+        'user_agent' => 'build-analyzer/1.0',
         'browser_user_agent' => 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0 Safari/537.36',
         'timeout' => 30,
         'delay_ms' => 1200,
@@ -44,9 +60,10 @@ final class Config
     public static function load(?string $root = null): self
     {
         $root = rtrim(str_replace('\\', '/', $root ?? dirname(__DIR__)), '/');
-        $dir = $root.'/config';
+        $testDir = self::testConfigDir();
+        $dir = $testDir ?? $root.'/config';
 
-        $values = self::requireArray($dir.'/app.php') ?? [];
+        $values = self::requireArray($root.'/config/app.php') ?? [];
         $problems = [];
 
         $local = [];
@@ -65,16 +82,46 @@ final class Config
             }
             $local[substr($file, 0, -strlen('.local.php'))] = $data;
         }
+        foreach (self::OPTIONAL_FILES as $file) {
+            $path = $dir.'/'.$file;
+            if (! is_file($path)) {
+                continue;
+            }
+            $data = self::requireArray($path);
+            if ($data === null) {
+                $problems[] = "config/{$file} does not return an array";
+
+                continue;
+            }
+            $local[substr($file, 0, -strlen('.local.php'))] = $data;
+        }
 
         $values['database'] = $local['database'] ?? [];
         $values['auth'] = ($local['auth'] ?? []) + ['jwks_file' => null, 'leeway' => 60];
         $values['fetch'] = ($local['fetch'] ?? []) + self::FETCH_DEFAULTS;
 
+        if ($testDir !== null && ! str_starts_with((string) ($values['database']['database'] ?? ''), self::TEST_DATABASE_PREFIX)) {
+            // The test settings never reach a real database: not set up, rather than the wrong one.
+            $values['database'] = [];
+            $problems[] = self::TEST_CONFIG_ENV.' names a database that is not a '.self::TEST_DATABASE_PREFIX.' one';
+        }
+
         if ($problems === []) {
             $problems = self::check($values);
         }
 
-        return new self($values, $root, $problems);
+        return new self($values, $root, $problems, $testDir !== null ? $testDir.'/storage' : null);
+    }
+
+    /** The browser check's settings folder, when BUILD_ANALYZER_TEST_CONFIG names one. */
+    private static function testConfigDir(): ?string
+    {
+        $dir = getenv(self::TEST_CONFIG_ENV);
+        if (! is_string($dir) || trim($dir) === '') {
+            return null;
+        }
+
+        return rtrim(str_replace('\\', '/', $dir), '/');
     }
 
     /**
@@ -113,21 +160,13 @@ final class Config
             $problems[] = 'config/database.local.php has a port that is not a number';
         }
 
+        // Sign-in through the IAM is the only way in, so the IAM must be named - whatever else the file says.
         $auth = $values['auth'] ?? [];
-        if (! is_string($auth['mode'] ?? null) || $auth['mode'] === '') {
-            $problems[] = 'config/auth.local.php has no mode ("iam" or "none")';
-        } elseif ($auth['mode'] === 'none') {
-            if (! is_int($auth['local_user_id'] ?? null) || $auth['local_user_id'] < 1) {
-                $problems[] = 'config/auth.local.php has no local_user_id (a positive number)';
-            }
-        } else {
-            // "iam", or anything that is not exactly "none": sign-in is required, so the IAM must be named.
-            if (! is_string($auth['issuer'] ?? null) || ! preg_match('#^https?://[^/\s]+#', $auth['issuer'])) {
-                $problems[] = 'config/auth.local.php has no issuer (the IAM\'s address)';
-            }
-            if (! is_string($auth['client_id'] ?? null) || trim($auth['client_id']) === '') {
-                $problems[] = 'config/auth.local.php has no client_id';
-            }
+        if (! is_string($auth['issuer'] ?? null) || ! preg_match('#^https?://[^/\s]+#', $auth['issuer'])) {
+            $problems[] = 'config/auth.local.php has no issuer (the IAM\'s address)';
+        }
+        if (! is_string($auth['client_id'] ?? null) || trim($auth['client_id']) === '') {
+            $problems[] = 'config/auth.local.php has no client_id';
         }
 
         $fetch = $values['fetch'] ?? [];
@@ -155,7 +194,7 @@ final class Config
     }
 
     /**
-     * A value by dot path: "auth.mode", "fetch.delay_ms", "aliases.genshin.sets".
+     * A value by dot path: "auth.issuer", "fetch.delay_ms", "aliases.genshin.sets".
      */
     public function get(string $path, mixed $default = null): mixed
     {

@@ -17,9 +17,11 @@ import { TranslationParams, TranslationService, Wording } from './translation';
  */
 const BY_CODE = new Map<string, TranslationKey>([
   ['sign_in_required', 'error.sign_in_required'],
-  ['local_only', 'error.local_only'],
-  ['no_access', 'error.no_access'],
+  ['editor_only', 'error.editor_only'],
   ['admin_only', 'error.admin_only'],
+  ['visitor_unknown', 'error.visitor_unknown'],
+  ['too_many_visitors', 'error.too_many_visitors'],
+  ['visitors_unavailable', 'error.visitors_unavailable'],
   ['too_many_imports', 'error.too_many_imports'],
   ['not_found', 'error.not_found'],
   ['server_error', 'error.server_error'],
@@ -27,11 +29,19 @@ const BY_CODE = new Map<string, TranslationKey>([
   ['invalid', 'error.invalid'],
 ]);
 
+/** A visitor's own limits (422 visitor_limit {limit, max}): one sentence a limit, each with its {max}. */
+const VISITOR_LIMITS = new Map<string, TranslationKey>([
+  ['accounts', 'error.visitor_limit_accounts'],
+  ['file_size', 'error.visitor_limit_file_size'],
+]);
+
 /**
  * The key for a failed request:
  *
  *   no answer at all (status 0)       error.offline
- *   401, whatever it says             error.sign_in_required - the sign-in has ended
+ *   401 visitor_unknown               error.visitor_unknown - the visitor key opens nothing any more
+ *   any other 401                     error.sign_in_required - the sign-in has ended
+ *   422 visitor_limit {limit, max}    error.visitor_limit_<limit>, with {max} (errorParams())
  *   one of the server's listed codes  its own key
  *   an answer without a code          error.http, which has a {status} - fill it with errorParams()
  *   anything else                     error.unknown
@@ -43,16 +53,45 @@ export function errorKey(error: unknown): TranslationKey {
   if (error.status === 0) {
     return 'error.offline';
   }
-  if (error.status === 401) {
-    return 'error.sign_in_required';
-  }
   const code = errorCode(error);
+  if (error.status === 401) {
+    return code === 'visitor_unknown' ? 'error.visitor_unknown' : 'error.sign_in_required';
+  }
+  if (code === 'visitor_limit') {
+    return VISITOR_LIMITS.get(String(answerParams(error)['limit'] ?? '')) ?? 'error.unknown';
+  }
   return code === null ? 'error.http' : (BY_CODE.get(code) ?? 'error.unknown');
 }
 
-/** What errorKey()'s strings are filled with: `i18n.t(errorKey(error), errorParams(error))`. */
+/**
+ * What errorKey()'s strings are filled with: `i18n.t(errorKey(error), errorParams(error))` - the status,
+ * and a visitor limit's {max} (a number, or nothing).
+ */
 export function errorParams(error: unknown): TranslationParams {
-  return { status: error instanceof HttpErrorResponse ? error.status : 0 };
+  const status = error instanceof HttpErrorResponse ? error.status : 0;
+  const max = answerParams(error)['max'];
+  return typeof max === 'number' ? { status, max } : { status };
+}
+
+/** The `params` of the API's own error answer ({} for none, or for one that is not an object). */
+export function answerParams(error: unknown): Record<string, unknown> {
+  if (!(error instanceof HttpErrorResponse)) {
+    return {};
+  }
+  const body: unknown = error.error;
+  if (typeof body !== 'object' || body === null || !Object.hasOwn(body, 'params')) {
+    return {};
+  }
+  const params = (body as { params: unknown }).params;
+  return typeof params === 'object' && params !== null && !Array.isArray(params) ? (params as Record<string, unknown>) : {};
+}
+
+/**
+ * Whether a request was refused for want of a sign-in (any 401): on a page anybody may open, somebody who is
+ * not signed in then sees the ways in (shared/visitor-hero) rather than an error.
+ */
+export function isSignInRefusal(error: unknown): boolean {
+  return error instanceof HttpErrorResponse && error.status === 401;
 }
 
 /** The `code` of the API's own error answer - or null: the answer has none, or is not the API's at all. */

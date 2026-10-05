@@ -1,23 +1,26 @@
 <?php
 
 /**
- * setup.php - sets the build analyzer up: writes config/database.local.php, auth.local.php and
- * fetch.local.php, and builds the database. Needed once on every installation, a development copy included:
- * without those files the API answers 503 "not_set_up" and the app says so.
+ * setup.php - sets the build analyzer up: writes config/database.local.php and auth.local.php (and
+ * fetch.local.php with its defaults, when there is none), and builds the database. Needed once on every
+ * installation, a development copy included: without those files the API answers 503 "not_set_up" and the
+ * app says so.
+ *
+ * It asks for the database (PostgreSQL) and the anotoki IAM people sign in at - and, on a host, the setup
+ * token - and nothing else. Sign-in through the IAM is the only way in, on this computer as on a host.
  *
  * ON THIS COMPUTER (a loopback client asking for localhost - `composer start` in backend/, then
  * http://127.0.0.1:8400/setup.php, or through the Angular dev server on http://localhost:4600/setup.php)
  * there is no token: a CSRF nonce (a cookie that other sites cannot send) protects the form. It can be run
  * again whenever something changes; it shows the saved values, never the saved password, and it stays.
- * Sign-in may be switched off here ("none"): a copy of your own, where everything is yours.
  *
  * ON A HOST (FTP-only) upload it into the web root beside the build, then open https://<site>/setup.php.
  * Anyone could reach it, so it first proves you own the server: on first view it writes a random token into
- * config/setup-token.local.php and asks you to read it back over FTP. Sign-in is always through the anotoki
- * IAM. When it is done it writes storage/installed.lock (so it never runs twice) and deletes the token and
- * itself.
+ * config/setup-token.local.php and asks you to read it back over FTP. It shows no saved value. When it is
+ * done it writes storage/installed.lock (so it never runs twice) and deletes the token and itself.
  *
- * "Test connection" beside the database and the IAM checks either without saving anything.
+ * "Test connection" beside the database and the IAM checks either without saving anything, in the words
+ * every anotoki setup page answers in (App\Setup\Installer::testDatabase()).
  *
  * A database made by the first (Laravel) version of the app is recognised and brought forward with all its
  * data (migrations/001_adopt_laravel_database.sql).
@@ -73,11 +76,9 @@ function page(string $heading, string $body, string $tone = 'plain'): never
         'button{margin-top:22px;width:100%;padding:11px;border:0;border-radius:9px;background:var(--accent);color:#fff;font:600 1rem system-ui;cursor:pointer}',
         'button.test{width:auto;margin-top:10px;padding:7px 14px;font-size:.9rem;background:transparent;color:var(--ink);border:1px solid var(--line)}',
         '.result{margin-top:8px;font-size:.9rem;min-height:1.2em}.result.ok{color:#1d8a55}.result.bad{color:#c62f3b}',
-        '.choice{display:flex;gap:9px;align-items:flex-start;font-weight:400;margin:10px 0 2px}.choice input{margin-top:4px}',
         'code{background:rgba(127,127,127,.15);padding:1px 6px;border-radius:5px;font-size:.85em;overflow-wrap:anywhere}',
         '.err{background:rgba(198,47,59,.12);border:1px solid rgba(198,47,59,.4);color:#c62f3b;border-radius:9px;padding:10px 12px;margin:12px 0}',
         '.note{border:1px solid var(--line);border-radius:9px;padding:11px 13px;margin:12px 0}.ok{color:#1d8a55}.muted{font-size:.85rem;margin:4px 0 0}',
-        'details{margin-top:18px}summary{cursor:pointer;color:var(--muted);font-size:.9rem}',
         '@media (max-width:520px){.row{flex-direction:column;gap:0}.card{padding:20px 18px}}',
         '</style></head><body><main class="card"><h1>', h($heading), '</h1>', $body, '</main></body></html>';
     exit;
@@ -131,7 +132,7 @@ if ($local) {
 $allowed = function () use ($local, $cookie, $token): bool {
     if ($local) {
         $origin = $_SERVER['HTTP_ORIGIN'] ?? null;
-        $sameMachine = $origin === null || App\Auth\IamGuard::isLocalHost((string) parse_url((string) $origin, PHP_URL_HOST));
+        $sameMachine = $origin === null || Installer::isLocalHost((string) parse_url((string) $origin, PHP_URL_HOST));
 
         return $cookie !== null && $sameMachine && hash_equals($cookie, (string) ($_POST['nonce'] ?? ''));
     }
@@ -164,7 +165,7 @@ if ($post && in_array($action, ['test-db', 'test-iam'], true)) {
         json($installer->testIam($values['issuer']));
     }
 
-    [$settings, $errors] = $installer->validate($values, $password, $local);
+    [$settings, $errors] = $installer->validate($values, $password);
     if (array_filter($errors, fn ($error) => str_contains($error, 'database')) !== []) {
         json(['ok' => false, 'message' => 'Fill in the database host, a numeric port, the database name and the username.']);
     }
@@ -178,7 +179,7 @@ if ($post) {
     if (! $allowed()) {
         $errors[] = $local ? 'This form has expired. Reload the page and try again.' : 'That is not the token from config/setup-token.local.php.';
     } else {
-        [$settings, $errors] = $installer->validate($values, $password, $local);
+        [$settings, $errors] = $installer->validate($values, $password);
     }
 
     if ($errors === []) {
@@ -186,17 +187,17 @@ if ($post) {
             if (! $local) {
                 $installer->checkExposure($siteUrl);
             }
-            $log = $installer->buildDatabase($settings['database'], (int) $settings['auth']['local_user_id']);
-            $written = $installer->writeConfig($settings);
+            $log = $installer->buildDatabase($settings['database']);
+            $written = $installer->writeConfig($settings, Installer::userAgent($local, $siteUrl));
 
             $files = implode(', ', array_map(fn ($file) => '<code>'.h($file).'</code>', $written));
             $steps = '<ul>'.implode('', array_map(fn ($line) => '<li>'.h($line).'</li>', $log)).'</ul>';
 
             if ($local) {
                 page('Saved', $steps.'<p>Wrote '.$files.'.</p>'
-                    .'<p>Sign-in: <strong>'.($settings['auth']['mode'] === 'none' ? 'switched off' : 'through the anotoki IAM at '.h($settings['auth']['issuer'])).'</strong>.</p>'
+                    .'<p>Sign-in: <strong>through the anotoki IAM at '.h($settings['auth']['issuer']).'</strong>.</p>'
                     .'<h2>Next</h2><ul><li>The app: <code>npm start</code> in <code>frontend/</code>, then <a href="http://localhost:4600/">http://localhost:4600</a>.</li>'
-                    .'<li>On the <strong>Sources</strong> page (admins) press <strong>Refresh catalog</strong>, then <strong>Sync all</strong>, and keep the tab open while it runs.</li>'
+                    .'<li>On the <strong>Sources</strong> page (editors and admins) press <strong>Refresh catalog</strong>, then <strong>Sync all</strong>, and keep the tab open while it runs.</li>'
                     .'<li>To change any of this, open <a href="setup.php">setup.php</a> again.</li></ul>', 'good');
             }
 
@@ -211,7 +212,7 @@ if ($post) {
                 .($locked ? '' : '<p class="err"><code>storage/installed.lock</code> could not be written. Make <code>storage/</code> writable.</p>')
                 .($gone ? '<p class="ok">Removed <code>setup.php</code> and <code>config/setup-token.local.php</code>.</p>'
                     : '<p class="err">Delete <code>setup.php</code> and <code>config/setup-token.local.php</code> by hand now.</p>')
-                .'<h2>Next</h2><ol><li>Open <a href="/">'.h($siteUrl).'</a> and sign in with your anotoki account (it needs the ADMIN role for the build analyzer in the IAM).</li>'
+                .'<h2>Next</h2><ol><li>Open <a href="/">'.h($siteUrl).'</a> and sign in with the IAM\'s administrator account (the IAM gives it the ADMIN role here).</li>'
                 .'<li>On the <strong>Sources</strong> page press <strong>Refresh catalog</strong>, then <strong>Sync all</strong>, and keep the tab open while it runs.</li></ol>', 'good');
         } catch (Throwable $e) {
             $errors[] = $e->getMessage();
@@ -224,12 +225,10 @@ if ($post) {
 $saved = $installer->saved() !== [];
 $field = fn (string $name, string $label, string $type = 'text', string $extra = '') => '<label for="'.$name.'">'.h($label).'</label>'
     .'<input id="'.$name.'" name="'.$name.'" type="'.$type.'"'.($type === 'password' ? '' : ' value="'.h($values[$name] ?? '').'"').' '.$extra.'>';
-$modeChoice = fn (string $value, string $label, string $help) => '<label class="choice"><input type="radio" name="mode" value="'.$value.'"'
-    .($values['mode'] === $value ? ' checked' : '').'><span><strong>'.h($label).'</strong><br><span class="muted">'.h($help).'</span></span></label>';
 
 $intro = $local
     ? '<p>This writes the configuration of this copy and builds its database.'.($saved ? ' It is set up already: these are the saved values (the password is not shown), and saving replaces them.' : '').'</p>'
-    : '<p>This writes the configuration, builds the database and turns sign-in through the anotoki IAM on. Do it once, on a PostgreSQL database made in the hosting panel.</p>'
+    : '<p>This writes the configuration and builds the database. Do it once, on a PostgreSQL database made in the hosting panel.</p>'
         .'<div class="note">A token was written to <code>config/setup-token.local.php</code>. Open that file over FTP, copy the token and paste it below: that is how setup knows it is you.</div>';
 
 page('Set up the build analyzer', $intro
@@ -243,20 +242,10 @@ page('Set up the build analyzer', $intro
     .$field('db_password', 'Password', 'password', $local && $installer->savedPassword() !== null ? 'placeholder="saved - leave empty to keep it"' : '').'</div></div>'
     .'<button type="button" class="test" data-test="test-db">Test connection</button><div class="result" id="test-db"></div>'
     .'<h2>Sign-in</h2>'
-    .($local ? $modeChoice('none', 'Switched off', 'A copy of your own: nobody signs in, everything belongs to the owner below, and only this computer is answered.')
-        .$modeChoice('iam', 'Through the anotoki IAM', 'Everyone signs in at the IAM; members import their own accounts, admins run the syncs.')
-        : '<p>Everyone signs in at the anotoki IAM, which must know this site as the client below, with <code>'.h($siteUrl).'/auth/callback</code> as its redirect address.</p>')
+    .'<p>Everyone signs in at the anotoki IAM, which must know this site as the client below, with <code>'.h($local ? 'http://localhost:4600' : $siteUrl).'/auth/callback</code> as its redirect address.</p>'
     .'<div class="row"><div>'.$field('issuer', 'IAM address', 'url').'</div><div>'.$field('client_id', 'Client id').'</div></div>'
     .'<button type="button" class="test" data-test="test-iam">Test connection</button><div class="result" id="test-iam"></div>'
-    .$field('local_user_id', 'Owner\'s user id', 'text', 'inputmode="numeric"')
-    .'<p class="muted">Your anotoki IAM user id. With sign-in off everything is this user\'s; a database from the first version of the app gives its accounts to this user.</p>'
-    .'<details><summary>Outgoing requests and syncs</summary>'
-    .$field('user_agent', 'How the app identifies itself to other sites (user agent)')
-    .'<div class="row"><div>'.$field('delay_ms', 'Delay between requests to a site (ms)', 'text', 'inputmode="numeric"').'</div><div>'.$field('cache_hours', 'Keep downloaded pages (hours)', 'text', 'inputmode="numeric"').'</div></div>'
-    .'<div class="row"><div>'.$field('step_seconds', 'Seconds per sync step (12-120)', 'text', 'inputmode="numeric"').'</div><div>'.$field('stale_hours', '"Sync all" skips sources synced within (hours)', 'text', 'inputmode="numeric"').'</div></div>'
-    .'<p class="muted">A step must end well within the host\'s time limit for a request; 20 seconds suits most.</p>'
-    .'</details>'
-    .'<button type="submit">'.($local ? 'Save and build the database' : 'Set up').'</button></form>'
+    .'<button type="submit">'.($local ? 'Save' : 'Set up').'</button></form>'
     .'<script>'
     .'document.querySelectorAll("[data-test]").forEach(function (button) {'
     .'  button.addEventListener("click", function () {'

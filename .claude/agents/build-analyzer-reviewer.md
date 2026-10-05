@@ -32,10 +32,44 @@ Correctness first:
 - Per-user data: every account / import query is scoped (`Accounts::owned()` / `findOwned()`, or the owner as
   a parameter); nothing looks an account up by id or UID alone; another user's data answers 404. Shared data
   (catalog, builds, sources, sync runs) stays shared.
-- Sign-in: identity comes only from the verified IAM token (`IamGuard`) or, in auth mode "none", the configured
-  owner - never from request input; new routes carry the right `requireRole($app, Role::MEMBER|ADMIN)`;
-  anything but `mode: none` means sign-in; frontend calls go through `Api` (the interceptor adds the bearer only
-  to this site's `/api`).
+- Sign-in: identity comes only from the verified IAM token (`IamGuard`) - never from a body, a parameter, an
+  address or a header of the site's own; there is no other sign-in mode. A request that sends an
+  `Authorization: Bearer` header is that person or 401 (`requestPerson()`), never treated as one that sent none
+  (only the Bearer scheme counts: `Basic` is no credentials). Whether sign-in is required is the IAM's switch,
+  read only through `App\Auth\SignInPolicy` (the vendored SDK's `anotoki_iam_login_required()`; never a fetch
+  of the site's own): while it is on, `optionalSignIn()` and `requireOwner()` answer nobody and any visitor key
+  401 `sign_in_required` - the key refused before `Visitors::find()` - and only `/api/meta`, the strings and the
+  icons stay open; a new route without a sign-in check must decide what it does then. MEMBER is an ordinary
+  person: no check needs or refuses it. Tests keep the fixed policy (`T::$signIn`) and never call a real
+  issuer. Every
+  route sits in a group with its check: public `optionalSignIn` (never per-person data, never `started_by`),
+  own data `requireOwner`, what only a signed-in person has `requireSignIn` (the own accounts file
+  `/api/me/*`, the move; `visitors.test.php` lists them as refused to a visitor), the editors' `requireRole(...Role::STAFF)` (syncs, sync history, builds files, the
+  strings, the languages' list), the admins' `requireRole(Role::ADMIN)` (sources on / off, migrations, adding /
+  renaming / switching / deleting a language, People); `auth.test.php`'s route lists name every one.
+  Visitors (`src/Auth/Visitors.php`): only `requireOwner()` reads `X-Visitor-Key` (a visitor never passes
+  `requireSignIn` / `requireRole`, never has a role); a bad token never falls back to the key; the key is
+  never logged, never in a body or a URL - only the response header of the import that made the visitor, with
+  `no-store`; nothing outside `Visitors` / `Users` writes a visitor row; limits are checked before a visitor
+  is made, and a failed first import deletes it; the sweep never fails a request; tests never assume a
+  visitor's id; frontend calls go through `Api`, which marks each as the person's or the visitor's when it is
+  issued (`ISSUED_AS`; the admin panel, the syncs, the own-data file and the move always the person's) - never
+  decided by whether a token is there when it leaves; the interceptor adds the bearer only to this site's
+  `/api`, never sends a person's request without one (a local 401 `sign_in_required`), and the visitor key
+  only on a visitor's request while sign-in is not required - read at send time, never replacing a stored key,
+  forgotten on `visitor_unknown` only (kept while sign-in is required); the move is the one request with both,
+  started by `VisitorKey`, never by `AuthService`; a sign-in waits for the writes on their way; nobody's pages ask for no own data; admin pages live under
+  `/admin/` (English) and hide what the server refuses.
+- The own accounts file (`src/Services/Transfer/`): keys, never ids; no user or account id; sources
+  `showcase` / `file`; meta `AccountPresenter::META_KEYS` only; times UTC to the second; the reader strict
+  and the writer writing only what the reader accepts (and `export_too_big` past the size or the caps); an
+  import never deletes an account, the newer `last_import_at` wins as a whole (a tie keeps this copy), a dry
+  run writes nothing, and every writer of one person's accounts takes their `users` row first
+  (`Users::lockForWrite()`) - and answers its `false` (the row went meanwhile) with `Visitors::ownerGone()`
+  (401, nothing written), and reads again under the lock what it found before it (the target account, a
+  visitor's account count).
+- A migration's gate checks only what the migration itself guarantees: a string an editor may delete in the
+  browser (a non-English one) is checked for the keys that migration adds, never for every key.
 - Neutral names: nothing the UI shows or the API sends for display names or links another website, service or
   tool (labels, tooltips, errors, titles, the changelog, `import-guides.ts`); sources appear as "Source N" with
   API keys `{game}-{n}`; text from elsewhere goes through `Neutral::text()`; icons go through `/api/icons/…`.
@@ -64,14 +98,21 @@ Correctness first:
 - Syncs: no request runs long or sleeps long (work goes through `SyncRunner` steps and `FetchDeferred`); no
   queue jobs, schedules, `proc_open` or background processes; handlers save after each unit of work.
 - Configuration: only `backend/config/app.php` (committed) and `config/*.local.php` (written by `setup.php`);
-  no environment variables, no `.env`, no committed defaults for the database or the IAM.
+  no `.env`, no committed defaults for the database or the IAM; the one environment variable,
+  `BUILD_ANALYZER_TEST_CONFIG` (the browser check's settings folder), is honoured only for a
+  `build_analyzer_test_` database (`App\Config::load()`) and nothing on a host sets it.
 - The vendored IAM SDK files (`backend/src/Support/Iam/anotoki_iam.php`, `frontend/src/app/core/iam/*`) are
-  byte-identical to `anotoki-iam/sdk/`.
-- Deploy: `scripts/build-dist.php` output never contains `*.local.php`, logs, tests or command-line scripts, and
+  byte-identical to `anotoki-iam/sdk/` (in LF line endings).
+- Deploy: `backend/tools/build.php` output never contains `*.local.php`, logs, tests or command-line scripts, and
   keeps the deny `.htaccess` files; `setup.php` keeps its token / lock / self-delete protections on a host and
   writes secrets with owner-only permissions.
 - Analysis: scores stay 0–100, missing data yields `null` parts, suggestions never worsen set bonuses.
 - API changes are mirrored in `frontend/src/app/core/models.ts`; routes validate input (`Web\Input`).
+- The top bar (`layouts/top-bar/`) keeps the family's rules: one row in the family's order; every member word
+  a key (`brand.*`, `topbar.*`; the admin sections English); its menus are its own markup, not `mat-menu` -
+  Tab / Shift+Tab from any item `preventDefault()` and close with the focus on the menu button (its spec
+  checks `defaultPrevented`, the menu closed and `document.activeElement`); a new piece or longer words mean
+  measuring the row again (`run.mjs --measure`) and keeping `PHONE_BAR_MAX` and the scss in step.
 
 Then quality:
 
@@ -84,12 +125,13 @@ Then quality:
 - PHP conventions of the surrounding code (`declare(strict_types=1)` where the file has it, typed properties,
   constructor injection through `App::get()` / `make()`, no framework helpers); Angular conventions (standalone
   components with three files `.ts` / `.html` / `.scss`, signals, `input()`, `inject()`, built-in control flow,
-  CSS tokens from `styles.scss`, `min-width: 0` on grid children with one-line text). A UI change was looked
-  at with `verify-ui` in English and in Slovak at 390 px (Slovak runs longer).
+  CSS tokens from `styles.scss`, `min-width: 0` on grid children with one-line text). A UI change passed the
+  browser check (`node .claude/skills/verify-ui/scripts/run.mjs`) and its screenshots were looked at - English
+  and Slovak at 390 px (Slovak runs longer).
 - Docs in `docs/`, `DEV.md` and the README updated when behavior they describe changed; a user-visible
   release has a `frontend/public/changelog.json` entry and the same version in `backend/src/Version.php`.
-- Nothing sensitive or machine-specific committed: `dev.local.ps1`, `backend/config/*.local.php`, credentials,
-  cookies, absolute user paths outside `dev.local.ps1` / `.vscode`.
+- Nothing sensitive or machine-specific committed: `backend/config/*.local.php`, credentials, cookies, absolute
+  user paths (`.vscode/` is gitignored).
 
 ## Report
 

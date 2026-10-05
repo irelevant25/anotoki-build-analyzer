@@ -1,0 +1,22 @@
+<div
+  class="segmented"
+  role="radiogroup"
+  [attr.aria-label]="'theme.label' | translate"
+  (keydown)="onKeydown($event)"
+>
+  @for (option of options; track option.mode) {
+    <button
+      #option
+      type="button"
+      role="radio"
+      class="segment"
+      [attr.aria-checked]="theme.mode() === option.mode"
+      [attr.aria-label]="option.label | translate"
+      [attr.title]="option.label | translate"
+      [tabIndex]="theme.mode() === option.mode ? 0 : -1"
+      (click)="theme.set(option.mode)"
+    >
+      <mat-icon aria-hidden="true">{{ option.icon }}</mat-icon>
+    </button>
+  }
+</div>

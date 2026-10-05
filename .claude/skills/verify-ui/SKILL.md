@@ -1,131 +1,98 @@
 ---
 name: verify-ui
-description: Start the build analyzer (PHP API + Angular dev server, sign-in switched off) and check pages visually with headless Edge screenshots, then shut everything down. Use after any change to Angular templates, styles or API responses the UI renders, before saying a UI change works, when a page renders blank or looks broken, or when the user asks to see, check or screenshot the app.
+description: Check the build analyzer in a real browser, end to end, on a throwaway database with the stand-in IAM - somebody new, a visitor's first import and its key, two tabs, the move into an account at sign-in (also when Sign in is pressed while the first import is on its way), a refused sign-in while visiting, sign-in required by the IAM (every page to the IAM first, the key kept and moved), a member's export and import, an editor and an admin in the admin panel, the family's top bar at 360 / 390 / 880 / 881 / 1280 px in light and dark with its phone menu and a real Tab press, the Slovak pages at 390 px with no key where a word should be, and the served path (X-Visitor-Key through the router, the visitors' clean-up after an answer). Use after any change to Angular templates, styles, the bar, sign-in, visitors, the site's strings or API responses the UI renders, before saying a UI change works, when a page renders blank or looks broken, or when the user asks to see, check or screenshot the app.
 ---
 
 # Verify the UI
 
-Type checks and unit tests don't show overflowing columns, empty panels or a stale error overlay; a
-screenshot does. The bundled `scripts/screenshot.sh` drives the installed Edge headlessly with a throwaway
-profile, so it never touches the user's browser.
+Type checks and unit tests don't show overflowing columns, empty panels, a bar whose pieces paint over each
+other, or focus that falls to `<body>`; a browser does. Sign-in is the IAM's only, and the backend lets in
+only tokens it can verify - so the check signs in through the **stand-in IAM**
+(`backend/tests/tools/fake-iam.php`) against a **throwaway database**, never the owner's.
 
-Screenshots need **sign-in switched off**: the headless browser cannot sign in at the anotoki IAM. In that
-mode (`'mode' => 'none'` in `backend/config/auth.local.php`, what `setup.php` writes for "Switched off") every
-request from the app's own pages on this computer is the owner (`local_user_id`) with every role, so every
-page - the admin-only Sources page too - opens without a token, and the toolbar shows no sign-in controls. If
-this copy signs in through the IAM (`"mode":"iam"` in `/api/meta`), ask the user before switching it off with
-`setup.php` (and switch it back afterwards), or limit yourself to the signed-out views (below).
+## 1. Run it
 
-## 1. Build first
+From the repository's root (Git Bash; `PHP` = a PHP 8.4+ binary when `php` on PATH is older):
 
 ```bash
-(cd frontend && npx ng build)      # compile errors are clearer here than in the dev server overlay
+node .claude/skills/verify-ui/scripts/run.mjs             # builds the frontend first
+node .claude/skills/verify-ui/scripts/run.mjs --no-build  # the build in frontend/dist is current
+node .claude/skills/verify-ui/scripts/run.mjs --keep      # leave the work folder (screenshots, logs, the export)
+node .claude/skills/verify-ui/scripts/run.mjs --measure   # only: what the bar's row needs, in English and Slovak
 ```
 
-## 2. Start the servers in the background
+`run.mjs`:
 
-Use `run_in_background` for both, then wait until they answer:
+1. refuses to start when 8590 or 8597 already answers (another check, or somebody's server: look first) - or
+   run it on other throwaway ports, each in 8590-8599: `SITE_PORT=8593 IAM_PORT=8596 node .../run.mjs`
+   (several agents checking several sites at once each take their own);
+2. installs `playwright-core` into `<temp>/pw` once (`npx -y npm@11 install --prefix <temp>/pw playwright-core` -
+   never into the repository; npm 10 crashes on install here) and drives the installed Edge headlessly;
+3. `npx ng build` (unless `--no-build`);
+4. `php tests/tools/browser-db.php make <work>/config http://127.0.0.1:8597` (from `backend/`): the database
+   `build_analyzer_test_browser` made afresh from the migrations (004 included), the tests' small catalog
+   (`tests/support/seed.php`) and one build for Hu Tao - nothing is ever fetched from a live site - and a
+   settings folder (`database.local.php`, `auth.local.php`, `storage/`) outside the repository;
+5. starts the stand-in IAM on **8597** and the site on **8590** (`php -S 127.0.0.1:8590 router.php`: the built
+   app and the API on one origin, as on the host) with `BUILD_ANALYZER_TEST_CONFIG=<work>/config` - honoured
+   only for a `build_analyzer_test_` database (`App\Config`; anything else is "not set up"), and its storage
+   (the log) is the folder's, never `backend/storage`;
+6. runs `scripts/flow.mjs`, then stops both servers with their process trees, drops the database, checks the
+   ports are free and deletes the work folder (unless `--keep`: it holds a database login - delete it after).
 
-```bash
-cd backend && composer start                      # php -S 127.0.0.1:8400 router.php
-cd frontend && npx ng serve                       # http://localhost:4600, proxies /api and /setup.php to :8400
-```
+Every step prints `ok` or `FAIL`; the exit code is 0 only when all passed. **Look at the screenshots**
+(`<work>/shots`, printed at the start; open them with the Read tool) - the checks prove geometry and words,
+not that a page looks right.
 
-```bash
-for i in $(seq 1 40); do curl -s -o /dev/null http://localhost:4600/ && curl -s -o /dev/null http://127.0.0.1:8400/api/meta && break; sleep 2; done
-curl -s http://127.0.0.1:8400/api/meta | grep -o '"auth":{[^}]*}'    # "mode":"none" for the full tour
-```
+## 2. What the flow checks
 
-A 503 with `"code":"not_set_up"` means this copy has no configuration yet: the app shows its "Not set up yet"
-page (worth a screenshot of its own), and `setup.php` sets it up - ask the user for the database first.
+| Tour | What |
+| --- | --- |
+| Nobody | the dashboard's hero and sources, no `/api/accounts` request; the bar's links, Sign in; the footer's version and What's new |
+| A visitor | the wizard's file import (a GOOD sample, file imports only - never a showcase, never the network): 201 with `X-Visitor-Key` (43 characters), the key in `localStorage['build-analyzer-visitor']`, a visitor row with a negative id; the notice and the account on the dashboard; a second tab of the same browser sees it |
+| Two tabs first | two tabs open before any key, both import: the stored key stays the first one |
+| The move | Sign in (the stand-in IAM signs in `mona`, id 7, MEMBER only: an ordinary person): the snack bar, the key gone, the visitor row gone, the account `mona`'s, the "Your data" card |
+| Own data | Export (the file's name, `build-analyzer.accounts`, no ids), Import the same file (the preview: 0 new, 0 replaced, 1 kept), Confirm |
+| The bar | 360, 390, `PHONE_BAR_MAX` (880), 881 and 1280 px; light and dark; English and Slovak; signed in and out: the pieces' boxes never overlap or leave the screen, no page scroll, a phone's bar up to 880 and a desktop's from 881; at 1280 px the language button shows its code and its accessible name holds it ("Jazyk: Slovenčina (SK)" - WCAG 2.5.3, Label in Name) |
+| Keyboard | the phone menu at 390 px (Slovak: its items, the focus on the first), a **real** Tab and Shift+Tab press - the menu closes and the focus is on the menu button, never `<body>`; the person's menu at 1280 px, End then Tab |
+| Slovak | `/`, `/import`, `/builds/genshin`, `/builds/genshin/hutao`, an account and a character at 390 px: `<html lang="sk">` and no key of `core/i18n/en/*.json` in the page's text |
+| Admin panel | a person without a role: the card, no sections; EDITOR (`eddie`, id 8): Sources and Translations only, `<html lang="en">`, no language chooser, the role pill and "Back to Build Analyzer", Languages and People send them to Sources, and the server refuses them `/api/admin/people` and `/api/admin/migrations` (403 `admin_only`); ADMIN (`ada`, id 1): the person's menu leads into the "Admin panel", all five sections (Migrations too), the brand "anotoki admin panel" (its link named "anotoki Build Analyzer: the admin panel"), the titles "People · Admin panel · Build Analyzer", People with the visitors line; Migrations sends an editor to Sources |
+| The admin panel's bar | 390, `ADMIN_PHONE_BAR_MAX` (960), 961, 1024 and 1280 px, light and dark: it fits, a phone's bar up to 960 and a desktop's from 961 (a 1024 px laptop has the whole row), the person's name whole at 1280 |
+| Migrations | ADMIN: nothing pending and every file applied in order, Apply pending disabled; then 004's row deleted (as if just uploaded): the Sources page's note with the link (no Apply there), the page lists 004 as pending, Apply pending asks first, and re-running 004 fails - "Stopped at 004_...", "Nothing was applied", rolled back, the database's error - also at 390 px with no sideways scroll; the row is put back after |
+| Served path | through `router.php`: an import with no sign-in answers its key in `X-Visitor-Key` and the key opens that visitor's accounts; a visitor aged 45 days goes after the next own-data answer (the after-answer sweep, `AfterResponse`), the log says so and holds no key |
+| Sign in while saving | a visitor's first import held back 1.5 s and Sign in pressed meanwhile: the page leaves for the IAM only after the answer, so the key is kept and moves into `sam`'s account (id 10) |
+| A refused sign-in | the stand-in's `deny` while visiting: back on the sign-in page with "The sign-in was not completed" and the page asked for as `returnTo`; the bar's Builds goes on visiting; `/admin` goes to the IAM all the same and, refused, shows the panel's "You are not signed in" with no section |
+| Sign-in required | the stand-in's `login_required: true` and the site's kept answer deleted (`<work>/config/storage/cache/iam/`): `/api/meta` relays it, a visitor's key gets 401 `sign_in_required`; a page load goes to the IAM by itself - refused first: the sign-in page, the key kept in the browser - then `rita` (id 11) comes back to `/builds/genshin` with the visitor's account moved and the key gone; somebody new never sees the visitors' dashboard; switched off again: the hero |
 
-Ports 8400 / 4600 taken (another session)? Use others, e.g. 8401 / 4601, with a proxy file outside the repo:
-`echo '{"/api":{"target":"http://127.0.0.1:8401","secure":false},"/setup.php":{"target":"http://127.0.0.1:8401","secure":false}}' > "$TMPDIR/proxy.json"`,
-then `php -S 127.0.0.1:8401 router.php` and `npx ng serve --port 4601 --proxy-config "$TMPDIR/proxy.json"`.
+Who signs in: `POST http://127.0.0.1:8597/_test/state` with `{"user": {"id", "username", "roles"}}` (the
+stand-in's header says the rest: `deny`, `down`, `refuse`, `ttl`, and `login_required` / `application_missing` - what
+it answers at `/api/public/applications/build-analyzer`, which the site reads to know whether sign-in is required:
+false by default, so the check runs with visitors welcome; the site keeps that answer a minute in its settings
+folder's `storage/cache/iam/`). The token carries `<username>@example.test`.
 
-Pages need data. Check `curl -s http://127.0.0.1:8400/api/accounts` (in "none" mode a request from this
-computer that no other site made - curl included - is the owner's); if empty and the page under test needs an
-account, import one (the user's UID, or a sample file with
-`cd backend && php import-account.php <game> <file>`, which imports for `local_user_id`) and remember to delete
-sample accounts afterwards. Builds are usually already synced.
+`--measure` prints what the bar's row needs without the person's name (the padding, the brand, the links, the
+controls and the gaps): signed out and as an admin, in English and Slovak, and the admin panel. That is how
+`PHONE_BAR_MAX` (880, `layouts/top-bar/top-bar.ts`: the member pages' widest row is 799 px, an admin with a
+sync running) and `ADMIN_PHONE_BAR_MAX` (960: the admin panel's row with a sync running is 954 px, the same whichever language was chosen - the panel reads English) were
+chosen. Change the bar's words or pieces -> measure again.
 
-## 3. Screenshot and look
+## 3. Adding to the flow
 
-```bash
-S=.claude/skills/verify-ui/scripts/screenshot.sh
-OUT="${TMPDIR:-/tmp}/build-analyzer-shots"; mkdir -p "$OUT"
-$S http://localhost:4600/accounts/1/characters/hutao "$OUT/hutao.png" 1400 2600
-$S "http://localhost:4600/import?game=hsr" "$OUT/wizard.png" 1400 1100
-```
+`flow.mjs` is plain playwright-core: `newContext()` (one per person - storage of its own; What's new marked
+seen), `open(page, path)` (waits for the bar and the network), `signIn(page, user)`, `checkBar(page, label)`,
+`keysShown(page)`, `sql(query, params)` (the throwaway database, through `browser-db.php sql`), `shot(page,
+name)`. Never press Sync, Resume or a showcase import: they would fetch live sites. The browser's locale is
+`en-GB` - this computer's is Slovak, and a check must not depend on it; ask for Slovak with `?lang=sk` (kept
+for the tab).
 
-Open each PNG with the Read tool (`cygpath -w` gives the Windows path) and actually inspect it: layout at
-the chosen width, overflowing text, empty sections, wrong numbers, and that nothing names another website,
-service or tool (sources are "Source 1", "Source 2" …). Routes: `/`, `/import`, `/accounts/{id}`,
-`/accounts/{id}/characters/{key}`, `/builds/{genshin|hsr}`, `/builds/{game}/{key}`, `/sources`, `/sign-in`,
-and the owner's `/translations` and `/languages` (also in the toolbar's menu).
+## 4. Quick looks against your own servers
 
-The first page a fresh browser profile opens shows "What's new" (the changelog of the current version) once;
-`screenshot.sh` keeps its profile between runs, so capture any page once and the next captures are clean.
-`viewport.cjs` marks the current version as seen by itself.
+`scripts/screenshot.sh` (headless Edge, a profile of its own) and `scripts/viewport.cjs` (a true phone
+viewport through the same playwright-core: `NODE_PATH="$TMPDIR/pw/node_modules" node .../viewport.cjs URL
+OUT.png 390`) still take a picture of a running site - the owner's `ng serve` on 4600 or a server of your own
+on 8590-8599. They cannot sign in: the backend refuses a session faked in `localStorage`. Never stop a server
+on 4200-4700 or 8000-8500 without reading its command line first.
 
-**Phone widths**: `screenshot.sh` cannot show them - headless Edge keeps a minimum window width of about 500 px
-and only crops narrower captures, so a 420 px shot shows a cut-off 500 px layout. Use `viewport.cjs` (a true
-viewport through playwright-core and the installed Edge; installs nothing into the repo):
-
-```bash
-npm i --prefix "$TMPDIR/pw" playwright-core      # once
-NODE_PATH="$TMPDIR/pw/node_modules" node .claude/skills/verify-ui/scripts/viewport.cjs http://localhost:4600/sources "$OUT/sources-390.png" 390
-```
-
-It also prints the page's scroll width; more than the viewport means a horizontal page scroll. **The scroll
-width can hide overlaps**: a bar or panel that shrinks its children (`min-width: 0`) never scrolls, and its
-pieces paint over each other instead - the toolbar's links once sat 32 px under the version button at 390 px,
-and the import history cut its last column to a few letters a line, both with a scroll width equal to the
-viewport. For a bar or a panel, compare the bounding boxes of its pieces (`getBoundingClientRect()`: no two
-overlapping, the last one inside the viewport) and check that no cell's text is cut.
-
-**A Slovak pass at 390 px** for every member page a change touches: the same page with `?lang=sk` (kept for
-the tab) and with `?lang=en`. Slovak runs longer than English. Look for a key where a word should be
-(`dashboard.title` - the database lacks the string), English left on a Slovak page (a sentence written into a
-template, or a stored row without a known kind, which is fine only with `lang="en"`), a Slovak word declining a
-game term (game terms stay English, first and before a colon), `<html lang>` and the tab title in the language.
-`/sources`, `/translations` and `/languages` stay English with `lang="en"` even with Slovak chosen. **This
-machine's browser locale is Slovak**, so a fresh profile (every `viewport.cjs` run) starts in Slovak through the
-browser's language: pin the English pass with `?lang=en` (or the context's `locale: 'en-US'`). With
-migration 003 not applied the pages read the compiled English whatever is chosen.
-
-With playwright-core, states behind sign-in can be checked without the IAM: `context.route('**/api/meta', …)` to
-answer `auth.mode: "iam"` (signed out: guards go to `/sign-in`), plus an `addInitScript` that stores an SDK
-session under `localStorage['anotoki-auth:build-analyzer']` (`{access_token, access_expires_at, refresh_token,
-user: {sub, preferred_username, roles: ['MEMBER']}}`) for the member view; the "none"-mode backend ignores the
-token. Never let such a script press Sync or Resume against real sources.
-
-Known artifacts that are *not* bugs:
-
-- Blank page or missing icons: the capture fired before data arrived. Retry with a larger time budget
-  (5th argument in ms, e.g. `$S URL out.png 1400 1600 45000`); `--dom` mode proves whether content rendered.
-- Empty boxes instead of character/weapon icons: lazy images not loaded yet, or `/api/icons/…` fetching an
-  image for the first time.
-- A red Vite error overlay right after editing: often a stale intermediate error. Re-run `ng build`; if it
-  passes, restart `ng serve` and capture again.
-- The Sources page never starts a sync by itself: a sync runs only after Sync / Resume is pressed, and a
-  screenshot must not trigger one (it would fetch live sites).
-
-For runtime errors, dump the DOM and console:
-
-```bash
-$S --dom http://localhost:4600/sources "$OUT/sources.html"     # prints CONSOLE / Uncaught lines
-```
-
-## 4. Shut down
-
-Stop both background tasks. `ng serve` can leave an orphan `node` on port 4600; free the ports so the next
-session starts clean:
-
-```powershell
-Get-NetTCPConnection -State Listen -LocalPort 4600,8400 -ErrorAction SilentlyContinue |
-  ForEach-Object { Stop-Process -Id $_.OwningProcess -Force }
-```
-
-Check the command line first (`Get-CimInstance Win32_Process -Filter "ProcessId = <pid>"`) if anything else
-could be using those ports. Tell the user what you checked and attach nothing they didn't ask for.
+Known artifacts that are *not* bugs: empty boxes instead of character icons (the seeded catalog has no icon
+addresses - nothing is fetched); "Source 2" holding the one build (the seeded row is the second Genshin
+source); a red Vite overlay right after an edit in `ng serve` (stale - rebuild).

@@ -1,0 +1,29 @@
+:host {
+  display: block;
+}
+
+.visitor-notice {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px 12px;
+  margin-bottom: 16px;
+  padding: 10px 14px;
+  background: var(--app-surface-2);
+  border: 1px solid var(--app-border);
+  border-radius: 8px;
+
+  > .mat-icon {
+    flex: none;
+    color: var(--mat-sys-primary);
+  }
+
+  p {
+    flex: 1 1 240px;
+    margin: 0;
+  }
+
+  button {
+    flex: none;
+  }
+}

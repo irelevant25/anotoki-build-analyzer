@@ -287,7 +287,7 @@ describe('recommendationText(): what a build recommends, in the reader’s words
 
     // The English pages of a Slovak reader: English too.
     const { i18n, meta } = words('sk');
-    i18n.noteAddress('/sources');
+    i18n.noteAddress('/admin/sources');
     expect(recommendationText(i18n, meta, 'genshin', { kind: 'weapon_shiny', params: {}, message: 'Stored.' })).toEqual({ text: 'Stored.', lang: null });
   });
 

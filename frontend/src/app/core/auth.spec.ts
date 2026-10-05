@@ -1,6 +1,7 @@
 import { TestBed } from '@angular/core/testing';
 import { AUTH_CLIENT_FACTORY, AuthService, signInProblem } from './auth';
 import { AnotokiAuth, AnotokiInitResult, AnotokiUser } from './iam/anotoki-auth';
+import { SAVES_WAIT_MS, SavesInFlight } from './saves-in-flight';
 
 const MONA: AnotokiUser = {
   sub: '7',
@@ -8,10 +9,10 @@ const MONA: AnotokiUser = {
   email: 'mona@example.test',
   email_verified: true,
   locale: 'en',
-  roles: ['MEMBER'],
+  roles: [],
 };
 
-const IAM = { mode: 'iam' as const, issuer: 'https://iam.example.test', client_id: 'build-analyzer' };
+const IAM = { issuer: 'https://iam.example.test', client_id: 'build-analyzer' };
 
 /** A stand-in for the anotoki-auth SDK; `current` is who it says is signed in. */
 function fakeClient(state: { current: AnotokiUser | null; init?: AnotokiInitResult }) {
@@ -48,16 +49,54 @@ function setup(client: AnotokiAuth) {
 }
 
 describe('AuthService', () => {
-  it('needs no IAM client and allows everything when sign-in is off', async () => {
+  it('signs in through the IAM only: a leftover sign-in mode in the settings opens nothing', async () => {
     const { auth, factory } = setup(fakeClient({ current: null }).client);
 
-    await auth.init({ mode: 'none', issuer: null, client_id: null });
+    await auth.init({ mode: 'none', issuer: null, client_id: null } as never);
 
     expect(factory).not.toHaveBeenCalled();
-    expect(auth.usesSignIn()).toBe(false);
-    expect(auth.signedIn()).toBe(true);
-    expect(auth.isAdmin()).toBe(true);
-    expect(auth.isMember()).toBe(true);
+    expect(auth.available()).toBe(false);
+    expect(auth.signedIn()).toBe(false);
+    expect(auth.isAdmin()).toBe(false);
+    expect(auth.isStaff()).toBe(false);
+  });
+
+  it('reads the roles from the token: EDITOR and ADMIN are staff, ADMIN alone is an admin, anything else is just signed in', async () => {
+    const state = { current: { ...MONA, roles: ['editor'] } as AnotokiUser | null };
+    const { client, changed } = fakeClient(state);
+    const { auth } = setup(client);
+    await auth.init(IAM);
+    expect([auth.signedIn(), auth.isStaff(), auth.isAdmin()]).toEqual([true, true, false]);
+
+    state.current = { ...MONA, roles: ['ADMIN'] };
+    changed();
+    expect([auth.signedIn(), auth.isStaff(), auth.isAdmin()]).toEqual([true, true, true]);
+
+    state.current = { ...MONA, roles: ['MEMBER'] };
+    changed();
+    expect([auth.signedIn(), auth.isStaff(), auth.isAdmin()]).toEqual([true, false, false]);
+
+    state.current = { ...MONA, roles: [] };
+    changed();
+    expect([auth.signedIn(), auth.isStaff(), auth.isAdmin()]).toEqual([true, false, false]);
+  });
+
+  it('answers whether the sign-in started - and says why when the browser will not keep it (storage_unavailable)', async () => {
+    const { client } = fakeClient({ current: null });
+    const { auth } = setup(client);
+    expect(await auth.login('/x')).toBe(false); // no IAM yet
+
+    await auth.init(IAM);
+    expect(await auth.login('/x')).toBe(true);
+    expect(auth.lastError()).toBeNull();
+
+    client.login.mockRejectedValueOnce(Object.assign(new Error('This browser will not let the site remember the sign-in in progress'), { code: 'storage_unavailable' }));
+    expect(await auth.login('/x', { uiLocales: 'sk' })).toBe(false);
+    expect(auth.lastError()).toEqual({ key: 'signIn.storageUnavailable', params: {} });
+
+    // The next attempt starts clean.
+    expect(await auth.login('/x')).toBe(true);
+    expect(auth.lastError()).toBeNull();
   });
 
   it('signs in through the IAM client, on this site and back to it', async () => {
@@ -74,7 +113,8 @@ describe('AuthService', () => {
     });
     expect(client.init).toHaveBeenCalledTimes(1);
     expect(auth.displayName()).toBe('mona');
-    expect(auth.isMember()).toBe(true);
+    expect(auth.signedIn()).toBe(true);
+    expect(auth.available()).toBe(true);
     expect(auth.isAdmin()).toBe(false);
     expect(await auth.accessToken()).toBe('token-1');
     expect(await auth.refreshedToken()).toBe('token-2');
@@ -104,6 +144,7 @@ describe('AuthService', () => {
   it('decides what to say from the error\'s code alone', async () => {
     expect(signInProblem('access_denied')).toEqual({ key: 'signIn.notCompleted', params: {} });
     expect(signInProblem('state_mismatch')).toEqual({ key: 'signIn.stateMismatch', params: {} });
+    expect(signInProblem('storage_unavailable')).toEqual({ key: 'signIn.storageUnavailable', params: {} });
     expect(signInProblem('invalid_grant')).toEqual({ key: 'signIn.failed', params: { code: 'invalid_grant' } });
     expect(signInProblem('http_503')).toEqual({ key: 'signIn.failed', params: { code: 'http_503' } });
     // What came through the address and does not look like a code is never shown.
@@ -121,10 +162,10 @@ describe('AuthService', () => {
   it('says so when the server has no issuer or client id for the sign-in', async () => {
     const { auth, factory } = setup(fakeClient({ current: null }).client);
 
-    await auth.init({ mode: 'iam', issuer: null, client_id: 'build-analyzer' });
+    await auth.init({ issuer: null, client_id: 'build-analyzer' });
 
     expect(factory).not.toHaveBeenCalled();
-    expect(auth.mode()).toBe('unavailable');
+    expect(auth.available()).toBe(false);
     expect(auth.lastError()).toEqual({ key: 'signIn.notConfigured', params: {} });
   });
 
@@ -174,7 +215,8 @@ describe('AuthService', () => {
     changed();
 
     expect(auth.user()).toBeNull();
-    expect(auth.isMember()).toBe(false);
+    expect(auth.signedIn()).toBe(false);
+    expect(auth.isAdmin()).toBe(false);
   });
 
   it('stays unavailable without the settings from the server', async () => {
@@ -183,7 +225,86 @@ describe('AuthService', () => {
     await auth.init(null);
 
     expect(factory).not.toHaveBeenCalled();
-    expect(auth.mode()).toBe('unavailable');
+    expect(auth.available()).toBe(false);
     expect(auth.signedIn()).toBe(false);
+  });
+
+  it('takes whether a sign-in is required from the server - required when it says nothing, or could not be asked', async () => {
+    const off = setup(fakeClient({ current: null }).client).auth;
+    expect(off.loginRequired()).toBe(true); // before the server has said anything
+    await off.init({ ...IAM, login_required: false });
+    expect(off.loginRequired()).toBe(false);
+
+    TestBed.resetTestingModule();
+    const on = setup(fakeClient({ current: null }).client).auth;
+    await on.init({ ...IAM, login_required: true });
+    expect(on.loginRequired()).toBe(true);
+
+    TestBed.resetTestingModule();
+    const unsaid = setup(fakeClient({ current: null }).client).auth;
+    await unsaid.init(IAM);
+    expect(unsaid.loginRequired()).toBe(true);
+
+    TestBed.resetTestingModule();
+    const unreachable = setup(fakeClient({ current: null }).client).auth;
+    await unreachable.init(null);
+    expect(unreachable.loginRequired()).toBe(true);
+  });
+
+  it('says once that the sign-in this page load came back from was refused - and nothing of one that was not', async () => {
+    const error = Object.assign(new Error('No access'), { code: 'access_denied' });
+    const refused = setup(fakeClient({ current: null, init: { returnTo: '/builds/genshin', error } }).client).auth;
+    await refused.init({ ...IAM, login_required: false });
+    expect(refused.takeRefusalOnReturn()).toBe(true);
+    expect(refused.takeRefusalOnReturn()).toBe(false);
+    // The words stay for the page that says them.
+    expect(refused.lastError()).toEqual({ key: 'signIn.notCompleted', params: {} });
+
+    TestBed.resetTestingModule();
+    const fine = setup(fakeClient({ current: MONA }).client).auth;
+    await fine.init(IAM);
+    expect(fine.takeRefusalOnReturn()).toBe(false);
+
+    TestBed.resetTestingModule();
+    const unconfigured = setup(fakeClient({ current: null }).client).auth;
+    await unconfigured.init({ issuer: null, client_id: 'build-analyzer', login_required: false });
+    expect(unconfigured.takeRefusalOnReturn()).toBe(false);
+  });
+
+  it('leaves for the IAM only once the saves on their way have their answers', async () => {
+    const { client } = fakeClient({ current: null });
+    const { auth } = setup(client);
+    await auth.init({ ...IAM, login_required: false });
+    const saves = TestBed.inject(SavesInFlight);
+    const end = saves.begin();
+
+    let started: boolean | null = null;
+    void auth.login('/import').then((answer) => (started = answer));
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(client.login).not.toHaveBeenCalled();
+    expect(started).toBeNull();
+
+    end();
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(client.login).toHaveBeenCalledTimes(1);
+    expect(started).toBe(true);
+  });
+
+  it('does not wait for ever for a save that hangs', async () => {
+    vi.useFakeTimers();
+    try {
+      const { client } = fakeClient({ current: null });
+      const { auth } = setup(client);
+      await auth.init({ ...IAM, login_required: false });
+      TestBed.inject(SavesInFlight).begin();
+
+      const started = auth.login('/import');
+      await vi.advanceTimersByTimeAsync(SAVES_WAIT_MS - 1);
+      expect(client.login).not.toHaveBeenCalled();
+      await vi.advanceTimersByTimeAsync(1);
+      expect(await started).toBe(true);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });

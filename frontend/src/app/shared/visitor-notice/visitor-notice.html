@@ -1,0 +1,11 @@
+@if (!auth.signedIn()) {
+  <aside class="visitor-notice" role="note">
+    <mat-icon aria-hidden="true">cloud_done</mat-icon>
+    <p>{{ 'visitor.notice' | translate: { days: meta.visitorDays() } }}</p>
+    @if (auth.available()) {
+      <button mat-stroked-button (click)="signIn()">
+        <mat-icon>login</mat-icon>{{ 'common.signIn' | translate }}
+      </button>
+    }
+  </aside>
+}

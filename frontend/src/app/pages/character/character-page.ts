@@ -6,10 +6,11 @@ import { MatTabsModule } from '@angular/material/tabs';
 import { MatTooltipModule } from '@angular/material/tooltip';
 import { RouterLink } from '@angular/router';
 import { Api } from '../../core/api';
+import { AuthService } from '../../core/auth';
 import { titleCase } from '../../core/format';
 import { GAME_TERMS, SET_KIND_TERMS, level } from '../../core/game-terms';
 import { TranslationKey } from '../../core/i18n/en';
-import { ErrorTextPipe } from '../../core/i18n/error-text';
+import { ErrorTextPipe, isSignInRefusal } from '../../core/i18n/error-text';
 import { LocalDatePipe } from '../../core/i18n/local-date';
 import { recommendationText, setOptionText } from '../../core/i18n/recommendation-words';
 import { TranslatePipe } from '../../core/i18n/translate';
@@ -24,6 +25,8 @@ import { GradeBadge } from '../../shared/grade-badge';
 import { ItemCard, ItemView } from '../../shared/item-card';
 import { ScoreBar } from '../../shared/score-bar';
 import { SlotLabelPipe, StatLabelPipe, StatValuePipe } from '../../shared/stat-pipes';
+import { VisitorHero } from '../../shared/visitor-hero/visitor-hero';
+import { VisitorNotice } from '../../shared/visitor-notice/visitor-notice';
 
 /**
  * What a recommendation is filed under, where that is the site's own word. The other categories are the
@@ -75,6 +78,8 @@ const SEVERITY_ICONS = new Map<string, string>([
     LocalDatePipe,
     TranslatePipe,
     TranslatePluralPipe,
+    VisitorHero,
+    VisitorNotice,
   ],
   templateUrl: './character-page.html',
   styleUrl: './character-page.scss',
@@ -83,6 +88,7 @@ export class CharacterPage {
   private readonly api = inject(Api);
   private readonly meta = inject(MetaStore);
   private readonly i18n = inject(TranslationService);
+  protected readonly auth = inject(AuthService);
 
   readonly id = input.required<string>();
   readonly key = input.required<string>();
@@ -92,6 +98,8 @@ export class CharacterPage {
   protected readonly loading = signal(true);
   /** The failed request itself: the template words it, in the language on the page. */
   protected readonly error = signal<unknown>(null);
+  /** Opened by somebody this account is not theirs to open - not signed in, no key that opens it: the ways in instead. */
+  protected readonly signedOut = computed(() => isSignInRefusal(this.error()) && !this.auth.signedIn());
 
   protected readonly titleCase = titleCase;
   /** "Lv. 90" - the game's notation. */

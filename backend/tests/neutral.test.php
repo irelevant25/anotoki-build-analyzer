@@ -113,7 +113,7 @@ test('what the Sources, build and account pages get names no other site', functi
             'unmatched' => ['genshin:sets' => ['prydwen.gg favourite']]]),
         'created_at' => $now, 'updated_at' => $now]);
 
-    $admin =(new Client)->asIam(1, ['MEMBER', 'ADMIN']);
+    $admin = (new Client)->asIam(1, ['ADMIN']);
     assertNeutral($admin->get('/api/sources'), 'the sources');
     $sources = $admin->get('/api/sources')->json();
     check(in_array('Source 2', array_column($sources['sources'] ?? $sources, 'name'), true), 'the failed source is "Source 2": '.json_encode($sources));

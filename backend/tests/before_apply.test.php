@@ -2,9 +2,10 @@
 
 /**
  * Between an upload and "Apply": the new files are on the host, and the database has not seen the migration
- * with the languages and the strings yet. A pending migration does not close this site - an admin applies it
- * on the Sources page - so everything else must work as it did, and the translation routes must say that the
- * strings are not there (503 translations_unavailable), never fail.
+ * with the languages and the strings yet - nor the one with the visitors' columns (004). A pending migration
+ * does not close this site - an admin applies it on the Migrations page - so everything else must work as it
+ * did, the translation routes must say that the strings are not there (503 translations_unavailable), and
+ * the visitor paths that visitors are not ready (503 visitors_unavailable): never a 500.
  *
  * The app of this file runs on a database of its own built from the first two migrations only.
  */
@@ -36,7 +37,7 @@ foreach (['001_adopt_laravel_database.sql', '002_schema.sql'] as $file) {
     copy(Migrator::directory().'/'.$file, $before.'/'.$file);
 }
 $pdo = scratchDatabase($server, 'before');
-$built = (new Migrator($pdo, $before))->applyPending(['local_user_id' => 1]);
+$built = (new Migrator($pdo, $before))->applyPending();
 if ($built['failed'] !== null) {
     fwrite(STDERR, "migration {$built['failed']} failed: {$built['error']}\n");
     exit(1);
@@ -102,8 +103,12 @@ test('the database has seen the first two migrations, and the third waits for an
 
     $pending = array_values(array_diff(array_map('basename', glob(Migrator::directory().'/*.sql') ?: []), ['001_adopt_laravel_database.sql', '002_schema.sql']));
     check(in_array('003_languages_and_translations.sql', $pending, true), 'the migration with the languages and the strings is on disk');
-    (new Client)->asIam(1, [Role::ADMIN])->get('/api/admin/migrations')->status(200)
-        ->path('pending', $pending)->path('applied_count', 2)->path('last_applied', '002_schema.sql');
+    $status = (new Client)->asIam(1, [Role::ADMIN])->get('/api/admin/migrations')->status(200);
+    same(array_map(fn (string $name): array => ['name' => $name], $pending), $status->json('pending'), 'pending, in the order they will run');
+    same(['001_adopt_laravel_database.sql', '002_schema.sql'], array_column($status->json('applied'), 'name'), 'applied, in the order they were');
+    foreach ($status->json('applied') as $file) {
+        check(preg_match('/^\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d\+00:00$/', (string) $file['applied_at']) === 1, 'applied_at in UTC: '.$file['applied_at']);
+    }
 });
 
 test('meta, the dashboard\'s data, the builds and the sources answer as they did', function () {
@@ -111,9 +116,9 @@ test('meta, the dashboard\'s data, the builds and the sources answer as they did
     seedUser(1, 'owner');
     $account = seedAccount(1, 'genshin', ['uid' => '700000001', 'nickname' => 'Main']);
 
-    (new Client)->get('/api/meta')->status(200)->path('auth.mode', 'iam')->path('games.0.key', 'genshin')->path('games.1.key', 'hsr');
+    (new Client)->get('/api/meta')->status(200)->path('auth.issuer', TEST_ISSUER)->path('games.0.key', 'genshin')->path('games.1.key', 'hsr');
 
-    $member = (new Client)->asIam(1, [Role::MEMBER]);
+    $member = (new Client)->asIam(1, []);
     $member->get('/api/accounts')->status(200)->path('0.nickname', 'Main')->path('0.counts', ['characters' => 0, 'weapons' => 0, 'items' => 0]);
     $member->get("/api/accounts/{$account}")->status(200)->path('uid', '700000001')->path('characters', []);
     $member->get("/api/accounts/{$account}/imports")->status(200);
@@ -125,16 +130,15 @@ test('meta, the dashboard\'s data, the builds and the sources answer as they did
     $admin = (new Client)->asIam(2, [Role::ADMIN]);
     $admin->get('/api/sync')->status(200)->path('active', false);
     $admin->get('/api/sync-runs')->status(200);
-
-    // With sign-in off too: the owner's own pages.
-    T::$app->config->set('auth.mode', 'none');
-    (new Client)->get('/api/accounts')->status(200)->path('0.nickname', 'Main');
+    // The builds and the sources are public: signed out, the same.
+    (new Client)->get('/api/builds/genshin')->status(200);
+    (new Client)->get('/api/sources')->status(200);
 });
 
 test('an import works: one that goes through with a warning, and one that fails', function () {
     seedGenshinCatalog();
     seedUser(1, 'owner');
-    $client = (new Client)->asIam(1, [Role::MEMBER]);
+    $client = (new Client)->asIam(1, []);
 
     $imported = $client->post('/api/imports/file', ['content' => goodFile(), 'file_name' => 'export.json'])->status(201)
         ->path('status', 'partial')->path('summary.characters', 1)->path('summary.items', 1)
@@ -172,7 +176,7 @@ test('every translation route answers 503 translations_unavailable - never a 500
     foreach (translationRoutes() as [$method, $url, $body]) {
         $answer = $admin->request($method, $url, $body);
         same(503, $answer->status, "{$method} {$url} ({$answer->body})");
-        same(['message' => 'The site\'s words are not in the database yet. An admin applies the waiting database update on the Sources page.', 'code' => 'translations_unavailable'],
+        same(['message' => 'The site\'s words are not in the database yet. An admin applies the waiting database update on the Migrations page.', 'code' => 'translations_unavailable'],
             $answer->json(), "{$method} {$url}: the whole answer");
         same('60', $answer->header('Retry-After'), "{$method} {$url}: when to ask again");
         check(str_starts_with($answer->header('Content-Type'), 'application/json'), "{$method} {$url}: JSON");
@@ -184,15 +188,19 @@ test('every translation route answers 503 translations_unavailable - never a 500
 
     // What was refused for who asks, or for the address, is refused as ever.
     (new Client)->get('/api/admin/translations')->status(401)->path('code', 'sign_in_required');
-    (new Client)->asIam(3, [Role::MEMBER])->get('/api/admin/languages')->status(403)->path('code', 'admin_only');
+    (new Client)->asIam(3, [])->get('/api/admin/languages')->status(403)->path('code', 'editor_only');
+    (new Client)->asIam(3, [Role::EDITOR])->post('/api/admin/languages', ['code' => 'de', 'name' => 'German', 'native_name' => 'Deutsch'])->status(403)->path('code', 'admin_only');
     (new Client)->get('/api/translations/EN')->status(404)->path('code', 'not_found');
     $admin->get('/api/admin/translations/nope/export')->status(404)->path('code', 'not_found');
 
-    // With sign-in off: the same.
-    T::$app->config->set('auth.mode', 'none');
+    // An editor's strings routes: the same.
+    $editor = (new Client)->asIam(5, [Role::EDITOR]);
     foreach (translationRoutes() as [$method, $url, $body]) {
-        $answer = (new Client)->request($method, $url, $body);
-        same([503, 'translations_unavailable'], [$answer->status, $answer->json('code')], "sign-in off: {$method} {$url}");
+        if ($method !== 'GET' && str_starts_with($url, '/api/admin/languages')) {
+            continue; // adding, renaming, switching, deleting a language: an admin's (above)
+        }
+        $answer = $editor->request($method, $url, $body);
+        same([503, 'translations_unavailable'], [$answer->status, $answer->json('code')], "an editor: {$method} {$url}");
     }
 
     $logged = is_file($log) ? (string) file_get_contents($log) : '';
@@ -238,19 +246,60 @@ test('nothing else the server does reads the three tables: every query on them i
     check((bool) preg_match('/\bFROM\s+(?:'.$tables.')\b/', (string) file_get_contents("{$backend}/src/Repositories/Translations.php")), 'the repository queries them');
 });
 
+test('before 004 every visitor path answers 503 visitors_unavailable - never a 500 - and a member\'s requests work and sweep nothing', function () {
+    $log = T::$storage.DIRECTORY_SEPARATOR.'before-visitors.log';
+    @unlink($log);
+    Log::to($log);
+    seedGenshinCatalog();
+    same(false, (bool) db()->value("SELECT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'users' AND column_name = 'visitor_key_hash')"), 'no visitor columns yet');
+
+    $unavailable = 'Using the site without signing in is not ready yet: an admin applies the waiting database update on the Migrations page. Sign in to continue.';
+    $first = (new Client)->post('/api/imports/file', ['content' => goodFile()]);
+    same([503, ['message' => $unavailable, 'code' => 'visitors_unavailable']], [$first->status, $first->json()], 'nobody\'s import');
+    same(['60', ''], [$first->header('Retry-After'), $first->header('X-Visitor-Key')], 'ask again later; no key');
+    same(0, (int) db()->value('SELECT count(*) FROM users'), 'nobody made');
+
+    $key = rtrim(strtr(base64_encode(random_bytes(32)), '+/', '-_'), '=');
+    $visitor = (new Client)->withHeaders(['X-Visitor-Key' => $key]);
+    $visitor->get('/api/accounts')->status(503)->path('code', 'visitors_unavailable');
+    $visitor->post('/api/imports/file', ['content' => goodFile()])->status(503)->path('code', 'visitors_unavailable');
+    (new Client)->withHeaders(['X-Visitor-Key' => 'not a key'])->get('/api/accounts')->status(401)->path('code', 'visitor_unknown');
+    (new Client)->asIam(1, [])->withHeaders(['X-Visitor-Key' => $key])->post('/api/visitor/move')->status(503)->path('code', 'visitors_unavailable');
+    (new Client)->get('/api/meta')->status(200)->path('visitors.keep_days', 30);
+
+    // A member is no visitor: their own data as ever, and the hourly clean-up finds nothing to do.
+    $member = (new Client)->asIam(1, []);
+    $member->post('/api/imports/file', ['content' => goodFile()])->status(201);
+    $member->get('/api/accounts')->status(200);
+    // ... and their accounts file, out and back.
+    $file = $member->get('/api/me/export')->status(200)->body;
+    $member->request('POST', '/api/me/import', null, ['body' => $file])->status(200)->path('kept', 1);
+    (new Client)->asIam(2, [Role::ADMIN])->get('/api/admin/people')->status(200)->path('visitors', ['count' => 0, 'accounts' => 0]);
+
+    $logged = is_file($log) ? (string) file_get_contents($log) : '';
+    check(! str_contains($logged, ' ERROR '), 'nothing failed on the way: '.$logged);
+    Log::to(null);
+});
+
 test('"Apply" brings the tables - and the strings with them, in one migration', function () {
     $admin = (new Client)->asIam(1, [Role::ADMIN]);
-    $pending = $admin->get('/api/admin/migrations')->status(200)->json('pending');
+    $pending = array_column($admin->get('/api/admin/migrations')->status(200)->json('pending'), 'name');
 
     $applied = $admin->post('/api/admin/migrations/apply')->status(200);
-    same([true, $pending, []], [$applied->json('ok'), $applied->json('applied'), $applied->json('pending')], 'applied: '.$applied->json('output'));
+    same([$pending, null, null], [$applied->json('applied'), $applied->json('failed'), $applied->json('error')], 'applied: '.$applied->json('error'));
+    same([], $admin->get('/api/admin/migrations')->status(200)->json('pending'), 'nothing pending after');
     same(true, (bool) db()->value("SELECT to_regclass('public.translations') IS NOT NULL"), 'the tables are there');
     same(['en', 'sk'], db()->column('SELECT code FROM languages ORDER BY sort_order'), 'with the two languages');
 
     // The accounts and everything else are as they were: no existing table was altered. (The admin's own
     // row of users is there from the requests above.)
     seedAccount(1, 'genshin', ['uid' => '700000001', 'nickname' => 'Main']);
-    (new Client)->asIam(1, [Role::MEMBER])->get('/api/accounts')->status(200)->path('0.nickname', 'Main');
+    (new Client)->asIam(1, [])->get('/api/accounts')->status(200)->path('0.nickname', 'Main');
+    // And visitors with them (004): nobody's import makes one.
+    seedGenshinCatalog();
+    $key = (new Client)->post('/api/imports/file', ['content' => goodFile()])->status(201)->header('X-Visitor-Key');
+    (new Client)->withHeaders(['X-Visitor-Key' => $key])->get('/api/accounts')->status(200)->path('0.characters_count', null);
+    same(1, (int) db()->value('SELECT count(*) FROM users WHERE id < 0'), 'a visitor');
 
     if (stringMigrations() === []) {
         // The migration holds no string yet: the tables are there and empty, and that too is "not there".

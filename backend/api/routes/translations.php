@@ -13,39 +13,43 @@ use Psr\Http\Message\ServerRequestInterface as Request;
 use Slim\Routing\RouteCollectorProxy;
 
 /**
- * The site's own words: the strings a page reads, and the owner's pages that keep the languages and reword
+ * The site's own words: the strings a page reads, and the admin pages that keep the languages and reword
  * the strings (App\Services\Translations). A {code} that is not a language code is 404 before any query.
  *
  *   GET    /api/translations/{code}               public, no token read: {language, languages: [{code, name,
  *                                                 native_name}], values, english?} - the language's strings
  *                                                 with English underneath; ETag, and 304 for a tag held
  *
- * For admins (in auth mode "none": the owner, from this computer's own pages):
+ * For editors (EDITOR or ADMIN) - the languages as they are, and rewording the strings:
  *
  *   GET    /api/admin/languages                   {languages: [{code, name, native_name, enabled, sort_order,
  *                                                 seeded, strings}]}, hidden ones too
- *   POST   /api/admin/languages                   {code, name, native_name, enabled?} -> 201 {language};
- *                                                 409 language_exists, 422 too_many_languages, invalid_language
- *   PUT    /api/admin/languages/{code}            {name?, native_name?, enabled?, sort_order?} -> {language};
- *                                                 409 fallback_language when switching English off
- *   DELETE /api/admin/languages/{code}            -> {strings}: how many strings went with it;
- *                                                 409 fallback_language, seeded_language
  *   GET    /api/admin/translations                {languages, keys: [{name, description, values: {code: text}}]}
  *   PUT    /api/admin/translations                {values: {key: {code: text}}}, the changed ones -> the grid
  *                                                 as it is now; 422 with a code, and the key and language
  *   GET    /api/admin/translations/{code}/export  that language's own strings as a file, {key: text}
  *   PUT    /api/admin/translations/{code}/import  {key: text} -> the grid as it is now
  *
+ * For admins - adding, renaming, switching and deleting a language:
+ *
+ *   POST   /api/admin/languages                   {code, name, native_name, enabled?} -> 201 {language};
+ *                                                 409 language_exists, 422 too_many_languages, invalid_language
+ *   PUT    /api/admin/languages/{code}            {name?, native_name?, enabled?, sort_order?} -> {language};
+ *                                                 409 fallback_language when switching English off
+ *   DELETE /api/admin/languages/{code}            -> {strings}: how many strings went with it;
+ *                                                 409 fallback_language, seeded_language
+ *
  * The writes take JSON only: a body of another type (a form) is 422 invalid_language on the language routes
  * and invalid_value on the string routes, as a malformed body is.
  *
- * Between an upload and "Apply" on the Sources page the tables are not there: every route here then answers
- * 503 translations_unavailable - never a 500, and never not_set_up - and the app reads its compiled English.
+ * Between an upload and "Apply pending" on the Migrations page the tables are not there: every route here
+ * then answers 503 translations_unavailable - never a 500, and never not_set_up - and the app reads its
+ * compiled English.
  */
 return function (Slim\App $slim, App $app): void {
     $unavailable = fn (): HttpError => new HttpError(
         503,
-        'The site\'s words are not in the database yet. An admin applies the waiting database update on the Sources page.',
+        'The site\'s words are not in the database yet. An admin applies the waiting database update on the Migrations page.',
         ['code' => 'translations_unavailable'],
         ['Retry-After' => '60'],
     );
@@ -126,36 +130,12 @@ return function (Slim\App $slim, App $app): void {
         return $response->withHeader('Content-Type', 'application/json; charset=utf-8');
     });
 
-    $slim->group('/api/admin', function (RouteCollectorProxy $group) use ($app, $code, $ready, $measured, $jsonOnly) {
+    // Editors (EDITOR or ADMIN): the languages as they are, and the strings - read, reworded, out and back in.
+    $slim->group('/api/admin', function (RouteCollectorProxy $group) use ($app, $code, $ready, $measured) {
         $group->get('/languages', function (Request $request, Response $response) use ($app, $ready): Response {
             $ready();
 
             return Json::send($response, ['languages' => $app->get(TranslationPresenter::class)->languages()]);
-        });
-
-        $group->post('/languages', function (Request $request, Response $response) use ($app, $ready, $jsonOnly): Response {
-            $ready();
-            $jsonOnly($request, 'invalid_language');
-            $language = $app->get(TranslationEditor::class)->createLanguage($request->getParsedBody());
-
-            return Json::send($response, ['language' => TranslationPresenter::language($language)], 201);
-        });
-
-        $group->put('/languages/{code}', function (Request $request, Response $response, array $args) use ($app, $code, $ready, $jsonOnly): Response {
-            $language = $code($args);
-            $ready();
-            $jsonOnly($request, 'invalid_language');
-            $language = $app->get(TranslationEditor::class)->changeLanguage($language, $request->getParsedBody());
-
-            return Json::send($response, ['language' => TranslationPresenter::language($language)]);
-        });
-
-        $group->delete('/languages/{code}', function (Request $request, Response $response, array $args) use ($app, $code, $ready, $jsonOnly): Response {
-            $language = $code($args);
-            $ready();
-            $jsonOnly($request, 'invalid_language');
-
-            return Json::send($response, ['strings' => $app->get(TranslationEditor::class)->deleteLanguage($language)]);
         });
 
         $group->get('/translations', function (Request $request, Response $response) use ($app, $ready): Response {
@@ -187,6 +167,34 @@ return function (Slim\App $slim, App $app): void {
             $app->get(TranslationEditor::class)->import($language, $measured($request), currentUser($request)->id);
 
             return Json::send($response, $app->get(TranslationPresenter::class)->grid());
+        });
+    })->add(requireRole($app, ...Role::STAFF));
+
+    // Admins: adding, renaming, switching and deleting a language.
+    $slim->group('/api/admin', function (RouteCollectorProxy $group) use ($app, $code, $ready, $jsonOnly) {
+        $group->post('/languages', function (Request $request, Response $response) use ($app, $ready, $jsonOnly): Response {
+            $ready();
+            $jsonOnly($request, 'invalid_language');
+            $language = $app->get(TranslationEditor::class)->createLanguage($request->getParsedBody());
+
+            return Json::send($response, ['language' => TranslationPresenter::language($language)], 201);
+        });
+
+        $group->put('/languages/{code}', function (Request $request, Response $response, array $args) use ($app, $code, $ready, $jsonOnly): Response {
+            $language = $code($args);
+            $ready();
+            $jsonOnly($request, 'invalid_language');
+            $language = $app->get(TranslationEditor::class)->changeLanguage($language, $request->getParsedBody());
+
+            return Json::send($response, ['language' => TranslationPresenter::language($language)]);
+        });
+
+        $group->delete('/languages/{code}', function (Request $request, Response $response, array $args) use ($app, $code, $ready, $jsonOnly): Response {
+            $language = $code($args);
+            $ready();
+            $jsonOnly($request, 'invalid_language');
+
+            return Json::send($response, ['strings' => $app->get(TranslationEditor::class)->deleteLanguage($language)]);
         });
     })->add(requireRole($app, Role::ADMIN));
 };

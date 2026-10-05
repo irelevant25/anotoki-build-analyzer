@@ -2,8 +2,13 @@
   @if (loading()) {
     <mat-progress-bar mode="indeterminate" class="top-progress" />
   }
-  @if (error(); as problem) {
-    <div class="panel"><mat-icon>error</mat-icon> {{ problem | errorText }}</div>
+  @if (signedOut()) {
+    <app-visitor-hero />
+  } @else {
+    <app-visitor-notice />
+    @if (error(); as problem) {
+      <div class="panel"><mat-icon>error</mat-icon> {{ problem | errorText }}</div>
+    }
   }
 
   @if (data(); as d) {
@@ -44,7 +49,8 @@
     @if (d.evaluations.length === 0) {
       <div class="panel empty-state">
         <mat-icon>hourglass_empty</mat-icon>
-        <p>{{ noBuilds()[0] }}@if (noBuilds()[2]) {<a routerLink="/sources">{{ 'builds.sourcesPage' | translate }}</a>}{{ noBuilds()[1] }}</p>
+        <!-- The Sources page is the admin panel's: a link for an editor or an admin, its name alone for everybody else. -->
+        <p>{{ noBuilds()[0] }}@if (noBuilds()[2]) {@if (auth.isStaff()) {<a routerLink="/admin/sources">{{ 'builds.sourcesPage' | translate }}</a>} @else {<span>{{ 'builds.sourcesPage' | translate }}</span>}}{{ noBuilds()[1] }}</p>
       </div>
     } @else {
       <!-- Build selector -->

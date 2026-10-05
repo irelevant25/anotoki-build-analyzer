@@ -1,11 +1,22 @@
 <div class="page">
-  <header class="page-header">
-    <div>
-      <h1>{{ 'dashboard.title' | translate }}</h1>
-      <p class="subtitle">{{ 'dashboard.subtitle' | translate }}</p>
-    </div>
-    <a mat-flat-button routerLink="/import"><mat-icon>add</mat-icon>{{ 'dashboard.importAccount' | translate }}</a>
-  </header>
+  @if (state() === 'nobody') {
+    @if (visitor.lost()) {
+      <!-- The key this browser held opens nothing any more: said once, before the page starts over. -->
+      <p class="panel lost" role="status">{{ 'error.visitor_unknown' | translate }}</p>
+    }
+    <app-visitor-hero />
+  } @else {
+    @if (state() === 'visitor') {
+      <app-visitor-notice />
+    }
+    <header class="page-header">
+      <div>
+        <h1>{{ 'dashboard.title' | translate }}</h1>
+        <p class="subtitle">{{ 'dashboard.subtitle' | translate }}</p>
+      </div>
+      <a mat-flat-button routerLink="/import"><mat-icon>add</mat-icon>{{ 'dashboard.importAccount' | translate }}</a>
+    </header>
+  }
 
   @if (loading()) {
     <mat-progress-bar mode="indeterminate" />
@@ -16,15 +27,12 @@
       <mat-icon>cloud_off</mat-icon>
       <div>
         <strong>{{ failure | errorText }}</strong>
-        @if (auth.mode() !== 'iam') {
-          <p class="muted small">{{ 'dashboard.backendHint' | translate }}</p>
-        }
       </div>
       <button mat-stroked-button (click)="load()">{{ 'common.retry' | translate }}</button>
     </div>
   }
 
-  @if (!loading() && !error() && accounts().length === 0) {
+  @if (state() !== 'nobody' && !loading() && !error() && accounts().length === 0) {
     <div class="panel hero">
       <mat-icon class="hero-icon">travel_explore</mat-icon>
       <h2>{{ 'dashboard.emptyTitle' | translate }}</h2>
@@ -93,21 +101,25 @@
     }
   }
 
+  @if (state() === 'person') {
+    <app-data-card class="data-section" (imported)="load()" />
+  }
+
   @if (sources().length > 0) {
     <section class="game-section">
       <div class="row">
         <h2 class="section-title">{{ 'dashboard.sources' | translate }}</h2>
         <span class="spacer"></span>
-        @if (auth.isAdmin()) {
-          <a mat-button routerLink="/sources">{{ 'dashboard.manageSources' | translate }}<mat-icon iconPositionEnd>chevron_right</mat-icon></a>
+        @if (auth.isStaff()) {
+          <a mat-button routerLink="/admin/sources">{{ 'dashboard.manageSources' | translate }}<mat-icon iconPositionEnd>chevron_right</mat-icon></a>
         }
       </div>
       @if (buildsTotal() === 0) {
         <p class="muted">
-          @if (auth.isAdmin()) {
+          @if (auth.isStaff()) {
             <!-- One sentence, cut where the link stands; a language that leaves the page's name out gets no link. -->
             @let sentence = noBuildsAdmin();
-            {{ sentence[0] }}@if (sentence[2]) {<a routerLink="/sources">{{ 'nav.sources' | translate }}</a>}{{ sentence[1] }}
+            {{ sentence[0] }}@if (sentence[2]) {<a routerLink="/admin/sources">{{ 'nav.sources' | translate }}</a>}{{ sentence[1] }}
           } @else {
             {{ 'dashboard.noBuildsMember' | translate }}
           }

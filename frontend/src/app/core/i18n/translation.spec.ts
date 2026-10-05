@@ -3,7 +3,7 @@ import { signal } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
 import { from } from 'rxjs';
 import { Api } from '../api';
-import { AuthMode, AuthService } from '../auth';
+import { AuthService } from '../auth';
 import { MetaStore } from '../meta-store';
 import { TranslationBundle } from '../models';
 import { TranslationKey, en } from './en';
@@ -98,15 +98,15 @@ describe('languageCandidates() and pickLanguage(): which language a reader gets'
   });
 });
 
-describe('isEnglishPath(): the three pages that are English whatever the person reads', () => {
+describe('isEnglishPath(): the admin panel, English whatever the person reads', () => {
   it('is the address itself or anything under it, query and hash aside', () => {
-    for (const address of ['/sources', '/sources/', '/sources/genshin-1', '/sources?run=3', '/sources#log', '/translations', '/translations/', '/translations?missing=sk', '/languages', '/languages/sk']) {
+    for (const address of ['/admin', '/admin/', '/admin/sources', '/admin/sources?run=3', '/admin/sources#log', '/admin/translations', '/admin/translations?missing=sk', '/admin/languages', '/admin/people']) {
       expect(isEnglishPath(address), address).toBe(true);
     }
   });
 
   it('is no other address - not one that only begins or ends the same', () => {
-    for (const address of ['/', '/import', '/builds/genshin', '/accounts/3/characters/hu-tao', '/sourcesx', '/source', '/translation', '/languages-old', '/builds/sources', '/x?next=/sources', '/sign-in?returnTo=/languages']) {
+    for (const address of ['/', '/import', '/builds/genshin', '/accounts/3/characters/hu-tao', '/adminx', '/admins', '/sources', '/translations', '/languages', '/builds/admin', '/x?next=/admin', '/sign-in?returnTo=/admin/languages']) {
       expect(isEnglishPath(address), address).toBe(false);
     }
   });
@@ -126,7 +126,6 @@ describe('TranslationService', () => {
     },
   };
   const loaded = signal(true);
-  const mode = signal<AuthMode>('iam');
   const user = signal<{ locale: string | null } | null>(null);
   let warn: ReturnType<typeof vi.spyOn>;
   let browser: ReturnType<typeof vi.spyOn>;
@@ -139,7 +138,7 @@ describe('TranslationService', () => {
       providers: [
         { provide: Api, useValue: api },
         { provide: MetaStore, useValue: { loaded } },
-        { provide: AuthService, useValue: { mode, user } },
+        { provide: AuthService, useValue: { user } },
       ],
     });
   }
@@ -160,7 +159,6 @@ describe('TranslationService', () => {
     respond = answer;
     once = [];
     loaded.set(true);
-    mode.set('iam');
     user.set(null);
     warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
     browser = vi.spyOn(window.navigator, 'languages', 'get').mockReturnValue(['en-GB']);
@@ -179,7 +177,7 @@ describe('TranslationService', () => {
       providers: [
         { provide: Api, useFactory: asked },
         { provide: MetaStore, useFactory: asked },
-        { provide: AuthService, useValue: { mode, user } },
+        { provide: AuthService, useValue: { user } },
       ],
     });
 
@@ -306,10 +304,9 @@ describe('TranslationService', () => {
       expect(service().language()).toBe('sk');
     });
 
-    it('reads the token’s locale only where people sign in at the IAM', async () => {
+    it('reads no token’s locale while nobody is signed in', async () => {
       browser.mockReturnValue(['en']);
-      mode.set('none');
-      user.set({ locale: 'sk' });
+      user.set(null);
       await service().init();
 
       expect(calls).toEqual(['en']);
@@ -608,7 +605,7 @@ describe('TranslationService', () => {
       expect(cache()?.language).toBe('sk');
 
       service().noteAddress('/builds/genshin');
-      service().noteAddress('/sources');
+      service().noteAddress('/admin/sources');
       await settled();
       expect(calls).toHaveLength(3);
     });
@@ -706,7 +703,7 @@ describe('TranslationService', () => {
       loaded.set(false);
       await service().init();
       service().noteAddress('/');
-      service().noteAddress('/sources');
+      service().noteAddress('/admin/sources');
       await settled();
       expect(calls).toEqual([]);
       // Where the page is is noted all the same.
@@ -730,11 +727,11 @@ describe('TranslationService', () => {
       expect(cache()?.values['theme.label']).toBe('Téma');
     });
 
-    it('brings the strings to a page that had none: after Apply on the Sources page the first wish is asked for', async () => {
+    it('brings the strings to a page that had none: after Apply pending on the Migrations page the first wish is asked for', async () => {
       localStorage.setItem(LANGUAGE_KEY, 'sk');
       respond = fails(UNAVAILABLE);
       await service().init();
-      service().noteAddress('/sources');
+      service().noteAddress('/admin/migrations');
       expect(service().ready()).toBe(false);
       expect(service().t('theme.label')).toBe('Theme');
       calls = [];
@@ -745,7 +742,7 @@ describe('TranslationService', () => {
       expect(calls).toEqual(['sk']);
       expect(service().ready()).toBe(true);
       expect(service().language()).toBe('sk');
-      // Still English here - the Sources page is - and now the database's.
+      // Still English here - the Migrations page is - and now the database's.
       expect(service().t('theme.label')).toBe('Appearance');
       service().noteAddress('/');
       expect(service().t('theme.label')).toBe('Vzhľad');
@@ -754,7 +751,7 @@ describe('TranslationService', () => {
     it('asks in the person’s language on the English pages too - its bundle carries the English they read', async () => {
       localStorage.setItem(LANGUAGE_KEY, 'sk');
       await service().init();
-      service().noteAddress('/translations');
+      service().noteAddress('/admin/translations');
       expect(service().t('theme.label')).toBe('Appearance');
       calls = [];
 
@@ -1003,7 +1000,7 @@ describe('TranslationService: wording', () => {
 
   it('with no bundle reads the compiled English - and nothing an object would inherit either', () => {
     TestBed.resetTestingModule();
-    TestBed.configureTestingModule({ providers: [{ provide: AuthService, useValue: { mode: signal('unavailable'), user: signal(null) } }] });
+    TestBed.configureTestingModule({ providers: [{ provide: AuthService, useValue: { user: signal(null) } }] });
     const i18n = TestBed.inject(TranslationService);
 
     expect(i18n.ready()).toBe(false);
@@ -1079,7 +1076,7 @@ describe('TranslationService: wording', () => {
     expect(i18n.storedEnglishLang()).toBe('en');
     expect(document.documentElement.lang).toBe('sk');
 
-    for (const address of ['/sources', '/sources/', '/sources?run=3', '/translations', '/translations#theme', '/languages', '/languages/sk']) {
+    for (const address of ['/admin/sources', '/admin/sources/', '/admin/sources?run=3', '/admin/translations', '/admin/translations#theme', '/admin/languages', '/admin/people']) {
       i18n.noteAddress(address);
       expect(i18n.englishOnly(), address).toBe(true);
     }
@@ -1095,7 +1092,7 @@ describe('TranslationService: wording', () => {
     expect(i18n.signInLanguage()).toBe('sk');
     expect(document.documentElement.lang).toBe('en');
 
-    for (const address of ['/', '/import', '/builds/genshin', '/sourcesx', '/builds/sources', '/x?next=/sources']) {
+    for (const address of ['/', '/import', '/builds/genshin', '/adminx', '/builds/admin', '/x?next=/admin']) {
       i18n.noteAddress(address);
       expect(i18n.englishOnly(), address).toBe(false);
     }

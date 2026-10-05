@@ -1,7 +1,8 @@
 <?php
 
 use App\App;
-use App\Auth\AuthMode;
+use App\Auth\SignInPolicy;
+use App\Auth\Visitors;
 use App\Enums\Game;
 use App\Support\Stats;
 use App\Support\Talents;
@@ -11,13 +12,15 @@ use Psr\Http\Message\ResponseInterface as Response;
 use Psr\Http\Message\ServerRequestInterface as Request;
 
 /**
- * GET /api/meta - what the frontend loads before it draws anything: how people sign in, and the game
- * metadata for labels (slots, stats, talents). Public: it is read before anyone has signed in.
+ * GET /api/meta - what the frontend loads before it draws anything: where people sign in (the anotoki
+ * IAM's address and this site's client id there) and whether the IAM requires everybody to sign in here
+ * (auth.login_required, App\Auth\SignInPolicy - read from the IAM by the server, so the page never asks it;
+ * true when the IAM has never answered), how many days what a visitor imports is kept after
+ * their last visit (visitors.keep_days, for the notice), and the game metadata for labels (slots, stats,
+ * talents). Public, whether or not sign-in is required: it is read before anyone has signed in.
  */
 return function (Slim\App $slim, App $app): void {
     $slim->get('/api/meta', function (Request $request, Response $response) use ($app): Response {
-        $iam = AuthMode::of($app->config) === AuthMode::Iam;
-
         $game = function (Game $game): array {
             $statKeys = [...Stats::substatKeys($game)];
             foreach ($game->mainStatOptions() as $options) {
@@ -58,9 +61,12 @@ return function (Slim\App $slim, App $app): void {
             'games' => array_map($game, Game::cases()),
             'version' => Version::CURRENT,
             'auth' => [
-                'mode' => AuthMode::of($app->config)->value,
-                'issuer' => $iam ? rtrim((string) $app->config->get('auth.issuer'), '/') : null,
-                'client_id' => $iam ? (string) $app->config->get('auth.client_id') : null,
+                'issuer' => rtrim((string) $app->config->get('auth.issuer'), '/'),
+                'client_id' => (string) $app->config->get('auth.client_id'),
+                'login_required' => $app->get(SignInPolicy::class)->required(),
+            ],
+            'visitors' => [
+                'keep_days' => $app->get(Visitors::class)->keepDays(),
             ],
         ]);
     });

@@ -4,12 +4,13 @@ import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { MATERIAL_ANIMATIONS } from '@angular/material/core';
 import { MatSnackBar } from '@angular/material/snack-bar';
 import { provideRouter } from '@angular/router';
-import { Observable, of, throwError } from 'rxjs';
+import { Observable, Subject, of, throwError } from 'rxjs';
 import { Api } from '../../core/api';
-import { AuthMode, AuthService } from '../../core/auth';
+import { AuthService } from '../../core/auth';
 import { en } from '../../core/i18n/en';
 import { provideTestTranslations } from '../../core/i18n/testing';
 import { AccountSummary, SourceStatus } from '../../core/models';
+import { VisitorKey } from '../../core/visitor-key';
 import { DashboardPage } from './dashboard-page';
 
 const HOUR = 3_600_000;
@@ -63,7 +64,6 @@ const SLOVAK = {
   'dashboard.title': 'Tvoje účty',
   'dashboard.subtitle': 'Importuj účet z hry Genshin Impact alebo Honkai: Star Rail a porovnaj každú postavu s buildmi od komunity.',
   'dashboard.importAccount': 'Importovať účet',
-  'dashboard.backendHint': 'Beží backend? Ako ho spustiť, nájdeš v súbore DEV.md; potom to skús znova.',
   'dashboard.emptyTitle': 'Pozrime sa na tvoje postavy',
   'dashboard.emptyText': 'Sprievodca importom ťa prevedie krok za krokom.',
   'dashboard.importGame': 'Importovať z hry {game}',
@@ -88,7 +88,7 @@ const SLOVAK = {
   'account.fullInventory': 'Celý inventár',
   'account.showcaseOnly': 'Len Showcase',
   'error.offline': 'Nepodarilo sa spojiť so serverom. Skontroluj pripojenie a skús to znova.',
-  'error.no_access': 'Tvoj účet nemá prístup do aplikácie Build Analyzer. Požiadaj vlastníka o prístup.',
+  'error.editor_only': 'Toto môže urobiť len editor alebo správca.',
   'error.server_error': 'Na serveri sa niečo pokazilo.',
 };
 
@@ -100,7 +100,8 @@ describe('the dashboard', () => {
   let host: HTMLElement;
   let api: { accounts: ReturnType<typeof vi.fn>; sources: ReturnType<typeof vi.fn>; deleteAccount: ReturnType<typeof vi.fn> };
   let snackBar: { open: ReturnType<typeof vi.fn> };
-  let auth: { mode: ReturnType<typeof signal<AuthMode>>; user: ReturnType<typeof signal<null>>; isAdmin: ReturnType<typeof signal<boolean>> };
+  let auth: { signedIn: ReturnType<typeof signal<boolean>>; isStaff: ReturnType<typeof signal<boolean>> };
+  let visitor: { key: ReturnType<typeof signal<string | null>>; lost: ReturnType<typeof signal<boolean>>; moves: ReturnType<typeof signal<number>> };
 
   const overlay = () => document.querySelector<HTMLElement>('.cdk-overlay-container');
   /** What an element says, without the names of its icons. */
@@ -114,14 +115,22 @@ describe('the dashboard', () => {
   const counts = (card: HTMLElement) => [...card.querySelectorAll('.counts div')].map((count) => [text(count.querySelector('strong')), text(count.querySelector('span'))].join(' '));
   const cards = () => [...host.querySelectorAll<HTMLElement>('article.account-card')];
   const rows = () => [...host.querySelectorAll<HTMLElement>('.source-row')];
+  /** What the page says about the accounts and the sources - the "Your data" card aside (it has cases of its own). */
+  const pageText = () => {
+    const copy = host.cloneNode(true) as HTMLElement;
+    copy.querySelectorAll('app-data-card').forEach((card) => card.remove());
+    return copy.textContent ?? '';
+  };
 
   interface Options {
     language?: 'en' | 'sk';
     strings?: Record<string, string>;
     accounts?: AccountSummary[] | Observable<AccountSummary[]>;
     sources?: SourceStatus[];
+    /** An editor or an admin: the Sources page is theirs. */
     admin?: boolean;
-    mode?: AuthMode;
+    /** Who looks: somebody signed in (the default), a visitor (a key held), or nobody. */
+    state?: 'person' | 'visitor' | 'nobody';
   }
 
   async function setup(options: Options = {}): Promise<void> {
@@ -132,13 +141,16 @@ describe('the dashboard', () => {
       deleteAccount: vi.fn(() => of(undefined)),
     };
     snackBar = { open: vi.fn() };
-    auth = { mode: signal<AuthMode>(options.mode ?? 'iam'), user: signal(null), isAdmin: signal(options.admin ?? false) };
+    const state = options.state ?? 'person';
+    auth = { signedIn: signal(state === 'person'), isStaff: signal(options.admin ?? false) };
+    visitor = { key: signal(state === 'visitor' ? 'K'.repeat(43) : null), lost: signal(false), moves: signal(0) };
     TestBed.configureTestingModule({
       providers: [
         provideRouter([]),
         (options.language ?? 'sk') === 'sk' ? provideTestTranslations({ ...SLOVAK, ...options.strings }, { language: 'sk', english: en }) : provideTestTranslations(en),
         { provide: Api, useValue: api },
-        { provide: AuthService, useValue: auth },
+        { provide: AuthService, useValue: { ...auth, isAdmin: auth.isStaff, available: signal(true), lastError: signal(null), user: signal(null) } },
+        { provide: VisitorKey, useValue: visitor },
         { provide: MatSnackBar, useValue: snackBar },
         { provide: MATERIAL_ANIMATIONS, useValue: { animationsDisabled: true } },
       ],
@@ -186,8 +198,8 @@ describe('the dashboard', () => {
     expect([...genshin.querySelectorAll('.account-actions a')].map(text)).toEqual(['Otvoriť', 'Aktualizovať údaje']);
     expect(genshin.querySelector('.account-actions button')?.getAttribute('aria-label')).toBe('Ďalšie akcie');
 
-    expect(host.textContent).not.toMatch(A_KEY);
-    expect(host.textContent).not.toMatch(/never|characters|artifacts|relics|light cones|weapons/);
+    expect(pageText()).not.toMatch(A_KEY);
+    expect(pageText()).not.toMatch(/never|characters|artifacts|relics|light cones|weapons/);
   });
 
   it('counts a source’s characters the way Slovak counts, and says when it was synced', async () => {
@@ -209,7 +221,7 @@ describe('the dashboard', () => {
     ]);
     // The status dot's class is not a word: a source never synced keeps its "never".
     expect(rows().map((row) => row.querySelector('.status-dot')?.className)).toEqual(['status-dot success', 'status-dot never', 'status-dot running', 'status-dot success']);
-    expect(host.textContent).not.toMatch(/never/);
+    expect(pageText()).not.toMatch(/never/);
   });
 
   it('reads English as it always did', async () => {
@@ -231,7 +243,7 @@ describe('the dashboard', () => {
       ['12 characters', 'not synced yet'],
     ]);
     // A missing time is a phrase of its own, not the word "never" standing where a time would.
-    expect(host.textContent).not.toMatch(/never/);
+    expect(pageText()).not.toMatch(/never/);
   });
 
   it('invites to import, a button for each game, while there is no account', async () => {
@@ -252,7 +264,7 @@ describe('the dashboard', () => {
 
       expect(text(sentence())).toBe('Zatiaľ nie sú stiahnuté žiadne buildy. Prvú synchronizáciu spusti na stránke Zdroje.');
       const links = [...sentence()!.querySelectorAll('a')];
-      expect(links.map((link) => [text(link), link.getAttribute('href')])).toEqual([['Zdroje', '/sources']]);
+      expect(links.map((link) => [text(link), link.getAttribute('href')])).toEqual([['Zdroje', '/admin/sources']]);
     });
 
     it('reads the same in English', async () => {
@@ -278,30 +290,29 @@ describe('the dashboard', () => {
   });
 
   describe('when its data cannot be loaded', () => {
-    const refused = new HttpErrorResponse({ status: 403, error: { message: 'Your account has no access to the build analyzer. Ask the owner to add you.', code: 'no_access' } });
+    const refused = new HttpErrorResponse({ status: 403, error: { message: 'Only an editor or an admin can do this.', code: 'editor_only' } });
 
     it('words the failure from its code, never with the server’s sentence', async () => {
       await setup({ accounts: throwError(() => refused) });
 
-      expect(text(host.querySelector('.error-panel strong'))).toBe('Tvoj účet nemá prístup do aplikácie Build Analyzer. Požiadaj vlastníka o prístup.');
-      expect(host.textContent).not.toContain('Your account has no access');
+      expect(text(host.querySelector('.error-panel strong'))).toBe('Toto môže urobiť len editor alebo správca.');
+      expect(host.textContent).not.toContain('Only an editor or an admin can do this.');
       expect(text(host.querySelector('.error-panel button'))).toBe('Skúsiť znova');
-      // Where people sign in there is no backend of their own to start.
       expect(host.querySelector('.error-panel p')).toBeNull();
       expect(host.querySelector('.hero')).toBeNull();
     });
 
-    it('says the server is out of reach, and on the owner’s own computer how to start it', async () => {
-      await setup({ mode: 'none', accounts: throwError(() => new HttpErrorResponse({ status: 0 })) });
+    it('says the server is out of reach - and nothing about starting a backend', async () => {
+      await setup({ accounts: throwError(() => new HttpErrorResponse({ status: 0 })) });
 
       expect(text(host.querySelector('.error-panel strong'))).toBe('Nepodarilo sa spojiť so serverom. Skontroluj pripojenie a skús to znova.');
-      expect(text(host.querySelector('.error-panel p'))).toBe('Beží backend? Ako ho spustiť, nájdeš v súbore DEV.md; potom to skús znova.');
+      expect(host.querySelector('.error-panel p')).toBeNull();
     });
 
     it('follows the language: the same failure is worded again', async () => {
       await setup({ language: 'en', accounts: throwError(() => refused) });
 
-      expect(text(host.querySelector('.error-panel strong'))).toBe('Your account has no access to the build analyzer. Ask the owner to add you.');
+      expect(text(host.querySelector('.error-panel strong'))).toBe('Only an editor or an admin can do this.');
       expect(text(host.querySelector('.error-panel button'))).toBe('Retry');
     });
 
@@ -313,6 +324,92 @@ describe('the dashboard', () => {
 
       expect(host.querySelector('.error-panel')).toBeNull();
       expect(cards()).toHaveLength(1);
+    });
+  });
+
+  describe('three states: nobody, a visitor, somebody signed in', () => {
+    it('shows nobody what the site does and the ways on - and asks for nobody\'s accounts', async () => {
+      await setup({ language: 'en', state: 'nobody' });
+
+      expect(api.accounts).not.toHaveBeenCalled();
+      expect(api.sources).toHaveBeenCalledTimes(1);
+      expect(texts('app-visitor-hero h2')).toEqual([en['home.title']]);
+      const links = [...host.querySelectorAll<HTMLAnchorElement>('app-visitor-hero a')];
+      expect(links.map((link) => [text(link), link.getAttribute('href')])).toEqual([
+        ['Import your account', '/import'],
+        ['Browse the Genshin Impact builds', '/builds/genshin'],
+        ['Browse the Honkai: Star Rail builds', '/builds/hsr'],
+      ]);
+      expect(texts('app-visitor-hero button')).toEqual(['Sign in']);
+      // The sources' freshness is everybody's.
+      expect(rows()).toHaveLength(1);
+      expect(host.querySelector('.page-header')).toBeNull();
+      expect(host.querySelector('app-visitor-notice aside')).toBeNull();
+      expect(host.querySelector('app-data-card')).toBeNull();
+      expect(host.textContent).not.toMatch(/\b(home|visitor|data)\.[A-Za-z]/);
+    });
+
+    it('shows a visitor their accounts under the notice that says how long they are kept - and no data card', async () => {
+      await setup({ language: 'en', state: 'visitor' });
+
+      expect(api.accounts).toHaveBeenCalledTimes(1);
+      expect(cards()).toHaveLength(1);
+      expect(text(host.querySelector('app-visitor-notice p'))).toBe(
+        'You are not signed in. What you import is kept for this browser on our server for 30 days after your last visit. Signing in keeps it in your anotoki account.',
+      );
+      expect(host.querySelector('app-visitor-hero')).toBeNull();
+      expect(host.querySelector('app-data-card')).toBeNull();
+    });
+
+    it('shows somebody signed in their accounts and the "Your data" card - and no notice', async () => {
+      await setup({ language: 'en' });
+
+      expect(cards()).toHaveLength(1);
+      expect(text(host.querySelector('app-data-card h2'))).toBe('Your data');
+      expect(host.querySelector('app-visitor-notice aside')).toBeNull();
+      expect(host.querySelector('app-visitor-hero')).toBeNull();
+    });
+
+    it('starts over as for somebody new when the key opens nothing any more - and says so once', async () => {
+      await setup({ language: 'en', state: 'visitor' });
+      api.accounts.mockClear();
+
+      // The interceptor forgot the key (401 visitor_unknown).
+      visitor.key.set(null);
+      visitor.lost.set(true);
+      await fixture.whenStable();
+
+      expect(api.accounts).not.toHaveBeenCalled();
+      expect(texts('p.lost')).toEqual([en['error.visitor_unknown']]);
+      expect(host.querySelector('app-visitor-hero')).not.toBeNull();
+      expect(cards()).toEqual([]);
+    });
+
+    it('loads the accounts again after a sign-in, and after the visitor\'s accounts moved in', async () => {
+      await setup({ language: 'en', state: 'visitor' });
+      expect(api.accounts).toHaveBeenCalledTimes(1);
+
+      auth.signedIn.set(true);
+      await fixture.whenStable();
+      expect(api.accounts).toHaveBeenCalledTimes(2);
+
+      api.accounts.mockImplementation(() => of([account(1), account(2)]));
+      visitor.moves.set(1);
+      await fixture.whenStable();
+      expect(api.accounts).toHaveBeenCalledTimes(3);
+      expect(cards()).toHaveLength(2);
+    });
+
+    it('shows only the last load\'s answer when an earlier one fails after the state changed', async () => {
+      const failing = new Subject<AccountSummary[]>();
+      await setup({ language: 'en', state: 'visitor', accounts: failing });
+      visitor.key.set(null);
+      await fixture.whenStable();
+      failing.error(new HttpErrorResponse({ status: 401, error: { code: 'visitor_unknown' } }));
+      await fixture.whenStable();
+
+      expect(host.querySelector('.error-panel')).toBeNull();
+      expect(host.querySelector('app-visitor-hero')).not.toBeNull();
     });
   });
 

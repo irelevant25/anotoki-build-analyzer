@@ -8,17 +8,7 @@
       <p class="notice" role="alert">{{ problem.key | translate: problem.params }}</p>
     }
 
-    @if (noAccess()) {
-      <!-- One sentence, cut where the account's name stands; a language that leaves the name out gets no name. -->
-      @let sentence = noAccessSentence();
-      <p class="notice">
-        {{ sentence[0] }}@if (sentence[2]) {<strong>{{ accountName() }}</strong>}{{ sentence[1] }}
-      </p>
-      <div class="row wrap center">
-        <button mat-stroked-button (click)="useAnotherAccount()"><mat-icon>switch_account</mat-icon>{{ 'signIn.anotherAccount' | translate }}</button>
-        <button mat-button (click)="auth.logout()"><mat-icon>logout</mat-icon>{{ 'common.signOut' | translate }}</button>
-      </div>
-    } @else if (auth.mode() === 'iam') {
+    @if (auth.available()) {
       <button mat-flat-button (click)="signIn()"><mat-icon>login</mat-icon>{{ 'common.signIn' | translate }}</button>
     } @else {
       <p class="notice">{{ 'signIn.unreachable' | translate }}</p>
