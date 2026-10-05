@@ -4,11 +4,14 @@ Angular 21 + Angular Material. See [DEV.md](../DEV.md) for setting up, running, 
 deploying, and [docs/architecture.md](../docs/architecture.md) ("Frontend") for how it is organised.
 
 ```bash
-npm ci                     # npm 10.9.x has a resolver bug here; `npx -y npm@11 ci` works
-npm start                  # http://localhost:4600 (proxies /api and /setup.php to http://127.0.0.1:8400)
+bun ci                     # the packages, from bun.lock (npm start runs it first)
+npm start                  # http://localhost:4600 (proxies /api and /setup.php to http://localhost:8400)
 npx ng test --watch=false  # unit tests (Vitest)
 npx ng build               # production build into dist/frontend/browser (backend/tools/build.php uses it)
 ```
+
+With npm, `npx -y npm@11 ci` installs from `package-lock.json` (npm 10.9.x has a resolver bug here); a change
+of the dependencies updates both lock files.
 
 Sign-in goes through the anotoki IAM's browser SDK, vendored unchanged in `src/app/core/iam/`
 (`anotoki-auth.mjs` + `anotoki-auth.d.ts`, v1.1.1): copy both files from `anotoki-iam/sdk/js/` to update it.

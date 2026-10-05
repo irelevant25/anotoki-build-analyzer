@@ -10,7 +10,7 @@
  * token - and nothing else. Sign-in through the IAM is the only way in, on this computer as on a host.
  *
  * ON THIS COMPUTER (a loopback client asking for localhost - `composer start` in backend/, then
- * http://127.0.0.1:8400/setup.php, or through the Angular dev server on http://localhost:4600/setup.php)
+ * http://localhost:8400/setup.php, or through the Angular dev server on http://localhost:4600/setup.php)
  * there is no token: a CSRF nonce (a cookie that other sites cannot send) protects the form. It can be run
  * again whenever something changes; it shows the saved values, never the saved password, and it stays.
  *

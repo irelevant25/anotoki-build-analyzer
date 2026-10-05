@@ -23,7 +23,7 @@ final class Cli
         $config = Config::load();
         if (! $config->isSetUp()) {
             self::fail("This installation is not set up yet:\n  ".implode("\n  ", $config->problems())
-                ."\nRun setup.php first (composer start in backend/, then open http://127.0.0.1:8400/setup.php).");
+                ."\nRun setup.php first (composer start in backend/, then open http://localhost:8400/setup.php).");
         }
         Log::to($config->storage('logs/app.log'));
 

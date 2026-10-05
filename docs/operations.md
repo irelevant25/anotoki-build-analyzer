@@ -7,9 +7,9 @@ page is the reference behind it.
 
 | Task | In the browser | From the command line (from the repo root) |
 | --- | --- | --- |
-| First setup | open http://localhost:4600 (it leads to `setup.php`) | `cd backend && composer install`; `cd frontend && npm ci`; start the two servers below |
+| First setup | open http://localhost:4600 (it leads to `setup.php`) | `cd backend && composer install`; `cd frontend && bun ci`; start the two servers below |
 | API (and setup.php, and the built app) | – | `cd backend && composer start` (`php -S localhost:8400 router.php`) |
-| Angular dev server | – | `cd frontend && npm start` (http://localhost:4600) |
+| Angular dev server | – | `cd frontend && npm start` (`bun ci`, then http://localhost:4600) |
 | Database migrations | the admin panel's Migrations page, "Apply pending" (ADMIN) | `cd backend && php migration.php [--status \| --dry-run]` |
 | Sync builds | Sources page "Sync all" / "Sync now" (EDITOR) | `cd backend && php sync-builds.php [source] [--force] [--character=x] [--check-names]` |
 | Check parsers without writing (offline) | – | `cd backend && php sync-builds.php --dry-run --cache-hours=96 [-v]` |
@@ -340,6 +340,8 @@ accounts again and sync (cached pages make it quick).
   installed into the repository. The browser's locale is set to `en-GB`: this computer's is Slovak.
 - npm 10.9.2 crashes on this project (`Cannot read properties of null (reading 'edgesOut')`); use
   `npx -y npm@11 install|ci`.
+- Bun 1.4 is on PATH: `npm start` in `frontend/` runs `bun ci` (from `bun.lock`) before `ng serve`; npm
+  installs from `package-lock.json`, so a change of the dependencies updates both lock files.
 - Node 22.15 → Angular 21 (Angular 22 needs Node ≥ 22.22.3).
 - Python is not installed (`python` is the Windows Store stub): use node or PHP for scripting.
 - Git Bash: heredocs containing apostrophes or backslashes can come out wrong → write files with the editor

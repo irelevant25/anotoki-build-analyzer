@@ -469,6 +469,6 @@ string or language the checks refuse - with the key and the language; a write to
   Material 3 theme with CSS tokens in `src/styles.scss` (`--app-*`, `--grade-*`, `--el-*`, light/dark via
   `light-dark()`). Fonts (Roboto, Material Symbols) come from npm packages and are bundled; nothing is loaded
   from another site.
-- The dev server (http://localhost:4600) proxies `/api` and `/setup.php` to `http://127.0.0.1:8400`
+- The dev server (http://localhost:4600) proxies `/api` and `/setup.php` to `http://localhost:8400`
   (`proxy.conf.json`). `ng build` writes `dist/frontend/browser/`, which `router.php` serves in development and
   `backend/tools/build.php` puts into the upload.

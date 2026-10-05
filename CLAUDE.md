@@ -60,7 +60,8 @@ database with the stand-in IAM.
   never print it). The tests make and drop their own `build_analyzer_test_*` databases on that server (and
   `setup.test.php` a throwaway login, dropped after). Throwaway servers (the stand-in IAM of the tests and
   the browser check) go on 8590-8599; the owner's own servers may run on 4200-4700 and 8000-8500.
-- npm 10.9.2 crashes on install here → `npx -y npm@11 install|ci`. Node 22.15 (hence Angular 21).
+- npm 10.9.2 crashes on install here → `npx -y npm@11 install|ci`. Node 22.15 (hence Angular 21). `npm start` in
+  `frontend/` runs `bun ci` first (Bun 1.4, `bun.lock`): a change of the dependencies updates both lock files.
 - No Python (`python` is the Store stub); script with node or PHP.
 - Tool shells reset their working directory: start commands with `cd <repo root> &&`. Put longer PHP snippets
   into a scratch file (outside the repo) that requires `backend/vendor/autoload.php` and uses `App\Cli::app()`.

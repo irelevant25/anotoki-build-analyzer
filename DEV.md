@@ -18,6 +18,9 @@ these steps (configuration keys, sign-in and roles, syncs, troubleshooting) is [
 - **PostgreSQL** (14 or newer; developed on 18) and a user that may create databases - setup creates the app's
   database, and the tests create throwaway ones.
 - **Node.js 22.12+** with npm. (npm 10.9.2 crashes on this project; `npx -y npm@11 ci` works.)
+- **Bun** (developed on 1.4): `npm start` in `frontend/` installs the packages with `bun ci`, from `bun.lock`,
+  before it serves. npm installs from `package-lock.json`, so a change of the dependencies updates both lock
+  files.
 - To sign in: the **anotoki IAM** running locally (`../anotoki-iam`, see its DEV.md; it registers this app at
   http://localhost:4600 by itself). Sign-in is always the IAM's - there is no copy without it. Its administrator
   account is ADMIN here; any other account may sign in and use the site with its own accounts. Whether
@@ -35,14 +38,14 @@ these steps (configuration keys, sign-in and roles, syncs, troubleshooting) is [
 
    ```bash
    cd backend && composer install
-   cd ../frontend && npm ci
+   cd ../frontend && bun ci
    ```
 
 2. Start the two servers, each in its own terminal:
 
    ```bash
    cd backend && composer start           # php -S localhost:8400 router.php
-   cd frontend && npm start
+   cd frontend && npm start               # bun ci, then ng serve on http://localhost:4600
    ```
 
 3. Open http://localhost:4600. A copy that has not been set up says so and links to **setup.php**

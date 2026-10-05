@@ -39,12 +39,12 @@ Setting it up, running, testing, building and deploying: **[DEV.md](DEV.md)**.
 
 ## Quick start
 
-Requirements: PHP 8.4+ (`pdo_pgsql`, `openssl`, `mbstring`, `curl`, `dom`), PostgreSQL, Node.js 22.12+, and
-the anotoki IAM running locally (`../anotoki-iam`) to sign in.
+Requirements: PHP 8.4+ (`pdo_pgsql`, `openssl`, `mbstring`, `curl`, `dom`), PostgreSQL, Node.js 22.12+, Bun,
+and the anotoki IAM running locally (`../anotoki-iam`) to sign in.
 
 ```bash
 cd backend && composer install && composer start   # the API on http://localhost:8400
-cd frontend && npm ci && npm start                 # the app at http://localhost:4600
+cd frontend && npm start                           # bun ci, then the app at http://localhost:4600
 ```
 
 The app then leads you to `setup.php`: the database (`anotoki_builder`, port 5432) and the IAM (address and
