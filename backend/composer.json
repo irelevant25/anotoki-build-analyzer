@@ -40,10 +40,10 @@
     "scripts": {
         "start": [
             "Composer\\Config::disableProcessTimeout",
-            "php -S 127.0.0.1:8400 router.php"
+            "php -S localhost:8400 router.php"
         ]
     },
     "scripts-descriptions": {
-        "start": "The API and setup.php on http://127.0.0.1:8400: PHP's built-in server, with router.php"
+        "start": "The API and setup.php on http://localhost:8400: PHP's built-in server, with router.php"
     }
 }
