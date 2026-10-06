@@ -3,6 +3,20 @@
 Short records of choices that shape the code. Add a new entry (newest first) when you make a similar call.
 Older entries describe the Laravel version as it was; where a setting has since moved, the entry says so.
 
+**2026-10-06 — The family's visitor counter, without the query string (the owner's request, for the whole family).**
+`frontend/src/index.html` loads Umami's script from `umami.anotoki.eu` - the family's own, so "nothing that is
+not ours" still holds: nothing names it to a person, and `backend/tools/build.php`'s name check has nothing to find. It
+sets no cookie and stores nothing in the browser. It is told to leave the query string and the fragment out
+(`data-exclude-search`, `data-exclude-hash`): the sign-in comes back to `/auth/callback?code=...&state=...`, and
+the script may read the address before the app has run - a counter that kept it would hold every sign-in's code.
+It is `async`, not the snippet's `defer`: a deferred script and the app's module run in order, so the app would
+wait for the counter - for as long as a slow or unreachable `umami.anotoki.eu` takes to give up. The paths still
+go, which is what the counter is for. The site sends no Content-Security-Policy for its pages, so nothing else
+changes (one added later must allow `https://umami.anotoki.eu` in `script-src` and `connect-src`); the browser
+check's headless browser is not counted (Umami answers it and keeps nothing). The price: the script runs in the
+app's pages, beside the sign-in's tokens in localStorage, so the site trusts whoever controls what
+`umami.anotoki.eu` serves that far.
+
 **2026-10-05 — Whether sign-in is required is the IAM's switch, read by the server (the owner's request, for the whole family).**
 - *The IAM decides, per application*: "Sign-in required" on its admin panel, and which roles may sign in. This
   site keeps no setting of its own; it reads `GET {issuer}/api/public/applications/build-analyzer` through the
