@@ -3,6 +3,41 @@
 Short records of choices that shape the code. Add a new entry (newest first) when you make a similar call.
 Older entries describe the Laravel version as it was; where a setting has since moved, the entry says so.
 
+**2026-10-06 — The theme, the dates and the language are the account's while somebody is signed in (the owner's decision, for the whole family).**
+The owner: "it should be in the iam only and apply for every project/application"; asked, a site's own
+controls save to the account for a signed-in person, and one theme everywhere - every site, every area of it,
+the admin panel included (the IAM's migration 015 and its `decisions.md`). Here, with the IAM's browser SDK
+1.2.0 (`user().preferences`, `savePreferences()`):
+- *Only where the IAM keeps them.* `AuthService.preferences()` is null for a visitor, and for anybody signed in
+  at an IAM before 015 or without the `profile` scope: then everything is as it was - the device's theme and
+  language, the page's own dates - and nothing is saved anywhere else (the IAM would answer 503). The release
+  needs no migration here and no order against the IAM's: it works with either.
+- *The theme* (`core/theme.ts`, as the IAM's own ThemeService): the account's from the first frame (the sign-in
+  settles before the first page is drawn), followed when it changes, saved from the toggle - shown at once,
+  one save at a time with the latest choice last (two in flight could land in either order), never flicking
+  back while its own save is on its way, and put back when the account refuses it. What is on the page is
+  still written to `build-analyzer-theme`, so the next load starts in it; a visitor's device keeps whatever
+  was last shown there.
+- *Telling the person about a refusal* uses the words of a failed request (`preferencesProblem()`:
+  `error.offline`, `error.sign_in_required`, `error.unknown`), as the IAM's pages do: no new string, so no
+  migration and no keys on the page between an upload and Apply. A sentence of its own ("the theme could not
+  be saved to your anotoki account") would be clearer, and is a migration away if wanted.
+- *The language*: while the account keeps the preferences, its `locale` comes before the menu's remembered
+  choice - otherwise a device's old choice would outvote one made since on another anotoki site; only this
+  tab's `?lang=` and a choice of this visit come first. The menu's choice is saved to the account, one at a
+  time, the latest last; taken, the account decides again. A language the IAM does not offer
+  (`invalid_request`) stays this site's own for the visit, silently; any other refusal keeps the page in the
+  chosen language for the visit too - it has its words here, and losing them because the IAM is out of reach
+  would be worse - and a snack bar says why, as the IAM's own bar does. The device still remembers the menu's
+  choice, for when nobody is signed in. Before, the device's choice always came first.
+- *Dates*: where a date or a time is written for a person - What's new's days (`localDate: 'day'`), when a
+  migration was applied and when a builds file was exported (the admin panel) - the account's order and clock,
+  where it has chosen them, the page's own way where not (`core/i18n/date-patterns.ts`, the IAM's formats).
+  Relative times have neither; the sync runs' log lines are stored text in UTC, shared by every editor, and stay.
+- *The stand-in IAM* gives a person `preferences` when told to and answers `POST /api/oidc/preferences` as the
+  IAM does, so the browser check saves across origins with the real SDK. The survey's copy of the file does not
+  have this yet: the two should be brought alike again when the survey takes SDK 1.2.0.
+
 **2026-10-06 — The family's visitor counter, without the query string (the owner's request, for the whole family).**
 `frontend/src/index.html` loads Umami's script from `umami.anotoki.eu` - the family's own, so "nothing that is
 not ours" still holds: nothing names it to a person, and `backend/tools/build.php`'s name check has nothing to find. It

@@ -70,6 +70,22 @@ describe('the words around an import', () => {
     );
   });
 
+  it("says when the file was exported in the account's date order and clock, where the person has chosen them", () => {
+    const exported = { ...check, exportedAt: '2026-09-29T12:03:12.123456Z' };
+    const at = new Date('2026-09-29T12:03:12.123Z');
+    const pad = (value: number) => String(value).padStart(2, '0');
+    const day = `${at.getFullYear()}-${pad(at.getMonth() + 1)}-${pad(at.getDate())}`;
+    const clock = `${pad(at.getHours())}:${pad(at.getMinutes())}`;
+
+    expect(importQuestion(source, exported, { date_format: 'ymd_dash', time_format: '24' })).toBe(
+      `Replace the 240 builds of Source 2 (Genshin Impact) with the file's 250 builds of 110 characters, exported ${day} ${clock}?`,
+    );
+    // Only the clock chosen: the page's own day beside it.
+    expect(importQuestion(source, exported, { date_format: null, time_format: '12' })).toMatch(/, exported 29 September 2026 \d{1,2}:\d\d\s?[ap]m\?$/i);
+    // Nothing chosen: as before.
+    expect(importQuestion(source, exported, { date_format: null, time_format: null })).toBe(importQuestion(source, exported));
+  });
+
   it('sums up what an import did, naming the characters the catalog lacks', () => {
     const result: BuildImportResult = { created: 2, updated: 1, unchanged: 240, removed: 3, characters: 108, skipped: [], source: {} as SourceStatus };
     expect(importSummary(source, result)).toBe('Imported into Source 2: 2 new, 1 updated, 240 unchanged, 3 removed.');

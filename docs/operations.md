@@ -119,6 +119,13 @@ https://iam.anotoki.eu/api/public/applications/build-analyzer` (200, `"login_req
   (`anotoki-iam-application-<sha1>.json`). The folder must be the site's own - a kept "not required" is what
   opens the site to visitors; the upload denies `storage/` to the web (`tools/build.php`), and setup checks it. Deleting the file makes the
   next request ask the IAM again.
+- **The account's theme, dates and language** (an IAM with its migration 015; the browser SDK 1.2.0): for a
+  signed-in person the theme (on every page, the admin panel's too), the date order and clock and the
+  language are the account's, which every anotoki site shares - set on the IAM's account page, on another
+  site, or here: the theme toggle and the language menu save a signed-in person's choice to the account
+  (`POST {issuer}/api/oidc/preferences`, from the page, with the person's token). A visitor's stay this
+  device's. With an IAM before 015 nothing changes: the site keeps its own, as before. Nothing of it reaches
+  this site's server.
 
 ## Visitors
 
@@ -301,6 +308,12 @@ map, are in [DEV.md](../DEV.md) ("Deploying"); in short:
      has it. Then try it: switch "Sign-in required" on for Build Analyzer in the IAM's admin panel - within a
      minute `/api/meta` says `"login_required": true`, `/api/builds/genshin` answers 401 without a token and a
      private window opening the site goes to the IAM first - and off again.
+   - **The account's theme, dates and language (browser SDK 1.2.0; no migration here)**: upload in either order
+     with the IAM's migration 015 - before it, the site keeps its own settings exactly as it did (the SDK
+     finds no `preferences` in the tokens and saves nothing). Once both are up, try it: sign in, pick Dark in
+     the bar - the IAM's account page (and every anotoki site) shows Dark; pick a language - the account
+     has it too; What's new writes its dates in the order chosen on the account page. A visitor's choices stay
+     the browser's. The site's server is not involved.
 
 Check after an install: `https://builder.anotoki.eu/config/database.local.php`, `/storage/logs/app.log` and
 `/src/Config.php` must not download (403); `https://builder.anotoki.eu/api/meta` answers JSON with the IAM's
@@ -395,3 +408,6 @@ accounts again and sync (cached pages make it quick).
 | A language is missing from the top bar's language menu | it is hidden: offer it on the Languages page |
 | No language button in the top bar | only one language is offered, or the page is in the admin panel (English) |
 | A reworded string is back to the old words | the database was replaced, or this is the other installation: each keeps its own strings; import the language's exported file |
+| Signed in, the theme or the language is not what this browser chose before, or changes by itself | they are the account's (the IAM's migration 015): changed on the IAM's account page or on another anotoki site, they follow here; a choice in the bar is saved to the account. A visitor's stay the browser's |
+| The theme flips back after the toggle, with "Cannot reach the server" / "Your sign-in has ended" | the account did not take it: the IAM was out of reach (its CORS, a network fault) or the sign-in ended - the account's theme is shown again. A language chosen then stays for the visit only |
+| What's new's dates read 2026-10-06 (or 6.10.2026) | the account's date order, chosen on the IAM's account page: every anotoki site writes dates in it |

@@ -55,7 +55,10 @@ describe('the shell', () => {
       providers: [
         provideRouter([{ path: '**', component: TestPage }]),
         provideTestTranslations(SLOVAK, { language: 'sk', english: ENGLISH }),
-        { provide: AuthService, useValue: { user, signedIn: () => user() !== null } },
+        {
+          provide: AuthService,
+          useValue: { user, signedIn: () => user() !== null, preferences: () => null },
+        },
         {
           provide: MetaStore,
           useValue: {

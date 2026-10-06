@@ -183,7 +183,7 @@ export class SourcesPage {
       this.snackBar.open(check.message, 'Close');
       return;
     }
-    if (!confirm(importQuestion(source, check))) {
+    if (!confirm(importQuestion(source, check, this.auth.preferences()))) {
       return;
     }
 

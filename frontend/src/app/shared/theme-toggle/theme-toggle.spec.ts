@@ -1,5 +1,8 @@
+import { Provider, signal } from '@angular/core';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
+import { AuthService } from '../../core/auth';
 import { provideTestTranslations } from '../../core/i18n/testing';
+import { AnotokiPreferences } from '../../core/iam/anotoki-auth';
 import { ThemeToggle } from './theme-toggle';
 
 const SLOVAK = {
@@ -15,9 +18,9 @@ describe('the theme switch in the top bar', () => {
 
   const choices = () => [...host.querySelectorAll<HTMLButtonElement>('[role="radio"]')];
 
-  async function draw(): Promise<void> {
+  async function draw(...providers: Provider[]): Promise<void> {
     TestBed.configureTestingModule({
-      providers: [provideTestTranslations(SLOVAK, { language: 'sk', english: {} })],
+      providers: [provideTestTranslations(SLOVAK, { language: 'sk', english: {} }), ...providers],
     });
     fixture = TestBed.createComponent(ThemeToggle);
     host = fixture.nativeElement;
@@ -74,5 +77,31 @@ describe('the theme switch in the top bar', () => {
     expect(document.documentElement.classList.contains('theme-light')).toBe(false);
     expect(choices()[2].getAttribute('aria-checked')).toBe('true');
     expect(document.activeElement).toBe(choices()[2]);
+  });
+
+  it("signed in, marks the account's theme - whatever this device had - and saves a choice to the account", async () => {
+    localStorage.setItem('build-analyzer-theme', 'light');
+    const preferences = signal<AnotokiPreferences | null>({
+      theme: 'dark',
+      date_format: null,
+      time_format: null,
+    });
+    const savePreferences = vi.fn(async () => ({ locale: 'sk', preferences: preferences() }));
+    await draw({
+      provide: AuthService,
+      useValue: { user: signal({ sub: '7' }), preferences, savePreferences },
+    });
+    expect(choices().map((choice) => choice.getAttribute('aria-checked'))).toEqual([
+      'false',
+      'true',
+      'false',
+    ]);
+    expect(document.documentElement.classList.contains('theme-dark')).toBe(true);
+
+    choices()[2].click();
+    await fixture.whenStable();
+    expect(savePreferences).toHaveBeenCalledWith({ theme: 'auto' });
+    expect(choices()[2].getAttribute('aria-checked')).toBe('true');
+    expect(document.documentElement.classList.contains('theme-dark')).toBe(false);
   });
 });

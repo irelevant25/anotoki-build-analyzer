@@ -33,7 +33,7 @@ export class App {
   private readonly i18n = inject(TranslationService);
   private readonly snackBar = inject(MatSnackBar);
   private readonly visitor = inject(VisitorKey);
-  /** The theme chosen on this device, on <html> before anything is drawn. */
+  /** The theme - the account's while somebody is signed in, else this device's - on <html> before anything is drawn. */
   private readonly theme = inject(ThemeService);
   /**
    * What the owner typed on the Translations and Languages pages and did not save: made here, after the

@@ -6,7 +6,7 @@ written to be read on their own. Setting up, running, testing and deploying are 
 
 | Page | Read it when you… |
 | --- | --- |
-| [architecture.md](architecture.md) | need the big picture: modules, the setup gate, sign-in (the anotoki IAM only; credentials that are sent must verify), roles (EDITOR, ADMIN), visitor accounts (who a request is without signing in, the key, the limits, the clean-up, the move at sign-in), per-user data, neutral names, stepped syncs, the site's words (keys, kinds, English and Slovak, the Translations and Languages pages), request flows, API and who may call it, frontend structure |
+| [architecture.md](architecture.md) | need the big picture: modules, the setup gate, sign-in (the anotoki IAM only; credentials that are sent must verify), roles (EDITOR, ADMIN), visitor accounts (who a request is without signing in, the key, the limits, the clean-up, the move at sign-in), per-user data, neutral names, stepped syncs, the site's words (keys, kinds, English and Slovak, the Translations and Languages pages), the account's theme, dates and language (signed in, the IAM account's for every anotoki site), request flows, API and who may call it, frontend structure |
 | [data-model.md](data-model.md) | touch tables (users and visitors, per-user accounts, sync runs, languages and strings), migrations, JSON columns (builds, items, talents), import semantics, the builds files a source is exported to, or the accounts file a person exports and imports |
 | [stats-and-slots.md](stats-and-slots.md) | handle stat keys, slots, main stats, roll values, label parsing |
 | [name-matching.md](name-matching.md) | see "unknown weapon / set / character", add aliases, sync the catalog |

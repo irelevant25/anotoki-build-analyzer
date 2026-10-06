@@ -133,7 +133,8 @@ one, and drops it at the end.
 The browser check (the `verify-ui` skill) runs the site end to end in headless Edge, signed in through the
 stand-in IAM, on a throwaway database - nobody, a visitor's import and the move at sign-in, a member's own
 data, an editor and an admin, the top bar at 360-1280 px in light and dark with a real Tab press, Slovak at
-390 px with no key on the page:
+390 px with no key on the page, and the account's theme, dates and language saved from the bar to the
+stand-in IAM:
 
 ```bash
 node .claude/skills/verify-ui/scripts/run.mjs [--no-build] [--keep]   # from the root; ports 8590 and 8597
@@ -216,6 +217,10 @@ pending** there (an ADMIN). `config/*.local.php` and
 - **The IAM's sign-in switch** (IAM SDK 1.1.0): upload only once the IAM answers
   `https://iam.anotoki.eu/api/public/applications/build-analyzer` with 200 - before that the site requires
   sign-in (fail closed) and turns visitors away. [docs/operations.md](docs/operations.md), "Deploying".
+- **The account's theme, dates and language** (the browser SDK 1.2.0; no migration here): upload in either
+  order with the IAM's migration 015 - before it the site keeps its own settings, as it did. Then, signed in,
+  the bar's theme and language are saved to the anotoki account and What's new writes dates in the account's
+  order. [docs/operations.md](docs/operations.md), "Deploying".
 - **Each installation holds its own strings.** Strings reworded in the browser live only in that
   installation's database; your computer and the host each have their own, and no upload carries them.
   Export a language (Translations page, or `php translations.php --export=sk file` on your computer) before a

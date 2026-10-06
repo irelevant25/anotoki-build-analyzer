@@ -1,5 +1,8 @@
+import { signal } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
+import { AuthService } from '../auth';
 import { timeAgo } from '../format';
+import { AnotokiPreferences } from '../iam/anotoki-auth';
 import { LocalDatePipe } from './local-date';
 import { provideTestTranslations } from './testing';
 import { TranslatePluralPipe } from './translate-plural';
@@ -28,10 +31,21 @@ const MINUTE = 60 * SECOND;
 const HOUR = 60 * MINUTE;
 const DAY = 24 * HOUR;
 
-function pipes(language: 'en' | 'sk') {
+/**
+ * The pipes in a language - and, given `account`, for somebody signed in whose account says how dates are
+ * written (AuthService.preferences()).
+ */
+function pipes(language: 'en' | 'sk', account?: Partial<AnotokiPreferences>) {
   TestBed.resetTestingModule();
+  const preferences: AnotokiPreferences = { theme: 'auto', date_format: null, time_format: null, ...account };
   TestBed.configureTestingModule({
-    providers: [language === 'sk' ? provideTestTranslations(SLOVAK, { language: 'sk', english: ENGLISH }) : provideTestTranslations(ENGLISH), TranslatePipe, TranslatePluralPipe, LocalDatePipe],
+    providers: [
+      language === 'sk' ? provideTestTranslations(SLOVAK, { language: 'sk', english: ENGLISH }) : provideTestTranslations(ENGLISH),
+      TranslatePipe,
+      TranslatePluralPipe,
+      LocalDatePipe,
+      ...(account ? [{ provide: AuthService, useValue: { user: signal({ sub: '7', preferences }), preferences: signal(preferences) } }] : []),
+    ],
   });
   return {
     i18n: TestBed.inject(TranslationService),
@@ -163,5 +177,21 @@ describe('the localDate pipe', () => {
     i18n.noteAddress('/admin/sources');
     expect(date.transform('2026-09-29', 'day')).toBe('29 September 2026');
     expect(date.transform(new Date(NOW - 3 * HOUR).toISOString(), 'ago')).toBe('3 hours ago');
+  });
+
+  it("writes a day in the account's date order for somebody signed in who has chosen one - in every language", () => {
+    expect(pipes('en', { date_format: 'ymd_dash' }).date.transform('2026-09-29', 'day')).toBe('2026-09-29');
+    expect(pipes('sk', { date_format: 'dmy_dot' }).date.transform('2026-09-29', 'day')).toBe('29.9.2026');
+    expect(pipes('sk', { date_format: 'mdy_slash' }).date.transform('2026-01-05', 'day')).toBe('01/05/2026');
+    // A moment is the day it falls on here, in that order too.
+    expect(pipes('en', { date_format: 'dmy_slash' }).date.transform(new Date(2026, 9, 20, 12).toISOString(), 'day')).toBe('20/10/2026');
+    // What is not a date still comes back as it came.
+    expect(pipes('en', { date_format: 'ymd_dash' }).date.transform('2026-13-45', 'day')).toBe('2026-13-45');
+  });
+
+  it("writes days the page's own way while the account leaves them at automatic; 'ago' is the same for everybody", () => {
+    expect(pipes('sk', { date_format: null, time_format: '12' }).date.transform('2026-09-29', 'day')).toBe('29. septembra 2026');
+    const { date } = pipes('sk', { date_format: 'ymd_dash', time_format: '24' });
+    expect(date.transform(new Date(NOW - 3 * HOUR).toISOString(), 'ago')).toBe('pred 3 hodinami');
   });
 });

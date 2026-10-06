@@ -1,6 +1,12 @@
 import { TestBed } from '@angular/core/testing';
-import { AUTH_CLIENT_FACTORY, AuthService, signInProblem } from './auth';
-import { AnotokiAuth, AnotokiInitResult, AnotokiUser } from './iam/anotoki-auth';
+import { AUTH_CLIENT_FACTORY, AuthService, preferencesProblem, signInProblem } from './auth';
+import {
+  AnotokiAuth,
+  AnotokiInitResult,
+  AnotokiPreferenceChanges,
+  AnotokiSavedPreferences,
+  AnotokiUser,
+} from './iam/anotoki-auth';
 import { SAVES_WAIT_MS, SavesInFlight } from './saves-in-flight';
 
 const MONA: AnotokiUser = {
@@ -10,6 +16,13 @@ const MONA: AnotokiUser = {
   email_verified: true,
   locale: 'en',
   roles: [],
+  preferences: null,
+};
+
+/** Mona with an IAM that keeps the account's preferences (its migration 015). */
+const MONA_015: AnotokiUser = {
+  ...MONA,
+  preferences: { theme: 'auto', date_format: null, time_format: null },
 };
 
 const IAM = { issuer: 'https://iam.example.test', client_id: 'build-analyzer' };
@@ -26,6 +39,21 @@ function fakeClient(state: { current: AnotokiUser | null; init?: AnotokiInitResu
     getAccessToken: vi.fn(async () => 'token-1'),
     refresh: vi.fn(async () => 'token-2'),
     fetch: vi.fn(),
+    // As the SDK does: the account as it now stands goes into user() at once, and onChange fires.
+    savePreferences: vi.fn(async (changes: AnotokiPreferenceChanges): Promise<AnotokiSavedPreferences> => {
+      const current = state.current;
+      if (!current) {
+        throw Object.assign(new Error('Nobody is signed in'), { code: 'login_required' });
+      }
+      const { language, ...preferences } = changes;
+      const saved = {
+        locale: language ?? current.locale,
+        preferences: current.preferences ? { ...current.preferences, ...preferences } : null,
+      };
+      state.current = { ...current, ...saved };
+      listener?.();
+      return saved;
+    }),
     onChange: vi.fn((next: () => void) => {
       listener = next;
       return () => (listener = null);
@@ -202,6 +230,66 @@ describe('AuthService', () => {
     ]);
     // No language is said at all - not even an empty one - so the IAM chooses for itself.
     expect(client.login.mock.calls.slice(1).every(([parameters]: unknown[]) => !Object.hasOwn(parameters as object, 'uiLocales'))).toBe(true);
+  });
+
+  it("reads the account's theme, dates and clock from the token - none from an IAM that keeps none, or while nobody is signed in", async () => {
+    const state = { current: MONA_015 as AnotokiUser | null };
+    const { client, changed } = fakeClient(state);
+    const { auth } = setup(client);
+    await auth.init(IAM);
+    expect(auth.preferences()).toEqual({ theme: 'auto', date_format: null, time_format: null });
+
+    // Changed on another anotoki site: the next token (or another tab) brings it.
+    state.current = { ...MONA_015, preferences: { theme: 'dark', date_format: 'ymd_dash', time_format: '12' } };
+    changed();
+    expect(auth.preferences()).toEqual({ theme: 'dark', date_format: 'ymd_dash', time_format: '12' });
+
+    // An IAM before its migration 015, or a sign-in without `profile`: the site keeps its own.
+    state.current = MONA;
+    changed();
+    expect(auth.preferences()).toBeNull();
+
+    state.current = null;
+    changed();
+    expect(auth.preferences()).toBeNull();
+  });
+
+  it('saves a choice to the account through the IAM client, and follows the answer at once', async () => {
+    const state = { current: MONA_015 as AnotokiUser | null };
+    const { client } = fakeClient(state);
+    const { auth } = setup(client);
+    await auth.init(IAM);
+
+    expect(await auth.savePreferences({ theme: 'dark' })).toEqual({
+      locale: 'en',
+      preferences: { theme: 'dark', date_format: null, time_format: null },
+    });
+    expect(client.savePreferences).toHaveBeenCalledWith({ theme: 'dark' });
+    expect(auth.preferences()?.theme).toBe('dark');
+
+    await auth.savePreferences({ language: 'sk' });
+    expect(auth.user()?.locale).toBe('sk');
+  });
+
+  it('saves nothing before there is an IAM to save to: login_required', async () => {
+    const { client } = fakeClient({ current: MONA_015 });
+    const { auth } = setup(client);
+
+    await expect(auth.savePreferences({ theme: 'dark' })).rejects.toMatchObject({ code: 'login_required' });
+    expect(client.savePreferences).not.toHaveBeenCalled();
+  });
+
+  it("says a choice the account did not take from the error's code alone, in the words of a failed request", () => {
+    const refused = (code: unknown) => preferencesProblem(Object.assign(new Error('The IAM said no'), { code }));
+    expect(refused('network')).toEqual({ key: 'error.offline', params: {} });
+    expect(refused('invalid_token')).toEqual({ key: 'error.sign_in_required', params: {} });
+    expect(refused('login_required')).toEqual({ key: 'error.sign_in_required', params: {} });
+    expect(refused('temporarily_unavailable')).toEqual({ key: 'error.unknown', params: {} });
+    // The site no longer lets the person in: signing in again would not help.
+    expect(refused('access_denied')).toEqual({ key: 'error.unknown', params: {} });
+    expect(refused('http_502')).toEqual({ key: 'error.unknown', params: {} });
+    expect(preferencesProblem(null)).toEqual({ key: 'error.unknown', params: {} });
+    expect(preferencesProblem('network')).toEqual({ key: 'error.unknown', params: {} });
   });
 
   it('follows a sign-out in another tab', async () => {

@@ -4,7 +4,7 @@ import { AuthService } from './auth';
 import { AnotokiUser } from './iam/anotoki-auth';
 import { LOCALIZATION_DRAFTS_KEY, LanguageDraft, LocalizationDrafts } from './localization-drafts';
 
-const person = (sub: string, name: string): AnotokiUser => ({ sub, preferred_username: name, email: `${name}@example.test`, email_verified: true, locale: null, roles: ['ADMIN'] });
+const person = (sub: string, name: string): AnotokiUser => ({ sub, preferred_username: name, email: `${name}@example.test`, email_verified: true, locale: null, roles: ['ADMIN'], preferences: null });
 const ANNA = person('1', 'anna');
 const BEN = person('2', 'ben');
 

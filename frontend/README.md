@@ -14,14 +14,20 @@ With npm, `npx -y npm@11 ci` installs from `package-lock.json` (npm 10.9.x has a
 of the dependencies updates both lock files.
 
 Sign-in goes through the anotoki IAM's browser SDK, vendored unchanged in `src/app/core/iam/`
-(`anotoki-auth.mjs` + `anotoki-auth.d.ts`, v1.1.1): copy both files from `anotoki-iam/sdk/js/` to update it.
+(`anotoki-auth.mjs` + `anotoki-auth.d.ts`, v1.2.0): copy both files from `anotoki-iam/sdk/js/` to update it.
+Since 1.2.0 it also brings the account's theme, date order and clock (`AuthService.preferences()`) and saves a
+signed-in person's choices to the account (`AuthService.savePreferences()`): signed in, the theme toggle, the
+language menu and the dates follow the account, which every anotoki site shares; a visitor's stay this
+device's (`core/theme.ts`, `core/i18n/translation.ts`, `core/i18n/date-patterns.ts`).
 
 ```text
 src/app/
   core/        api.ts (ISSUED_AS: whose each request is), models.ts, auth.ts + auth.interceptor.ts +
                auth.guards.ts + sign-in.ts (the IAM only), saves-in-flight.ts (a sign-in waits for them),
                visitor-key.ts (somebody not signed in: the key, the move at sign-in), storage.ts, download.ts,
-               meta-store.ts, changelog.ts, sync-driver.ts, theme.ts, i18n/ (the site's words), iam/ (the vendored SDK)
+               meta-store.ts, changelog.ts, sync-driver.ts, theme.ts (the account's while signed in, else this
+               device's), i18n/ (the site's words; date-patterns.ts: the account's date order and clock), iam/
+               (the vendored SDK)
   layouts/     top-bar/ (the anotoki family's bar: one row, a phone's menu up to 880 px), footer/ (version,
                What's new), app-layout/ (everybody's pages), admin-layout/ (the admin panel: staff / signed out / no role)
   shared/      brand/ (the anotoki mark, public/anotoki.png), theme-toggle/, language-switcher/, visitor-notice/,

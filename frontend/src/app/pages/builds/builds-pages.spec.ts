@@ -82,7 +82,7 @@ describe('the builds pages: the list of characters and one character’s builds'
         { provide: Api, useValue: api },
         { provide: MATERIAL_ANIMATIONS, useValue: { animationsDisabled: true } },
         // An editor: the Sources page is a link for them.
-        { provide: AuthService, useValue: { isStaff: signal(true), user: signal(null) } },
+        { provide: AuthService, useValue: { isStaff: signal(true), user: signal(null), preferences: signal(null) } },
       ],
     });
     const fixture = TestBed.createComponent(page);

@@ -1,5 +1,13 @@
 import { Injectable, InjectionToken, computed, inject, signal } from '@angular/core';
-import { AnotokiAuth, AnotokiAuthOptions, AnotokiUser, createAuth } from './iam/anotoki-auth';
+import {
+  AnotokiAuth,
+  AnotokiAuthOptions,
+  AnotokiPreferenceChanges,
+  AnotokiPreferences,
+  AnotokiSavedPreferences,
+  AnotokiUser,
+  createAuth,
+} from './iam/anotoki-auth';
 // The shape only: this service never injects the translation service (which reads this one).
 import type { Wording } from './i18n/translation';
 import { AuthConfig } from './models';
@@ -67,6 +75,14 @@ export class AuthService {
     const user = this.user();
     return user ? (user.preferred_username ?? user.email ?? null) : null;
   });
+  /**
+   * The account's theme, date order and clock (the token's `preferences`, SDK 1.2.0): one choice every anotoki
+   * site follows - this one on every page, the admin panel included - while somebody is signed in. Null while
+   * nobody is, and while the IAM sends none (an IAM before its migration 015, a sign-in without `profile`):
+   * the site then keeps its own settings, as it always did, and saves nothing to the account. The account's
+   * language is `user().locale`, beside it.
+   */
+  readonly preferences = computed<AnotokiPreferences | null>(() => this.user()?.preferences ?? null);
 
   /**
    * Once, from the app initializer, before the first navigation: finishes a sign-in callback (the SDK
@@ -168,6 +184,24 @@ export class AuthService {
   refreshedToken(): Promise<string | null> {
     return this.client ? this.client.refresh() : Promise.resolve(null);
   }
+
+  /**
+   * Saves what the person chose with this site's own controls - the theme, the language - to their account,
+   * for every anotoki site (`POST {issuer}/api/oidc/preferences` with their token, through the SDK). `user()`
+   * follows the answer at once, in every tab (the SDK's onChange). Only while `preferences()` is not null: an
+   * IAM before its migration 015 has nowhere to keep it.
+   *
+   * Rejects with the SDK's error, whose `code` says why: the IAM's (`invalid_request` - a value it does not
+   * take, such as a language it does not offer; `invalid_token`, `access_denied` - the site no longer lets the
+   * person in -, `insufficient_scope`, `temporarily_unavailable`) or the SDK's own (`network`, `login_required` -
+   * nobody is signed in, or somebody else signed in meanwhile).
+   */
+  savePreferences(changes: AnotokiPreferenceChanges): Promise<AnotokiSavedPreferences> {
+    if (!this.client) {
+      return Promise.reject(Object.assign(new Error('Nobody is signed in'), { code: 'login_required' }));
+    }
+    return this.client.savePreferences(changes);
+  }
 }
 
 function currentPath(): string {
@@ -198,5 +232,28 @@ export function signInProblem(code: unknown): Wording {
       return { key: 'signIn.storageUnavailable', params: {} };
     default:
       return { key: 'signIn.failed', params: { code: typeof code === 'string' && FAILURE_CODE.test(code) ? code : 'unknown' } };
+  }
+}
+
+/**
+ * What to say of a choice the account did not take (AuthService.savePreferences() rejected) - from the
+ * error's code alone, as signInProblem() does, in the words of a failed request:
+ *
+ *   network                         the IAM could not be reached: error.offline
+ *   invalid_token, login_required   the sign-in has ended: error.sign_in_required
+ *   anything else                   error.unknown - also `access_denied` (the IAM no longer lets the person into
+ *                                   this site: signing in again would not help) and `temporarily_unavailable`
+ *
+ * A language the IAM does not offer (`invalid_request`) is no news: its caller says nothing of it.
+ */
+export function preferencesProblem(error: unknown): Wording {
+  switch ((error as { code?: unknown } | null)?.code) {
+    case 'network':
+      return { key: 'error.offline', params: {} };
+    case 'invalid_token':
+    case 'login_required':
+      return { key: 'error.sign_in_required', params: {} };
+    default:
+      return { key: 'error.unknown', params: {} };
   }
 }

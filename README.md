@@ -34,6 +34,9 @@ Setting it up, running, testing, building and deploying: **[DEV.md](DEV.md)**.
 - **The anotoki top bar**: the same bar as on the other anotoki sites - the brand, the sections, the language,
   the theme and the person's menu (their anotoki account, the admin panel for editors and admins, Sign out); on
   a phone (up to 880 px) the sections and the menu fold into one menu button.
+- **One anotoki account, one look**: signed in, the theme (the admin panel's too), the language and how dates
+  are written are the anotoki account's - the same on every anotoki site - and a choice in the bar is saved to
+  it. Without signing in, each browser keeps its own.
 - **What's new**: the version at the foot of every page, and its button, open the changelog
   (`frontend/public/changelog.json`).
 

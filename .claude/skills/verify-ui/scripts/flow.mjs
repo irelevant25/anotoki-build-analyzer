@@ -77,6 +77,8 @@ const EDDIE = { id: 8, username: 'eddie', roles: ['MEMBER', 'EDITOR'] };
 const ADA = { id: 1, username: 'ada', roles: ['MEMBER', 'ADMIN'] };
 const SAM = { id: 10, username: 'sam', roles: ['MEMBER'] };
 const RITA = { id: 11, username: 'rita', roles: ['MEMBER'] };
+/** An account at an IAM that keeps its theme, dates and clock (its migration 015): the others' IAM keeps none. */
+const PIA = { id: 12, username: 'pia', roles: ['MEMBER'], locale: 'en', preferences: { theme: 'dark', date_format: 'ymd_dash', time_format: '24' } };
 
 /** A GOOD file (the tests' own sample): one Genshin account, no UID. */
 const GOOD = JSON.stringify({
@@ -423,6 +425,67 @@ try {
       const shown = await keysShown(tab);
       check(shown.length === 0 && (await tab.evaluate(() => document.documentElement.lang)) === 'sk', `${path}: Slovak, no keys${shown.length ? ` - ${shown.join(', ')}` : ''}`);
       await shot(tab, `sk-390${path.replace(/[/]/g, '-') || '-home'}`, { fullPage: true });
+    }
+
+    // ── The account's preferences ──────────────────────────────────────────────────────────────────────
+    step("The account's theme, dates and language (an IAM with its migration 015): the account's once signed in, the toggle and the menu save to it");
+    {
+      const keeper = await newContext({ width: 390, height: 800 });
+      const kept = await keeper.newPage();
+      const theme = () => kept.evaluate(() => (document.documentElement.classList.contains('theme-dark') ? 'dark' : document.documentElement.classList.contains('theme-light') ? 'light' : 'system'));
+      /** What the stand-in IAM's account now says, once it says `done` (or after five seconds). */
+      const account = async (done) => {
+        let user = null;
+        for (let tries = 0; tries < 50; tries++) {
+          user = (await (await fetch(`${IAM}/_test/state`)).json()).user;
+          if (done(user)) {
+            break;
+          }
+          await kept.waitForTimeout(100);
+        }
+        return user;
+      };
+      await open(kept, '/');
+      check((await theme()) === 'system', "a visitor: this device's theme, as the device is set");
+      await signIn(kept, PIA);
+      check((await theme()) === 'dark', "signed in: the account's dark theme, though this device had none");
+      check((await kept.evaluate(() => localStorage.getItem('build-analyzer-theme'))) === 'dark', 'kept on this device for the next page load');
+
+      await kept.click('app-footer .whats-new');
+      await kept.waitForSelector('mat-dialog-container');
+      const days = (await kept.locator('mat-dialog-container .release-head .muted').allInnerTexts()).map((day) => day.trim());
+      check(days.length > 0 && days.every((day) => /^\d{4}-\d{2}-\d{2}$/.test(day)), `What's new: the dates in the account's order - ${days.slice(0, 3).join(', ')}`);
+      await shot(kept, '08a-account-whats-new-390-dark');
+      await kept.keyboard.press('Escape');
+      await kept.waitForSelector('mat-dialog-container', { state: 'detached' });
+
+      await kept.click('app-theme-toggle [role=radio] >> nth=0');
+      check((await theme()) === 'light', 'the toggle: light at once');
+      const lit = await account((user) => user?.preferences?.theme === 'light');
+      check(lit?.preferences?.theme === 'light', "...and saved to the account, across origins (POST /api/oidc/preferences at the stand-in IAM)");
+
+      await kept.click('app-language-switcher .switcher');
+      await kept.click('#language-menu [role=menuitemradio][lang=sk]');
+      await kept.waitForFunction(() => document.documentElement.lang === 'sk', null, { timeout: 10000 });
+      const spoken = await account((user) => user?.locale === 'sk');
+      check(spoken?.locale === 'sk', 'the language menu: Slovak on the page, and saved to the account');
+      // What's new gave the focus back to the footer's button when it closed, which scrolled the page there.
+      await kept.evaluate(() => window.scrollTo(0, 0));
+      await shot(kept, '08b-account-preferences-390-sk', { fullPage: true });
+
+      await kept.reload();
+      await kept.waitForSelector('app-top-bar .topbar', { timeout: 15000 });
+      await kept.waitForLoadState('networkidle');
+      check((await theme()) === 'light' && (await kept.evaluate(() => document.documentElement.lang)) === 'sk', 'after a reload: light and Slovak, as the account now says');
+
+      // The IAM out of reach: the choice shows, the save fails, the account's theme comes back - and a snack bar says why.
+      await iamState({ down: true });
+      await kept.click('app-theme-toggle [role=radio] >> nth=1');
+      const snack = (await kept.locator('mat-snack-bar-container').innerText({ timeout: 10000 }).catch(() => '')).replace(/\s+/g, ' ').trim();
+      await iamState({ down: false });
+      check(snack.length > 0 && (await theme()) === 'light', `a save the IAM could not take: the account's theme is back, and the snack bar says "${snack}"`);
+      check((await account(() => true))?.preferences?.theme === 'light', 'the account still says light');
+      await keeper.close();
     }
 
     // ── The admin panel ────────────────────────────────────────────────────────────────────────────────

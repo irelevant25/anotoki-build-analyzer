@@ -33,6 +33,7 @@ async function open(
         : null,
     ),
     displayName: () => ((who.signedIn ?? true) ? 'mona' : null),
+    preferences: () => null,
     accountUrl: signal<string | null>(null),
     login: vi.fn(async () => true),
     logout: vi.fn(async () => undefined),

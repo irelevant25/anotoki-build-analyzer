@@ -26,6 +26,7 @@ describe("everybody's pages' frame", () => {
           provide: AuthService,
           useValue: {
             user: signal(null),
+            preferences: () => null,
             available: signal(true),
             signedIn: () => false,
             displayName: () => null,

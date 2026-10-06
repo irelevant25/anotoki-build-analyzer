@@ -167,6 +167,69 @@ test('a refreshed token is let in; a token of another IAM is not', function () u
     (new Client)->withToken(iamToken(5))->get('/api/accounts')->status(401)->path('code', 'sign_in_required');
 });
 
+/** A token's claims, read without verifying - the stand-in's own. @return array<string, mixed> */
+function claimsOf(string $jwt): array
+{
+    return (array) json_decode((string) base64_decode(strtr(explode('.', $jwt)[1] ?? '', '-_', '+/')), true);
+}
+
+/**
+ * POST /api/oidc/preferences as a site's page sends it (the SDK's savePreferences()): JSON, the bearer token,
+ * from the site's origin.
+ *
+ * @return array{status: int, headers: array<string, string>, body: string}
+ */
+function savePreferences(string $issuer, string $json, ?string $token): array
+{
+    $headers = [];
+    $curl = curl_init("{$issuer}/api/oidc/preferences");
+    curl_setopt_array($curl, [
+        CURLOPT_POST => true,
+        CURLOPT_POSTFIELDS => $json,
+        CURLOPT_HTTPHEADER => array_merge(['Content-Type: application/json', 'Origin: http://localhost:4600'], $token === null ? [] : ["Authorization: Bearer {$token}"]),
+        CURLOPT_RETURNTRANSFER => true,
+        CURLOPT_TIMEOUT => 5,
+        CURLOPT_HEADERFUNCTION => function ($curl, string $line) use (&$headers): int {
+            if (str_contains($line, ':')) {
+                [$name, $value] = explode(':', $line, 2);
+                $headers[strtolower(trim($name))] = trim($value);
+            }
+
+            return strlen($line);
+        },
+    ]);
+    $body = (string) curl_exec($curl);
+
+    return ['status' => (int) curl_getinfo($curl, CURLINFO_RESPONSE_CODE), 'headers' => $headers, 'body' => $body];
+}
+
+test("the account's theme, dates and clock as an IAM with its migration 015 keeps them: in the tokens, saved by a site, carried by a refresh", function () use ($issuer) {
+    $kept = ['theme' => 'dark', 'date_format' => 'ymd_dash', 'time_format' => null];
+    standInUser($issuer, ['id' => 12, 'username' => 'pia', 'roles' => ['MEMBER'], 'locale' => 'en', 'preferences' => $kept]);
+    $tokens = signIn($issuer);
+    same($kept, claimsOf($tokens['access_token'])['preferences'] ?? null, 'the access token says them');
+    same($kept, claimsOf($tokens['id_token'])['preferences'] ?? null, 'and the ID token');
+    (new Client)->withToken($tokens['access_token'])->get('/api/accounts')->status(200);
+
+    $saved = savePreferences($issuer, '{"theme":"light","language":"sk"}', $tokens['access_token']);
+    same(200, $saved['status'], 'saved: '.$saved['body']);
+    same(['locale' => 'sk', 'preferences' => ['theme' => 'light', 'date_format' => 'ymd_dash', 'time_format' => null]], json_decode($saved['body'], true), 'the account as it now stands');
+    same('http://localhost:4600', $saved['headers']['access-control-allow-origin'] ?? null, "answered to the site's origin");
+    $refreshed = json_decode(http('POST', "{$issuer}/api/oidc/token", ['grant_type' => 'refresh_token', 'client_id' => TEST_CLIENT, 'refresh_token' => $tokens['refresh_token']])['body'], true);
+    same(['sk', 'light'], [claimsOf($refreshed['access_token'])['locale'] ?? null, claimsOf($refreshed['access_token'])['preferences']['theme'] ?? null], 'a refreshed token carries the change');
+
+    foreach (['{"theme":"pink"}' => 'a theme not on offer', '{"language":"de"}' => 'a language the IAM does not offer', '{"colour":"red"}' => 'anything else', '{}' => 'nothing at all', '[]' => 'not an object'] as $json => $what) {
+        $refused = savePreferences($issuer, $json, $refreshed['access_token']);
+        same([400, 'invalid_request'], [$refused['status'], json_decode($refused['body'], true)['error'] ?? null], "refused: {$what}");
+    }
+    same(401, savePreferences($issuer, '{"theme":"dark"}', null)['status'], 'no token, no account');
+
+    standInUser($issuer, ['id' => 13, 'username' => 'olga', 'roles' => ['MEMBER']]);
+    $older = signIn($issuer);
+    check(! array_key_exists('preferences', claimsOf($older['access_token'])), 'an IAM before 015: no claim');
+    same(503, savePreferences($issuer, '{"theme":"dark"}', $older['access_token'])['status'], 'and nowhere to save them');
+});
+
 test('a person the stand-in refuses comes back with access_denied, and nothing here is recorded', function () use ($issuer) {
     standInUser($issuer, ['id' => 6, 'username' => 'nobody', 'roles' => ['MEMBER']], ['deny' => true]);
     same(['error' => 'access_denied'], signIn($issuer), 'refused at the IAM');

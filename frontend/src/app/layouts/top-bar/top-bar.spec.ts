@@ -129,6 +129,7 @@ describe('the top bar', () => {
     available: signal(true),
     signedIn: () => user() !== null,
     displayName: () => user()?.preferred_username ?? user()?.email ?? null,
+    preferences: () => null,
     isAdmin: () => roles().includes('ADMIN'),
     isStaff: () => roles().includes('ADMIN') || roles().includes('EDITOR'),
     accountUrl: signal<string | null>('https://iam.example.test/account'),

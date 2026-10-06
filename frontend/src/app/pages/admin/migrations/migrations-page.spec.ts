@@ -1,9 +1,12 @@
 import { HttpErrorResponse } from '@angular/common/http';
+import { signal } from '@angular/core';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { MatDialog } from '@angular/material/dialog';
 import { MatSnackBar } from '@angular/material/snack-bar';
 import { Observable, of, throwError } from 'rxjs';
 import { Api } from '../../../core/api';
+import { AuthService } from '../../../core/auth';
+import { AnotokiPreferences } from '../../../core/iam/anotoki-auth';
 import { TranslationService } from '../../../core/i18n/translation';
 import { MigrationResult, MigrationStatus } from '../../../core/models';
 import { MigrationsPage } from './migrations-page';
@@ -52,9 +55,11 @@ describe('Migrations (ADMIN)', () => {
   const files = (selector: string) => [...host.querySelectorAll(`${selector} .files li`)].map(text);
   const applyButton = () => host.querySelector<HTMLButtonElement>('button.apply')!;
 
+  /** `account`: the signed-in admin's date order and clock (AuthService.preferences()); none by default. */
   async function setup(
     statuses: (MigrationStatus | HttpErrorResponse)[],
     apply?: Observable<MigrationResult>,
+    account: AnotokiPreferences | null = null,
   ): Promise<void> {
     const answers = [...statuses];
     api = {
@@ -75,7 +80,9 @@ describe('Migrations (ADMIN)', () => {
         { provide: Api, useValue: api },
         { provide: MatSnackBar, useValue: snackBar },
         { provide: MatDialog, useValue: dialog },
-        { provide: TranslationService, useValue: { reload } },
+        // The admin panel reads English: `Intl` is given British English there.
+        { provide: TranslationService, useValue: { reload, locale: () => 'en-GB' } },
+        { provide: AuthService, useValue: { preferences: signal(account) } },
       ],
     });
     fixture = TestBed.createComponent(MigrationsPage);
@@ -108,6 +115,33 @@ describe('Migrations (ADMIN)', () => {
     expect(text(host.querySelector('.applied .lead'))).toBe('3 files');
     expect(applyButton().disabled).toBe(false);
     expect(host.querySelector('.page')?.getAttribute('lang')).toBe('en');
+  });
+
+  it("writes when each file was applied in the account's date order and clock, where the admin has chosen them", async () => {
+    const applied = (account: AnotokiPreferences) => {
+      TestBed.resetTestingModule();
+      return setup([BEHIND], undefined, account).then(() => files('.applied')[2]);
+    };
+    // 12:30 UTC, in this computer's time zone - written by hand as the page should write it.
+    const at = new Date('2026-09-20T12:30:00+00:00');
+    const clock = `${String(at.getHours()).padStart(2, '0')}:${String(at.getMinutes()).padStart(2, '0')}`;
+    const day = `${at.getFullYear()}-${String(at.getMonth() + 1).padStart(2, '0')}-${String(at.getDate()).padStart(2, '0')}`;
+
+    expect(await applied({ theme: 'auto', date_format: 'ymd_dash', time_format: '24' })).toBe(
+      `003_languages_and_translations.sql ${day} ${clock}`,
+    );
+    // Only the order chosen: the page's own clock beside it.
+    expect(await applied({ theme: 'dark', date_format: 'ymd_dash', time_format: null })).toBe(
+      `003_languages_and_translations.sql ${day} ${clock}`,
+    );
+    // Only the clock chosen: the page's own day beside it.
+    expect(await applied({ theme: 'auto', date_format: null, time_format: '12' })).toMatch(
+      /^003_languages_and_translations\.sql \d{1,2} Sep 2026 \d{1,2}:\d\d\s?[ap]m$/i,
+    );
+    // Neither: as the page always wrote it.
+    expect(await applied({ theme: 'auto', date_format: null, time_format: null })).toMatch(
+      /^003_languages_and_translations\.sql \d{1,2} Sep 2026, \d\d:\d\d$/,
+    );
   });
 
   it('says there is nothing pending, and cannot be pressed then', async () => {

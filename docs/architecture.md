@@ -273,6 +273,19 @@ upload overwrites the build: a string is a key the code names and a value per la
   (`TranslationService`). The last bundle is kept in the browser, so a returning reader starts in their
   language. `<html lang>` and the page titles (`title-strategy.ts`) follow it; dates and numbers use
   `Intl` (`localDate`).
+- **The account's language, theme and dates** (the IAM's migration 015, SDK 1.2.0; the owner's decision of
+  2026-10-06 - "it should be in the iam only and apply for every project/application"): while somebody is
+  signed in at an IAM that keeps them (`AuthService.preferences()` not null), the account's `locale` comes
+  before the menu's remembered choice - only `?lang=` and a choice of this visit come first - and is followed
+  when it changes (on another anotoki site, in another tab); the menu's choice is saved to the account
+  (`savePreferences({ language })`, one save at a time, the latest last; a language the IAM does not offer -
+  `invalid_request` - stays this site's own for the visit, silently; any other refusal keeps it for the visit
+  and says why in a snack bar). The theme is the account's on every page, the admin panel included
+  (`core/theme.ts`, below). Dates follow the account's date order and clock where it has chosen them
+  (`core/i18n/date-patterns.ts`): What's new's days (`localDate: 'day'`), and in the admin panel when a
+  migration was applied and when a builds file was exported; relative times ("3 hours ago") have neither
+  and read the same for everybody. A visitor, and anybody signed in at an IAM before 015 (no `preferences`),
+  keeps this device's choices exactly as before, and nothing is saved anywhere else.
 - **English pages**: the admin panel - `/admin/...` (Sources, Translations, Languages, People, Migrations) - keeps its
   English code and reads English with `<html lang="en">` whatever language is chosen; the server's admin-only
   sentences stay English and those pages show them as they come (`errorMessage()`).
@@ -344,10 +357,19 @@ string or language the checks refuse - with the key and the language; a write to
   formatting, sign-in settings) and notices a server that is not set up (`notSetUp`); `core/format.ts` colors
   and time helpers; `core/changelog.ts` loads `public/changelog.json` (the version shown in the footer, and
   "What's new" once per release per browser); `core/theme.ts` (`ThemeService`: light, dark or the device's, a
-  class on `<html>`, kept in localStorage `build-analyzer-theme`).
+  class on `<html>`, kept in localStorage `build-analyzer-theme`; signed in at an IAM that keeps the
+  preferences, the account's - shown from the first frame, followed when it changes, and the toggle saves to
+  it: shown at once, one save at a time with the latest choice last, never flicking back while its own save
+  is on its way, and a refusal puts the account's theme back with a snack bar worded from the code
+  (`preferencesProblem()`: `error.offline`, `error.sign_in_required`, `error.unknown`); the theme on the page is
+  written to localStorage either way, so the next load starts in it). `core/i18n/date-patterns.ts`: the
+  account's four date orders and two clocks, as the IAM writes them, and `chosenMoment()` for a day with its
+  time (each part the account's where chosen, the page's own where not; all the page's own when neither is).
 - Sign-in, through the anotoki IAM only: `core/iam/anotoki-auth.mjs` + `.d.ts` (the IAM's browser SDK,
-  vendored unchanged, v1.1.1; imported without extension so TypeScript takes the `.d.ts`), `core/auth.ts`
-  (`AuthService`: `available` - the server said where its IAM is -, `user`, `signedIn`, `roles`, `isStaff`
+  vendored unchanged, v1.2.0; imported without extension so TypeScript takes the `.d.ts`), `core/auth.ts`
+  (`AuthService`: `preferences` - the account's theme, date order and clock, null for a visitor or an IAM before
+  its migration 015 -, `savePreferences()` - a choice saved to the account for every anotoki site -,
+  `available` - the server said where its IAM is -, `user`, `signedIn`, `roles`, `isStaff`
   (EDITOR or ADMIN), `isAdmin`; `init()` from the app initializer after `/api/meta`; `login()` answers whether
   the browser is on its way to the IAM, and leaves `signIn.storageUnavailable` in `lastError` when the browser
   refuses the site's storage), `core/sign-in.ts` (`signInOrSayWhy()`: every Sign in button - the IAM's pages in
@@ -419,8 +441,9 @@ string or language the checks refuse - with the key and the language; a write to
   with `/accounts/` under it, Import, Builds with `/builds/` under it - the same for nobody, a visitor and a
   person; `ADMIN_LINKS`: Sources, Translations, and for ADMIN Languages, People and Migrations, English, staff only), then
   the sync spinner (staff, while this tab drives a sync), the language (`shared/language-switcher/`: 40 px, a
-  menu of the languages in their own names; only with more than one and never under `/admin`), the theme
-  (`shared/theme-toggle/`: 102 x 40, a radio group), and the person's menu (name, email, the role pill
+  menu of the languages in their own names; only with more than one and never under `/admin`; signed in, a
+  choice is the account's too), the theme (`shared/theme-toggle/`: 102 x 40, a radio group; signed in, the
+  account's, in both areas), and the person's menu (name, email, the role pill
   "Administrator" / "Editor"; "Your anotoki account"; "Admin panel" for staff, or "Back to Build Analyzer" in the
   admin panel; Sign out, which first asks about strings typed on the Translations and Languages pages and not
   saved) - or Sign in (`signInOrSayWhy()`). Up to `PHONE_BAR_MAX` = 880 px (a `matchMedia` signal; the bar

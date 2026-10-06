@@ -4,7 +4,9 @@
  * just enough OpenID Connect for the browser SDK and the PHP verifier -
  * discovery, the key set, authorize (signs the configured person in at once),
  * token (authorization code with PKCE, refresh with rotation), logout, revoke -
- * and the public answer about an application (whether its site requires sign-in).
+ * the public answer about an application (whether its site requires sign-in),
+ * and the account's preferences a site saves (POST /api/oidc/preferences, the
+ * SDK's savePreferences(); the IAM's migration 015).
  * Its tokens are signed with the tests' own key. Never point a real site at it.
  *
  *   FAKE_IAM_DIR=<folder> FAKE_IAM_ISSUER=http://127.0.0.1:8597 php -S 127.0.0.1:8597 tests/tools/fake-iam.php
@@ -17,10 +19,14 @@
  * <folder>/key.json    { kid, private_pem, jwks } - anotoki_iam_test_keypair()
  * <folder>/state.json  who signs in and how the IAM behaves; POST /_test/state
  *                      merges JSON into it:
- *   user      { id, username, roles, locale? }   who authorize signs in; roles are this
- *             application's - every account holds MEMBER, so an ordinary person is
- *             ['MEMBER'] (owner: MEMBER, ADMIN); locale is the language their account
- *             is set to - the token's `locale` claim (en)
+ *   user      { id, username, roles, locale?, preferences? }   who authorize signs in;
+ *             roles are this application's - every account holds MEMBER, so an ordinary
+ *             person is ['MEMBER'] (owner: MEMBER, ADMIN); locale is the language their
+ *             account is set to - the token's `locale` claim (en); preferences
+ *             { theme, date_format, time_format } is the account's theme, date order and
+ *             clock - the tokens' `preferences` claim, as an IAM with its migration 015
+ *             sends it. Without it, none: an IAM before 015 (the default), where saving
+ *             them answers 503 temporarily_unavailable, as that IAM does.
  *   ttl       seconds an access token lives (600)
  *   down      true: every endpoint but the key set answers 503 (the IAM unreachable)
  *   refuse    true: refreshing answers invalid_grant (the IAM session ended)
@@ -86,6 +92,35 @@ function fake_b64(string $bytes): string
     return rtrim(strtr(base64_encode($bytes), '+/', '-_'), '=');
 }
 
+/** What POST /api/oidc/preferences takes for each name, as the IAM does (the languages: this stand-in's two). */
+const FAKE_PREFERENCES = [
+    'theme' => ['auto', 'light', 'dark'],
+    'date_format' => [null, 'dmy_dot', 'dmy_slash', 'mdy_slash', 'ymd_dash'],
+    'time_format' => [null, '24', '12'],
+    'language' => ['en', 'sk'],
+];
+
+/** The `sub` of the bearer token sent - read, not verified: the stand-in only ever deals with its own tokens. */
+function fake_bearer_sub(): ?string
+{
+    if (!preg_match('/^Bearer [\w-]+\.([\w-]+)\.[\w-]+$/', (string) ($_SERVER['HTTP_AUTHORIZATION'] ?? ''), $m)) {
+        return null;
+    }
+    $claims = json_decode((string) base64_decode(strtr($m[1], '-_', '+/')), true);
+    return is_array($claims) && is_string($claims['sub'] ?? null) ? $claims['sub'] : null;
+}
+
+/** $user with the saved $changes: the language its locale, the rest its preferences. */
+function fake_with_preferences(array $user, array $changes): array
+{
+    if (array_key_exists('language', $changes)) {
+        $user['locale'] = $changes['language'];
+    }
+    unset($changes['language']);
+    $user['preferences'] = $changes + $user['preferences'];
+    return $user;
+}
+
 /** An access token, an ID token and a new refresh token for $user. */
 function fake_tokens(array &$state, array $user, array $key, string $issuer, string $clientId, ?string $nonce, string $sid): array
 {
@@ -94,7 +129,7 @@ function fake_tokens(array &$state, array $user, array $key, string $issuer, str
         'iss' => $issuer, 'sub' => (string) $user['id'], 'aud' => $clientId, 'iat' => $now, 'sid' => $sid,
         'preferred_username' => $user['username'], 'email' => $user['username'] . '@example.test',
         'email_verified' => true, 'locale' => is_string($user['locale'] ?? null) ? $user['locale'] : 'en', 'roles' => $user['roles'],
-    ];
+    ] + (is_array($user['preferences'] ?? null) ? ['preferences' => $user['preferences']] : []);
     $access = anotoki_iam_test_sign($common + ['client_id' => $clientId, 'exp' => $now + (int) $state['ttl'], 'jti' => bin2hex(random_bytes(8)), 'scope' => 'openid profile email'], $key['private_pem'], $key['kid']);
     $id = anotoki_iam_test_sign($common + ['azp' => $clientId, 'exp' => $now + 3600, 'auth_time' => $now] + ($nonce !== null ? ['nonce' => $nonce] : []), $key['private_pem'], $key['kid'], 'JWT');
     $refresh = 'iam_rt_' . bin2hex(random_bytes(16));
@@ -216,6 +251,45 @@ switch ($path) {
         unset($state['refresh'][(string) ($_POST['token'] ?? '')]);
         fake_save($dir, $state);
         return fake_json(200, new stdClass(), $origin);
+
+    // A site saving what its signed-in reader chose (the SDK's savePreferences()): the bearer token's own
+    // account - the person authorize signs in, and every session of theirs here, so a refresh carries it.
+    case '/api/oidc/preferences':
+        fake_save($dir, $state);
+        if ($method === 'OPTIONS') {
+            http_response_code(204);
+            header("Access-Control-Allow-Origin: $origin");
+            header('Access-Control-Allow-Methods: POST');
+            header('Access-Control-Allow-Headers: Authorization, Content-Type');
+            header('Vary: Origin');
+            return true;
+        }
+        $sub = fake_bearer_sub();
+        $holders = array_filter($state['refresh'], fn (array $entry): bool => (string) $entry['user']['id'] === $sub);
+        $account = (string) $state['user']['id'] === $sub ? $state['user'] : (reset($holders) ?: ['user' => null])['user'];
+        if ($method !== 'POST' || $account === null) {
+            return fake_json(401, ['error' => 'invalid_token'], $origin);
+        }
+        if (!is_array($account['preferences'] ?? null)) {
+            return fake_json(503, ['error' => 'temporarily_unavailable', 'error_description' => 'The preferences are not available yet'], $origin);
+        }
+        $changes = json_decode((string) file_get_contents('php://input'), true);
+        $valid = is_array($changes) && $changes !== [] && !array_is_list($changes) && array_diff_key($changes, FAKE_PREFERENCES) === [];
+        foreach ($valid ? $changes : [] as $name => $value) {
+            $valid = $valid && in_array($value, FAKE_PREFERENCES[$name], true);
+        }
+        if (!$valid) {
+            return fake_json(400, ['error' => 'invalid_request', 'error_description' => 'Not a change the account takes'], $origin);
+        }
+        $account = fake_with_preferences($account, $changes);
+        if ((string) $state['user']['id'] === $sub) {
+            $state['user'] = $account;
+        }
+        foreach (array_keys($holders) as $token) {
+            $state['refresh'][$token]['user'] = fake_with_preferences($state['refresh'][$token]['user'], $changes);
+        }
+        fake_save($dir, $state);
+        return fake_json(200, ['locale' => $account['locale'] ?? 'en', 'preferences' => $account['preferences']], $origin);
 
     case '/api/oidc/logout':
         $state['refresh'] = [];

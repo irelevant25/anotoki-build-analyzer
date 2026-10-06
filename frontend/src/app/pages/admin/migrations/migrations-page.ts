@@ -1,4 +1,4 @@
-import { DatePipe } from '@angular/common';
+import { formatDate } from '@angular/common';
 import { Component, inject, signal } from '@angular/core';
 import { MatButtonModule } from '@angular/material/button';
 import { MatDialog } from '@angular/material/dialog';
@@ -6,9 +6,17 @@ import { MatIconModule } from '@angular/material/icon';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { MatSnackBar } from '@angular/material/snack-bar';
 import { Api, errorMessage } from '../../../core/api';
+import { AuthService } from '../../../core/auth';
+import { OwnDateParts, chosenMoment } from '../../../core/i18n/date-patterns';
 import { TranslationService } from '../../../core/i18n/translation';
 import { MigrationResult, MigrationStatus } from '../../../core/models';
 import { askConfirm } from '../../../shared/confirm-dialog';
+
+/** This page's own way of writing a day and a time - Angular's date formats, as its `date` pipe wrote them. */
+const OWN_PARTS: OwnDateParts = {
+  day: (date) => formatDate(date, 'd MMM y', 'en-US'),
+  time: (date) => formatDate(date, 'HH:mm', 'en-US'),
+};
 
 /**
  * /admin/migrations (ADMIN, English like the whole admin panel) - the schema, for a host with no shell: the
@@ -22,7 +30,7 @@ import { askConfirm } from '../../../shared/confirm-dialog';
  */
 @Component({
   selector: 'app-migrations-page',
-  imports: [DatePipe, MatButtonModule, MatIconModule, MatProgressSpinnerModule],
+  imports: [MatButtonModule, MatIconModule, MatProgressSpinnerModule],
   templateUrl: './migrations-page.html',
   styleUrl: './migrations-page.scss',
 })
@@ -31,6 +39,7 @@ export class MigrationsPage {
   private readonly dialog = inject(MatDialog);
   private readonly snackBar = inject(MatSnackBar);
   private readonly i18n = inject(TranslationService);
+  private readonly auth = inject(AuthService);
 
   protected readonly status = signal<MigrationStatus | null>(null);
   /** What the last Apply did, shown above the lists until the next one. */
@@ -41,6 +50,21 @@ export class MigrationsPage {
 
   constructor() {
     this.load();
+  }
+
+  /**
+   * When a file was applied, in the reader's time zone: "6 Oct 2026, 14:30" - or in the account's date order
+   * and clock, where the person has chosen them (every anotoki site writes dates so): "2026-10-06 2:30 pm".
+   */
+  protected appliedAt(iso: string): string {
+    const date = new Date(iso);
+    if (Number.isNaN(date.getTime())) {
+      return iso;
+    }
+    return (
+      chosenMoment(date, this.auth.preferences(), this.i18n.locale(), OWN_PARTS) ??
+      formatDate(date, 'd MMM y, HH:mm', 'en-US')
+    );
   }
 
   protected load(): void {

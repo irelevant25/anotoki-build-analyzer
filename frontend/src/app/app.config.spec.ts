@@ -18,7 +18,7 @@ const ENGLISH = { 'theme.label': 'Appearance' };
 const SK_BUNDLE: TranslationBundle = { language: 'sk', languages: TEST_LANGUAGES, values: { 'theme.label': 'Vzhľad' }, english: ENGLISH };
 const EN_BUNDLE: TranslationBundle = { language: 'en', languages: TEST_LANGUAGES, values: ENGLISH };
 
-const MONA: AnotokiUser = { sub: '7', preferred_username: 'mona', email: 'mona@example.test', email_verified: true, locale: 'sk', roles: [] };
+const MONA: AnotokiUser = { sub: '7', preferred_username: 'mona', email: 'mona@example.test', email_verified: true, locale: 'sk', roles: [], preferences: null };
 
 /** Everything already on its way has run. */
 const settle = () => new Promise((resolve) => setTimeout(resolve, 0));
@@ -36,6 +36,7 @@ function fakeClient(user: AnotokiUser | null) {
     getAccessToken: vi.fn(async () => 'token-1'),
     refresh: vi.fn(async () => 'token-2'),
     fetch: vi.fn(),
+    savePreferences: vi.fn(async () => ({ locale: user?.locale ?? null, preferences: user?.preferences ?? null })),
     onChange: vi.fn(() => () => undefined),
     isAuthenticated: () => user !== null,
     user: () => user,
