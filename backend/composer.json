@@ -19,6 +19,7 @@
         "ext-openssl": "*",
         "ext-pdo": "*",
         "ext-pdo_pgsql": "*",
+        "anotoki/lib": "^0.1",
         "composer/ca-bundle": "^1.5",
         "slim/psr7": "^1.8",
         "slim/slim": "^4.15",
@@ -45,5 +46,11 @@
     },
     "scripts-descriptions": {
         "start": "The API and setup.php on http://localhost:8400: PHP's built-in server, with router.php"
-    }
+    },
+    "repositories": [
+        {
+            "type": "vcs",
+            "url": "https://github.com/irelevant25/anotoki-lib"
+        }
+    ]
 }

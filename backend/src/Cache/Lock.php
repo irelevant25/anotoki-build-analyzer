@@ -6,12 +6,14 @@ use App\Db\Db;
 use App\Support\Clock;
 
 /**
- * Named locks in the `cache_locks` table: one sync step at a time, one start at a time, one migration run.
+ * Named locks in the `cache_locks` table: one sync step at a time, one start at a time.
  *
  * A lock is a row with an owner and an expiration. Taking one inserts the row, or takes it over only once
  * it has expired, so a request that died holding a lock blocks nothing past its time-to-live. Rows rather
  * than PostgreSQL advisory locks, because an advisory lock lives as long as the connection - and with
- * persistent connections that can be much longer than the request that took it.
+ * persistent connections that can be much longer than the request that took it. (Applying migrations is the
+ * one advisory lock, anotoki-lib's: a pooled connection gives back what a request that died left held -
+ * App\Db\Db::pdo().)
  */
 final class Lock
 {

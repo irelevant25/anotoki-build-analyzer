@@ -1,7 +1,10 @@
 <?php
 
 /**
- * The migration engine, and the adoption of a database made by the first (Laravel) version of the app.
+ * The site's migrations on the anotoki family's engine (anotoki/lib, tested there in itself): a database built
+ * by it in the bookkeeping table this site always had, a file that fails, one apply at a time, "Apply pending"
+ * on the Migrations page, the command line building a database from nothing - and the adoption of a database
+ * made by the first (Laravel) version of the app (App\Db\Migrations: its `prepare`).
  *
  * The Laravel schemas are fixtures (tests/fixtures/laravel/schema-{6,7,8}.sql): exactly what that version's
  * `artisan migrate` made on PostgreSQL after its first 6 migrations (the version first committed), 7 (sign-in
@@ -14,9 +17,12 @@ declare(strict_types=1);
 
 require __DIR__.'/lib.php';
 
+use Anotoki\Lib\Migrations\Migrator;
+use Anotoki\Lib\Migrations\Splitter;
 use App\Auth\Role;
+use App\Config;
 use App\Db\Db;
-use App\Db\Migrator;
+use App\Db\Migrations;
 use App\Support\Log;
 use Tests\Support\Client;
 
@@ -52,7 +58,7 @@ function schemaOf(PDO $pdo): array
 function laravelDatabase(array $server, int $level): PDO
 {
     $pdo = scratchDatabase($server, "laravel{$level}");
-    foreach (Migrator::splitStatements((string) file_get_contents(__DIR__."/fixtures/laravel/schema-{$level}.sql")) as $statement) {
+    foreach (Splitter::split((string) file_get_contents(__DIR__."/fixtures/laravel/schema-{$level}.sql")) as $statement) {
         $pdo->exec($statement);
     }
     // The session's zone does not matter: that version kept UTC in columns without one.
@@ -129,148 +135,243 @@ function laravelDatabase(array $server, int $level): PDO
 /** Every migration file there is, in the order they apply. */
 function allMigrations(): array
 {
-    $files = array_map('basename', glob(Migrator::directory().'/*.sql') ?: []);
+    $files = array_map('basename', glob(Migrations::directory().'/*.sql') ?: []);
     sort($files);
 
     return $files;
 }
 
-test('a new database is built by the migrations', function () {
-    $migrator = new Migrator(db()->raw(), Migrator::directory());
-    $files = allMigrations();
-    $status = $migrator->status();
-    same([[], $files], [$status['pending'], array_column($status['applied'], 'name')], 'status: nothing pending, every file applied in order');
-    same(false, $migrator->isLaravelDatabase(), 'not a Laravel database');
-});
+/** A file of the site's set, as the engine names it in its answers. */
+function siteFile(string $name): array
+{
+    return ['set' => Migrations::SET, 'name' => $name];
+}
 
-test('SQL is split on semicolons outside strings, comments and dollar-quoted blocks', function () {
-    $sql = "-- a comment; with a semicolon\nCREATE TABLE a (x TEXT DEFAULT 'a;b');\n/* block; comment */\n"
-        ."DO \$\$ BEGIN PERFORM 1; PERFORM 2; END \$\$;\nINSERT INTO a VALUES ('it''s; fine');";
+/** The bookkeeping table as a database has it: its columns and its keys. */
+function bookkeepingOf(PDO $pdo): array
+{
+    return [
+        $pdo->query("SELECT column_name, data_type, character_maximum_length, is_nullable, column_default FROM information_schema.columns
+            WHERE table_schema = current_schema() AND table_name = 'migrations' ORDER BY ordinal_position")->fetchAll(PDO::FETCH_NUM),
+        $pdo->query("SELECT conname, pg_get_constraintdef(oid) FROM pg_constraint
+            WHERE conrelid = 'migrations'::regclass AND contype IN ('p', 'u') ORDER BY conname")->fetchAll(PDO::FETCH_KEY_PAIR),
+    ];
+}
+
+/** A folder of migrations of a test's own: copies of the site's files (those named), and files of its own. */
+function migrationsFolder(string $name, array $copies, array $own = []): string
+{
+    $dir = T::$storage.DIRECTORY_SEPARATOR.$name;
+    @mkdir($dir, 0777, true);
+    foreach ($copies as $file) {
+        copy(Migrations::directory().'/'.$file, $dir.'/'.$file);
+    }
+    foreach ($own as $file => $sql) {
+        file_put_contents($dir.'/'.$file, $sql);
+    }
+
+    return $dir;
+}
+
+test('a new database is built by the migrations, in the bookkeeping table this site always had', function () {
+    $migrator = Migrations::migrator(db()->raw());
+    $status = $migrator->status();
+    same([Migrations::SET], $status['sets'], 'one set of files');
+    same([[], [], allMigrations()], [$status['pending'], $status['missing'], array_column($status['applied'], 'name')],
+        'status: nothing pending or missing, every file applied in order');
+    same([], $migrator->applicable(), 'nothing to apply');
+    foreach ($status['applied'] as $file) {
+        check(preg_match('/^\d{4}-\d\d-\d\dT\d\d:\d\d:\d\dZ$/', (string) $file['applied_at']) === 1, 'applied_at in UTC: '.$file['applied_at']);
+    }
+    same(false, Migrations::isLaravelDatabase(db()->raw()), 'not a Laravel database');
+
+    // The table this site's own engine made, column for column and key for key: the family's engine reads
+    // and writes the shape a database has, and makes this one where there is none.
     same([
-        "CREATE TABLE a (x TEXT DEFAULT 'a;b')",
-        'DO $$ BEGIN PERFORM 1; PERFORM 2; END $$',
-        "INSERT INTO a VALUES ('it''s; fine')",
-    ], Migrator::splitStatements($sql), 'statements');
+        [
+            ['id', 'integer', null, 'NO', "nextval('migrations_id_seq'::regclass)"],
+            ['filename', 'character varying', 255, 'NO', null],
+            ['applied_at', 'timestamp without time zone', null, 'YES', 'CURRENT_TIMESTAMP'],
+        ],
+        ['migrations_filename_key' => 'UNIQUE (filename)', 'migrations_pkey' => 'PRIMARY KEY (id)'],
+    ], bookkeepingOf(db()->raw()), 'migrations (id, filename, applied_at)');
 });
 
 test('a failing migration applies nothing of itself, and stops there', function () use ($server) {
     $pdo = scratchDatabase($server, 'failing');
-    $dir = T::$storage.DIRECTORY_SEPARATOR.'failing-migrations';
-    @mkdir($dir, 0777, true);
-    file_put_contents($dir.'/001_good.sql', 'CREATE TABLE good (id INT);');
-    file_put_contents($dir.'/002_bad.sql', 'CREATE TABLE half (id INT); SELECT * FROM missing_table;');
-    file_put_contents($dir.'/003_never.sql', 'CREATE TABLE never (id INT);');
+    $dir = migrationsFolder('failing-migrations', [], [
+        '001_good.sql' => 'CREATE TABLE good (id INT);',
+        '002_bad.sql' => 'CREATE TABLE half (id INT); SELECT * FROM missing_table;',
+        '003_never.sql' => 'CREATE TABLE never (id INT);',
+    ]);
 
-    $result = (new Migrator($pdo, $dir))->applyPending();
+    $result = Migrations::migrator($pdo, $dir)->apply();
 
-    same(['001_good.sql'], $result['applied'], 'applied');
-    same('002_bad.sql', $result['failed'], 'failed');
+    same([siteFile('001_good.sql')], $result['applied'], 'applied');
+    same(siteFile('002_bad.sql'), $result['failed'], 'failed');
+    check(str_starts_with((string) $result['error'], 'statement 2 of 2: SQLSTATE[42P01]') && str_contains((string) $result['error'], "\n\n  SELECT * FROM missing_table"),
+        'which statement, the database\'s error, and the statement: '.$result['error']);
     same(false, (bool) $pdo->query("SELECT to_regclass('public.half') IS NOT NULL")->fetchColumn(), 'nothing of 002 stayed');
     same(false, (bool) $pdo->query("SELECT to_regclass('public.never') IS NOT NULL")->fetchColumn(), '003 was not run');
-    same(['001_good.sql'], (new Migrator($pdo, $dir))->applied(), 'recorded');
+    same(['001_good.sql'], $pdo->query('SELECT filename FROM migrations ORDER BY id')->fetchAll(PDO::FETCH_COLUMN), 'recorded');
 });
 
-test('"Apply pending" that stops at a failing file: 200, what ran first, the file and the error, the log - and the lock given back', function () use ($server) {
+test('"Apply pending" on the Migrations page that stops at a failing file: 200, what ran first, the file and the error, the log', function () use ($server) {
     // A database the app's migrations built, with three more files after them: a good one, a bad one, and
-    // one the stop keeps from running. The app works on that database for this test.
+    // one the stop keeps from running. The app works on that database for this test - and while they wait
+    // the site is closed but for its open paths, the Migrations page's API among them.
     $pdo = scratchDatabase($server, 'api_failing');
-    same(null, (new Migrator($pdo, Migrator::directory()))->applyPending()['error'], 'the app\'s migrations');
-    $dir = T::$storage.DIRECTORY_SEPARATOR.'api-failing-migrations';
-    @mkdir($dir, 0777, true);
-    foreach (allMigrations() as $file) {
-        copy(Migrator::directory().'/'.$file, $dir.'/'.$file);
-    }
-    file_put_contents($dir.'/900_good.sql', 'CREATE TABLE good (id INT);');
-    file_put_contents($dir.'/901_bad.sql', 'CREATE TABLE half (id INT); SELECT * FROM missing_table;');
-    file_put_contents($dir.'/902_never.sql', 'CREATE TABLE never (id INT);');
+    same(null, Migrations::migrator($pdo)->apply()['error'], 'the app\'s migrations');
+    $dir = migrationsFolder('api-failing-migrations', allMigrations(), [
+        '900_good.sql' => 'CREATE TABLE good (id INT);',
+        '901_bad.sql' => 'CREATE TABLE half (id INT); SELECT * FROM missing_table;',
+        '902_never.sql' => 'CREATE TABLE never (id INT);',
+    ]);
     $log = T::$storage.DIRECTORY_SEPARATOR.'api-failing.log';
     @unlink($log);
 
     $appDb = T::$app->get(Db::class);
     T::$app->set(Db::class, new Db($pdo));
-    T::$app->set(Migrator::class, new Migrator($pdo, $dir));
+    T::$app->set(Migrator::class, Migrations::migrator($pdo, $dir));
     Log::to($log);
     try {
         $admin = (new Client)->asIam(1, [Role::ADMIN]);
-        same(['900_good.sql', '901_bad.sql', '902_never.sql'], array_column($admin->get('/api/admin/migrations')->status(200)->json('pending'), 'name'), 'pending');
+        (new Client)->get('/api/site-status')->status(200)->path('state', 'update_pending');
+        $admin->get('/api/accounts')->status(503)->path('code', 'update_pending');
+        $status = $admin->get('/api/admin/migrations')->status(200);
+        same([siteFile('900_good.sql') + ['ready' => true, 'blocked' => false], siteFile('901_bad.sql') + ['ready' => true, 'blocked' => false],
+            siteFile('902_never.sql') + ['ready' => true, 'blocked' => false]], $status->json('pending'), 'pending, in the order they will run');
+        same(allMigrations(), array_column($status->json('applied'), 'name'), 'applied, in the order they were');
 
         $answer = $admin->post('/api/admin/migrations/apply')->status(200);
-        same(['900_good.sql'], $answer->json('applied'), 'applied before the stop');
-        same('901_bad.sql', $answer->json('failed'), 'where it stopped');
+        same([[siteFile('900_good.sql')], siteFile('901_bad.sql'), null], [$answer->json('applied'), $answer->json('failed'), $answer->json('note')], 'applied before the stop, and where it stopped');
         $error = (string) $answer->json('error');
-        check(str_contains($error, 'SQLSTATE[42P01]') && str_contains($error, '"missing_table" does not exist'), 'the database\'s error: '.$error);
+        check(str_contains($error, 'statement 2 of 2') && str_contains($error, 'SQLSTATE[42P01]') && str_contains($error, '"missing_table" does not exist'), 'the database\'s error: '.$error);
         same(true, (bool) $pdo->query("SELECT to_regclass('public.good') IS NOT NULL")->fetchColumn(), '900 applied');
         same(false, (bool) $pdo->query("SELECT to_regclass('public.half') IS NOT NULL")->fetchColumn(), 'nothing of 901 stayed');
         same(false, (bool) $pdo->query("SELECT to_regclass('public.never') IS NOT NULL")->fetchColumn(), '902 was not run');
         same(['901_bad.sql', '902_never.sql'], array_column($admin->get('/api/admin/migrations')->status(200)->json('pending'), 'name'), 'still pending');
         $logged = (string) @file_get_contents($log);
-        check(str_contains($logged, ' ERROR ') && str_contains($logged, 'Migration 901_bad.sql failed'), 'the failure is in the log: '.$logged);
+        check(str_contains($logged, ' ERROR ') && str_contains($logged, 'Migration 901_bad.sql failed') && str_contains($logged, 'Migration 900_good.sql applied.'),
+            'the failure and what went first are in the log: '.$logged);
 
         // The lock was given back: the next apply runs (and stops at the same file), it is not told "busy".
         $again = $admin->post('/api/admin/migrations/apply')->status(200);
-        same([[], '901_bad.sql'], [$again->json('applied'), $again->json('failed')], 'the next apply');
+        same([[], siteFile('901_bad.sql')], [$again->json('applied'), $again->json('failed')], 'the next apply');
+
+        // A file's SQL for the page's View - one of the set's files, and nothing else.
+        same(['set' => Migrations::SET, 'name' => '900_good.sql', 'sql' => 'CREATE TABLE good (id INT);'],
+            $admin->get('/api/admin/migrations/file?set=build_analyzer&name=900_good.sql')->status(200)->json(), 'a file');
+        foreach (['set=build_analyzer&name=../config/database.local.php', 'set=build_analyzer&name=nothing.sql', 'set=other&name=900_good.sql', 'name=900_good.sql'] as $query) {
+            $admin->get('/api/admin/migrations/file?'.$query)->status(404)->path('code', 'not_found');
+        }
     } finally {
         Log::to(null);
         T::$app->set(Db::class, $appDb);
         T::$app->forget(Migrator::class);
     }
+    (new Client)->get('/api/site-status')->status(200)->path('state', 'ready');
 });
 
-test('a file another run applied meanwhile is not run again (a data migration would be applied twice)', function () use ($server) {
+test('a second run finds nothing left to do: a data migration is never applied twice', function () use ($server) {
     $pdo = scratchDatabase($server, 'twice');
-    $dir = T::$storage.DIRECTORY_SEPARATOR.'twice-migrations';
-    @mkdir($dir, 0777, true);
-    file_put_contents($dir.'/001_table.sql', 'CREATE TABLE counted (n INT);');
-    file_put_contents($dir.'/002_data.sql', 'INSERT INTO counted VALUES (1);');
+    $dir = migrationsFolder('twice-migrations', [], ['001_table.sql' => 'CREATE TABLE counted (n INT);', '002_data.sql' => 'INSERT INTO counted VALUES (1);']);
 
-    // Two runs read the same pending list; the first applies both files before the second gets to them.
-    $second = new Migrator($pdo, $dir);
-    same(['001_table.sql', '002_data.sql'], $second->pending(), 'both pending for both runs');
-    same(['001_table.sql', '002_data.sql'], (new Migrator($pdo, $dir))->applyPending()['applied'], 'the first run');
+    $first = Migrations::migrator($pdo, $dir);
+    $second = Migrations::migrator($pdo, $dir);
+    same([siteFile('001_table.sql'), siteFile('002_data.sql')], $second->applicable(), 'both pending for both runs');
+    same([siteFile('001_table.sql'), siteFile('002_data.sql')], $first->apply()['applied'], 'the first run');
 
-    same(false, $second->apply('002_data.sql'), 'the second run passes over it');
+    $again = $second->apply();
+    same([[], null], [$again['applied'], $again['error']], 'the second run passes over them');
     same(1, (int) $pdo->query('SELECT count(*) FROM counted')->fetchColumn(), 'its row written once');
-    same(['001_table.sql', '002_data.sql'], $second->applied(), 'each recorded once');
+    same(['001_table.sql', '002_data.sql'], $pdo->query('SELECT filename FROM migrations ORDER BY id')->fetchAll(PDO::FETCH_COLUMN), 'each recorded once');
 });
 
-test('an apply waits for the one under way: every file takes the same advisory lock', function () use ($server) {
-    $pdo = scratchDatabase($server, 'waits');
-    $dir = T::$storage.DIRECTORY_SEPARATOR.'waits-migrations';
-    @mkdir($dir, 0777, true);
-    file_put_contents($dir.'/001_table.sql', 'CREATE TABLE waited (n INT);');
-    $key = (new ReflectionClassConstant(Migrator::class, 'APPLY_LOCK'))->getValue();
+test('one apply at a time, whoever starts it: while another holds the lock, an apply does nothing and says so', function () use ($server) {
+    $pdo = scratchDatabase($server, 'busy');
+    $dir = migrationsFolder('busy-migrations', [], ['001_table.sql' => 'CREATE TABLE waited (n INT);']);
 
-    // Another run, on a connection of its own, in the middle of a file.
+    // Another apply under way - the Migrations page, setup.php, migration.php - on a connection of its own.
     $other = Db::pdo($server, (string) $pdo->query('SELECT current_database()')->fetchColumn(), false);
-    $other->beginTransaction();
-    $other->query("SELECT pg_advisory_xact_lock({$key})");
-    $pdo->exec("SET lock_timeout = '300ms'");
+    $other->query('SELECT pg_advisory_lock('.Migrations::LOCK.')');
     try {
-        $result = (new Migrator($pdo, $dir))->applyPending();
-        same([[], '001_table.sql'], [$result['applied'], $result['failed']], 'it waited (and here gave up)');
-        check(str_contains((string) $result['error'], 'lock timeout'), 'on the lock: '.$result['error']);
-        same(false, (bool) $pdo->query("SELECT to_regclass('public.waited') IS NOT NULL")->fetchColumn(), 'nothing ran meanwhile');
+        $result = Migrations::migrator($pdo, $dir)->apply();
+        same([true, [], null, null], [$result['busy'], $result['applied'], $result['failed'], $result['error']], 'busy, and nothing applied');
+        same(false, (bool) $pdo->query("SELECT to_regclass('public.waited') IS NOT NULL")->fetchColumn(), 'nothing ran');
+        same(false, (bool) $pdo->query("SELECT to_regclass('public.migrations') IS NOT NULL")->fetchColumn(), 'not even the bookkeeping table was made');
     } finally {
-        $other->rollBack();
-        $pdo->exec('RESET lock_timeout');
+        $other->query('SELECT pg_advisory_unlock('.Migrations::LOCK.')');
     }
 
-    same(['001_table.sql'], (new Migrator($pdo, $dir))->applyPending()['applied'], 'once the other run is done');
+    same([siteFile('001_table.sql')], Migrations::migrator($pdo, $dir)->apply()['applied'], 'once the other run is done');
+});
+
+test('a pooled connection gives back the lock an apply left held when its request died - or the site would stay closed', function () use ($server) {
+    // A persistent connection holding the lock, as a request that died in the middle of an apply leaves it.
+    $pooled = Db::pdo($server, T::$database, true);
+    $pooled->query('SELECT pg_advisory_lock('.Migrations::LOCK.')');
+    $pooled = null;
+    $other = Db::pdo($server, T::$database, false);
+    $free = fn (): bool => (bool) $other->query('SELECT pg_try_advisory_lock('.Migrations::LOCK.')')->fetchColumn();
+    check(! $free(), 'held by the pooled connection');
+
+    // The next request takes the same pooled connection - and finds it as a new one.
+    $again = Db::pdo($server, T::$database, true);
+    check($free(), 'given back as the pooled connection was taken again');
+    $other->query('SELECT pg_advisory_unlock('.Migrations::LOCK.')');
+    same('UTC', $again->query('SHOW TIME ZONE')->fetchColumn(), 'and set up as ever');
+});
+
+test('the command line builds a database from nothing, says where it stands, and finds it up to date the next time', function () use ($server) {
+    // migration.php as it runs on a computer with a shell - on a throwaway database of its own, through the
+    // settings folder BUILD_ANALYZER_TEST_CONFIG names (honoured for a build_analyzer_test_ database only).
+    $name = T::$database.'_cli';
+    $settings = T::$storage.DIRECTORY_SEPARATOR.'cli-settings';
+    @mkdir($settings.'/storage', 0777, true);
+    file_put_contents($settings.'/database.local.php', '<?php return '.var_export(['database' => $name, 'persistent' => false] + $server, true).";\n");
+    file_put_contents($settings.'/auth.local.php', '<?php return '.var_export(['issuer' => TEST_ISSUER, 'client_id' => TEST_CLIENT], true).";\n");
+    register_shutdown_function(static function () use ($server, $name): void {
+        try {
+            Db::pdo($server, 'postgres', false)->exec('DROP DATABASE IF EXISTS "'.$name.'" WITH (FORCE)');
+        } catch (Throwable $e) {
+            fwrite(STDERR, "could not drop {$name}: {$e->getMessage()}\n");
+        }
+    });
+
+    $run = function (string ...$arguments) use ($settings): array {
+        $command = escapeshellarg(PHP_BINARY).' migration.php'.($arguments === [] ? '' : ' '.implode(' ', array_map('escapeshellarg', $arguments)));
+        $process = proc_open($command, [1 => ['pipe', 'w'], 2 => ['pipe', 'w']], $pipes, dirname(__DIR__), [Config::TEST_CONFIG_ENV => $settings] + getenv());
+        $output = stream_get_contents($pipes[1]).stream_get_contents($pipes[2]);
+
+        return [proc_close($process), str_replace("\r\n", "\n", (string) $output)];
+    };
+    $files = allMigrations();
+
+    [$code, $output] = $run();
+    same(0, $code, 'the first run: '.$output);
+    check(str_contains($output, "== build analyzer database ({$name})\n  Database created.\n"), 'the database made: '.$output);
+    foreach ($files as $file) {
+        check(str_contains($output, "  {$file} ... done\n"), "{$file} applied: {$output}");
+    }
+
+    [$code, $output] = $run('--status');
+    same(0, $code, '--status: '.$output);
+    same(implode('', array_map(fn (string $file): string => "  v {$file}\n", $files)).'  '.count($files)." applied, 0 pending\n",
+        substr($output, strlen("== build analyzer database ({$name})\n")), 'every file applied');
+
+    [$code, $output] = $run();
+    same([0, "== build analyzer database ({$name})\n  Up to date - ".count($files)." migrations.\n"], [$code, $output], 'the next run');
+    same($files, Db::pdo($server, $name, false)->query('SELECT filename FROM migrations ORDER BY id')->fetchAll(PDO::FETCH_COLUMN), 'recorded in order');
 });
 
 test('004 applies over a 003 whose strings were reworded and whose Slovak was cleared in the browser', function () use ($server) {
     // A database as the owner's is before 004: 001-003 applied, then the Translations grid used.
-    $dir = T::$storage.DIRECTORY_SEPARATOR.'migrations-to-003';
-    @mkdir($dir, 0777, true);
-    foreach (allMigrations() as $file) {
-        if (strcmp($file, '004') < 0) {
-            copy(Migrator::directory().'/'.$file, $dir.'/'.$file);
-        }
-    }
+    $dir = migrationsFolder('migrations-to-003', array_values(array_filter(allMigrations(), fn (string $file): bool => strcmp($file, '004') < 0)));
     $pdo = scratchDatabase($server, 'to003');
-    $built = (new Migrator($pdo, $dir))->applyPending();
+    $built = Migrations::migrator($pdo, $dir)->apply();
     same(null, $built['error'], '001-003 applied');
-    same(['003_languages_and_translations.sql'], array_slice($built['applied'], -1), 'up to 003');
+    same([siteFile('003_languages_and_translations.sql')], array_slice($built['applied'], -1), 'up to 003');
 
     // An editor cleared a Slovak string (an empty cell deletes the row: the page reads the English), and
     // reworded an English one of a key 004 keeps and one of a key 004 retires.
@@ -278,9 +379,9 @@ test('004 applies over a 003 whose strings were reworded and whose Slovak was cl
     $pdo->exec("UPDATE translations SET value = 'Log in', updated_by = 1 WHERE key_name = 'common.signIn' AND language_code = 'en'");
     $pdo->exec("UPDATE translations SET value = 'Home', updated_by = 1 WHERE key_name = 'nav.dashboard' AND language_code = 'en'");
 
-    $result = (new Migrator($pdo, Migrator::directory()))->applyPending();
+    $result = Migrations::migrator($pdo)->apply();
     same(null, $result['error'], 'no error');
-    same(array_values(array_filter(allMigrations(), fn (string $f): bool => strcmp($f, '004') >= 0)), $result['applied'], 'applied from 004 on');
+    same(array_values(array_filter(allMigrations(), fn (string $f): bool => strcmp($f, '004') >= 0)), array_column($result['applied'], 'name'), 'applied from 004 on');
 
     $value = fn (string $key, string $code): mixed => $pdo->query("SELECT value FROM translations WHERE key_name = '{$key}' AND language_code = '{$code}'")->fetchColumn();
     same(false, $value('common.signIn', 'sk'), 'the cleared Slovak string stays cleared');
@@ -293,20 +394,24 @@ test('004 applies over a 003 whose strings were reworded and whose Slovak was cl
 foreach ([6 => 'the version first committed', 7 => 'with sign-in through the IAM', 8 => 'with resumable syncs'] as $level => $what) {
     test("a Laravel database ({$what}) is brought forward with all its data", function () use ($server, $level) {
         $pdo = laravelDatabase($server, $level);
-        $migrator = new Migrator($pdo, Migrator::directory());
+        $migrator = Migrations::migrator($pdo, null, ['local_user_id' => 1]);
         $before = [];
         foreach (['game_characters', 'game_weapons', 'game_sets', 'accounts', 'import_runs', 'account_characters', 'account_weapons', 'account_items', 'build_sources', 'builds', 'sync_runs'] as $table) {
             $before[$table] = (int) $pdo->query("SELECT count(*) FROM {$table}")->fetchColumn();
         }
 
-        // Looking does not change anything.
-        check($migrator->isLaravelDatabase(), 'recognised');
-        same([allMigrations(), []], [array_column($migrator->status()['pending'], 'name'), $migrator->status()['applied']], 'pending, and nothing applied');
+        // Looking does not change anything: Laravel's table has no file column, so nothing counts as applied.
+        check(Migrations::isLaravelDatabase($pdo), 'recognised');
+        $status = $migrator->status();
+        same([allMigrations(), [], []], [array_column($status['pending'], 'name'), $status['applied'], $status['missing']], 'pending, and nothing applied');
+        same(allMigrations(), array_column($migrator->applicable(), 'name'), 'every file to apply');
         same(1, (int) $pdo->query("SELECT count(*) FROM information_schema.columns WHERE table_name = 'migrations' AND column_name = 'batch'")->fetchColumn(), 'still Laravel\'s table after looking');
 
-        $result = $migrator->applyPending(['local_user_id' => 1]);
+        $result = $migrator->apply();
         same(null, $result['error'], 'no error');
-        same(true, $result['laravel'], 'reported as a Laravel database');
+        same(allMigrations(), array_column($result['applied'], 'name'), 'every file applied');
+        same(true, (bool) $pdo->query("SELECT to_regclass('public.laravel_migrations') IS NOT NULL")->fetchColumn(), 'Laravel\'s table moved aside');
+        check(Migrations::isLaravelDatabase($pdo), 'and still known for what it was');
 
         // Nothing lost.
         foreach ($before as $table => $count) {
@@ -335,14 +440,16 @@ foreach ([6 => 'the version first committed', 7 => 'with sign-in through the IAM
             same('2026-09-26 04:30:10+00', $pdo->query('SELECT next_step_at FROM sync_runs ORDER BY id DESC LIMIT 1')->fetchColumn(), 'with its place');
         }
 
-        // The same database as a new one, down to the names of its constraints and indexes.
+        // The same database as a new one, down to the names of its constraints and indexes - the bookkeeping
+        // table's too (Laravel's keys moved aside with their table, so the new one's have their usual names).
         same(schemaOf(db()->raw()), schemaOf($pdo), 'the schema of a new database');
+        same(bookkeepingOf(db()->raw()), bookkeepingOf($pdo), 'the bookkeeping table of a new database');
 
         // The IAM people are still IAM people: no key, never seen as a visitor (migration 004).
         same(0, (int) $pdo->query('SELECT count(*) FROM users WHERE id < 1 OR visitor_key_hash IS NOT NULL OR last_seen_at IS NOT NULL')->fetchColumn(), 'the people, as they were');
 
         // And migrating again finds nothing to do.
-        same([], (new Migrator($pdo, Migrator::directory()))->pending(), 'nothing pending');
+        same([], Migrations::migrator($pdo)->applicable(), 'nothing pending');
     });
 }
 

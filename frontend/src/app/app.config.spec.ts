@@ -1,7 +1,9 @@
+import { HttpClient } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
 import { ApplicationInitStatus } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
 import { Router, TitleStrategy } from '@angular/router';
+import { SiteStatus } from '@anotoki/lib/migrations';
 import { appConfig } from './app.config';
 import { AUTH_CLIENT_FACTORY, AuthService } from './core/auth';
 import { AnotokiAuth, AnotokiInitResult, AnotokiUser } from './core/iam/anotoki-auth';
@@ -62,6 +64,9 @@ describe('the start of the app (app.config.ts)', () => {
 
   const started = () => TestBed.inject(ApplicationInitStatus).donePromise;
   const translations = () => requests.match((request) => request.url.startsWith('/api/translations/'));
+  /** The site's status, asked at the start beside /api/meta: what the server says of it. */
+  const site = (state: 'ready' | 'update_pending' | 'not_set_up', installed = false) =>
+    requests.expectOne('/api/site-status').flush({ state, installed });
 
   beforeEach(() => {
     localStorage.clear();
@@ -77,6 +82,7 @@ describe('the start of the app (app.config.ts)', () => {
 
   it('gets the words after /api/meta and the sign-in, before the first page - and the Router can be built beside them', async () => {
     start();
+    site('ready');
     requests.expectOne('changelog.json').flush([]);
     requests.expectOne('/api/meta').flush(META);
     await settle();
@@ -93,11 +99,13 @@ describe('the start of the app (app.config.ts)', () => {
     // The Router builds the title strategy, which needs the service: no circle.
     expect(TestBed.inject(Router)).toBeTruthy();
     expect(TestBed.inject(TitleStrategy)).toBeInstanceOf(AppTitleStrategy);
+    expect(TestBed.inject(SiteStatus).state()).toBe('ready');
   });
 
   it('asks for the words only once the sign-in has finished - in the language the token names', async () => {
     const { client, finish } = fakeClient(MONA);
     start(client);
+    site('ready');
     requests.expectOne('changelog.json').flush([]);
     requests.expectOne('/api/meta').flush(IAM_META);
     await settle();
@@ -128,6 +136,7 @@ describe('the start of the app (app.config.ts)', () => {
     localStorage.setItem(VISITOR_STORAGE_KEY, key);
     const { client, finish } = fakeClient(MONA);
     start(client);
+    site('ready');
     requests.expectOne('changelog.json').flush([]);
     requests.expectOne('/api/meta').flush(IAM_META);
     finish();
@@ -148,12 +157,16 @@ describe('the start of the app (app.config.ts)', () => {
     expect(TestBed.inject(VisitorKey).moved()).toEqual({ found: true, moved: 1, kept: 0, imports: 1 });
   });
 
-  it('asks for no words while the server is not set up: the pages read the English compiled into the app', async () => {
+  it('asks for no words while the server is not set up - the site gate says so, with the setup page while never installed', async () => {
     start();
+    site('not_set_up');
     requests.expectOne('changelog.json').flush([]);
     requests
       .expectOne('/api/meta')
-      .flush({ code: 'not_set_up', message: 'The build analyzer has not been set up yet. Open /setup.php to set it up.', setup: '/setup.php' }, { status: 503, statusText: 'Service Unavailable' });
+      .flush(
+        { code: 'not_set_up', installed: false, message: 'This site is not set up yet. Its setup page connects it to its database.', setup: '/setup.php' },
+        { status: 503, statusText: 'Service Unavailable' },
+      );
     await started();
 
     expect(translations()).toEqual([]);
@@ -161,11 +174,14 @@ describe('the start of the app (app.config.ts)', () => {
     expect(i18n.ready()).toBe(false);
     expect(i18n.t('theme.label')).toBe('Theme');
     expect(i18n.t('signIn.notConfigured')).toBe('Sign-in is not configured on this server.');
+    const status = TestBed.inject(SiteStatus);
+    expect([status.state(), status.installed()]).toEqual(['not-set-up', false]);
   });
 
   it('asks for no words while the server cannot be reached - and reads the ones kept from the last visit', async () => {
     localStorage.setItem('build-analyzer-language-cache', JSON.stringify(SK_BUNDLE));
     start();
+    requests.expectOne('/api/site-status').error(new ProgressEvent('error'));
     requests.expectOne('changelog.json').flush([]);
     requests.expectOne('/api/meta').error(new ProgressEvent('error'));
     await started();
@@ -173,10 +189,29 @@ describe('the start of the app (app.config.ts)', () => {
     expect(translations()).toEqual([]);
     expect(TestBed.inject(TranslationService).language()).toBe('sk');
     expect(TestBed.inject(TranslationService).t('theme.label')).toBe('Vzhľad');
+    expect(TestBed.inject(SiteStatus).state()).toBe('unavailable');
   });
 
-  it('starts on the compiled English when the words are not there yet (503 between an upload and Apply)', async () => {
+  it('an update waits: the start does not stop - the sign-in completes and the words are asked for, then the gate shows its page', async () => {
+    const { client, finish } = fakeClient(MONA);
+    start(client);
+    site('update_pending');
+    requests.expectOne('changelog.json').flush([]);
+    // /api/meta is one of the paths the server keeps open while an update waits: it says where to sign in.
+    requests.expectOne('/api/meta').flush(IAM_META);
+    finish();
+    await settle();
+    translations()[0].flush(SK_BUNDLE);
+    await started();
+
+    expect(TestBed.inject(SiteStatus).state()).toBe('update-pending');
+    expect(TestBed.inject(AuthService).displayName()).toBe('mona');
+    expect(TestBed.inject(TranslationService).language()).toBe('sk');
+  });
+
+  it('starts on the compiled English when the words are not there yet (an update waits, and brings the tables)', async () => {
     start();
+    site('update_pending');
     requests.expectOne('changelog.json').flush([]);
     requests.expectOne('/api/meta').flush(META);
     await settle();
@@ -189,5 +224,26 @@ describe('the start of the app (app.config.ts)', () => {
     expect(i18n.ready()).toBe(false);
     expect(i18n.t('theme.label')).toBe('Theme');
     expect(i18n.languages()).toEqual([]);
+    expect(TestBed.inject(SiteStatus).state()).toBe('update-pending');
+  });
+
+  it('hears an answer that says an update waits, whichever request it was', async () => {
+    start();
+    site('ready');
+    requests.expectOne('changelog.json').flush([]);
+    requests.expectOne('/api/meta').flush(META);
+    await settle();
+    translations()[0].flush(EN_BUNDLE);
+    await started();
+
+    // Uploaded meanwhile: the next request is closed, and the site gate takes over.
+    let failed = 0;
+    TestBed.inject(HttpClient).get('/api/builds/genshin').subscribe({ error: (error) => (failed = error.status) });
+    await settle();
+    requests
+      .expectOne('/api/builds/genshin')
+      .flush({ code: 'update_pending', message: 'The site is being updated. Try again in a few minutes.' }, { status: 503, statusText: 'Service Unavailable' });
+    expect(failed).toBe(503);
+    expect(TestBed.inject(SiteStatus).state()).toBe('update-pending');
   });
 });

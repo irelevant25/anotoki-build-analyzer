@@ -70,20 +70,6 @@
     </section>
   }
 
-  @if (migrations(); as status) {
-    @if (status.pending.length > 0) {
-      <section class="panel migrations-panel">
-        <div class="row wrap">
-          <mat-icon>system_update</mat-icon>
-          <strong>{{ status.pending.length === 1 ? '1 database update' : status.pending.length + ' database updates' }} waiting</strong>
-          <span class="spacer"></span>
-          <a mat-stroked-button routerLink="/admin/migrations">Migrations</a>
-        </div>
-        <p class="muted small">Uploaded with a new version: apply on the Migrations page before syncing or importing.</p>
-      </section>
-    }
-  }
-
   @for (game of games; track game) {
     <h2 class="section-title">{{ gameLabels[game] }}</h2>
     <div class="source-grid">

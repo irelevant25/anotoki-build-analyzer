@@ -1,10 +1,16 @@
 # Data model
 
-The schema is `backend/migrations/*.sql`, applied in order by one engine (`src/Db/Migrator.php`) whichever
-way it runs: `php migration.php`, "Apply pending" on the admin panel's Migrations page, or `setup.php`. There is no separate schema
-file; a database is what you get by replaying the migrations. `migrations(id, filename, applied_at)` records
-what has run - in the file's own transaction, which first takes a PostgreSQL advisory lock and looks again, so
-two runs at once never apply a file twice (the second waits, then passes over it).
+The schema is `backend/migrations/*.sql`, applied in order by one engine - the anotoki family's (anotoki-lib's
+`Anotoki\Lib\Migrations\Migrator`, on this site's files through `src/Db/Migrations.php`) - whichever way it
+runs: `php migration.php`, "Apply pending" on the admin panel's Migrations page, or `setup.php`. There is no
+separate schema file; a database is what you get by replaying the migrations. `migrations(id, filename,
+applied_at)` records what has run - the table this site's own engine made, which the library reads and writes
+as it is (a new database gets the same: `tests/migrations.test.php` holds it to that) - each file in a
+transaction of its own with its record, stopping at the first that fails. One apply at a time, whoever starts
+it: each takes the same PostgreSQL advisory lock (`Migrations::LOCK`, the number this site's engine took),
+and another is told it is busy and does nothing; a file recorded meanwhile is passed over. While a file waits
+the site is closed to everybody but its ADMIN on the Migrations page (the site gate,
+[architecture.md](architecture.md)).
 
 - `001_adopt_laravel_database.sql` brings a database made by the first (Laravel) version forward, with all
   its rows (see [operations.md](operations.md)); on a new database it does nothing.
@@ -14,8 +20,8 @@ two runs at once never apply a file twice (the second waits, then passes over it
   gate.
 - `003_languages_and_translations.sql` creates the three tables of the site's words (below), the two languages
   it is released in and every string, English and Slovak, in one file: a database never has the tables
-  without the strings. It alters no existing table, so everything but the words works on a database that has
-  not run it yet. Later string migrations follow its pattern.
+  without the strings. It alters no existing table, so behind the site gate everything but the words works on a
+  database that has not run it yet. Later string migrations follow its pattern.
 - `004_visitors_and_family_bar.sql` (version 0.3) adds the visitor accounts to `users` (below) and every
   word 0.3 brings - the visitor notice, the ways in for somebody new, the "Your data" card, the new error
   sentences, and the family's top bar and footer (`brand.*`, `topbar.*`, `footer.version`, `language.button`)
@@ -30,14 +36,19 @@ two runs at once never apply a file twice (the second waits, then passes over it
   toolbar, and the number of keys (406 + 67 - 15 = 458). It is complete;
   applied on the host at once after the upload (Migrations page, ADMIN), before the IAM's 007
   ([operations.md](operations.md), "Deploying").
+- `005_retire_not_set_up_page.sql` deletes the six keys of the site's own "Not set up yet" page
+  (`notSetUp.*`), with their strings: the anotoki family's site gate shows its own page now, in its own words
+  (the owner's decision of 2026-10-07). Gated: the six gone with every string of theirs, and the number of keys
+  (458 - 6 = 452).
 
 Rules: never edit a migration that has run somewhere; add `NNN_what.sql`. A migration runs in one transaction
 (PostgreSQL DDL is transactional), so a failing one leaves nothing behind. A migration that changes data ends
 with a `DO $$ … $$` block that checks the result and raises an exception when it is wrong. A closed set of
 values is a `CHECK (col IN (…))` on the column (`<table>_game_check`, `game_sets_kind_check`,
-`sync_runs_kind_check`), not a lookup table or an enum type. `Migrator::apply()` can pass settings to a migration
-(`build_analyzer.<name>`); only the Laravel adoption reads one, `build_analyzer.local_user_id`, and nothing but
-its own test passes it any more.
+`sync_runs_kind_check`), not a lookup table or an enum type. `Migrations::migrator($pdo, $folder, $settings)` can
+pass settings to the migrations (`build_analyzer.<name>`, set in each file's transaction); only the Laravel
+adoption reads one, `build_analyzer.local_user_id`, and nothing but its own test passes it any more. Every
+migration closes the site until it is applied (the site gate): on a host, apply it at once after the upload.
 
 All times are `TIMESTAMPTZ`, written and read in UTC (the connection sets `TIME ZONE 'UTC'`); the API sends
 ISO 8601 with `Z`, the UI converts them. Nested data is `JSON` (not `JSONB`: key order, such as the slots of a
@@ -288,4 +299,4 @@ written as compact JSON (one line), saved as `build-analyzer-accounts-YYYY-MM-DD
 | Table | Notes |
 | --- | --- |
 | `cache` | `key`, `value` (JSON), `expiration` (Unix time): the per-site request delays and retry counters, showcase answers, the showcase rate limit, catalog refresh markers. Expired rows are deleted when a build run ends |
-| `cache_locks` | `key`, `owner`, `expiration`: the sync step lock (`sync-step`), the migration lock. Taken with an upsert that only succeeds over an expired row |
+| `cache_locks` | `key`, `owner`, `expiration`: the sync step lock (`sync-step`). Taken with an upsert that only succeeds over an expired row. (Applying migrations takes a PostgreSQL advisory lock instead - see the top of this page; the `migrate` row of older versions is no longer written) |

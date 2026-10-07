@@ -37,19 +37,6 @@
   white-space: nowrap;
 }
 
-.migrations-panel {
-  margin-bottom: 16px;
-  border-color: color-mix(in srgb, var(--grade-c) 50%, var(--app-border));
-
-  mat-icon {
-    color: var(--grade-c);
-  }
-
-  p {
-    margin: 8px 0 0;
-  }
-}
-
 .error-panel {
   display: flex;
   align-items: center;

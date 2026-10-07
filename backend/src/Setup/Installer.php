@@ -4,7 +4,7 @@ namespace App\Setup;
 
 use App\Config;
 use App\Db\Db;
-use App\Db\Migrator;
+use App\Db\Migrations;
 use App\Http\ConnectionFailed;
 use App\Http\CurlHttpClient;
 use App\Http\HttpClient;
@@ -376,7 +376,7 @@ final class Installer
         try {
             $pdo = Db::pdo($database, $name, false, 5);
             $tables = (int) $pdo->query("SELECT count(*) FROM information_schema.tables WHERE table_schema = current_schema() AND table_type = 'BASE TABLE'")->fetchColumn();
-            $pending = count((new Migrator($pdo, Migrator::directory()))->pending());
+            $pending = count(Migrations::migrator($pdo)->applicable());
 
             return ['ok' => true, 'message' => "Connected to the database \"{$name}\": "
                 .($tables === 0 ? 'it is empty - Save makes the tables.' : ($pending > 0 ? "{$pending} update(s) to apply - Save applies them." : 'it is up to date.'))];
@@ -473,8 +473,9 @@ final class Installer
     // ── the database ──────────────────────────────────────────────────────────────────────────────
 
     /**
-     * Creates the database when allowed, applies every migration, and says what it did. The accounts of a
-     * database of the first (Laravel) version go to IAM user 1 (001_adopt_laravel_database.sql).
+     * Creates the database when allowed, applies every migration (the engine of migration.php and the
+     * Migrations page: App\Db\Migrations), and says what it did. The accounts of a database of the first
+     * (Laravel) version go to IAM user 1 (001_adopt_laravel_database.sql).
      *
      * @param  array<string, mixed>  $database
      * @return list<string> a line per step
@@ -483,7 +484,7 @@ final class Installer
     {
         $log = [];
         try {
-            if (Migrator::ensureDatabase($database, (string) $database['database'])) {
+            if (Db::ensureDatabase($database, (string) $database['database'])) {
                 $log[] = "Created the database \"{$database['database']}\".";
             }
         } catch (Throwable) {
@@ -497,11 +498,14 @@ final class Installer
             throw new RuntimeException("Cannot connect to the database \"{$database['database']}\": ".$this->without($e->getMessage(), (string) ($database['password'] ?? '')));
         }
 
-        $migrator = new Migrator($pdo, Migrator::directory());
-        $wasLaravel = $migrator->isLaravelDatabase() && $migrator->applied() === [];
-        $result = $migrator->applyPending();
-        if ($result['failed'] !== null) {
-            throw new RuntimeException("Migration {$result['failed']} failed: {$result['error']}");
+        $migrator = Migrations::migrator($pdo);
+        $wasLaravel = Migrations::isLaravelDatabase($pdo) && $migrator->status()['applied'] === [];
+        $result = $migrator->apply();
+        if ($result['busy']) {
+            throw new RuntimeException('Another update is being applied to this database right now (the Migrations page or migration.php). Nothing was applied: wait a moment, then save again.');
+        }
+        if ($result['error'] !== null) {
+            throw new RuntimeException(($result['failed'] !== null ? "Migration {$result['failed']['name']} failed: " : '').$result['error']);
         }
 
         $log[] = $result['applied'] === [] ? 'The database is up to date.' : 'Applied '.count($result['applied']).' migration(s).';

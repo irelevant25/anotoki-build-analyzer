@@ -26,9 +26,10 @@ use Psr\Http\Server\RequestHandlerInterface;
  *      token never falls back to the key, which is not even read. Only the Bearer scheme counts: "Basic ..."
  *      (a host behind a password file) is as if no Authorization header had been sent.
  *   2. else, when the IAM says this site requires sign-in (App\Auth\SignInPolicy, the IAM's switch for the
- *      application): 401 sign_in_required on every route but /api/meta, the strings and the icons - for
- *      nobody and for a visitor key alike; the key is never looked up, counted or swept early, and no
- *      visitor is made. The move at sign-in (token and key) works either way.
+ *      application): 401 sign_in_required on every route but /api/meta, the strings, the icons and
+ *      /api/site-status (the site gate's, which reads no credentials at all: the pages must always learn
+ *      where the site stands) - for nobody and for a visitor key alike; the key is never looked up, counted
+ *      or swept early, and no visitor is made. The move at sign-in (token and key) works either way.
  *   3. else an X-Visitor-Key: that visitor (requireOwner() only); unknown or malformed, or a row that went
  *      while the request was on its way (moved at sign-in in another tab, swept): 401 visitor_unknown.
  *   4. else nobody: the public routes, and a first import that makes a visitor within the limits.
@@ -39,6 +40,8 @@ use Psr\Http\Server\RequestHandlerInterface;
  *                                    makeVisitor($app), which makes a visitor for an import that goes through
  *   requireRole($app, ...$roles)     a signed-in person with one of $roles (ADMIN passes every EDITOR check):
  *                                    Role::STAFF for the admin panel, Role::ADMIN for the system's own routes
+ *   requireTokenRole($app, ...$roles)  the same, judged from the token alone - no row of users read or made:
+ *                                    the Migrations page's routes, which answer while a migration waits
  *   optionalSignIn($app)             a public route that answers a signed-in person a little more
  *
  * The answers:
@@ -187,19 +190,46 @@ function requireRole(App $app, string ...$roles): Closure
 
     return function (ServerRequestInterface $request, RequestHandlerInterface $handler) use ($app, $roles): ResponseInterface {
         $user = requestPerson($app, $request) ?? throw signInRequired();
-
-        $allowed = false;
-        foreach ($roles as $role) {
-            $allowed = $allowed || $user->hasRole($role);
-        }
-        if (! $allowed) {
-            throw $roles === [Role::ADMIN]
-                ? new HttpError(403, 'Only an admin can do this.', ['code' => 'admin_only'])
-                : new HttpError(403, 'Only an editor or an admin can do this.', ['code' => 'editor_only']);
-        }
+        refuseUnlessOneOf($user, $roles);
 
         return $handler->handle($request->withAttribute('user', $user));
     };
+}
+
+/**
+ * Middleware: requireRole() judged from the token alone - who it is and its roles, with no row of users read
+ * or made (App\Auth\IamGuard::tokenUser()). For the routes that must answer on a database the migrations have
+ * yet to build: the Migrations page's, which stay open while an update waits (api/middleware/site_gate.php) -
+ * on a new or a half-built database even the users table may not be there yet. The same answers as
+ * requireRole(): 401 sign_in_required without a token or with one that does not verify, 403 admin_only /
+ * editor_only without the role.
+ */
+function requireTokenRole(App $app, string ...$roles): Closure
+{
+    if ($roles === []) {
+        throw new LogicException('requireTokenRole() needs at least one role.');
+    }
+
+    return function (ServerRequestInterface $request, RequestHandlerInterface $handler) use ($app, $roles): ResponseInterface {
+        $user = $app->get(IamGuard::class)->tokenUser($request) ?? throw signInRequired();
+        refuseUnlessOneOf($user, $roles);
+
+        return $handler->handle($request->withAttribute('user', $user));
+    };
+}
+
+/** 403 unless $user has one of $roles (ADMIN passes every EDITOR check): admin_only where only ADMIN will do. */
+function refuseUnlessOneOf(User $user, array $roles): void
+{
+    foreach ($roles as $role) {
+        if ($user->hasRole($role)) {
+            return;
+        }
+    }
+
+    throw $roles === [Role::ADMIN]
+        ? new HttpError(403, 'Only an admin can do this.', ['code' => 'admin_only'])
+        : new HttpError(403, 'Only an editor or an admin can do this.', ['code' => 'editor_only']);
 }
 
 /**

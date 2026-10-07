@@ -153,12 +153,5 @@
 
   "signIn.intro": "Import your Genshin Impact and Honkai: Star Rail accounts and see, per character, what to improve. Sign in with your anotoki account to continue.",
   "signIn.unreachable": "The server could not be reached, so signing in is not possible right now. Reload the page to try again.",
-  "signIn.signingIn": "Signing in…",
-
-  "notSetUp.title": "Not set up yet",
-  "notSetUp.lead": "The build analyzer is installed, but nobody has set it up yet: it does not know its database or how people sign in. Until then there is nothing to show here.",
-  "notSetUp.owner": "If this is your server, open the setup page, fill in the database and sign-in settings and save them. Then come back here.",
-  "notSetUp.open": "Open the setup page",
-  "notSetUp.tryAgain": "Try again",
-  "notSetUp.notOwner": "Not your server? Its owner has to finish the setup. The setup page removes itself once a hosted install is done; if it is gone and this page still shows, upload setup.php again and run it."
+  "signIn.signingIn": "Signing in…"
 }

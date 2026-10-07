@@ -9,7 +9,7 @@
 
 import { execFileSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
-import { existsSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync, readFileSync, readdirSync, renameSync, rmSync, writeFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -124,6 +124,38 @@ async function open(page, path) {
   await page.goto(SITE + path);
   await page.waitForSelector('app-top-bar .topbar', { timeout: 15000 });
   await page.waitForLoadState('networkidle');
+}
+
+/** Opens a page of the site while it is not ready: the site gate's page (@anotoki/lib) stands in its place. */
+async function openGated(page, path) {
+  await page.goto(SITE + path);
+  await page.waitForSelector('anotoki-site-status h1', { timeout: 15000 });
+  await page.waitForLoadState('networkidle');
+}
+
+/** Whether an element's own background is a dark one (the theme followed into the family's pages). */
+async function darkSurface(page, selector) {
+  return page.evaluate((selector) => {
+    const element = document.querySelector(selector);
+    const [r, g, b] = (getComputedStyle(element).backgroundColor.match(/[\d.]+/g) ?? ['255', '255', '255']).map(Number);
+    return (r + g + b) / 3 < 80;
+  }, selector);
+}
+
+/** The gate's page as a person reads it: its title, all its words, its buttons, its links (words and address). */
+async function gatePage(page) {
+  return page.evaluate(() => {
+    const status = document.querySelector('anotoki-site-status');
+    const words = (element) => (element?.innerText ?? '').replace(/\s+/g, ' ').trim();
+    return {
+      title: words(status?.querySelector('h1')),
+      text: words(status),
+      role: status?.querySelector('section')?.getAttribute('role') ?? null,
+      buttons: [...(status?.querySelectorAll('button') ?? [])].map(words),
+      links: [...(status?.querySelectorAll('a') ?? [])].map((link) => `${words(link)} -> ${link.getAttribute('href')}`),
+      page: words(document.body),
+    };
+  });
 }
 
 /** Through the stand-in IAM and back, from the bar's Sign in (or the phone menu's). */
@@ -452,7 +484,8 @@ try {
       check((await kept.evaluate(() => localStorage.getItem('build-analyzer-theme'))) === 'dark', 'kept on this device for the next page load');
 
       await kept.click('app-footer .whats-new');
-      await kept.waitForSelector('mat-dialog-container');
+      // The dialog's frame comes before its releases: wait for their dates, not only the container.
+      await kept.waitForSelector('mat-dialog-container .release-head .muted');
       const days = (await kept.locator('mat-dialog-container .release-head .muted').allInnerTexts()).map((day) => day.trim());
       check(days.length > 0 && days.every((day) => /^\d{4}-\d{2}-\d{2}$/.test(day)), `What's new: the dates in the account's order - ${days.slice(0, 3).join(', ')}`);
       await shot(kept, '08a-account-whats-new-390-dark');
@@ -556,55 +589,124 @@ try {
     }
     await ad.emulateMedia({ colorScheme: 'light' });
 
-    // ── The Migrations page ────────────────────────────────────────────────────────────────────────────
-    step('Migrations (ADMIN): what is applied, what waits, Apply pending - and where it stopped');
+    // ── The Migrations page, and the site while an update waits ────────────────────────────────────────
+    step("Migrations (ADMIN): the family's page - every file applied, nothing waiting, a file's SQL");
     await ad.setViewportSize({ width: 1280, height: 900 });
     await open(ad, '/admin/migrations');
+    await ad.waitForSelector('anotoki-migrations-page [data-applied]');
     check((await ad.locator('h1').innerText()) === 'Migrations', 'the page: Migrations');
     check((await ad.title()) === 'Migrations · Admin panel · Build Analyzer', `its title: ${await ad.title()}`);
-    check((await ad.locator('.pending .nothing').innerText()).includes('Nothing pending'), 'nothing pending on a database the migrations built');
-    const appliedFiles = await ad.locator('.applied .files code').allInnerTexts();
-    check(appliedFiles.join('|') === readdirSync(join(backend, 'migrations')).filter((file) => file.endsWith('.sql')).sort().join('|'), `every file applied, in order: ${appliedFiles.join(', ')}`);
-    check(await ad.locator('button.apply').isDisabled(), 'Apply pending cannot be pressed with nothing pending');
+    check((await ad.locator('[data-pending]').innerText()).includes('Nothing pending - the database is up to date with the files.'), 'nothing pending on a database the migrations built');
+    const appliedFiles = await ad.locator('[data-applied] .files code').allInnerTexts();
+    const migrationFiles = readdirSync(join(backend, 'migrations')).filter((file) => file.endsWith('.sql')).sort();
+    check(appliedFiles.join('|') === migrationFiles.join('|'), `every file applied, in order: ${appliedFiles.join(', ')}`);
+    check(await ad.locator('[data-apply]').isDisabled(), 'Apply pending cannot be pressed with nothing pending');
+    await ad.locator('[data-applied] li', { hasText: '005_' }).getByRole('button', { name: /^View/ }).click();
+    await ad.waitForSelector('dialog[data-sql] pre');
+    check((await ad.locator('dialog[data-sql] pre').innerText()).includes("DELETE FROM translation_keys"), 'View shows a file\'s SQL (005)');
+    await shot(ad, '11-admin-migrations-file');
+    await ad.click('dialog[data-sql] [data-close]');
     await shot(ad, '11-admin-migrations-current', { fullPage: true });
 
     // 004 as if it had just been uploaded: its row forgotten (its schema stays, so applying it again fails -
-    // which is how the page's "Stopped at" is seen without a broken file on disk).
+    // which is how the page's "Stopped at" is seen without a broken file on disk). From now on the site is
+    // closed to everybody but its ADMIN on the Migrations page.
     const forgot = sql("DELETE FROM migrations WHERE filename = '004_visitors_and_family_bar.sql' RETURNING filename");
+    const guests = await newContext();
+    const guest = await guests.newPage();
     try {
       check(forgot.length === 1, '004 made pending for the check');
-      await open(ad, '/admin/sources');
-      const note = ad.locator('.migrations-panel');
-      check((await note.innerText()).includes('1 database update waiting') && (await note.locator('a').getAttribute('href')) === '/admin/migrations', 'Sources: the note that an update waits, with the link to Migrations');
-      check((await ad.locator('.migrations-panel button').count()) === 0, 'no Apply button on the Sources page');
-      await shot(ad, '12-admin-sources-update-waiting', { fullPage: false });
-      await note.locator('a').click();
+      const status = await (await fetch(`${SITE}/api/site-status`)).json();
+      check(status.state === 'update_pending' && status.installed === false, `the site says an update waits (${JSON.stringify(status)})`);
+      const closed = await fetch(`${SITE}/api/builds/genshin`);
+      check(closed.status === 503 && (await closed.json()).code === 'update_pending' && closed.headers.get('retry-after') === '60', 'every other path answers 503 update_pending, Retry-After 60');
+
+      step('An update waits: a visitor and a member read that the site is being updated - in their language, no error, nothing to press but Sign in');
+      await openGated(guest, '/?lang=en');
+      let gate = await gatePage(guest);
+      check(gate.title === 'The site is being updated' && gate.text.includes('It will be back in a few minutes. This page reloads by itself.') && gate.role === 'status', `a visitor: "${gate.text}"`);
+      check(gate.buttons.join('|') === 'Sign in' && gate.links.length === 0, `only a quiet Sign in (${gate.buttons.join(', ')}; links: ${gate.links.join(', ') || 'none'})`);
+      check(!/update_pending|503|setup|migration|error/i.test(gate.page), 'no error, no code, no setup or Migrations button');
+      await shot(guest, '12a-update-waiting-visitor', { fullPage: true });
+      await guest.setViewportSize({ width: 390, height: 800 });
+      await openGated(guest, '/import?lang=sk');
+      gate = await gatePage(guest);
+      check(gate.title === 'Stránku práve aktualizujeme' && gate.buttons.join('|') === 'Prihlásiť sa', `in Slovak: "${gate.text}"`);
+      check((await guest.evaluate(() => document.documentElement.scrollWidth)) <= 390, '390 px: no sideways scroll');
+      await shot(guest, '12b-update-waiting-visitor-sk-390', { fullPage: true });
+      await guest.emulateMedia({ colorScheme: 'dark' });
+      check(await darkSurface(guest, 'anotoki-site-status section'), "dark: the page is in the site's dark colours (the --anotoki-* properties)");
+      await shot(guest, '12e-update-waiting-visitor-sk-390-dark', { fullPage: true });
+
+      await openGated(tab, '/');
+      gate = await gatePage(tab);
+      check(gate.title === 'Stránku práve aktualizujeme' && gate.buttons.length === 0 && gate.links.length === 0, `mona, signed in: the same, with no button ("${gate.text}")`);
+      check(!/update_pending|503|setup|migration/i.test(gate.page), 'and no error, code, setup or Migrations');
+      await shot(tab, '12c-update-waiting-member', { fullPage: true });
+
+      step('An update waits: the ADMIN reads that a database update is waiting, and reaches the Migrations page - the one page that shows');
+      await openGated(ad, '/admin/sources');
+      gate = await gatePage(ad);
+      check(gate.title === 'A database update is waiting' && gate.links.join('|') === 'Open Migrations -> /admin/migrations', `the ADMIN: "${gate.text}" (${gate.links.join(', ')})`);
+      await shot(ad, '12d-update-waiting-admin', { fullPage: true });
+      await ad.click('anotoki-site-status a');
       await ad.waitForURL('**/admin/migrations');
-      await ad.waitForSelector('.pending .files');
-      check((await ad.locator('.pending .files li').allInnerTexts()).map((line) => line.replace(/\s+/g, ' ').trim()).join('|') === '004_visitors_and_family_bar.sql pending', 'Migrations: 004 pending');
+      await ad.waitForSelector('[data-pending] .files');
+      check((await ad.locator('[data-pending] .files li').allInnerTexts()).map((line) => line.replace(/\s+/g, ' ').trim()).join('|') === '004_visitors_and_family_bar.sql pending', 'Migrations: 004 pending');
+      check((await ad.locator('app-top-bar .topbar').count()) === 1, 'in the admin panel\'s frame');
       await shot(ad, '13-admin-migrations-pending', { fullPage: true });
-      await ad.click('button.apply');
-      await ad.waitForSelector('mat-dialog-container h2');
-      await ad.waitForTimeout(300);
-      const asked = (await ad.locator('mat-dialog-container h2').innerText()).trim();
+
+      step('An update waits: a signed-out ADMIN presses Sign in on the waiting page and comes back to it - now the ADMIN\'s');
+      const comeback = await newContext();
+      const returning = await comeback.newPage();
+      await openGated(returning, '/?lang=en');
+      await iamAs(ADA);
+      await returning.click('anotoki-site-status button');
+      await returning.waitForURL((url) => url.href.startsWith(SITE) && !url.pathname.startsWith('/auth/callback'), { timeout: 15000 });
+      await returning.waitForFunction(() => document.querySelector('anotoki-site-status h1')?.textContent?.includes('A database update is waiting'), null, { timeout: 15000 });
+      check(new URL(returning.url()).pathname === '/', `back on the page Sign in was pressed on (${new URL(returning.url()).pathname})`);
+      await returning.click('anotoki-site-status a');
+      await returning.waitForSelector('[data-pending] .files', { timeout: 15000 });
+      check(new URL(returning.url()).pathname === '/admin/migrations', 'and on to the Migrations page');
+      await comeback.close();
+
+      step('An update waits: Apply pending asks first - and says where it stopped');
+      await ad.click('[data-apply]');
+      await ad.waitForSelector('dialog[data-confirm][open] h2');
+      const asked = (await ad.locator('dialog[data-confirm] h2').innerText()).trim();
       check(asked === 'Apply 1 pending migration?', `it asks first: ${asked}`);
+      check((await ad.evaluate(() => document.activeElement?.hasAttribute('data-confirm-cancel'))) === true, 'Cancel has the focus: an Apply is never one keypress away');
       await shot(ad, '14-admin-migrations-confirm');
-      await ad.click('mat-dialog-container button.confirm');
-      await ad.waitForSelector('.outcome', { timeout: 30000 });
-      const outcome = await ad.locator('.outcome').innerText();
+      await ad.click('[data-confirm-apply]');
+      await ad.waitForSelector('[data-result]', { timeout: 30000 });
+      const outcome = await ad.locator('[data-result]').innerText();
       check(outcome.includes('Stopped at 004_visitors_and_family_bar.sql') && outcome.includes('Nothing was applied.') && outcome.includes('rolled back as a whole') && /already exists/.test(outcome), `the failure, named: ${outcome.replace(/\s+/g, ' ').slice(0, 160)}`);
-      check((await ad.locator('.pending .files li').count()) === 1, 'still pending after the failed apply');
+      check((await ad.locator('[data-result]').getAttribute('role')) === 'alert', 'said aloud: role alert');
+      check((await ad.locator('[data-pending] .files li').count()) === 1, 'still pending after the failed apply');
       await shot(ad, '15-admin-migrations-stopped', { fullPage: true });
       await ad.setViewportSize({ width: 390, height: 800 });
       await shot(ad, '16-admin-migrations-stopped-390', { fullPage: true });
       const wide = await ad.evaluate(() => document.documentElement.scrollWidth);
       check(wide <= 390, `390 px: no sideways scroll (${wide})`);
+      await ad.emulateMedia({ colorScheme: 'dark' });
+      check(await darkSurface(ad, '[data-pending]'), "dark: the Migrations page is in the site's dark colours");
+      await shot(ad, '16b-admin-migrations-stopped-390-dark', { fullPage: true });
+      await ad.emulateMedia({ colorScheme: 'light' });
     } finally {
       sql("INSERT INTO migrations (filename) VALUES ('004_visitors_and_family_bar.sql') ON CONFLICT DO NOTHING RETURNING filename");
     }
+
+    step('The update applied: the waiting pages reload by themselves, and the site is back');
+    // The visitor's page asks again every 30 seconds, and starts afresh once the site is ready.
+    await guest.waitForSelector('app-top-bar .topbar', { timeout: 45000 });
+    check((await guest.locator('anotoki-site-status').count()) === 0, 'the visitor\'s page came back by itself');
+    await guests.close();
     await ad.setViewportSize({ width: 1280, height: 900 });
     await open(ad, '/admin/migrations');
-    check((await ad.locator('.pending .nothing').count()) === 1, 'the database as it was: nothing pending');
+    await ad.waitForSelector('anotoki-migrations-page [data-pending]');
+    check((await ad.locator('[data-pending]').innerText()).includes('Nothing pending'), 'the database as it was: nothing pending');
+    await open(tab, '/');
+    check((await tab.locator('anotoki-site-status').count()) === 0, 'mona\'s dashboard again');
 
     // ── The served path ────────────────────────────────────────────────────────────────────────────────
     step('Served by router.php: X-Visitor-Key passes, and a sweep runs after an answer');
@@ -696,6 +798,9 @@ try {
     forgetSwitch();
     const meta = await (await fetch(`${SITE}/api/meta`)).json();
     check(meta.auth?.login_required === true, `/api/meta relays it (auth.login_required: ${meta.auth?.login_required})`);
+    const standing = await fetch(`${SITE}/api/site-status`);
+    const standingBody = await standing.json();
+    check(standing.status === 200 && standingBody.state === 'ready', `the site's status still answers anybody (${standing.status} ${JSON.stringify(standingBody)}): never read as "not available"`);
     const keyRefused = await fetch(`${SITE}/api/accounts`, { headers: { 'X-Visitor-Key': lateKey } });
     check(keyRefused.status === 401 && (await keyRefused.json()).code === 'sign_in_required', 'the key opens nothing now (401 sign_in_required)');
 
@@ -738,6 +843,39 @@ try {
     await open(againTab, '/?lang=en');
     check(new URL(againTab.url()).pathname === '/' && (await againTab.locator('app-visitor-hero').count()) === 1, 'the dashboard\'s hero, no sign-in asked for');
     await again.close();
+
+    // ── Not set up ─────────────────────────────────────────────────────────────────────────────────────
+    step('Not set up: never installed - "not set up yet" and the setup page; installed once - "not available", never the setup page');
+    // The settings folder loses auth.local.php (the site reads its settings on every request), and later gains
+    // storage/installed.lock, which setup.php writes when it finishes on a real host.
+    const settings = join(WORK, 'config');
+    const lock = join(settings, 'storage', 'installed.lock');
+    renameSync(join(settings, 'auth.local.php'), join(settings, 'auth.local.php.away'));
+    try {
+      const fresh = await newContext();
+      const freshTab = await fresh.newPage();
+      await openGated(freshTab, '/?lang=en');
+      let gate = await gatePage(freshTab);
+      check(gate.title === 'This site is not set up yet' && gate.links.join('|') === 'Open the setup page -> /setup.php' && gate.buttons.join('|') === 'Try again',
+        `never installed: "${gate.text}" (${gate.links.join(', ')})`);
+      const answer = await (await fetch(`${SITE}/api/meta`)).json();
+      check(answer.code === 'not_set_up' && answer.installed === false && answer.setup === '/setup.php', `the API: 503 not_set_up with the setup page (${JSON.stringify(answer)})`);
+      await shot(freshTab, '20-not-set-up-never-installed', { fullPage: true });
+
+      writeFileSync(lock, JSON.stringify({ installed_at: new Date().toISOString(), site: SITE }));
+      await openGated(freshTab, '/?lang=en');
+      gate = await gatePage(freshTab);
+      check(gate.title === 'The site is not available right now' && gate.links.length === 0 && !/setup/i.test(gate.page), `installed once: "${gate.text}" - no setup page`);
+      const installed = await (await fetch(`${SITE}/api/meta`)).json();
+      check(installed.code === 'not_set_up' && installed.installed === true && !('setup' in installed), `the API: 503 not_set_up, installed, no setup page (${JSON.stringify(installed)})`);
+      await shot(freshTab, '21-not-set-up-installed', { fullPage: true });
+      await fresh.close();
+    } finally {
+      rmSync(lock, { force: true });
+      renameSync(join(settings, 'auth.local.php.away'), join(settings, 'auth.local.php'));
+    }
+    const back = await (await fetch(`${SITE}/api/site-status`)).json();
+    check(back.state === 'ready', `set up again: ${JSON.stringify(back)}`);
   }
 } catch (error) {
   failures.push(String(error?.stack ?? error));

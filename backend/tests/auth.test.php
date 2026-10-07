@@ -4,8 +4,9 @@
  * Signing in through the anotoki IAM - the only way in: which tokens are accepted, who a request is, what
  * a signed-in person, an EDITOR and an ADMIN may do (route by route), what the IAM's "sign-in required" closes
  * (and its reader, App\Auth\IamSignInPolicy, from the SDK's file seam), that a leftover sign-in "mode" opens
- * nothing, the setup gate, and the development router. Tokens are signed with a test key published as a
- * JWKS file (tests/stand_in_iam.test.php signs in through the stand-in IAM itself).
+ * nothing, which settings make an installation set up (the site gate's every state: site_gate.test.php), and
+ * the development router. Tokens are signed with a test key published as a JWKS file
+ * (tests/stand_in_iam.test.php signs in through the stand-in IAM itself).
  */
 
 declare(strict_types=1);
@@ -14,8 +15,9 @@ require __DIR__.'/lib.php';
 
 use App\Auth\Role;
 use App\Auth\SignInPolicy;
-use App\Cache\Locks;
 use App\Config;
+use App\Db\Db;
+use App\Db\Migrations;
 use App\DevRouter;
 use Tests\Support\Answer;
 use Tests\Support\Client;
@@ -251,14 +253,16 @@ test('an admin may do everything an editor may, and the admins\' own', function 
     }
     $admin->patch('/api/sources/genshin-1', ['enabled' => false])->status(200)->path('enabled', false)->path('name', 'Source 1');
     $admin->get('/api/admin/migrations')->status(200)->path('pending', []);
-    $admin->post('/api/admin/migrations/apply')->status(200)->path('applied', [])->path('failed', null)->path('error', null);
-    // One apply at a time: while another holds the lock, the next is told so and applies nothing.
-    $lock = T::$app->get(Locks::class)->lock('migrate', 60);
-    check($lock->get(), 'the lock taken');
+    same(['applied' => [], 'failed' => null, 'error' => null, 'note' => null], $admin->post('/api/admin/migrations/apply')->status(200)->json(), 'nothing to apply');
+    // One apply at a time: while another holds the lock every apply takes (the command line's, setup's, another
+    // tab's), the next is told so and applies nothing.
+    $other = Db::pdo(require __DIR__.'/../config/database.local.php', T::$database, false);
+    $other->query('SELECT pg_advisory_lock('.Migrations::LOCK.')');
     try {
-        $admin->post('/api/admin/migrations/apply')->status(409)->path('code', 'migrations_busy');
+        same([409, ['code' => 'busy', 'message' => 'Another database update is running. Nothing was applied. Wait a moment, then look again.']],
+            [($busy = $admin->post('/api/admin/migrations/apply'))->status, $busy->json()], 'busy');
     } finally {
-        $lock->release();
+        $other->query('SELECT pg_advisory_unlock('.Migrations::LOCK.')');
     }
     $admin->get('/api/admin/people')->status(200);
     $admin->delete('/api/admin/people/999')->status(404);
@@ -267,7 +271,7 @@ test('an admin may do everything an editor may, and the admins\' own', function 
 
 // ── The IAM's "sign-in required" ────────────────────────────────────────────────────────────────────
 
-test('when the IAM requires sign-in, nobody gets anything but meta, the strings and the icons - and any token is let in', function () use ($users) {
+test('when the IAM requires sign-in, nobody gets anything but meta, the strings, the icons and the site\'s status - and any token is let in', function () use ($users) {
     seedGenshinCatalog();
     T::$signIn->required = true;
 
@@ -281,6 +285,11 @@ test('when the IAM requires sign-in, nobody gets anything but meta, the strings 
     (new Client)->get('/api/meta')->status(200)->path('auth.login_required', true);
     (new Client)->get('/api/translations/en')->status(200)->path('language', 'en');
     (new Client)->get('/api/icons/c/999999')->status(404)->path('code', 'not_found');
+    // Where the site stands, for anybody and whatever they send: a 401 here would read as "not available".
+    $key = rtrim(strtr(base64_encode(random_bytes(32)), '+/', '-_'), '=');
+    foreach (['nobody' => new Client, 'a visitor key' => (new Client)->withHeaders(['X-Visitor-Key' => $key]), 'a token that does not verify' => (new Client)->withToken('x')] as $who => $client) {
+        same(['state' => 'ready', 'installed' => false], $client->get('/api/site-status')->status(200)->json(), "the site's status, {$who}");
+    }
     same(0, $users(), 'nobody was recorded');
 
     // The IAM decided who may sign in: any token that verifies is let in, MEMBER alone or no role at all.

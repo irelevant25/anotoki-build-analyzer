@@ -27,7 +27,7 @@ use App\App;
 use App\Auth\SignInPolicy;
 use App\Config;
 use App\Db\Db;
-use App\Db\Migrator;
+use App\Db\Migrations;
 use App\Http\HttpClient;
 use App\Support\Clock;
 use Tests\Support\FakeHttpClient;
@@ -93,11 +93,11 @@ function bootTests(): void
         removeTree(T::$storage);
     });
 
-    Migrator::ensureDatabase($server, T::$database);
+    Db::ensureDatabase($server, T::$database);
     $pdo = Db::pdo($server, T::$database, false);
-    $result = (new Migrator($pdo, Migrator::directory()))->applyPending();
-    if ($result['failed'] !== null) {
-        fwrite(STDERR, "migration {$result['failed']} failed: {$result['error']}\n");
+    $result = Migrations::migrator($pdo)->apply();
+    if ($result['busy'] || $result['error'] !== null) {
+        fwrite(STDERR, $result['busy'] ? "the migrations' lock is held: nothing was applied\n" : 'migration '.($result['failed']['name'] ?? '')." failed: {$result['error']}\n");
         exit(1);
     }
 

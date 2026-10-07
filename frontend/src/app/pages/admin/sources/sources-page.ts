@@ -6,12 +6,11 @@ import { MatProgressBarModule } from '@angular/material/progress-bar';
 import { MatSlideToggleModule } from '@angular/material/slide-toggle';
 import { MatSnackBar } from '@angular/material/snack-bar';
 import { MatTooltipModule } from '@angular/material/tooltip';
-import { RouterLink } from '@angular/router';
 import { Observable } from 'rxjs';
 import { Api, errorMessage, fileErrorMessage } from '../../../core/api';
 import { AuthService } from '../../../core/auth';
 import { GAME_LABELS } from '../../../core/format';
-import { GameKey, MigrationStatus, SourceStatus, SyncRunSummary, SyncStartResult } from '../../../core/models';
+import { GameKey, SourceStatus, SyncRunSummary, SyncStartResult } from '../../../core/models';
 import { SyncDriver } from '../../../core/sync-driver';
 import { TimeAgoPipe } from '../../../shared/stat-pipes';
 import { downloadName, saveFile } from '../../../core/download';
@@ -27,11 +26,12 @@ const PAUSED_AFTER_MS = 60_000;
  *
  * Editors and admins sync, read the history and carry builds files; switching a source on or off is an
  * admin's (the page hides it from an editor; the server refuses it anyway). The database's updates are
- * applied on the Migrations page (an admin's): here an admin only reads whether any wait, and gets a link.
+ * applied on the Migrations page (an admin's); while one waits the site gate shows its own page instead of
+ * this one, so nothing here needs to say so.
  */
 @Component({
   selector: 'app-sources-page',
-  imports: [RouterLink, MatButtonModule, MatExpansionModule, MatIconModule, MatProgressBarModule, MatSlideToggleModule, MatTooltipModule, TimeAgoPipe],
+  imports: [MatButtonModule, MatExpansionModule, MatIconModule, MatProgressBarModule, MatSlideToggleModule, MatTooltipModule, TimeAgoPipe],
   templateUrl: './sources-page.html',
   styleUrl: './sources-page.scss',
 })
@@ -47,8 +47,6 @@ export class SourcesPage {
   protected readonly loading = signal(true);
   protected readonly error = signal<string | null>(null);
   protected readonly starting = signal(false);
-  /** The database updates waiting (an admin's alone to read): the note with the link to the Migrations page. */
-  protected readonly migrations = signal<MigrationStatus | null>(null);
   /** The source whose builds file is on its way, and which way. */
   protected readonly transfer = signal<{ key: string; action: 'export' | 'import' } | null>(null);
   /** Ticks every second for the countdowns. */
@@ -71,7 +69,6 @@ export class SourcesPage {
   constructor() {
     this.refresh();
     void this.sync.refresh();
-    this.loadMigrations();
 
     // A run finished: its source's counts and the history changed.
     effect(() => {
@@ -285,13 +282,5 @@ export class SourcesPage {
         this.snackBar.open(errorMessage(err), 'Close');
       },
     });
-  }
-
-  /** Whether database updates wait: an admin's alone to read (an editor would be refused). */
-  private loadMigrations(): void {
-    if (!this.auth.isAdmin()) {
-      return;
-    }
-    this.api.migrations().subscribe({ next: (status) => this.migrations.set(status) });
   }
 }

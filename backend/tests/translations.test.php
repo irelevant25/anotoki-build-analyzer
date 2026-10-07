@@ -15,10 +15,12 @@ declare(strict_types=1);
 
 require __DIR__.'/lib.php';
 
+use Anotoki\Lib\Migrations\Migrator;
 use App\Auth\Role;
 use App\Cli;
 use App\Commands\Translations as TranslationsCommand;
 use App\Db\Db;
+use App\Db\Migrations;
 use App\Presenters\TranslationPresenter;
 use App\Services\Translations\TranslationCheck;
 use App\Services\Translations\TranslationEditor;
@@ -172,15 +174,21 @@ function brokenDatabase(Throwable $failure): Db
     });
 }
 
-/** Runs $body with the app on another database object, and puts the real one back. */
+/**
+ * Runs $body with the app on another database object, and puts the real one back. The site gate, which asks
+ * before any route whether an update waits, keeps asking the real database: what is tested here is the routes'
+ * own use of it.
+ */
 function withDatabase(Db $database, callable $body): void
 {
     $real = T::$app->db();
     T::$app->set(Db::class, $database);
+    T::$app->set(Migrator::class, Migrations::migrator($real->raw()));
     try {
         $body();
     } finally {
         T::$app->set(Db::class, $real);
+        T::$app->forget(Migrator::class);
         T::$app->resetScope();
     }
 }

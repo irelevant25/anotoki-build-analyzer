@@ -15,8 +15,6 @@ import {
   ImportRun,
   LanguageChanges,
   Meta,
-  MigrationResult,
-  MigrationStatus,
   NewLanguage,
   PeopleList,
   PersonDeleted,
@@ -286,13 +284,8 @@ export class Api {
     });
   }
 
-  migrations(): Observable<MigrationStatus> {
-    return this.http.get<MigrationStatus>(`${this.base}/admin/migrations`, { context: this.asPerson() });
-  }
-
-  applyMigrations(): Observable<MigrationResult> {
-    return this.http.post<MigrationResult>(`${this.base}/admin/migrations/apply`, {}, { context: this.asPerson() });
-  }
+  // The site's status and the Migrations page's API (/api/site-status, /api/admin/migrations) are the anotoki
+  // family's module's own requests (@anotoki/lib/migrations, core/site-status.ts), not this service's.
 }
 
 /**

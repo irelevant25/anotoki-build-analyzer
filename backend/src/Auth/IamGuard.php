@@ -28,6 +28,30 @@ final class IamGuard
     /** The token's person, with this application's roles; null when no token was sent or it does not verify. */
     public function user(ServerRequestInterface $request): ?User
     {
+        $token = $this->verified($request);
+
+        return $token === null ? null : $this->users->ensure($token['id'], $token['name'])->withRoles($token['roles']);
+    }
+
+    /**
+     * The token's person as the token alone says - the user id, the name it carries, this application's roles -
+     * with no row of users read or made; null as for user(). For the routes that must answer on a database a
+     * waiting migration has yet to build (the Migrations page's: requireTokenRole() in api/middleware/auth.php).
+     */
+    public function tokenUser(ServerRequestInterface $request): ?User
+    {
+        $token = $this->verified($request);
+
+        return $token === null ? null : (new User($token['id'], $token['name'] ?? "user {$token['id']}"))->withRoles($token['roles']);
+    }
+
+    /**
+     * What a token that verifies says: the IAM user id, its preferred_username, its roles here.
+     *
+     * @return array{id: int, name: string|null, roles: list<string>}|null
+     */
+    private function verified(ServerRequestInterface $request): ?array
+    {
         $token = $this->verifier->bearer($this->authorization($request));
         if ($token === null) {
             if ($this->sentCredentials($request)) {
@@ -45,9 +69,11 @@ final class IamGuard
             return null;
         }
 
-        $name = is_string($claims['preferred_username'] ?? null) ? $claims['preferred_username'] : null;
-
-        return $this->users->ensure($id, $name)->withRoles($this->verifier->roles($claims));
+        return [
+            'id' => $id,
+            'name' => is_string($claims['preferred_username'] ?? null) ? $claims['preferred_username'] : null,
+            'roles' => $this->verifier->roles($claims),
+        ];
     }
 
     /**

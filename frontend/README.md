@@ -20,19 +20,28 @@ signed-in person's choices to the account (`AuthService.savePreferences()`): sig
 language menu and the dates follow the account, which every anotoki site shares; a visitor's stay this
 device's (`core/theme.ts`, `core/i18n/translation.ts`, `core/i18n/date-patterns.ts`).
 
+What the site shows while it is not ready comes from the anotoki family's library, `@anotoki/lib/migrations`
+(the npm package `@anotoki/lib`, installed from its GitHub release's tarball - `package.json`; DEV.md "The shared
+library" says how to update it): the gate around the router outlet (`app.html`) with its page - "The site is
+being updated", "A database update is waiting" for the site's ADMIN, "not set up yet" -, the interceptor that
+hears the server say so, and the admin panel's Migrations page (`pages/admin/migrations/`). `core/site-status.ts`
+wires them to this site (who is ADMIN, how to sign in, the language on the page, the account's dates), and
+`styles.scss` maps this site's colours onto the library's `--anotoki-*` properties, light and dark.
+
 ```text
 src/app/
   core/        api.ts (ISSUED_AS: whose each request is), models.ts, auth.ts + auth.interceptor.ts +
                auth.guards.ts + sign-in.ts (the IAM only), saves-in-flight.ts (a sign-in waits for them),
                visitor-key.ts (somebody not signed in: the key, the move at sign-in), storage.ts, download.ts,
                meta-store.ts, changelog.ts, sync-driver.ts, theme.ts (the account's while signed in, else this
-               device's), i18n/ (the site's words; date-patterns.ts: the account's date order and clock), iam/
+               device's), site-status.ts (the family's site gate and Migrations page, wired to this site),
+               i18n/ (the site's words; date-patterns.ts: the account's date order and clock), iam/
                (the vendored SDK)
   layouts/     top-bar/ (the anotoki family's bar: one row, a phone's menu up to 880 px), footer/ (version,
                What's new), app-layout/ (everybody's pages), admin-layout/ (the admin panel: staff / signed out / no role)
   shared/      brand/ (the anotoki mark, public/anotoki.png), theme-toggle/, language-switcher/, visitor-notice/,
                visitor-hero/, data-card/ ("Your data"), build-detail, item-card, confirm-dialog, ...
-  pages/       dashboard, import, account, character, builds, sign-in, not-set-up;
+  pages/       dashboard, import, account, character, builds, sign-in;
                admin/ (sources, translations, languages, people, migrations - English, under /admin/)
 ```
 

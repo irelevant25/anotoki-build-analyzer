@@ -7,7 +7,8 @@ export type Grade = 'S' | 'A' | 'B' | 'C' | 'D' | '-';
 /**
  * What an error says happened, for a page to word: every error a member can meet carries one beside the
  * server's English `message`. (An import's 422 carries an ImportErrorCode instead; the refusals of the
- * admin-only routes carry none.)
+ * admin-only routes carry none.) `not_set_up` and `update_pending` are the site gate's: no page words them -
+ * the gate shows its own page in the site's place as soon as one arrives (core/site-status.ts).
  */
 export type ApiErrorCode =
   | 'sign_in_required'
@@ -23,6 +24,7 @@ export type ApiErrorCode =
   | 'method_not_allowed'
   | 'server_error'
   | 'not_set_up'
+  | 'update_pending'
   | 'invalid';
 
 /** The parameters of a code or a kind: flat, named, strings and numbers (null where a kind says so). */
@@ -38,7 +40,10 @@ export interface ApiErrorBody {
   params?: KindParams;
   /** With "invalid": every message by field. */
   errors?: Record<string, string[]>;
-  /** With "not_set_up": where the setup page is. */
+  /**
+   * With "not_set_up" - the site gate's answer, as "update_pending" is; for either the gate shows its own page
+   * instead of the site's (core/site-status.ts): where the setup page is, while the site was never installed.
+   */
   setup?: string;
 }
 
@@ -648,26 +653,6 @@ export interface SyncStepResult extends SyncStatus {
 export interface SyncStartResult extends SyncStatus {
   started: SyncRunSummary[];
   skipped: { key: string; name: string; reason: string }[];
-}
-
-/**
- * Database migrations (ADMIN, the admin panel's Migrations page), in the IAM's shape: the files applied, in
- * the order they were, with when (ISO 8601, UTC); and the files in backend/migrations not applied yet, in
- * the order they will run.
- */
-export interface MigrationStatus {
-  applied: { name: string; applied_at: string | null }[];
-  pending: { name: string }[];
-}
-
-/**
- * What "Apply pending" did: the files applied, in order; the one it stopped at (rolled back whole) and why,
- * or null for both when nothing failed.
- */
-export interface MigrationResult {
-  applied: string[];
-  failed: string | null;
-  error: string | null;
 }
 
 /** A build source as the API shows it: "Source 1" with a key like "genshin-1", never the site. */

@@ -1,267 +1,212 @@
-import { HttpErrorResponse } from '@angular/common/http';
+import { provideHttpClient, withInterceptors } from '@angular/common/http';
+import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
 import { signal } from '@angular/core';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
-import { MatDialog } from '@angular/material/dialog';
 import { MatSnackBar } from '@angular/material/snack-bar';
-import { Observable, of, throwError } from 'rxjs';
-import { Api } from '../../../core/api';
+import { provideRouter } from '@angular/router';
+import { SiteStatus, siteStatusInterceptor } from '@anotoki/lib/migrations';
 import { AuthService } from '../../../core/auth';
 import { AnotokiPreferences } from '../../../core/iam/anotoki-auth';
+import { provideTestTranslations } from '../../../core/i18n/testing';
 import { TranslationService } from '../../../core/i18n/translation';
-import { MigrationResult, MigrationStatus } from '../../../core/models';
+import { appliedAt, provideSiteStatus } from '../../../core/site-status';
 import { MigrationsPage } from './migrations-page';
 
-const BEHIND: MigrationStatus = {
+const SET = 'build_analyzer';
+const BEHIND = {
+  sets: [SET],
   applied: [
-    { name: '001_adopt_laravel_database.sql', applied_at: '2026-09-01T08:00:00+00:00' },
-    { name: '002_schema.sql', applied_at: '2026-09-01T08:00:01+00:00' },
-    { name: '003_languages_and_translations.sql', applied_at: '2026-09-20T12:30:00+00:00' },
+    { set: SET, name: '001_adopt_laravel_database.sql', applied_at: '2026-09-01T08:00:00Z' },
+    { set: SET, name: '002_schema.sql', applied_at: '2026-09-01T08:00:01Z' },
+    { set: SET, name: '003_languages_and_translations.sql', applied_at: '2026-09-20T12:30:00Z' },
   ],
-  pending: [{ name: '004_visitors_and_family_bar.sql' }, { name: '005_next.sql' }],
+  pending: [
+    { set: SET, name: '004_visitors_and_family_bar.sql', ready: true, blocked: false },
+    { set: SET, name: '005_retire_not_set_up_page.sql', ready: true, blocked: false },
+  ],
+  missing: [],
 };
-
-const CURRENT: MigrationStatus = {
+const CURRENT = {
+  ...BEHIND,
   applied: [
     ...BEHIND.applied,
-    { name: '004_visitors_and_family_bar.sql', applied_at: '2026-10-04T09:00:00+00:00' },
-    { name: '005_next.sql', applied_at: '2026-10-04T09:00:01+00:00' },
+    { set: SET, name: '004_visitors_and_family_bar.sql', applied_at: '2026-10-07T09:00:00Z' },
+    { set: SET, name: '005_retire_not_set_up_page.sql', applied_at: '2026-10-07T09:00:01Z' },
   ],
   pending: [],
 };
 
-describe('Migrations (ADMIN)', () => {
+/**
+ * jsdom has <dialog> but neither showModal() nor close(): enough of both for the confirmation the family's
+ * page asks before an Apply.
+ */
+function dialogsThatOpen(): void {
+  const dialogs = HTMLDialogElement.prototype;
+  if (typeof dialogs.showModal !== 'function') {
+    dialogs.showModal = function (this: HTMLDialogElement): void {
+      this.setAttribute('open', '');
+    };
+    dialogs.close = function (this: HTMLDialogElement): void {
+      if (this.hasAttribute('open')) {
+        this.removeAttribute('open');
+        this.dispatchEvent(new Event('close'));
+      }
+    };
+  }
+}
+
+/** Lets pending promises, timers of 0 and change detection run out. */
+async function settle(fixture: ComponentFixture<unknown>): Promise<void> {
+  for (let i = 0; i < 3; i++) {
+    await new Promise((done) => setTimeout(done));
+    await fixture.whenStable();
+  }
+}
+
+/** An element's words: its text nodes, one space between them (the templates leave none between their tags). */
+function words(element: Element | null | undefined): string | null {
+  if (!element) {
+    return null;
+  }
+  const walker = document.createTreeWalker(element, NodeFilter.SHOW_TEXT);
+  const parts: string[] = [];
+  for (let node = walker.nextNode(); node; node = walker.nextNode()) {
+    parts.push(node.textContent ?? '');
+  }
+  return parts.join(' ').replace(/\s+/g, ' ').trim();
+}
+
+describe("/admin/migrations: the family's Migrations page in the admin panel (ADMIN)", () => {
   let fixture: ComponentFixture<MigrationsPage>;
   let host: HTMLElement;
-  let api: { migrations: ReturnType<typeof vi.fn>; applyMigrations: ReturnType<typeof vi.fn> };
-  let snackBar: { open: ReturnType<typeof vi.fn> };
-  let dialog: { open: ReturnType<typeof vi.fn> };
-  let reload: ReturnType<typeof vi.fn>;
-  let answer: boolean;
+  let http: HttpTestingController;
+  let status: SiteStatus;
+  let preferences: ReturnType<typeof signal<AnotokiPreferences | null>>;
 
-  /** An element's words: its text nodes without the icons' ligatures, one space between them. */
-  const text = (element: Element | null | undefined) => {
-    const copy = element?.cloneNode(true) as Element | undefined;
-    copy?.querySelectorAll('mat-icon').forEach((icon) => icon.remove());
-    if (!copy) {
-      return undefined;
-    }
-    const walker = document.createTreeWalker(copy, NodeFilter.SHOW_TEXT);
-    const words: string[] = [];
-    for (let node = walker.nextNode(); node; node = walker.nextNode()) {
-      words.push(node.textContent ?? '');
-    }
-    return words.join(' ').replace(/\s+/g, ' ').trim();
-  };
-  const files = (selector: string) => [...host.querySelectorAll(`${selector} .files li`)].map(text);
-  const applyButton = () => host.querySelector<HTMLButtonElement>('button.apply')!;
-
-  /** `account`: the signed-in admin's date order and clock (AuthService.preferences()); none by default. */
-  async function setup(
-    statuses: (MigrationStatus | HttpErrorResponse)[],
-    apply?: Observable<MigrationResult>,
-    account: AnotokiPreferences | null = null,
-  ): Promise<void> {
-    const answers = [...statuses];
-    api = {
-      migrations: vi.fn(() => {
-        const next = answers.length > 1 ? answers.shift()! : answers[0];
-        return next instanceof HttpErrorResponse
-          ? throwError(() => next)
-          : of(structuredClone(next));
-      }),
-      applyMigrations: vi.fn(() => apply ?? of({ applied: [], failed: null, error: null })),
-    };
-    snackBar = { open: vi.fn() };
-    reload = vi.fn(async () => undefined);
-    answer = true;
-    dialog = { open: vi.fn(() => ({ afterClosed: () => of(answer) })) };
+  async function setup(account: AnotokiPreferences | null = null): Promise<void> {
+    dialogsThatOpen();
+    preferences = signal(account);
     TestBed.configureTestingModule({
       providers: [
-        { provide: Api, useValue: api },
-        { provide: MatSnackBar, useValue: snackBar },
-        { provide: MatDialog, useValue: dialog },
-        // The admin panel reads English: `Intl` is given British English there.
-        { provide: TranslationService, useValue: { reload, locale: () => 'en-GB' } },
-        { provide: AuthService, useValue: { preferences: signal(account) } },
+        provideRouter([]),
+        provideHttpClient(withInterceptors([siteStatusInterceptor])),
+        provideHttpClientTesting(),
+        provideSiteStatus(),
+        provideTestTranslations({}),
+        {
+          provide: AuthService,
+          useValue: {
+            user: signal(null),
+            signedIn: () => true,
+            isAdmin: () => true,
+            preferences,
+            lastError: signal(null),
+            login: vi.fn(),
+          },
+        },
+        { provide: MatSnackBar, useValue: { open: vi.fn() } },
       ],
     });
+    http = TestBed.inject(HttpTestingController);
+    status = TestBed.inject(SiteStatus);
+    // An update waits: the one page that shows then, to an ADMIN.
+    status.report('update_pending');
     fixture = TestBed.createComponent(MigrationsPage);
     host = fixture.nativeElement;
-    await fixture.whenStable();
+    await settle(fixture);
+    http.expectOne('/api/admin/migrations').flush(BEHIND);
+    await settle(fixture);
   }
 
-  async function pressApply(): Promise<void> {
-    applyButton().click();
-    await fixture.whenStable();
-    await fixture.whenStable();
-  }
-
-  it('lists what waits in the order it will run, and what was applied with when - in English', async () => {
-    await setup([BEHIND]);
-    expect(text(host.querySelector('h1'))).toBe('Migrations');
-    expect(files('.pending')).toEqual([
-      '004_visitors_and_family_bar.sql pending',
-      '005_next.sql pending',
-    ]);
-    expect(text(host.querySelector('.pending .lead'))).toBe('In the order they will run.');
-    expect(files('.applied').map((line) => line?.split('.sql')[0])).toEqual([
-      '001_adopt_laravel_database',
-      '002_schema',
-      '003_languages_and_translations',
-    ]);
-    expect(files('.applied')[2]).toMatch(
-      /^003_languages_and_translations\.sql \d{1,2} Sep 2026, \d\d:\d\d$/,
+  /** Apply pending, yes - and the server's answer, then the lists as they are after it. */
+  async function apply(answer: object, after: object): Promise<void> {
+    host.querySelector<HTMLButtonElement>('[data-apply]')!.click();
+    await settle(fixture);
+    expect(words(host.querySelector('dialog[data-confirm] h2'))).toBe(
+      'Apply 2 pending migrations?',
     );
-    expect(text(host.querySelector('.applied .lead'))).toBe('3 files');
-    expect(applyButton().disabled).toBe(false);
-    expect(host.querySelector('.page')?.getAttribute('lang')).toBe('en');
+    host.querySelector<HTMLButtonElement>('[data-confirm-apply]')!.click();
+    await settle(fixture);
+    const request = http.expectOne('/api/admin/migrations/apply');
+    expect(request.request.method).toBe('POST');
+    request.flush(answer);
+    await settle(fixture);
+    http.expectOne('/api/admin/migrations').flush(after);
+    await settle(fixture);
+  }
+
+  afterEach(() => http.verify());
+
+  it("reads this site's files and shows them in the admin panel's frame, in English", async () => {
+    await setup();
+    expect(host.querySelector('.page > anotoki-migrations-page')).not.toBeNull();
+    expect(host.querySelector('anotoki-migrations-page')?.getAttribute('lang')).toBe('en');
+    expect(words(host.querySelector('h1'))).toBe('Migrations');
+    expect([...host.querySelectorAll('[data-pending] li')].map(words)).toEqual([
+      '004_visitors_and_family_bar.sql pending',
+      '005_retire_not_set_up_page.sql pending',
+    ]);
+    expect([...host.querySelectorAll('[data-applied] li code')].map(words)).toEqual([
+      '001_adopt_laravel_database.sql',
+      '002_schema.sql',
+      '003_languages_and_translations.sql',
+    ]);
+    expect(words(host.querySelectorAll('[data-applied] li time')[2])).toBe(
+      appliedAt('2026-09-20T12:30:00Z', null, 'en-GB'),
+    );
   });
 
   it("writes when each file was applied in the account's date order and clock, where the admin has chosen them", async () => {
-    const applied = (account: AnotokiPreferences) => {
-      TestBed.resetTestingModule();
-      return setup([BEHIND], undefined, account).then(() => files('.applied')[2]);
-    };
-    // 12:30 UTC, in this computer's time zone - written by hand as the page should write it.
-    const at = new Date('2026-09-20T12:30:00+00:00');
-    const clock = `${String(at.getHours()).padStart(2, '0')}:${String(at.getMinutes()).padStart(2, '0')}`;
+    await setup({ theme: 'auto', date_format: 'ymd_dash', time_format: '24' });
+    const at = new Date('2026-09-20T12:30:00Z');
     const day = `${at.getFullYear()}-${String(at.getMonth() + 1).padStart(2, '0')}-${String(at.getDate()).padStart(2, '0')}`;
-
-    expect(await applied({ theme: 'auto', date_format: 'ymd_dash', time_format: '24' })).toBe(
-      `003_languages_and_translations.sql ${day} ${clock}`,
-    );
-    // Only the order chosen: the page's own clock beside it.
-    expect(await applied({ theme: 'dark', date_format: 'ymd_dash', time_format: null })).toBe(
-      `003_languages_and_translations.sql ${day} ${clock}`,
-    );
-    // Only the clock chosen: the page's own day beside it.
-    expect(await applied({ theme: 'auto', date_format: null, time_format: '12' })).toMatch(
-      /^003_languages_and_translations\.sql \d{1,2} Sep 2026 \d{1,2}:\d\d\s?[ap]m$/i,
-    );
-    // Neither: as the page always wrote it.
-    expect(await applied({ theme: 'auto', date_format: null, time_format: null })).toMatch(
-      /^003_languages_and_translations\.sql \d{1,2} Sep 2026, \d\d:\d\d$/,
-    );
+    const clock = `${String(at.getHours()).padStart(2, '0')}:${String(at.getMinutes()).padStart(2, '0')}`;
+    expect(words(host.querySelectorAll('[data-applied] li time')[2])).toBe(`${day} ${clock}`);
   });
 
-  it('says there is nothing pending, and cannot be pressed then', async () => {
-    await setup([CURRENT]);
-    expect(text(host.querySelector('.pending .nothing'))).toBe(
-      'Nothing pending The database is up to date with the files.',
-    );
-    expect(applyButton().disabled).toBe(true);
-  });
-
-  it('applies after asking - how many, and to make sure of a backup - then says so and reads the strings and the lists again', async () => {
-    await setup(
-      [BEHIND, CURRENT],
-      of({
-        applied: ['004_visitors_and_family_bar.sql', '005_next.sql'],
+  it('applies after asking; once nothing is left the site opens again in this tab, and reads its words again', async () => {
+    await setup();
+    const reload = vi.spyOn(TestBed.inject(TranslationService), 'reload');
+    await apply(
+      {
+        applied: BEHIND.pending.map(({ set, name }) => ({ set, name })),
         failed: null,
         error: null,
-      }),
+        note: null,
+      },
+      CURRENT,
     );
-    await pressApply();
 
-    const question = dialog.open.mock.calls[0][1].data;
-    expect(question.title).toBe('Apply 2 pending migrations?');
-    expect(question.message).toBe(
-      'They run now, against the live database, in order - stopping at the first one that fails. Make sure there is a fresh backup.',
+    expect(words(host.querySelector('[data-result]'))).toBe(
+      'Up to date Applied: 004_visitors_and_family_bar.sql, 005_retire_not_set_up_page.sql.',
     );
-    expect(question.danger).toBe(true);
-    expect(api.applyMigrations).toHaveBeenCalledTimes(1);
-    expect(text(host.querySelector('.outcome'))).toBe(
-      'Up to date Applied: 004_visitors_and_family_bar.sql, 005_next.sql.',
-    );
-    expect(snackBar.open).toHaveBeenCalledWith('Migrations applied.', undefined, {
-      duration: 5000,
-    });
+    expect(status.state()).toBe('ready');
     expect(reload).toHaveBeenCalledTimes(1);
-    expect(api.migrations).toHaveBeenCalledTimes(2);
-    expect(files('.pending')).toEqual([]);
-    expect(applyButton().disabled).toBe(true);
   });
 
-  it('applies nothing when the question is answered no', async () => {
-    await setup([BEHIND]);
-    answer = false;
-    await pressApply();
-    expect(api.applyMigrations).not.toHaveBeenCalled();
-    expect(host.querySelector('.outcome')).toBeNull();
-  });
-
-  it("says where it stopped, what went before, and the database's error - the failed file rolled back whole", async () => {
-    await setup(
-      [
-        BEHIND,
-        { applied: [...BEHIND.applied, CURRENT.applied[3]], pending: [{ name: '005_next.sql' }] },
-      ],
-      of({
-        applied: ['004_visitors_and_family_bar.sql'],
-        failed: '005_next.sql',
-        error: 'statement 2 of 9: SQLSTATE[42P07]: relation "x" already exists',
-      }),
-    );
-    await pressApply();
-
-    const outcome = host.querySelector('.outcome')!;
-    expect(outcome.getAttribute('role')).toBe('alert');
-    expect(text(outcome.querySelector('strong'))).toBe('Stopped at 005_next.sql');
-    expect(text(outcome.querySelector('p'))).toBe(
-      'Applied first: 004_visitors_and_family_bar.sql. The failed file was rolled back as a whole.',
-    );
-    expect(text(outcome.querySelector('pre'))).toBe(
-      'statement 2 of 9: SQLSTATE[42P07]: relation "x" already exists',
-    );
-    expect(snackBar.open).not.toHaveBeenCalled();
-    // 004 was applied: its strings may be there now.
-    expect(reload).toHaveBeenCalledTimes(1);
-    expect(files('.pending')).toEqual(['005_next.sql pending']);
-  });
-
-  it('says there was nothing to apply when another apply got there first', async () => {
-    await setup([BEHIND, CURRENT], of({ applied: [], failed: null, error: null }));
-    await pressApply();
-    expect(text(host.querySelector('.outcome'))).toBe('There was nothing to apply.');
-    expect(reload).not.toHaveBeenCalled();
-    expect(snackBar.open).not.toHaveBeenCalled();
-  });
-
-  it('says what the server said when it refuses - one apply at a time', async () => {
-    const busy = new HttpErrorResponse({
-      status: 409,
-      error: { message: 'The migrations are being applied already.', code: 'migrations_busy' },
-    });
-    await setup(
-      [BEHIND],
-      throwError(() => busy),
-    );
-    await pressApply();
-    expect(snackBar.open).toHaveBeenCalledWith(
-      'The migrations are being applied already.',
-      'Close',
-    );
-    expect(applyButton().disabled).toBe(false);
-    expect(host.querySelector('.outcome')).toBeNull();
-  });
-
-  it('says why the lists could not be read, and reads them again on Try again', async () => {
-    await setup([
-      new HttpErrorResponse({
-        status: 403,
-        error: { message: 'Only an admin can do this.', code: 'admin_only' },
-      }),
+  it("says where it stopped and the database's error - and the site stays closed to everybody else", async () => {
+    await setup();
+    const reload = vi.spyOn(TestBed.inject(TranslationService), 'reload');
+    const error =
+      'statement 1 of 9: SQLSTATE[42P07]: Duplicate table: 7 ERROR:  relation "visitor_ids" already exists\n\n  CREATE SEQUENCE visitor_ids';
+    await apply(
+      {
+        applied: [],
+        failed: { set: SET, name: '004_visitors_and_family_bar.sql' },
+        error,
+        note: null,
+      },
       BEHIND,
-    ]);
-    expect(text(host.querySelector('.load-error-text'))).toBe(
-      'The migrations could not be read. Only an admin can do this.',
     );
-    expect(applyButton().disabled).toBe(true);
-    host.querySelector<HTMLButtonElement>('.load-error button')!.click();
-    await fixture.whenStable();
-    expect(files('.pending')).toEqual([
-      '004_visitors_and_family_bar.sql pending',
-      '005_next.sql pending',
-    ]);
+
+    const result = host.querySelector('[data-result]');
+    expect(result?.getAttribute('role')).toBe('alert');
+    expect(words(result?.querySelector('h2'))).toBe('Stopped at 004_visitors_and_family_bar.sql');
+    expect(words(result?.querySelector('p'))).toBe(
+      'Nothing was applied. The failed file was rolled back as a whole.',
+    );
+    expect(result?.querySelector('pre')?.textContent).toBe(error);
+    expect(status.state()).toBe('update-pending');
+    expect(reload).not.toHaveBeenCalled();
   });
 });

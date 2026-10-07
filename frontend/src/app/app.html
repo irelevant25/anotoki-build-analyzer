@@ -1,11 +1,6 @@
-@if (meta.notSetUp(); as setupUrl) {
-  <!-- Nothing to sign in to and nowhere to go yet: the brand alone over the page that says how to set up. -->
-  <header class="boot-bar">
-    <app-brand [area]="'brand.area' | translate" />
-  </header>
-  <main>
-    <app-not-set-up-page [setupUrl]="setupUrl" />
-  </main>
-} @else {
-  <router-outlet />
-}
+<!-- The gate shows the pages while the site is ready, and its own page while it is not (core/site-status.ts). -->
+<anotoki-site-gate>
+  @if (pagesMade()) {
+    <router-outlet />
+  }
+</anotoki-site-gate>

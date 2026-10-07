@@ -2,10 +2,11 @@
 
 namespace App;
 
+use Anotoki\Lib\Migrations\Migrator;
 use App\Auth\IamSignInPolicy;
 use App\Auth\SignInPolicy;
 use App\Db\Db;
-use App\Db\Migrator;
+use App\Db\Migrations;
 use App\Http\CurlHttpClient;
 use App\Http\Fetcher;
 use App\Http\HttpClient;
@@ -113,8 +114,10 @@ final class App
         return match ($id) {
             Config::class => $this->config,
             Db::class => Db::connect((array) $this->config->get('database')),
-            // The app's migrations folder (a test puts in one of its own, with a file that fails).
-            Migrator::class => new Migrator($this->get(Db::class)->raw(), Migrator::directory()),
+            // The family's migration engine (anotoki/lib) on this site's files and table (App\Db\Migrations): the
+            // site gate asks it whether an update waits, the Migrations page applies with it. A test puts in one
+            // of its own (another folder, a file that fails).
+            Migrator::class => Migrations::migrator($this->get(Db::class)->raw()),
             HttpClient::class => new CurlHttpClient,
             Fetcher::class => new Fetcher($this->get(HttpClient::class), $this->get(Cache\Cache::class), $this->config, $this->web),
             IamTokenVerifier::class => IamTokenVerifier::fromConfig($this->config),

@@ -23,7 +23,7 @@ require __DIR__.'/../../vendor/autoload.php';
 
 use App\Config;
 use App\Db\Db;
-use App\Db\Migrator;
+use App\Db\Migrations;
 use App\Support\Clock;
 use App\Support\Json;
 
@@ -92,11 +92,11 @@ if (! preg_match('#^http://127\.0\.0\.1:\d+$#', $issuer)) {
 }
 $server = browserServer();
 browserDrop($server, BROWSER_DATABASE);
-Migrator::ensureDatabase($server, BROWSER_DATABASE);
+Db::ensureDatabase($server, BROWSER_DATABASE);
 $pdo = Db::pdo($server, BROWSER_DATABASE, false);
-$result = (new Migrator($pdo, Migrator::directory()))->applyPending();
-if ($result['failed'] !== null) {
-    fwrite(STDERR, "migration {$result['failed']} failed: {$result['error']}\n");
+$result = Migrations::migrator($pdo)->apply();
+if ($result['busy'] || $result['error'] !== null) {
+    fwrite(STDERR, $result['busy'] ? "the migrations' lock is held: nothing was applied\n" : 'migration '.($result['failed']['name'] ?? '')." failed: {$result['error']}\n");
     exit(1);
 }
 

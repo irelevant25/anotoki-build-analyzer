@@ -19,7 +19,7 @@ declare(strict_types=1);
 
 require __DIR__.'/lib.php';
 
-use App\Db\Migrator;
+use App\Db\Migrations;
 use App\Repositories\Translations;
 use App\Services\Analysis\BuildEvaluator;
 use App\Services\Import\ImportKinds;
@@ -36,7 +36,7 @@ bootTests();
 function stringMigrations(): array
 {
     $files = [];
-    foreach (glob(Migrator::directory().'/*.sql') ?: [] as $file) {
+    foreach (glob(Migrations::directory().'/*.sql') ?: [] as $file) {
         if (preg_match('/^\s*INSERT\s+INTO\s+translation_keys\b/mi', (string) file_get_contents($file))) {
             $files[] = basename($file);
         }
@@ -132,7 +132,7 @@ function checked(mixed $values, array $english = ['test.hello' => 'Hello, {name}
  */
 function migrationKeys(string $file): array
 {
-    return migrationKeysIn((string) file_get_contents(Migrator::directory().'/'.$file));
+    return migrationKeysIn((string) file_get_contents(Migrations::directory().'/'.$file));
 }
 
 /**

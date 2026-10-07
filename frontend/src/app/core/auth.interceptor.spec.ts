@@ -162,12 +162,12 @@ describe('authInterceptor', () => {
       const api = TestBed.inject(Api);
       let status = 0;
       api.translationGrid().subscribe({ error: (error) => (status = error.status) });
-      api.migrations().subscribe({ error: () => undefined });
+      api.people().subscribe({ error: () => undefined });
       api.exportData().subscribe({ error: () => undefined });
       await settle();
 
       requests.expectNone('/api/admin/translations');
-      requests.expectNone('/api/admin/migrations');
+      requests.expectNone('/api/admin/people');
       requests.expectNone('/api/me/export');
       expect(status).toBe(401);
       expect(visitor.current).not.toHaveBeenCalled();
@@ -339,6 +339,33 @@ describe('authInterceptor', () => {
     requests.expectNone('/api/translations/sk');
     expect(auth.refreshedToken).not.toHaveBeenCalled();
     expect(status).toBe(401);
+  });
+
+  it('leaves the site\'s status alone: no token, no key - a person whose token is gone still learns where the site stands', async () => {
+    visitor.held = KEY_A;
+    auth.accessToken = vi.fn(async () => null);
+    let state: unknown = null;
+    http.get<{ state: string }>('/api/site-status').subscribe((answer) => (state = answer.state));
+
+    // Sent at once, as it is: a person's request with no token would never be sent at all.
+    const request = requests.expectOne('/api/site-status');
+    expect(request.request.headers.has('Authorization')).toBe(false);
+    expect(request.request.headers.has('X-Visitor-Key')).toBe(false);
+    expect(auth.accessToken).not.toHaveBeenCalled();
+    request.flush({ state: 'update_pending', installed: false });
+    expect(state).toBe('update_pending');
+  });
+
+  it('sends the token to the Migrations page\'s API, as to every admin route', async () => {
+    http.get('/api/admin/migrations').subscribe();
+    http.post('/api/admin/migrations/apply', {}).subscribe();
+    // Not the status's address, only one that begins like it.
+    http.get('/api/site-status/more').subscribe();
+    await settle();
+
+    expect(requests.expectOne('/api/admin/migrations').request.headers.get('Authorization')).toBe('Bearer old-token');
+    expect(requests.expectOne('/api/admin/migrations/apply').request.headers.get('Authorization')).toBe('Bearer old-token');
+    expect(requests.expectOne('/api/site-status/more').request.headers.get('Authorization')).toBe('Bearer old-token');
   });
 
   it('still sends the token to the admin panel\'s translation routes', async () => {

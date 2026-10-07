@@ -37,7 +37,10 @@ final class Db
      * A bare PDO connection (the installer and the migration runner connect before any config file exists).
      *
      * A pooled connection may still be inside a transaction its last request died in, hence the ROLLBACK,
-     * which PostgreSQL answers with a warning when there is nothing to roll back.
+     * which PostgreSQL answers with a warning when there is nothing to roll back - and may still hold the
+     * advisory lock an apply of migrations takes for its whole run (anotoki-lib's Migrator, which gives it back
+     * in a `finally` a request that dies never reaches): that is given back too, or every later apply would be
+     * told the database is busy while the site stays closed.
      */
     public static function pdo(array $config, string $database, ?bool $persistent = null, int $timeout = 5): PDO
     {
@@ -51,9 +54,33 @@ final class Db
         $pdo = new PDO($dsn, (string) $config['username'], (string) ($config['password'] ?? ''), $options);
         $pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
         $pdo->setAttribute(PDO::ATTR_DEFAULT_FETCH_MODE, PDO::FETCH_ASSOC);
-        $pdo->exec(($persistent ? 'ROLLBACK; ' : '')."SET TIME ZONE 'UTC'; SET client_encoding = 'UTF8'");
+        $pdo->exec(($persistent ? 'ROLLBACK; SELECT pg_advisory_unlock_all(); ' : '')."SET TIME ZONE 'UTC'; SET client_encoding = 'UTF8'");
 
         return $pdo;
+    }
+
+    /**
+     * Makes the database when it is not there, and answers whether it had to (migration.php, setup.php, the
+     * tests). On most shared hosting the application's user cannot CREATE DATABASE at all; there it is made in
+     * the control panel first and this finds it already there.
+     *
+     * @param  array{host: string, port: string|int, username: string, password?: string|null}  $config
+     */
+    public static function ensureDatabase(array $config, string $name): bool
+    {
+        $server = self::pdo($config, 'postgres', false);
+        $exists = $server->prepare('SELECT count(*) FROM pg_catalog.pg_database WHERE datname = ?');
+        $exists->execute([$name]);
+
+        if ((int) $exists->fetchColumn() > 0) {
+            return false;
+        }
+
+        // The name is the installation's own configuration, never anything a request reaches, and CREATE
+        // DATABASE takes no parameters: quoting it as an identifier is the whole of what can be done.
+        $server->exec('CREATE DATABASE "'.str_replace('"', '""', $name).'"');
+
+        return true;
     }
 
     public function raw(): PDO

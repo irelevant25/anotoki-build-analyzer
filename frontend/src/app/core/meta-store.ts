@@ -1,4 +1,3 @@
-import { HttpErrorResponse } from '@angular/common/http';
 import { Injectable, computed, inject, signal } from '@angular/core';
 import { Api } from './api';
 import { GameKey, GameMeta, Meta } from './models';
@@ -6,8 +5,9 @@ import { GameKey, GameMeta, Meta } from './models';
 /**
  * Game metadata (slot names, stat labels, talent names) and the sign-in settings, loaded once at startup.
  *
- * An installation nobody has set up yet answers every request with 503 {code: "not_set_up", setup: "/setup.php"};
- * notSetUp then holds where to set it up, and the app shows that instead of its pages.
+ * /api/meta answers while a database update waits (the site gate keeps it open: it says where people sign in).
+ * An installation nobody has set up yet answers it 503 not_set_up like every other path: the load gives null,
+ * and the site gate - which heard it too - shows its own page instead of the site's (core/site-status.ts).
  */
 @Injectable({ providedIn: 'root' })
 export class MetaStore {
@@ -15,12 +15,10 @@ export class MetaStore {
   private readonly meta = signal<Meta | null>(null);
 
   readonly loaded = signal(false);
-  /** The setup page to open ("/setup.php") when the server has not been set up yet; null otherwise. */
-  readonly notSetUp = signal<string | null>(null);
   /** How many days a visitor's data is kept after its last visit (the visitor notice): the server's word, else 30. */
   readonly visitorDays = computed(() => this.meta()?.visitors?.keep_days ?? 30);
 
-  /** The metadata, or null when the backend could not be reached. */
+  /** The metadata, or null when the backend could not be reached (or is not set up). */
   load(): Promise<Meta | null> {
     return new Promise((resolve) => {
       this.api.meta().subscribe({
@@ -30,10 +28,7 @@ export class MetaStore {
           resolve(meta);
         },
         // The app still renders (with raw keys) when the backend is down; pages show the error.
-        error: (error: unknown) => {
-          this.notSetUp.set(setupPage(error));
-          resolve(null);
-        },
+        error: () => resolve(null),
       });
     });
   }
@@ -77,17 +72,4 @@ export class MetaStore {
     }
     return Math.round(value).toLocaleString('en-US');
   }
-}
-
-/** Where to set the server up, when this error says it has not been; null for any other error. */
-function setupPage(error: unknown): string | null {
-  if (!(error instanceof HttpErrorResponse) || error.status !== 503) {
-    return null;
-  }
-  const body = error.error as { code?: string; setup?: string } | null;
-  if (body?.code !== 'not_set_up') {
-    return null;
-  }
-  // Only a page of this site, whatever the answer says.
-  return typeof body.setup === 'string' && /^\/[\w.-]+$/.test(body.setup) ? body.setup : '/setup.php';
 }

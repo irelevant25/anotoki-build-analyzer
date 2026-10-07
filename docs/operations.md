@@ -34,8 +34,11 @@ below), and the page cache (`storage/http-cache/`) is pruned (files older than 3
 Everything that differs between installations is in files in `backend/config/`, written by `setup.php` (PHP
 files returning arrays; gitignored, never committed, never uploaded from here). `database.local.php` and
 `auth.local.php` are required: while one is missing or incomplete the API answers every request
-`503 {"code": "not_set_up"}` and the app shows its "Not set up yet" page. `fetch.local.php` is optional: each
-value it leaves out (or all of them, without it) is `Config::FETCH_DEFAULTS`'.
+`503 {"code": "not_set_up", "installed", "message"}` and the app shows the anotoki family's "This site is not
+set up yet" page (the site gate, [architecture.md](architecture.md)) - with the setup page only while the site
+was never installed: once `setup.php` has written `storage/installed.lock` on a host, nobody is sent to it again
+("The site is not available right now" instead). `fetch.local.php` is optional: each value it leaves out (or
+all of them, without it) is `Config::FETCH_DEFAULTS`'.
 
 | File | Keys |
 | --- | --- |
@@ -82,7 +85,8 @@ Build Analyzer -> Settings -> "Sign-in required". The server reads it from the I
 last answer, and with none ever read - or a 404, an application the IAM does not know or switched off - sign-in
 is **required** (fail closed). `/api/meta` relays it to the page (`auth.login_required`), which then sends
 everybody not signed in to the IAM before any page (and keeps a visitor key it holds, unsent). Required: the table's
-first two rows shrink to `/api/meta`, the icons and a language's strings - the builds browser, the sources'
+first two rows shrink to `/api/meta`, the icons, a language's strings and `/api/site-status` (which reads no
+credentials, so the pages always learn where the site stands) - the builds browser, the sources'
 list and every visitor key answer 401 `sign_in_required`, and no visitor is made; a visitor's data waits (the
 clean-up still deletes it 30 days after the last visit), and signing in still moves it into the account.
 **Deploy this version only after the IAM serves that address** (IAM migration 010 and its public route):
@@ -91,7 +95,7 @@ https://iam.anotoki.eu/api/public/applications/build-analyzer` (200, `"login_req
 
 | Who | May |
 | --- | --- |
-| nobody (no token) | `/api/meta`, the icons, a language's strings; while sign-in is not required also the builds browser (`/api/builds/*`), the sources' list (`GET /api/sources`, without who started a run); an import, which makes them a visitor |
+| nobody (no token) | `/api/meta`, the icons, a language's strings, `/api/site-status`; while sign-in is not required also the builds browser (`/api/builds/*`), the sources' list (`GET /api/sources`, without who started a run); an import, which makes them a visitor |
 | a visitor (no token, this browser's `X-Visitor-Key`; only while sign-in is not required) | its own accounts and imports, as a person's - nothing else (no accounts file: sign in first) |
 | a signed-in person (anybody the IAM lets sign in here; `MEMBER`, which every account holds, or no role) | their own accounts and imports, and their accounts as a file (`/api/me/export`, `/api/me/import`) |
 | `EDITOR` | also: syncs and the catalog, the sync history, a source's builds file (export / import), the strings (the Translations page, a language's file), the languages' list |
@@ -275,26 +279,33 @@ map, are in [DEV.md](../DEV.md) ("Deploying"); in short:
    itself.
 4. Sign in with the ADMIN account, press **Refresh catalog**, then **Sync all**, and keep the tab open.
 5. A new version: upload `dist/build-analyzer/*` again (FTP never deletes remote files; old hashed `*.js` are
-   harmless). New migrations show on the admin panel's Migrations page (`/admin/migrations`, ADMIN only)
-   as pending, in the order they will run, beside the applied ones with their dates; the Sources page says
-   that updates wait, with a link. Back the database up first where the panel allows, then **Apply pending**
-   (`POST /api/admin/migrations/apply`): the files run in order, each in its own transaction, and the run
-   stops at the first that fails - that file rolled back whole, the page naming it with the database's error
-   (the log too). One apply at a time (the `migrate` lock: 409 `migrations_busy`; and whatever runs them - the page,
-   `php migration.php`, setup - each file waits on the Migrator's advisory lock, so none runs twice). Nothing on the site waits
-   for it: members keep using it, and signing in and the admin panel work with a migration pending.
-   - **The release that brings the words (migration 003)**: until Apply, the site reads the English compiled
-     into the app - Slovak readers too - and the Translations and Languages pages say to apply the update
-     first; afterwards the words come from the database. The tab that pressed Apply reads them at once; another
-     tab that was open keeps its words until its next navigation or reload.
-   - **A later release that adds strings shows their keys until Apply is pressed** (the owner's decision: a
-     missing string shows its key). Upload and press Apply in one sitting.
+   harmless). **While a new migration waits the site is closed** (the site gate - the anotoki family's one
+   behaviour, the owner's decision of 2026-10-07): the API answers every path 503 `update_pending` (`Retry-After:
+   60`) but `/api/meta`, a language's strings, `/api/site-status` and the Migrations page's API; everybody reads
+   "The site is being updated" in their language - their page asks again every 30 seconds and comes back by
+   itself - and the site's ADMIN, signed in, reads "A database update is waiting" with **Open Migrations**
+   (signed out: that page's quiet **Sign in** goes to the IAM and back). The Migrations page (`/admin/migrations`,
+   ADMIN only, the one page that works then) lists the waiting files in the order they will run beside the
+   applied ones with their dates and SQL. Back the database up first where the panel allows, then **Apply
+   pending** (`POST /api/admin/migrations/apply`) at once: the files run in order, each in its own transaction,
+   and the run stops at the first that fails - that file rolled back whole, the page naming it with the
+   database's error (the log too). One apply at a time, whoever runs it - the page, `php migration.php`, setup:
+   each takes the same advisory lock, and another is told it is busy (409 `busy`) and does nothing. Once nothing
+   is left, the site is open again.
+   - **The release that brings the words (migration 003)**: until Apply the site is closed; the page that
+     applies it reads the words at once, and every other tab when it comes back.
+   - **A release that adds strings**: they are there once Apply is pressed - until then the site is closed
+     anyway (only the ADMIN's frame of the Migrations page may show a new key). Upload and press Apply in one
+     sitting.
+   - **This version: the family's site gate and Migrations page (anotoki-lib 0.1.0, migration 005)**: upload
+     with `vendor/` (it holds `vendor/anotoki/lib`), then Apply 005 on the Migrations page - it only deletes the
+     six words of the old "Not set up yet" page. From then on every upload with a migration closes the site
+     until it is applied, and a site whose `storage/installed.lock` is there never offers the setup page again.
    - **Version 0.3: visitors and the family's bar (migration 004, IAM migration 007)**, in this
      order: (1) before uploading, make sure an account that can sign in holds **ADMIN on `build-analyzer` now**
      (the IAM's admin panel; IAM 007 is what later gives every IAM administrator ADMIN here); (2) upload;
-     (3) sign in with that ADMIN at once and **Apply pending** (004) on the Migrations page - until then visitors get 503
-     `visitors_unavailable`, and the new top bar and footer show their keys where words should be (their
-     strings are in 004); members can still use their accounts; (4) then apply **IAM 007** (`build-analyzer` open to
+     (3) sign in with that ADMIN at once and **Apply pending** (004) on the Migrations page - until then the site is
+     closed to everybody else; (4) then apply **IAM 007** (`build-analyzer` open to
      everyone, roles ADMIN and EDITOR, no MEMBER) - not before the upload: the old code asks for MEMBER, which
      007 removes. If nobody holds ADMIN here before the upload, apply IAM 007 right after the upload (the old
      code is gone by then) and Apply 004 next. Then check: a private window imports a file without signing
@@ -367,7 +378,10 @@ accounts again and sync (cached pages make it quick).
 
 | Symptom | Where to look |
 | --- | --- |
-| "Not set up yet" page / 503 `not_set_up` | a `config/*.local.php` is missing or incomplete; `storage/logs/app.log` says which; run `setup.php` |
+| "This site is not set up yet" / "The site is not available right now" with 503 `not_set_up` | a `config/*.local.php` is missing or incomplete; `storage/logs/app.log` says which; run `setup.php` (on a host whose `storage/installed.lock` is there the page never offers it: upload `setup.php` and delete the lock by FTP to run it again) |
+| "The site is being updated" for everybody / 503 `update_pending` | a migration waits: sign in as an ADMIN (the page's Sign in), Open Migrations, Apply pending; on a computer with a shell `php migration.php` does the same |
+| "The site is not available right now", no `not_set_up` | `/api/site-status` says `unavailable`: the database cannot be reached (the log has the error) |
+| Apply answers 409 `busy` | another apply holds the lock (another tab, `migration.php`, setup): wait, then look again |
 | Source status `failed` / `partial` | Sources page run log or `sync_runs.log`; use the `debug-build-sync` skill |
 | Builds getting old, no failed runs | nobody synced: syncs only run when an editor starts them (Sources page) |
 | A sync shows "paused" | no Sources page is stepping it: press Resume (runs keep their place indefinitely) |

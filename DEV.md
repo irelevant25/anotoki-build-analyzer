@@ -41,6 +41,10 @@ these steps (configuration keys, sign-in and roles, syncs, troubleshooting) is [
    cd ../frontend && bun ci
    ```
 
+   Both bring the anotoki family's shared library, **anotoki-lib** (the migration engine, the site gate and the
+   Migrations page; see "The shared library" below), from GitHub: Composer `anotoki/lib` from the repository
+   `irelevant25/anotoki-lib`, the frontend `@anotoki/lib` from that repository's release tarball.
+
 2. Start the two servers, each in its own terminal:
 
    ```bash
@@ -48,9 +52,11 @@ these steps (configuration keys, sign-in and roles, syncs, troubleshooting) is [
    cd frontend && npm start               # bun ci, then ng serve on http://localhost:4600
    ```
 
-3. Open http://localhost:4600. A copy that has not been set up says so and links to **setup.php**
-   (http://localhost:4600/setup.php). Opened on this computer, setup needs no token and can be run again at any
-   time. It asks for two things:
+3. Open http://localhost:4600. A copy that has not been set up says so ("This site is not set up yet", the
+   anotoki family's page) and links to **setup.php** (http://localhost:4600/setup.php) - as long as it was never
+   installed: setup on a host writes `storage/installed.lock`, and from then on nobody is offered the setup page
+   again; on this computer it never writes it. Opened on this computer, setup needs no token and can be run
+   again at any time. It asks for two things:
    - **Database**: host, port (`5432`), database name (`anotoki_builder`), user and password of your
      PostgreSQL. "Test connection" answers as every anotoki setup page does: connected and empty, N update(s)
      to apply, up to date, not there yet (Save creates it), or why it cannot connect.
@@ -91,11 +97,15 @@ longer read and can be deleted.
 | Import from the command line | `backend: php import-account.php genshin 700123456 --user=1` or `… hsr path/to/export.json --user=1 --account=3` (`--user`: whose account, an IAM user id - required) |
 | Reword the site's strings, add or hide a language | the Translations page (editors) and the Languages page (adding, renaming, switching, deleting a language: admins); or `backend: php translations.php [--status \| --export=sk [file] \| --import=sk file]` |
 | Change the configuration | run `setup.php` again (the password field left empty keeps the saved one) |
+| Update the shared library (anotoki-lib) | see "The shared library" below |
 
 - **Database changes** are new files in `backend/migrations/` (`NNN_what_it_does.sql`), applied in order by
-  `migration.php`, by the Migrations page's "Apply pending" and by `setup.php` - the same engine. Never edit a migration
-  that has been applied somewhere; add another. A migration that changes data ends with a `DO $$ … $$` block
-  that checks the result and raises an exception (rolling the migration back) when it is wrong.
+  `migration.php`, by the Migrations page's "Apply pending" and by `setup.php` - the same engine (anotoki-lib's,
+  on this site's files and table: `backend/src/Db/Migrations.php`). Never edit a migration that has been applied
+  somewhere; add another. A migration that changes data ends with a `DO $$ … $$` block that checks the result
+  and raises an exception (rolling the migration back) when it is wrong. **While a migration waits the site is
+  closed** (the site gate): everybody but the ADMIN on the Migrations page reads "The site is being updated" -
+  on this computer too, so after pulling a new migration run `php migration.php` (or Apply on the page).
 - **API changes**: the shapes live in `backend/src/Presenters/` and are mirrored in
   `frontend/src/app/core/models.ts`; change both together.
 - **Nothing names another site** in the UI or in what the API sends to be shown: build sources are "Source 1",
@@ -110,6 +120,33 @@ longer read and can be deleted.
 - **A new release**: add an entry at the top of `frontend/public/changelog.json` (version, date, and what
   changed, in plain words for the people using the app) and raise `backend/src/Version.php` to the same
   version. The version shows at the foot of every page, beside the button that opens "What's new".
+
+## The shared library (anotoki-lib)
+
+What the anotoki sites share lives in one library, [irelevant25/anotoki-lib](https://github.com/irelevant25/anotoki-lib),
+in two halves with one version: the Composer package `anotoki/lib` (`backend/composer.json`: a `vcs` repository
+entry and `"anotoki/lib": "^0.1"`; installed into `backend/vendor/`, which the upload carries) and the npm
+package `@anotoki/lib` (`frontend/package.json`: the release's tarball). Version 0.1.0 holds the migrations
+module, one behaviour for every anotoki site while its database is not ready:
+
+- the engine (`Anotoki\Lib\Migrations\Migrator`), on this site's files and bookkeeping table through
+  `backend/src/Db/Migrations.php` - `migration.php`, `setup.php`, the Migrations page and the tests;
+- the site gate in front of every API route (`SiteState`, `SiteGate`: `backend/api/middleware/site_gate.php`),
+  `GET /api/site-status`, and the Migrations page's API (`MigrationsRoutes`: `backend/api/routes/admin.php`);
+- in the frontend, the gate around the router outlet with its page, and the Migrations page
+  (`frontend/src/app/core/site-status.ts` wires them to this site).
+
+To update it, both halves together (while its version is 0.x a minor version may break: read its
+`CHANGELOG.md` first):
+
+```bash
+cd backend && composer update anotoki/lib --prefer-dist   # after raising the constraint in composer.json, where the new version needs it
+cd frontend && bun install && npx -y npm@11 install      # after putting the new release's tarball URL in package.json: both lock files
+```
+
+Composer reads the library through GitHub's API, 60 requests an hour without a token; when it stops on that
+limit, wait for the reset (`https://api.github.com/rate_limit` says when). It is installed from GitHub only,
+never from a local copy. Then run the tests, the production build and the browser check.
 
 ## Testing
 
@@ -133,8 +170,9 @@ one, and drops it at the end.
 The browser check (the `verify-ui` skill) runs the site end to end in headless Edge, signed in through the
 stand-in IAM, on a throwaway database - nobody, a visitor's import and the move at sign-in, a member's own
 data, an editor and an admin, the top bar at 360-1280 px in light and dark with a real Tab press, Slovak at
-390 px with no key on the page, and the account's theme, dates and language saved from the bar to the
-stand-in IAM:
+390 px with no key on the page, the account's theme, dates and language saved from the bar to the
+stand-in IAM, and the site while an update waits and while it is not set up (the site gate's pages, the
+Migrations page, Sign in from the waiting page):
 
 ```bash
 node .claude/skills/verify-ui/scripts/run.mjs [--no-build] [--keep]   # from the root; ports 8590 and 8597
@@ -160,7 +198,7 @@ key families, and every seeded string against the checks a save makes. A new str
 The host needs Apache with `.htaccess` support (`mod_rewrite`), **PHP 8.4+** with `pdo_pgsql`, `openssl`,
 `mbstring`, `curl` and `dom`, and a **PostgreSQL** database made in the hosting panel. No shell, cron job,
 queue worker or long-running process is needed: files go up by FTP, the database is built by `setup.php` and
-later changed from the Sources page.
+later changed on the admin panel's Migrations page.
 
 1. **Build** on your computer: `cd backend && php tools/build.php`. It builds the frontend and assembles:
 
@@ -197,23 +235,28 @@ later changed from the Sources page.
    ([docs/operations.md](docs/operations.md), "Moving builds between installations").
 
 **A new version**: build again and upload `dist/build-analyzer/*` over the old files (FTP never deletes remote
-files; old hashed `*.js` do no harm). When it brings new migrations, the admin panel's Migrations page lists
-them as pending (the Sources page says they wait); back the database up (hosting panel) and press **Apply
-pending** there (an ADMIN). `config/*.local.php` and
-`storage/` stay as they are.
+files; old hashed `*.js` do no harm). When it brings new migrations, **the site is closed from the moment the
+files are up until they are applied** (the site gate, as on every anotoki site): everybody else reads "The
+site is being updated" in their language, and their page comes back by itself once the update is in;
+signed in as the site's ADMIN you read "A database update is waiting" with **Open Migrations** - the one page
+that works then (not signed in: that page's **Sign in** brings you back to it). Back the database up (hosting
+panel) and press **Apply pending** there at once. `config/*.local.php` and `storage/` stay as they are.
 
 - **The release that brings the site's words** (migration 003): upload, then press **Apply pending** on the
   Migrations page. Until then the site reads the English compiled into the app - Slovak readers too - and afterwards its
   words come from the database. A tab that was open keeps its words until its next navigation or reload.
-- **A later release that adds strings shows their keys until Apply is pressed** (a missing string shows its
-  key, by the owner's decision). Upload and press Apply in one sitting.
+- **A release that adds strings**: they are there once Apply is pressed - and until then the site is closed
+  anyway. Upload and press Apply in one sitting.
 - **Version 0.3: visitor accounts and the family's bar** (migration 004, then the IAM's migration 007),
   in this order: make sure an account holds ADMIN on `build-analyzer` in the IAM *before* uploading; upload;
-  sign in with it and press **Apply pending** on `/admin/migrations` at once (until then visitors get 503
-  `visitors_unavailable`, and the new bar and footer show their keys where words should be - members can
-  still use their accounts); then apply IAM 007. If nobody holds ADMIN here yet, apply IAM 007 right after the upload, then
+  sign in with it and press **Apply pending** on `/admin/migrations` at once (until then the site is closed to
+  everybody else); then apply IAM 007. If nobody holds ADMIN here yet, apply IAM 007 right after the upload, then
   Apply. Then check in a private window that a file imports without signing in and stays after a reload. The
   whole sequence: [docs/operations.md](docs/operations.md), "Deploying".
+- **The family's site gate and Migrations page** (anotoki-lib 0.1.0, migration 005): upload `vendor/` with the
+  rest (it holds `vendor/anotoki/lib`), then Apply on `/admin/migrations` - 005 only deletes the six words of
+  the old "Not set up yet" page. From this version on every upload with a migration closes the site until it
+  is applied, and the setup page is never offered again once `storage/installed.lock` is there.
 - **The IAM's sign-in switch** (IAM SDK 1.1.0): upload only once the IAM answers
   `https://iam.anotoki.eu/api/public/applications/build-analyzer` with 200 - before that the site requires
   sign-in (fail closed) and turns visitors away. [docs/operations.md](docs/operations.md), "Deploying".

@@ -3,6 +3,49 @@
 Short records of choices that shape the code. Add a new entry (newest first) when you make a similar call.
 Older entries describe the Laravel version as it was; where a setting has since moved, the entry says so.
 
+**2026-10-07 — One behaviour while the database is not ready: the anotoki family's library, anotoki-lib 0.1.0 (the owner's decision, for the whole family).**
+The owner: "When there is a new migration, some sites behave differently than others. Japanese won't let me go
+to the admin or anywhere if I am not logged in, but I cannot log in because a migration is waiting. Genshin
+gives me no warning. Piano and survey show me a setup error with buttons to the setup page or the migrations
+page. This needs to be consistent. I do not want logged-in users or visitors to see the error about what is
+going on. The admin should see it. If the setup was already done it should never offer that button again,
+especially as setup.php is no longer there." The migrations went into one library, `irelevant25/anotoki-lib`
+(Composer `anotoki/lib`, npm `@anotoki/lib`, one version, installed from GitHub), and every site takes its
+engine and its behaviour. Here:
+- *A waiting migration closes the site* - which reverses the 2026-10-04 choice that nothing here waits for one:
+  the site gate (`api/middleware/site_gate.php`) answers every path 503 `update_pending` (`Retry-After: 60`) but
+  `/api/meta` (where people sign in), a language's strings and the Migrations page's API (`SITE_OPEN_PATHS`,
+  each a route exactly - never a prefix, which a crafted `…/migrations/../x` would get past; nothing else is
+  opened, so no route runs on tables a waiting file has yet to make). Everybody reads "The site
+  is being updated" in their language - no error, no code, only a quiet Sign in while nobody is signed in - and
+  the page comes back by itself; the site's ADMIN reads "A database update is waiting" and reaches the
+  Migrations page, the one page that works then. `translations_unavailable` and `visitors_unavailable` stay
+  behind the gate, a second line.
+- *Signing in works while an update waits* (the Japanese site's deadlock): the boot does not stop - `/api/meta`
+  and the strings stay open, the sign-in and its callback complete with the IAM, the router navigates - and the
+  Migrations routes judge ADMIN from the token alone (`requireTokenRole()`: no row of `users` read or made, so
+  even a database with nothing in it lets its ADMIN apply everything from the browser). Same 401 / 403 bodies.
+  `/api/site-status` reads no credentials and answers anybody in every state - also while the IAM requires
+  sign-in, which otherwise leaves nobody only meta, the strings and the icons: a 401 there would read on the
+  pages as "not available".
+- *Not set up*: the setup page is offered only while the site was never installed (`storage/installed.lock`,
+  which setup.php writes on a host); once installed, "The site is not available right now" - never the button.
+- *The engine is the library's*: `src/Db/Migrator.php` went; `src/Db/Migrations.php` keeps this site's own - one
+  set (`build_analyzer`), the Laravel table moved aside in `prepare`, the `build_analyzer.*` settings in
+  `beforeFile`, the advisory-lock number the old engine took (an older copy and this one never apply at once).
+  The bookkeeping table stays exactly as it was (a test holds a new database's to the old shape). The `migrate`
+  row in `cache_locks` went: one apply at a time is the library's advisory lock, 409 `busy` (was
+  `migrations_busy`), whoever applies. The routes' shapes are the library's (`{sets, applied, pending, missing}`;
+  `{applied, failed, error, note}` with `{set, name}` files; a file's SQL), as are the 503 bodies.
+- *Frontend*: the site's "Not set up yet" page and its Migrations page went - the library's gate around the router
+  outlet, its status page and its Migrations page took their place, in this site's colours (the `--anotoki-*`
+  properties from the `--app-*` and Material tokens, light and dark) and with the account's dates. The Sources
+  page's "updates waiting" note went too: nothing behind the gate could show it. The old page's six words
+  (`notSetUp.*`) are deleted by migration 005, as the catalogue test asks of a key nothing uses.
+- *Rejected*: keeping this site open while an update waits (the 2026-10-04 choice: one behaviour for the family,
+  and a route on a half-migrated database is a risk); the old page's words for the gate's page (the family's are
+  the same everywhere, in English and Slovak, and the library takes overrides should a language ever need its own).
+
 **2026-10-06 — The theme, the dates and the language are the account's while somebody is signed in (the owner's decision, for the whole family).**
 The owner: "it should be in the iam only and apply for every project/application"; asked, a site's own
 controls save to the account for a signed-in person, and one theme everywhere - every site, every area of it,
@@ -99,8 +142,10 @@ app's pages, beside the sign-in's tokens in localStorage, so the site trusts who
   each file's transaction first takes a PostgreSQL advisory lock and looks again whether the file is recorded,
   so an apply that outlives the 300 s `migrate` lock, or `php migration.php` meanwhile, waits and then runs
   nothing twice (before, `ON CONFLICT DO NOTHING` recorded a data migration applied twice as once). The
-  `migrate` lock stays: it answers "busy" at once instead of a wait.
+  `migrate` lock stays: it answers "busy" at once instead of a wait. (Since 2026-10-07 the page, the engine and
+  the lock are anotoki-lib's - see there.)
 - *Apply left the Sources page*: it only says that updates wait, with a link to Migrations, for an admin.
+  (Since 2026-10-07 a waiting migration closes the site and the note is gone - see there.)
   Nothing on this site waits for a pending migration (no "being updated" page): members keep using it, the
   routes that need the new tables answer 503 `translations_unavailable` / `visitors_unavailable`, and those
   sentences (and the Languages / Translations pages, which link it for an admin) now name the Migrations page.

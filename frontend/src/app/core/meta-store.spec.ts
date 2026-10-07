@@ -62,24 +62,17 @@ describe('MetaStore', () => {
     expect(store.loaded()).toBe(false);
     expect(store.statLabel('genshin', 'critRate_')).toBe('critRate_');
     expect(store.formatStat('hsr', 'spd', 134.5)).toBe('134.5');
-    expect(store.notSetUp()).toBeNull();
   });
 
-  it('says where to set up a server that has not been set up', async () => {
+  it('gives nothing for a server that has not been set up - the site gate says so, not this', async () => {
     const loaded = store.load();
     http
       .expectOne('/api/meta')
-      .flush({ code: 'not_set_up', message: 'Not set up.', setup: '/setup.php' }, { status: 503, statusText: 'Service Unavailable' });
+      .flush(
+        { code: 'not_set_up', installed: false, message: 'This site is not set up yet. Its setup page connects it to its database.', setup: '/setup.php' },
+        { status: 503, statusText: 'Service Unavailable' },
+      );
     expect(await loaded).toBeNull();
-    expect(store.notSetUp()).toBe('/setup.php');
-  });
-
-  it('takes no setup address that leads elsewhere', async () => {
-    const loaded = store.load();
-    http
-      .expectOne('/api/meta')
-      .flush({ code: 'not_set_up', setup: 'https://elsewhere.example/setup.php' }, { status: 503, statusText: 'Service Unavailable' });
-    await loaded;
-    expect(store.notSetUp()).toBe('/setup.php');
+    expect(store.loaded()).toBe(false);
   });
 });

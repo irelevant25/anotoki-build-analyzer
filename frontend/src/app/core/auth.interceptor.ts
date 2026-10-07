@@ -5,11 +5,12 @@ import { API_BASE, CARRIES_VISITOR_KEY, Caller, ISSUED_AS, VISITOR_KEY_HEADER } 
 import { AuthService } from './auth';
 import { errorCode } from './i18n/error-text';
 import { SavesInFlight } from './saves-in-flight';
+import { SITE_STATUS_URL } from './site-status';
 import { VisitorKey } from './visitor-key';
 
 /**
- * Who a request of this app's own API is (never another origin's, never the site's words) - decided when the
- * request was ISSUED (`ISSUED_AS`, which Api sets from the app's state as it makes the request; a request
+ * Who a request of this app's own API is (never another origin's, never the site's words, never the site's
+ * status - both are anybody's, asked with neither token nor key) - decided when the request was ISSUED (`ISSUED_AS`, which Api sets from the app's state as it makes the request; a request
  * without it is decided here, as it is handed over), never from whether a token happens to be there when it
  * leaves:
  *
@@ -33,7 +34,7 @@ import { VisitorKey } from './visitor-key';
  * for them before it leaves the page.
  */
 export const authInterceptor: HttpInterceptorFn = (request, next) => {
-  if (!isApiRequest(request.url) || isTranslationsRequest(request.url)) {
+  if (!isApiRequest(request.url) || isTranslationsRequest(request.url) || isSiteStatusRequest(request.url)) {
     return next(request);
   }
   const auth = inject(AuthService);
@@ -145,6 +146,20 @@ export function isApiRequest(url: string): boolean {
 export function isTranslationsRequest(url: string): boolean {
   try {
     return new URL(url, window.location.href).pathname.startsWith(`${API_BASE}/translations/`);
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * "/api/site-status": where the site stands, which the server tells anybody (core/site-status.ts). It is asked
+ * at the start and again by the waiting page, so it goes without a token - never waiting for one to be
+ * refreshed, never refused for want of one (a person's request with no token is never sent, and an unsent
+ * status reads as "not available") - and without a visitor's key.
+ */
+export function isSiteStatusRequest(url: string): boolean {
+  try {
+    return new URL(url, window.location.href).pathname === SITE_STATUS_URL;
   } catch {
     return false;
   }

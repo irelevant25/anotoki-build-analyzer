@@ -1,34 +1,58 @@
-import { Component, effect, inject, untracked } from '@angular/core';
+import { Component, computed, effect, inject, untracked } from '@angular/core';
+import { toSignal } from '@angular/core/rxjs-interop';
 import { MatSnackBar } from '@angular/material/snack-bar';
-import { RouterOutlet } from '@angular/router';
+import { NavigationEnd, Router, RouterOutlet } from '@angular/router';
+import { SiteGateComponent, SiteStatus } from '@anotoki/lib/migrations';
+import { filter, map } from 'rxjs';
 import { AuthService } from './core/auth';
 import { Changelog } from './core/changelog';
-import { TranslatePipe } from './core/i18n/translate';
 import { TranslationService } from './core/i18n/translation';
 import { LocalizationDrafts } from './core/localization-drafts';
-import { MetaStore } from './core/meta-store';
+import { MIGRATIONS_ROUTE } from './core/site-status';
 import { ThemeService } from './core/theme';
 import { VisitorKey } from './core/visitor-key';
-import { NotSetUpPage } from './pages/not-set-up/not-set-up-page';
-import { Brand } from './shared/brand/brand';
 
 /**
- * The shell: only the boot decision. Not set up -> the "not set up yet" page under the brand alone (there is
- * nothing to sign in to, nothing to link to); else the router, whose two layouts draw the family's top bar
- * and the footer (layouts/app-layout for everybody's pages, layouts/admin-layout for /admin).
+ * The shell: the router, whose two layouts draw the family's top bar and the footer (layouts/app-layout for
+ * everybody's pages, layouts/admin-layout for /admin) - inside the anotoki family's site gate
+ * (@anotoki/lib/migrations, core/site-status.ts). While the site is not ready the gate shows its page instead:
+ * "being updated" (with a quiet Sign in while nobody is signed in) to everybody but the site's ADMIN, who reads
+ * that a database update waits and reaches the Migrations page - the one page that shows then; "not set up yet"
+ * with the setup page only while the site was never installed; "not available right now" otherwise.
  *
  * And what belongs to no page: the theme (applied before the first page draws), What's new once per version,
  * and the snack bar that says what moved from a visitor into an account after a sign-in.
  */
 @Component({
   selector: 'app-root',
-  imports: [RouterOutlet, NotSetUpPage, Brand, TranslatePipe],
+  imports: [RouterOutlet, SiteGateComponent],
   templateUrl: './app.html',
   styleUrl: './app.scss',
 })
 export class App {
-  protected readonly meta = inject(MetaStore);
+  private readonly siteStatus = inject(SiteStatus);
   private readonly auth = inject(AuthService);
+  private readonly router = inject(Router);
+  private readonly url = toSignal(
+    this.router.events.pipe(
+      filter((event): event is NavigationEnd => event instanceof NavigationEnd),
+      map((event) => event.urlAfterRedirects),
+    ),
+    { initialValue: this.router.url },
+  );
+  /**
+   * Whether the router's pages are made at all. The gate projects them, and projected content is made whether
+   * or not the gate shows it: closed, the pages would still be built out of sight, send their requests (each a
+   * 503) and leave what those say in the services they share - a sync's "stopped" for the Sources page after
+   * an Apply in this tab, a snack bar over the gate's page. So while the site is not ready they are not made,
+   * but for the ADMIN on the Migrations route: the gate's own condition, a little wider (any state, any route
+   * under it), so that the gate never opens on nothing.
+   */
+  protected readonly pagesMade = computed(
+    () =>
+      !this.siteStatus.blocked() ||
+      (this.auth.isAdmin() && this.url().split(/[?#]/)[0].startsWith(MIGRATIONS_ROUTE)),
+  );
   private readonly changelog = inject(Changelog);
   private readonly i18n = inject(TranslationService);
   private readonly snackBar = inject(MatSnackBar);
@@ -44,10 +68,10 @@ export class App {
 
   constructor() {
     // What is new since this browser last looked - for somebody who has used the site before (signed in, or
-    // holding a visitor key); a first visit is never interrupted.
+    // holding a visitor key), while the site is there to use; a first visit is never interrupted.
     effect(() => {
       if (
-        !this.meta.notSetUp() &&
+        !this.siteStatus.blocked() &&
         (this.auth.signedIn() || this.visitor.key() !== null) &&
         this.changelog.current()
       ) {

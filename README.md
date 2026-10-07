@@ -143,12 +143,20 @@ when 0.3 is handed over and deployed: on the host Apply pending on the Migration
 after the upload - and only then the IAM's migration 007 (DEV.md, docs/operations.md). The browser check
 (`node .claude/skills/verify-ui/scripts/run.mjs`) goes through all of it on a throwaway database.
 
+**While the site is not ready** it behaves as every anotoki site does (the family's shared library,
+[anotoki-lib](https://github.com/irelevant25/anotoki-lib), and the owner's decision of 2026-10-07): while a
+database update waits, everybody reads "The site is being updated" in their language (a quiet Sign in while
+nobody is signed in) and the page comes back by itself once it is applied; the site's ADMIN reads "A database
+update is waiting" and reaches the Migrations page, the one page that works then. Not set up yet: the setup
+page is offered only while the site was never installed - never again after `setup.php` finished on a host.
+
 ## Deploying
 
 The host needs only Apache, PHP 8.4 and PostgreSQL, with files uploaded by FTP: no shell, cron or worker.
 `php tools/build.php` (in `backend/`) assembles `dist/` (the whole web root, with `vendor/` and the built frontend, and no
 configuration or tests); `setup.php` writes the host's configuration and builds the database; later database
-updates are applied from the Sources page. The steps and the upload map: [DEV.md](DEV.md)
+updates are applied on the admin panel's Migrations page by an ADMIN, at once after the upload - until then the
+site tells everybody else it is being updated. The steps and the upload map: [DEV.md](DEV.md)
 ("Deploying").
 
 ## Project layout
@@ -156,7 +164,7 @@ updates are applied from the Sources page. The steps and the upload map: [DEV.md
 ```text
 backend/
   api/                  the front controller (index.php), app.php, middleware/, routes/
-  src/                  App (container), Config, Db/ (PDO + migration engine), Auth/, Http/ (fetcher),
+  src/                  App (container), Config, Db/ (PDO; the site's migrations on anotoki-lib's engine), Auth/, Http/ (fetcher),
                         Cache/, Models/, Repositories/, Presenters/, Commands/, Setup/, Support/ (stats,
                         talents, keys, neutral text; Iam/ = the IAM's token verifier, vendored)
   src/Services/         Catalog/ (game catalog, name resolution), Import/ (showcase + file parsers,
@@ -171,12 +179,13 @@ backend/
   setup.php, router.php, migration.php, sync-builds.php, sync-catalog.php, import-account.php, translations.php
 frontend/src/app/
   core/                 API client, models, metadata store, changelog, sign-in (iam/ = the IAM's browser SDK), the
-                        visitor key, sync driver, i18n/ (the site's words: service, pipes, the compiled English), game terms
+                        visitor key, sync driver, i18n/ (the site's words: service, pipes, the compiled English), game
+                        terms, site-status (anotoki-lib's site gate and Migrations page, wired to this site)
   layouts/              admin-layout (the admin panel's frame)
   shared/               build detail, item card, grade badge, changelog dialog, confirm dialog, the visitor notice,
                         the ways in for somebody new, the "Your data" card, ...
-  pages/                dashboard, import wizard, account, character analysis, builds, sign-in, not set up;
-                        admin/ (sources, translations, languages, people)
+  pages/                dashboard, import wizard, account, character analysis, builds, sign-in;
+                        admin/ (sources, translations, languages, people, migrations)
 frontend/public/        changelog.json, favicon
 docs/                   knowledge base (start at docs/README.md)
 .claude/                project skills and agents for AI-assisted work

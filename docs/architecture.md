@@ -28,10 +28,10 @@ other anotoki sites (the genshin site, the IAM).
 | --- | --- | --- |
 | Entry points | `api/index.php` (front controller, `/api/*`), `api/app.php` (`buildAnalyzerApi()`: routes + middleware), `router.php` (PHP's built-in server in development), `setup.php` (installer) | the tests call `buildAnalyzerApi()` in-process |
 | Routes | `api/routes/{meta,icons,accounts,imports,visitor,me,builds,sources,sync,admin,translations,people}.php` | each returns `function (Slim\App $slim, App $app)`; the sign-in or role check sits on each route group |
-| Middleware | `api/middleware/errors.php` (JSON errors), `security.php` (headers), `setup_gate.php` (503 `not_set_up`), `auth.php` (`requireSignIn()`, `requireOwner()`, `requireRole()`, `optionalSignIn()`, `currentUser()`, `currentUserOrNull()`, `throttle()`) | Slim runs the last one added first |
+| Middleware | `api/middleware/errors.php` (JSON errors), `security.php` (headers), `site_gate.php` (the site gate - anotoki-lib's `SiteState` and `SiteGate`: 503 `not_set_up` / `update_pending`, its open paths), `auth.php` (`requireSignIn()`, `requireOwner()`, `requireRole()`, `requireTokenRole()`, `optionalSignIn()`, `currentUser()`, `currentUserOrNull()`, `throttle()`) | Slim runs the last one added first |
 | Wiring | `src/App.php` (a small container: `get()` builds a class once per request scope, `resetScope()`), `src/Config.php` | `Db` and the HTTP client last the whole process; everything else is per request |
 | Configuration | `config/app.php` (committed: sources, catalog, showcase, aliases), `config/{database,auth}.local.php` (per installation, written by `setup.php`; required) and `fetch.local.php` (optional, `Config::FETCH_DEFAULTS` without it) | no `.env`; one environment variable, `BUILD_ANALYZER_TEST_CONFIG`, for the browser check alone (a settings folder standing in for `config/` and `storage/`, honoured only for a `build_analyzer_test_` database) |
-| Database | `src/Db/Db.php` (PDO helpers: `one`, `all`, `value`, `insert`, `update`, `run`, `transaction`), `src/Db/Migrator.php` | always parameterised; identifiers are literals in the code |
+| Database | `src/Db/Db.php` (PDO helpers: `one`, `all`, `value`, `insert`, `update`, `run`, `transaction`; `ensureDatabase()`), `src/Db/Migrations.php` (this site's files and bookkeeping table on the anotoki family's engine, anotoki-lib's `Migrator`) | always parameterised; identifiers are literals in the code |
 | Rows | `src/Models/*` (plain classes made from rows), `src/Repositories/*` (the queries) | `Accounts::findOwned()` / `owned()` scope every account query to its owner |
 | Domain basics | `src/Enums/Game.php`, `src/Support/{Stats,Talents,Key,MainStatValues}.php` | slots, stat keys, label parsing; see [stats-and-slots.md](stats-and-slots.md) |
 | Sign-in | `src/Auth/{IamGuard,UserProvisioner,Role}.php`, `src/Support/Iam/IamTokenVerifier.php` (+ the vendored `anotoki_iam.php`); the stand-in IAM of the tests `tests/tools/fake-iam.php` | see "Sign-in" below |
@@ -50,13 +50,36 @@ other anotoki sites (the genshin site, the IAM).
 | People | `api/routes/people.php`, `src/Repositories/Users.php` (`withCounts()`, `visitorCounts()`, `deletePerson()`) | ADMIN: who used the site, and deleting a person's data |
 | Deploy | `tools/build.php` | `dist/` (beside `backend/`), the web root to upload; see DEV.md "Deploying" |
 
-### Setup gate
+### The site gate
 
-`Config::load()` reads `config/app.php`, the two required local files and `fetch.local.php` when it is there.
-When a required one is missing or incomplete (no database, no IAM issuer or client id), every
-API request is answered `503 {"code": "not_set_up", "message": …, "setup": "/setup.php"}` (the log says which
-file and which value), and the frontend shows its "Not set up yet" page instead of its pages. There is no
-default database or IAM to fall back on.
+One behaviour for every anotoki site while it is not ready (the shared library anotoki-lib, the owner's
+decision of 2026-10-07 - [decisions.md](decisions.md)). For every request the server decides where the site
+stands (`api/middleware/site_gate.php`: `siteState()`), afresh each time:
+
+| State | When | What the API answers |
+| --- | --- | --- |
+| not set up | `Config::load()` found a required local file missing or incomplete (no database, no IAM issuer or client id; the log says which file and which value) | every path `503 {"code": "not_set_up", "installed": …, "message": …}`, with `"setup": "/setup.php"` only while the site was never installed - `storage/installed.lock`, which `setup.php` writes when it finishes on a real host (never on this computer) |
+| update pending | a migration file is ready to apply | every path `503 {"code": "update_pending", "message": "The site is being updated. Try again in a few minutes."}` with `Retry-After: 60` - but the open paths (`SITE_OPEN_PATHS`): `/api/meta` (where people sign in), `/api/translations/{code}` (the pages' words; its route answers `translations_unavailable` itself while the tables are not there) and the Migrations page's three routes, `/api/admin/migrations`, `…/file` and `…/apply` (an ADMIN's, judged from the token alone: `requireTokenRole()`). Each is a route exactly, never a prefix: the gate reads the path decoded, as the router does, and neither resolves dot segments, so a crafted `/api/admin/migrations/../x` (or `%2e%2e`, `%2F`) stays closed |
+| unavailable | the database cannot be reached | everything passes: the routes answer as they do without a database (500 `server_error`) |
+| ready | otherwise | everything passes |
+
+`GET /api/site-status` always answers `{state, installed}` - how the pages learn which - to anybody: it reads no
+credentials, so it answers while the IAM requires sign-in too (a 401 would read on the pages as "not
+available"), and the frontend sends it neither token nor visitor key (`core/auth.interceptor.ts`). The gate sits inside
+the JSON errors and in front of routing, so an unknown path is a 503 too while the site is closed. There is
+no default database or IAM to fall back on. The routes that need the newer tables keep their own 503s
+(`translations_unavailable`, `visitors_unavailable`) as a second line, for whatever reaches them with the
+tables missing.
+
+The frontend (`@anotoki/lib/migrations`, wired in `core/site-status.ts`): `SiteStatus.check()` at the start,
+beside `/api/meta` (`app.config.ts`); `siteStatusInterceptor` hears any 503 `not_set_up` / `update_pending`;
+`<anotoki-site-gate>` around the router outlet (`app.html`) shows the gate's page instead of the site:
+"The site is being updated" in the reader's language to everybody (a quiet Sign in while nobody is signed in;
+it asks again every 30 s and reloads once the site is back), "A database update is waiting" with Open
+Migrations to the site's ADMIN - the Migrations page (`/admin/migrations`) is the one page that shows then -,
+"This site is not set up yet" with the setup page only while never installed, "The site is not available right
+now" otherwise. Nothing in the boot stops while an update waits: the sign-in (and its callback) completes, the
+words are asked for.
 
 ### Sign-in
 
@@ -85,7 +108,7 @@ default database or IAM to fall back on.
   `application_file` (the IAM's answer from a file: the tests' seam); a host sets none of them.
 - **Sign-in required**: every route answers nobody - and a visitor key - 401 `sign_in_required`, but
   `/api/meta`, `/api/translations/{code}` and `/api/icons/*` (what the sign-in page needs, and `<img>`s, which
-  send no token). The key is refused before it is looked up (`requireOwner()`), so no visitor is seen,
+  send no token), and `/api/site-status` (where the site stands, which every page asks first). The key is refused before it is looked up (`requireOwner()`), so no visitor is seen,
   counted, made or swept early; the move at sign-in (token and key) still works, so what a visitor imported
   comes into the account when they sign in, and switching the requirement off again within 30 days brings the
   key back. **Not required**: the site as below - the builds browser for everybody, visitors.
@@ -110,9 +133,10 @@ default database or IAM to fall back on.
   is required), `requireOwner()` for one's
   own accounts and imports (the signed-in person, else this browser's visitor - below), `requireSignIn()` for
   what only a signed-in person has (the accounts file `/api/me/*`, the move `/api/visitor/move`),
-  `requireRole(...Role::STAFF)` for the editors' routes (403 `editor_only`) and `requireRole(Role::ADMIN)` for
-  the admins' own (403 `admin_only`). `/api/meta`, `/api/icons/*` and `/api/translations/{code}` read no token
-  at all.
+  `requireRole(...Role::STAFF)` for the editors' routes (403 `editor_only`), `requireRole(Role::ADMIN)` for
+  the admins' own (403 `admin_only`) and `requireTokenRole(Role::ADMIN)` for the Migrations page's (the same
+  answers from the token alone - no row of `users` read or made -, as they answer while an update waits).
+  `/api/meta`, `/api/icons/*`, `/api/translations/{code}` and `/api/site-status` read no token at all.
 
 ### Visitors
 
@@ -149,7 +173,8 @@ reaches exactly what `requireOwner()` guards - its own accounts and imports, thr
 - **Moved** at sign-in by `POST /api/visitor/move` (token and key): `Users::moveVisitor()`, one transaction,
   the visitor's row then the person's locked; the person's copy of a game account both have stays. A person
   whose row an admin deleted meanwhile is 401 `sign_in_required` with nothing moved (`Visitors::ownerGone()`).
-- **Before migration 004** every visitor path answers 503 `visitors_unavailable` and the clean-up does nothing.
+- **Before migration 004** the site gate closes the site until it is applied; behind it, every visitor path
+  answers 503 `visitors_unavailable` (a second line) and the clean-up does nothing.
 - `/api/meta` sends `visitors.keep_days` for the page's notice; the People page counts visitors apart and never
   lists them.
 - **In the browser** (`frontend/src/app/core/visitor-key.ts`, see "Frontend"): the key is kept in
@@ -326,8 +351,10 @@ upload overwrites the build: a string is a key the code names and a value per la
 | `POST /api/sync/catalog` `{games?}` | editor | refresh the game catalog |
 | `GET /api/sync`, `POST /api/sync/step` | editor | the active runs and `wait_ms`; do one bounded step |
 | `GET /api/sync-runs`, `GET /api/sync-runs/{id}`, `POST /api/sync-runs/{id}/cancel` | editor | history (`?source=`, `?kind=`), log, cancel |
-| `GET /api/admin/migrations` | admin | `{applied: [{name, applied_at}], pending: [{name}]}` - the IAM's shape: the files applied, in order, with when (UTC); the files not applied yet, in the order they will run |
-| `POST /api/admin/migrations/apply` | admin | applies every pending file in order, each in its own transaction, stopping at the first that fails: `{applied: [name], failed: name\|null, error: string\|null}` (200 either way; the failed file rolled back whole); 409 `migrations_busy` while another apply runs (the `migrate` lock; each file's transaction also takes the Migrator's advisory lock and passes over a file another run recorded meanwhile). No shell on the host; the same engine as `migration.php` and setup. These routes never ask whether the database is behind |
+| `GET /api/site-status` | anyone, always (the gate lets it through) | `{state: ready\|not_set_up\|update_pending\|unavailable, installed}` - nothing else (anotoki-lib's `MigrationsRoutes::status`) |
+| `GET /api/admin/migrations` | admin (from the token alone; open while an update waits) | `{sets: ["build_analyzer"], applied: [{set, name, applied_at}], pending: [{set, name, ready, blocked}], missing: [{set, name, applied_at}]}` - the files applied, in order, with when (UTC, `…Z`); the files not applied yet, in the order they will run; files recorded but not on disk (anotoki-lib's `MigrationsRoutes::admin`) |
+| `GET /api/admin/migrations/file?set=&name=` | admin (likewise) | `{set, name, sql}` of one of the set's files; 404 `not_found` for anything else (no path tricks) |
+| `POST /api/admin/migrations/apply` | admin (likewise) | applies every pending file in order, each in its own transaction with its record, stopping at the first that fails: `{applied: [{set, name}], failed: {set, name}\|null, error: string\|null, note: null}` (200 either way; the failed file rolled back whole; `error` is `statement N of M: <the database's message>` and the statement's first lines); 409 `busy` while another apply holds the advisory lock every apply takes (the page, `migration.php`, setup). No shell on the host; the same engine as `migration.php` and setup. Given five minutes and not cut short when the browser goes; the log says what was applied and where it stopped |
 | `GET /api/translations/{code}` | anyone (no token read) | the bundle: `{language, languages (the offered ones), values, english?}`, the language's strings with English underneath; ETag and 304 |
 | `GET /api/admin/languages` | editor | the languages, hidden ones too, with their string counts |
 | `POST /api/admin/languages`, `PUT/DELETE /api/admin/languages/{code}` | admin | add one / change name, native name, offered, order / delete one and its strings (never `en` or `sk`) |
@@ -347,14 +374,18 @@ string or language the checks refuse - with the key and the language; a write to
 `visitor_limit` `{limit: accounts | file_size, max}`; an accounts file not read, `{code, params}`: `no_file`,
 `file_too_big` `{max_mb}`, `not_a_data_file`, `newer_version` `{version}`, `bad_entry` `{path}`, `too_many_accounts`
 `{max}`, and an export too large for one file, `export_too_big` `{max_mb, max_accounts}`), 429 (`too_many_imports`; `too_many_visitors`, which says to sign in), 503
-`not_set_up`, 503 `translations_unavailable` from the translation routes until migration 003 is applied, 503
-`visitors_unavailable` from the visitor paths until migration 004 is, and 503 `visitor_move_retry` (ask again).
+`not_set_up` and `update_pending` (the site gate's: `{code, message}`, `not_set_up` with `installed` and - only
+while never installed - `setup`; see "The site gate"), 503 `translations_unavailable` from the translation routes
+while the tables of migration 003 are not there, 503 `visitors_unavailable` from the visitor paths while 004's
+columns are not (both behind the gate: a second line), and 503 `visitor_move_retry` (ask again). The Migrations
+page's API answers its own: 404 `not_found` (a file that is none of the set's), 409 `busy`.
 
 ## Frontend (`frontend/`, Angular 21 + Angular Material 21)
 
 - `core/api.ts` typed client (`API_BASE = '/api'`, same origin) + `errorMessage()`; `core/models.ts` mirrors the
   API responses (keep in step with the presenters); `core/meta-store.ts` loads `/api/meta` at startup (labels,
-  formatting, sign-in settings) and notices a server that is not set up (`notSetUp`); `core/format.ts` colors
+  formatting, sign-in settings); `core/site-status.ts` wires the family's site gate and Migrations page
+  (`@anotoki/lib/migrations`) to this site - see "The site gate" above; `core/format.ts` colors
   and time helpers; `core/changelog.ts` loads `public/changelog.json` (the version shown in the footer, and
   "What's new" once per release per browser); `core/theme.ts` (`ThemeService`: light, dark or the device's, a
   class on `<html>`, kept in localStorage `build-analyzer-theme`; signed in at an IAM that keeps the
@@ -430,9 +461,10 @@ string or language the checks refuse - with the key and the language; a write to
   for the tab and the IAM person who typed it, and the one `beforeunload` question),
   `core/unsaved-changes.guard.ts` (`unsavedChangesGuard`, `canDeactivate` on both routes),
   `shared/confirm-dialog`.
-- The frame: `app.ts` is the boot decision only (not set up -> the brand alone over the "not set up yet" page;
-  else the router) plus what belongs to no page - the theme on `<html>`, What's new to somebody who has used
-  the site before (signed in, or holding a visitor key), the move's snack bar. Two layouts draw the rest:
+- The frame: `app.ts` is the router inside the site gate (`<anotoki-site-gate>`: the gate's own page while the
+  site is not ready - see "The site gate") plus what belongs to no page - the theme on `<html>`, What's new to
+  somebody who has used the site before (signed in, or holding a visitor key) while the site is there to use,
+  the move's snack bar. Two layouts draw the rest:
   `layouts/app-layout/` (every page outside `/admin`: `<app-top-bar area="app">`, the page, the footer) and
   `layouts/admin-layout/` (`area="admin"`). The footer (`layouts/footer/`): "Version 0.3 · What's new".
 - The top bar (`layouts/top-bar/`, the anotoki family's bar - the survey's is the reference; here Angular
@@ -480,12 +512,13 @@ string or language the checks refuse - with the key and the language; a write to
   somebody not signed in, `visitor-hero` instead of an error), `builds` (list + per character; the Sources page
   is a link for staff, its name alone for anybody else), `admin/sources` (staff: sources, running syncs with
   pause / resume / cancel, a source's builds exported and imported as a file - `build-file.ts` checks a chosen
-  file before anything is sent; an admin also switches sources, and reads there that database updates wait,
-  with a link), `admin/translations` (staff), `admin/languages` and `admin/people` (admin: everybody who signed
-  in, what they keep, Delete their data after a confirmation; visitors only counted), `admin/migrations`
-  (admin, the IAM's page: Pending in the order they will run, Applied with their dates, Apply pending after a
-  confirmation, and after it "Up to date", "There was nothing to apply" or "Stopped at <file>" with what was
-  applied first and the database's error; the strings are read again when anything was applied), `sign-in`, `not-set-up`. Lazy-loaded
+  file before anything is sent; an admin also switches sources), `admin/translations` (staff), `admin/languages`
+  and `admin/people` (admin: everybody who signed in, what they keep, Delete their data after a confirmation;
+  visitors only counted), `admin/migrations` (admin: the family's `<anotoki-migrations-page>` in the panel's
+  `.page` - Pending in the order they will run, Applied with their dates in the account's order and clock and each
+  file's SQL, Apply pending after a confirmation, and after it "Up to date", "There was nothing to apply" or
+  "Stopped at <file>" with what was applied first and the database's error; once nothing is left the site opens
+  again in the tab and the strings are read again), `sign-in`. Lazy-loaded
   from `app.routes.ts`; route params arrive as signal inputs (`withComponentInputBinding`).
 - Conventions: standalone components, always three files (`.ts`, `.html`, `.scss`), signals (`signal`,
   `computed`, `input`), `inject()`, built-in control flow (`@if`, `@for`, `@let`), zoneless change detection,

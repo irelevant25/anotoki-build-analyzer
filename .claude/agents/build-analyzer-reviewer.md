@@ -38,15 +38,21 @@ Correctness first:
   (only the Bearer scheme counts: `Basic` is no credentials). Whether sign-in is required is the IAM's switch,
   read only through `App\Auth\SignInPolicy` (the vendored SDK's `anotoki_iam_login_required()`; never a fetch
   of the site's own): while it is on, `optionalSignIn()` and `requireOwner()` answer nobody and any visitor key
-  401 `sign_in_required` - the key refused before `Visitors::find()` - and only `/api/meta`, the strings and the
-  icons stay open; a new route without a sign-in check must decide what it does then. MEMBER is an ordinary
+  401 `sign_in_required` - the key refused before `Visitors::find()` - and only `/api/meta`, the strings, the
+  icons and `/api/site-status` (the site gate's, reading no credentials: a 401 there would read as "not
+  available") stay open; a new route without a sign-in check must decide what it does then. MEMBER is an ordinary
   person: no check needs or refuses it. Tests keep the fixed policy (`T::$signIn`) and never call a real
   issuer. Every
   route sits in a group with its check: public `optionalSignIn` (never per-person data, never `started_by`),
   own data `requireOwner`, what only a signed-in person has `requireSignIn` (the own accounts file
   `/api/me/*`, the move; `visitors.test.php` lists them as refused to a visitor), the editors' `requireRole(...Role::STAFF)` (syncs, sync history, builds files, the
-  strings, the languages' list), the admins' `requireRole(Role::ADMIN)` (sources on / off, migrations, adding /
-  renaming / switching / deleting a language, People); `auth.test.php`'s route lists name every one.
+  strings, the languages' list), the admins' `requireRole(Role::ADMIN)` (sources on / off, adding /
+  renaming / switching / deleting a language, People) and, for the Migrations page's routes, `requireTokenRole(Role::ADMIN)`
+  (the same answers from the token alone: they answer while an update waits); `auth.test.php`'s route lists name every one.
+  The site gate (anotoki-lib's, `api/middleware/site_gate.php`) answers every path 503 `not_set_up` /
+  `update_pending` but its open paths (`SITE_OPEN_PATHS`: meta, a language's strings, the Migrations page's three
+  routes - each a route exactly, never a prefix: the gate does not resolve `..`, `%2e%2e` or `%2F`, and neither
+  does the router): a route opened there must answer on a database without the waiting migration's tables.
   Visitors (`src/Auth/Visitors.php`): only `requireOwner()` reads `X-Visitor-Key` (a visitor never passes
   `requireSignIn` / `requireRole`, never has a role); a bad token never falls back to the key; the key is
   never logged, never in a body or a URL - only the response header of the import that made the visitor, with

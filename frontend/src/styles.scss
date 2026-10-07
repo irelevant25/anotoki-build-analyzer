@@ -28,6 +28,24 @@ html {
   --app-primary-soft-text: var(--mat-sys-primary);
   --app-shadow-lg: 0 12px 32px rgb(0 0 0 / 16%), 0 2px 6px rgb(0 0 0 / 10%);
   --topbar-height: 60px;
+
+  // The anotoki family's shared pages (@anotoki/lib/migrations: the site gate's page while the site is not
+  // ready, and the admin panel's Migrations page) in this site's colours. Each is a light-dark() token of the
+  // site's or Material's own, so both pages follow the theme - the toggle's and the device's - light and dark.
+  --anotoki-bg: var(--app-bg);
+  --anotoki-surface: var(--app-surface);
+  --anotoki-text: var(--app-text);
+  --anotoki-muted: var(--app-muted);
+  --anotoki-border: var(--app-border);
+  --anotoki-primary: var(--mat-sys-primary);
+  --anotoki-primary-contrast: var(--mat-sys-on-primary);
+  --anotoki-danger: var(--mat-sys-error);
+  --anotoki-danger-contrast: var(--mat-sys-on-error);
+  --anotoki-success: var(--grade-a);
+  // The grades' orange as text (a file's "pending" badge): drawn toward the text colour, so it reads on light
+  // and on dark alike - the orange itself is too faint on white for small words.
+  --anotoki-warning: color-mix(in srgb, var(--grade-c) 70%, var(--app-text));
+  --anotoki-radius: 12px;
   // The anotoki mark (a dark navy picture, shared/brand) in the bar: the family's soft shadow in light; in dark a
   // light halo (below), or it sinks into the dark bar. A filter, so not light-dark(): set per theme.
   --mark-shadow: drop-shadow(0 2px 6px rgb(0 0 0 / 18%));

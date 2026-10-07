@@ -11,7 +11,6 @@ const NAMESPACES = [
   'title',
   'error',
   'signIn',
-  'notSetUp',
   'dashboard',
   'importWizard',
   'importGuide',

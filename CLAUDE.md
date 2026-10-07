@@ -8,7 +8,7 @@ through the anotoki IAM only - on the owner's computer too - and every anotoki a
 (each person has their own accounts; every account holds MEMBER, an ordinary person here); the builds browser and
 the sources' freshness are public - unless the IAM's "Sign-in required" switch for the application is on, which
 the server reads from the IAM (SDK 1.1.0, `App\Auth\SignInPolicy`) and relays in `/api/meta`
-(`auth.login_required`): then nobody and no visitor key gets anything but meta, the strings and the icons. Roles here:
+(`auth.login_required`): then nobody and no visitor key gets anything but meta, the strings, the icons and the site's status (`/api/site-status`, which reads no credentials). Roles here:
 EDITOR runs the syncs and rewords the site's strings; ADMIN does that and also switches sources, applies
 database updates, adds and deletes languages and deletes a person's data. Deployable on FTP-only shared
 hosting: no shell, cron, queue worker or long-running process. The member pages read in English or Slovak:
@@ -27,10 +27,21 @@ host it is applied on the Migrations page (Apply pending) by an ADMIN at once af
 007 (docs/operations.md, "Deploying 0.3"). The browser check (`verify-ui`) runs all of it on a throwaway
 database with the stand-in IAM.
 
+**The shared library, anotoki-lib** (`irelevant25/anotoki-lib` on GitHub: Composer `anotoki/lib` ^0.1 through a
+`vcs` repository, npm `@anotoki/lib` from its release tarball - never a local path; DEV.md "The shared library"
+says how to update both halves together) holds the migrations module, the family's one behaviour while a site
+is not ready (the owner's decision of 2026-10-07, docs/decisions.md): its engine runs this site's files
+(`App\Db\Migrations`), and **the site gate** answers every API path 503 while the site is not set up
+(`not_set_up`, the setup page only while never installed: `storage/installed.lock`) or a migration waits
+(`update_pending`) - but `/api/meta`, the strings of a language, `/api/site-status` and the Migrations page's
+API. The frontend shows the gate's page instead of the site: "being updated" to everybody, "A database update
+is waiting" and the Migrations page to the ADMIN. So **every upload with a migration closes the site until an
+ADMIN applies it** - apply at once.
+
 ## How to work in this repo
 
 1. **Read the knowledge base page for the area you touch** before changing it — `docs/README.md` is the index:
-   architecture (incl. setup gate, sign-in, neutral names, syncs and the site's words), data model and migrations, stats & slots,
+   architecture (incl. the site gate, sign-in, neutral names, syncs and the site's words), data model and migrations, stats & slots,
    name matching, build sources, import formats, analysis, operations (configuration, commands, sign-in modes,
    deploying, machine quirks, troubleshooting), decisions. Setup, running, testing and deploying for people:
    `DEV.md`.
@@ -70,7 +81,8 @@ database with the stand-in IAM.
   gitignored, written by `backend/setup.php`; no `.env`. One environment variable, for the browser check
   alone: `BUILD_ANALYZER_TEST_CONFIG` names a settings folder that stands in for `config/` and `storage/` -
   honoured only for a `build_analyzer_test_` database (anything else is "not set up"). Without the two the API
-  answers 503 `not_set_up`. Setup asks for the database and the IAM only (defaults `anotoki_builder`, port
+  answers 503 `not_set_up` (the site gate's: with the setup page only while `storage/installed.lock` is not
+  there). Setup asks for the database and the IAM only (defaults `anotoki_builder`, port
   5432). Sign-in is the IAM's, always: a `mode` or `local_user_id` left in an older `auth.local.php` is ignored
   and opens nothing.
 - Database times are UTC (`TIMESTAMPTZ`). Nothing is scheduled.
@@ -80,8 +92,8 @@ database with the stand-in IAM.
 ## Commands
 
 ```bash
-cd backend && php tests/run.php                      # backend tests (throwaway databases, 22 files, ~285 tests)
-(cd frontend && npx ng build && npx ng test --watch=false)   # Vitest: 50 spec files, ~565 tests
+cd backend && php tests/run.php                      # backend tests (throwaway databases, 23 files, ~293 tests)
+(cd frontend && npx ng build && npx ng test --watch=false)   # Vitest: 50 spec files, ~572 tests
 node .claude/skills/verify-ui/scripts/run.mjs [--no-build] [--keep]   # the browser check (8590 + 8597, a throwaway database)
 cd backend && composer start                         # API: php -S localhost:8400 router.php (+ setup.php, + the built app)
 cd frontend && npx ng serve                          # http://localhost:4600, proxies /api and /setup.php
@@ -97,10 +109,10 @@ cd backend && php tools/build.php [--skip-frontend]  # ../dist/: what to upload 
 ## Code map (backend paths under `backend/`)
 
 - Entry: `api/index.php` → `api/app.php` (`buildAnalyzerApi()`), `api/routes/*.php`, `api/middleware/*.php`; container `src/App.php`, config `src/Config.php`
-- Database: `src/Db/Db.php` (PDO helpers), `src/Db/Migrator.php`, `migrations/*.sql`; rows `src/Models/*`, queries `src/Repositories/*`
+- Database: `src/Db/Db.php` (PDO helpers, `ensureDatabase()`), `src/Db/Migrations.php` (this site's files on anotoki-lib's `Migrator`), `migrations/*.sql`; rows `src/Models/*`, queries `src/Repositories/*`
 - Stats & slots: `src/Support/Stats.php`, `src/Enums/Game.php`, `src/Support/Talents.php` (canonical keys: `critRate_`, `atk_`, `spd`, `pyro_dmg_`…)
-- Sign-in: `src/Auth/IamGuard.php` (the token, nothing else - only the Bearer scheme counts; + `UserProvisioner`, `Role`: ADMIN, EDITOR, STAFF), `src/Support/Iam/` (the vendored IAM SDK 1.1.0 + the verifier's wrapper), whether sign-in is required `src/Auth/SignInPolicy.php` (`IamSignInPolicy`: the SDK's `anotoki_iam_login_required()`, kept in `storage/cache/iam/`; the tests' `tests/support/FixedSignInPolicy.php`, `T::$signIn`, `realSignInPolicy()`), `api/middleware/auth.php` (`requireSignIn`, `requireOwner`, `requireRole`, `optionalSignIn`, `currentUser[OrNull]`); the stand-in IAM `tests/tools/fake-iam.php` (also the IAM's public answer about the application, `login_required` false by default, and the account's `preferences` with `POST /api/oidc/preferences` for a person given them); frontend `core/auth.ts` (`AuthService`: `available`, `signedIn`, `loginRequired` - the IAM's switch from `/api/meta`, `isStaff`, `isAdmin`, `preferences` + `savePreferences()` - the account's theme, date order and clock, SDK 1.2.0, null for a visitor or an IAM before its 015; `login()` waits for `core/saves-in-flight.ts`), `core/api.ts` (`ISSUED_AS`: each request is the person's or the visitor's as it is issued), `core/auth.interceptor.ts` (the token - or, with none, the request is never sent - for a person's request, the visitor key for a visitor's while sign-in is not required), `core/auth.guards.ts` (`signInGuard` on `/admin`, a visitor too; `siteSignInGuard` on everybody's pages: sign-in first while required, a refused sign-in shown once; `adminOnlyGuard`), `core/sign-in.ts` (`signInOrSayWhy()`), `core/iam/` (vendored browser SDK 1.2.0), `layouts/admin-layout/`
-- Migrations (ADMIN, the IAM's page): `api/routes/admin.php` (`GET /api/admin/migrations` {applied: [{name, applied_at}], pending: [{name}]}, `POST /api/admin/migrations/apply` {applied, failed, error} under the `migrate` lock, 409 `migrations_busy`), `src/Db/Migrator.php` (`status()`, `applyPending()`; each file under an advisory lock, never twice; the routes take it from the container, so a test can give it another folder); frontend `pages/admin/migrations/` (the Sources page only notes that updates wait, with a link)
+- Sign-in: `src/Auth/IamGuard.php` (the token, nothing else - only the Bearer scheme counts; + `UserProvisioner`, `Role`: ADMIN, EDITOR, STAFF), `src/Support/Iam/` (the vendored IAM SDK 1.1.0 + the verifier's wrapper), whether sign-in is required `src/Auth/SignInPolicy.php` (`IamSignInPolicy`: the SDK's `anotoki_iam_login_required()`, kept in `storage/cache/iam/`; the tests' `tests/support/FixedSignInPolicy.php`, `T::$signIn`, `realSignInPolicy()`), `api/middleware/auth.php` (`requireSignIn`, `requireOwner`, `requireRole`, `requireTokenRole` - the role from the token alone, for the Migrations page's routes -, `optionalSignIn`, `currentUser[OrNull]`); the stand-in IAM `tests/tools/fake-iam.php` (also the IAM's public answer about the application, `login_required` false by default, and the account's `preferences` with `POST /api/oidc/preferences` for a person given them); frontend `core/auth.ts` (`AuthService`: `available`, `signedIn`, `loginRequired` - the IAM's switch from `/api/meta`, `isStaff`, `isAdmin`, `preferences` + `savePreferences()` - the account's theme, date order and clock, SDK 1.2.0, null for a visitor or an IAM before its 015; `login()` waits for `core/saves-in-flight.ts`), `core/api.ts` (`ISSUED_AS`: each request is the person's or the visitor's as it is issued), `core/auth.interceptor.ts` (the token - or, with none, the request is never sent - for a person's request, the visitor key for a visitor's while sign-in is not required), `core/auth.guards.ts` (`signInGuard` on `/admin`, a visitor too; `siteSignInGuard` on everybody's pages: sign-in first while required, a refused sign-in shown once; `adminOnlyGuard`), `core/sign-in.ts` (`signInOrSayWhy()`), `core/iam/` (vendored browser SDK 1.2.0), `layouts/admin-layout/`
+- Migrations and the site gate (anotoki-lib 0.1, `vendor/anotoki/lib`, `@anotoki/lib/migrations`): `api/middleware/site_gate.php` (`siteState()`: the Config's problems, `storage/installed.lock`, the container's `Anotoki\Lib\Migrations\Migrator`; `SITE_OPEN_PATHS`: `/api/meta`, `/api/translations/{code}`, the Migrations page's three routes - each a route exactly, never a prefix), `api/app.php` (the gate inside the JSON errors; `GET /api/site-status` {state, installed}), `api/routes/admin.php` (`MigrationsRoutes::admin`: `GET /api/admin/migrations` {sets, applied, pending, missing}, `GET …/file?set=&name=`, `POST …/apply` {applied, failed, error, note} - 409 `busy` while another apply holds the advisory lock - behind `requireTokenRole(ADMIN)`, the log lines in `afterApply`), `src/Db/Migrations.php` (the set `build_analyzer`, `prepare` = the Laravel table moved aside, `beforeFile` = the `build_analyzer.*` settings, `LOCK`; the container's Migrator is replaceable, so a test can give it another folder); tests `tests/site_gate.test.php`, `migrations.test.php`, `before_apply.test.php`; frontend `core/site-status.ts` (`provideSiteStatus()`: ADMIN from the token, sign-in, the language on the page, the account's dates, `i18n.reload()` once up to date), `siteStatusInterceptor` + `SiteStatus.check()` in `app.config.ts`, `<anotoki-site-gate>` around the outlet in `app.html`, `pages/admin/migrations/` (the family's `<anotoki-migrations-page>` in the admin panel's `.page`), the `--anotoki-*` colours in `styles.scss`
 - People (ADMIN): `api/routes/people.php` (list, delete a person's data), `src/Repositories/Users.php` (`withCounts()`, `deletePerson()`); frontend `pages/admin/people/`
 - Visitors: `src/Auth/Visitors.php` (find / make / unmake / sweep / move; the only code that writes a visitor row, through `Users`), `requireOwner($app, mayMakeVisitor)` + `makeVisitor($app)` in `api/middleware/auth.php`, `api/routes/visitor.php` (`POST /api/visitor/move`), `src/Web/ClientAddress.php` (which address the limits count), `src/Web/AfterResponse.php` (the clean-up after the answer), limits in `config/app.php` (`visitors`, `client_address`), `migrations/004_visitors_and_family_bar.sql`, `tests/visitors.test.php`; frontend `core/visitor-key.ts` (`VisitorKey`: the key in localStorage, read at send time, the first one kept, forgotten on `visitor_unknown`, kept but not sent while sign-in is required, the move on sign-in), `core/storage.ts`, `shared/visitor-notice/`, `shared/visitor-hero/`
 - A person's own accounts as a file (signed in only; never a visitor's): `api/routes/me.php` (`GET /api/me/export`, `POST /api/me/import[?dry_run=1]`), `src/Services/Transfer/AccountsFile.php` (format, strict reading, writing only what it reads), `AccountsTransfer.php` (export; import: match by game + UID or game + `created_at` in UTC to the second, the newer `last_import_at` wins, never deletes, unknown catalog keys skipped and counted, the person's `users` row `FOR UPDATE` via `Users::lockForWrite()`, which `AccountImporter` takes too), limits `config/app.php` `me`, `tests/data_transfer.test.php`; frontend `shared/data-card/` (export, import: the dry run's preview, then Confirm), `core/download.ts`
@@ -116,7 +128,7 @@ cd backend && php tools/build.php [--skip-frontend]  # ../dist/: what to upload 
 - The site's words, frontend `core/i18n/`: `translation.ts` (`TranslationService`), `en.ts` + `en/*.json` (the keys and the compiled English), pipes `translate` / `translatePlural` / `localDate`, `date-patterns.ts` (the account's date orders and clocks, `chosenMoment()`), `dynamic-keys.ts` (the run-time families), `error-text.ts`, `recommendation-words.ts`, `import-words.ts`, `title-strategy.ts`, `testing.ts`; game terms `core/game-terms.ts`, `shared/build-terms.ts`; the backend test that holds it all together `tests/translation_catalogue.test.php`
 - Translations and Languages pages (editors; the Languages page and adding / deleting a language: admins): `pages/admin/translations/*`, `pages/admin/languages/*`, `core/localization-drafts.ts` (`LocalizationDrafts`), `core/unsaved-changes.guard.ts`, `shared/confirm-dialog.*`
 - Setup / deploy: `setup.php` + `src/Setup/Installer.php`, `tools/build.php` (the upload), `tools/php.sh`
-- The frame (the anotoki family's top bar, as the survey's, made of Angular Material pieces and this app's own menu markup - not mat-menu, which leaves a Tab to the browser): `layouts/app-layout/` (everybody's pages: bar, page, footer), `layouts/admin-layout/` (the bar with the admin sections, the three states, footer), `layouts/top-bar/` (`APP_LINKS`, `ADMIN_LINKS`, `PHONE_BAR_MAX = 880` and the admin panel's `ADMIN_PHONE_BAR_MAX = 960` (its brand "anotoki admin panel", the app's name in the link's name), the menus' keyboard rules; the keys `brand.*`, `topbar.*`), `layouts/footer/` (version, What's new), `shared/brand/` (the anotoki mark `public/anotoki.png`), `shared/theme-toggle/` + `core/theme.ts` (`ThemeService`: the account's theme while signed in, saved from the toggle; else this device's), `shared/language-switcher/` (signed in, a choice is saved to the account too); `app.ts` is the boot decision only; the browser check `.claude/skills/verify-ui/scripts/run.mjs` + `flow.mjs`, its database `tests/tools/browser-db.php`
+- The frame (the anotoki family's top bar, as the survey's, made of Angular Material pieces and this app's own menu markup - not mat-menu, which leaves a Tab to the browser): `layouts/app-layout/` (everybody's pages: bar, page, footer), `layouts/admin-layout/` (the bar with the admin sections, the three states, footer), `layouts/top-bar/` (`APP_LINKS`, `ADMIN_LINKS`, `PHONE_BAR_MAX = 880` and the admin panel's `ADMIN_PHONE_BAR_MAX = 960` (its brand "anotoki admin panel", the app's name in the link's name), the menus' keyboard rules; the keys `brand.*`, `topbar.*`), `layouts/footer/` (version, What's new), `shared/brand/` (the anotoki mark `public/anotoki.png`), `shared/theme-toggle/` + `core/theme.ts` (`ThemeService`: the account's theme while signed in, saved from the toggle; else this device's), `shared/language-switcher/` (signed in, a choice is saved to the account too); `app.ts` is the router inside the site gate, and what belongs to no page; the browser check `.claude/skills/verify-ui/scripts/run.mjs` + `flow.mjs`, its database `tests/tools/browser-db.php`
 - Frontend pages: `frontend/src/app/pages/*`; shared UI: `frontend/src/app/shared/*`; wizard guides: `pages/import/import-guides.ts` (keys; the English in `core/i18n/en/import.json`); changelog: `frontend/public/changelog.json` (+ `backend/src/Version.php`)
 
 ## Rules that matter
@@ -133,14 +145,16 @@ cd backend && php tools/build.php [--skip-frontend]  # ../dist/: what to upload 
   is never answered as if it had sent none, and never falls back to the key (another scheme, `Basic`, is no
   credentials). While the IAM requires sign-in, nobody and a visitor key get 401 `sign_in_required` from
   `optionalSignIn()` and `requireOwner()` - the key refused before it is looked up; only `/api/meta`, the
-  strings and the icons stay open, and the move still takes a key with a token. A new route with no sign-in
+  strings, the icons and `/api/site-status` (no credentials read: a 401 there would read as "not available")
+  stay open, and the move still takes a key with a token. A new route with no sign-in
   check must decide what it does then. The key is never logged, never in a
   URL or an answer's body (only the `X-Visitor-Key` response header of the import that made the visitor);
   only `App\Auth\Visitors` makes, finds, sweeps or moves a visitor row, and tests never assume a visitor's id. Role checks sit
   on route groups, so a route added later cannot go without one: `requireRole($app, ...Role::STAFF)` for the
   editors' routes (syncs, their history, a source's builds file, the strings grid, the languages list),
-  `requireRole($app, Role::ADMIN)` for the admins' own (sources on / off, migrations, adding / renaming /
-  switching / deleting a language, People); own data `requireOwner($app)`; what only a signed-in person has
+  `requireRole($app, Role::ADMIN)` for the admins' own (sources on / off, adding / renaming /
+  switching / deleting a language, People) - and for migrations `requireTokenRole($app, Role::ADMIN)`, the
+  same answers from the token alone (no row of users read or made: they answer while an update waits); own data `requireOwner($app)`; what only a signed-in person has
   (the own accounts file `/api/me/*`, the move) `requireSignIn($app)`; public routes `optionalSignIn($app)`.
   403 `editor_only` / `admin_only`. MEMBER (every account holds it) is an ordinary signed-in person, as is
   one with no role: no check needs it, none refuses it.
@@ -158,7 +172,13 @@ cd backend && php tools/build.php [--skip-frontend]  # ../dist/: what to upload 
   file uses its own throwaway database.
 - Queries are parameterised; table and column names come from literals in the code, never from input.
 - Schema changes are new files in `backend/migrations/`; never edit one that has been applied. Data-changing
-  migrations end with a `DO $$` verification gate.
+  migrations end with a `DO $$` verification gate. A waiting migration closes the site (the site gate): a route
+  the gate leaves open (`SITE_OPEN_PATHS`) must answer on a database without that migration's tables - the
+  Migrations page's ADMIN check reads the token alone (`requireTokenRole`); each open path is one route
+  exactly, never a prefix (neither the gate nor the router resolves `..`); open nothing else without the
+  owner's word.
+- The anotoki family's shared code comes from anotoki-lib (Composer `anotoki/lib`, npm `@anotoki/lib`), installed
+  from GitHub only; a change it needs is made there, released, and taken here by updating both halves together.
 - Angular components always have three files: `.ts`, `.html`, `.scss`.
 - The vendored IAM SDK files (`backend/src/Support/Iam/anotoki_iam.php`, `frontend/src/app/core/iam/*`) stay
   byte-identical to `anotoki-iam/sdk/` (in this repository's LF line endings: the backend's `.gitattributes`); update

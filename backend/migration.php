@@ -15,15 +15,16 @@
  * 001_adopt_laravel_database.sql, with every row it holds (accounts that belonged to nobody yet go to IAM
  * user 1).
  *
- * The engine (App\Db\Migrator) is shared with "Apply pending" on the admin panel's Migrations page and with
- * setup.php, so a database built any of the three ways is the same database.
+ * The engine (the anotoki family's, anotoki/lib, on this site's files: App\Db\Migrations) is shared with
+ * "Apply pending" on the admin panel's Migrations page and with setup.php, so a database built any of the
+ * three ways is the same database - and one apply runs at a time, whichever starts it: another is told so.
  */
 
 require __DIR__.'/vendor/autoload.php';
 
 use App\Cli;
 use App\Db\Db;
-use App\Db\Migrator;
+use App\Db\Migrations;
 
 Cli::helpIfAsked($argv, __FILE__);
 
@@ -37,13 +38,15 @@ $name = (string) $config['database'];
 Cli::line("== build analyzer database ({$name})");
 
 try {
-    if (! $statusOnly && ! $dryRun && Migrator::ensureDatabase($config, $name)) {
+    if (! $statusOnly && ! $dryRun && Db::ensureDatabase($config, $name)) {
         Cli::info('  Database created.');
     }
-    $migrator = new Migrator(Db::pdo($config, $name, false), Migrator::directory());
-    $laravel = $migrator->isLaravelDatabase();
-    $pending = $migrator->pending();
-    $files = $migrator->files();
+    $pdo = Db::pdo($config, $name, false);
+    $migrator = Migrations::migrator($pdo);
+    $laravel = Migrations::isLaravelDatabase($pdo);
+    // Reads only: nothing is created by looking.
+    $status = $migrator->status();
+    $files = $migrator->files(Migrations::set());
 } catch (Throwable $e) {
     Cli::fail('  Cannot reach it: '.$e->getMessage());
 }
@@ -51,6 +54,11 @@ try {
 if ($laravel) {
     Cli::warn('  This database was made by the first (Laravel) version of the app; 001 brings it forward.');
 }
+foreach ($status['missing'] as $file) {
+    Cli::warn("  {$file['name']} is recorded as applied, but the file is not in migrations/.");
+}
+
+$pending = array_column($status['pending'], 'name');
 
 if ($statusOnly) {
     foreach ($files as $file) {
@@ -73,17 +81,26 @@ if ($dryRun) {
     exit(0);
 }
 
-foreach ($pending as $file) {
-    echo '  ', $file, ' ... ';
-    try {
-        // false: another run (the Migrations page, setup.php) applied it while this one waited.
-        Cli::info($migrator->apply($file) ? 'done' : 'already applied by another run');
-    } catch (Throwable $e) {
-        Cli::error('FAILED');
-        Cli::error('    '.$e->getMessage());
-        Cli::warn('    Nothing from this file was applied. The migrations before it stand.');
-        exit(1);
-    }
+try {
+    $result = $migrator->apply();
+} catch (Throwable $e) {
+    // Only the connection (or moving a Laravel table aside) fails this way; a failing file is in $result.
+    Cli::fail('  The update could not be applied: '.$e->getMessage());
+}
+
+if ($result['busy']) {
+    Cli::error('  Another update is being applied to this database right now (the Migrations page, setup.php or another migration.php).');
+    Cli::warn('  Nothing was applied. Wait a moment, then run this again.');
+    exit(1);
+}
+foreach ($result['applied'] as $file) {
+    Cli::info("  {$file['name']} ... done");
+}
+if ($result['error'] !== null) {
+    Cli::error('  '.($result['failed']['name'] ?? 'The update').' ... FAILED');
+    Cli::error('    '.$result['error']);
+    Cli::warn('    Nothing from this file was applied. The migrations before it stand.');
+    exit(1);
 }
 
 exit(0);

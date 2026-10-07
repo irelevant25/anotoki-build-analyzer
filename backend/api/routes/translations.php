@@ -42,9 +42,10 @@ use Slim\Routing\RouteCollectorProxy;
  * The writes take JSON only: a body of another type (a form) is 422 invalid_language on the language routes
  * and invalid_value on the string routes, as a malformed body is.
  *
- * Between an upload and "Apply pending" on the Migrations page the tables are not there: every route here
- * then answers 503 translations_unavailable - never a 500, and never not_set_up - and the app reads its
- * compiled English.
+ * Between an upload and "Apply pending" on the Migrations page the tables are not there. The site gate then
+ * answers every route here 503 update_pending but the strings of a language (an open path: the pages need
+ * their words while an update waits) - and whatever reaches a route here with the tables missing answers 503
+ * translations_unavailable - never a 500, and never not_set_up - and the app reads its compiled English.
  */
 return function (Slim\App $slim, App $app): void {
     $unavailable = fn (): HttpError => new HttpError(

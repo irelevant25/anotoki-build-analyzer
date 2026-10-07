@@ -1,12 +1,2 @@
-// The bar of the "not set up yet" page: the brand alone, where the top bar stands on every other page.
-.boot-bar {
-  display: flex;
-  align-items: center;
-  height: var(--topbar-height, 60px);
-  max-width: 84rem;
-  margin: 0 auto;
-  padding: 0 1.25rem;
-  box-sizing: border-box;
-  border-bottom: 1px solid var(--app-border);
-  --brand-area: var(--app-primary-soft-text);
-}
+// The shell has no look of its own: the layouts draw the frame, the site gate its own page (in this site's
+// colours: the --anotoki-* properties in styles.scss).

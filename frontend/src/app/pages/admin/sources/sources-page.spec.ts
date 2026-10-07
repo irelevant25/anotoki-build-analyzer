@@ -28,7 +28,6 @@ describe('SourcesPage, moving builds through a file', () => {
     api = {
       sources: vi.fn(() => of([source('genshin-1', 'Source 1'), source('genshin-2', 'Source 2')])),
       syncRuns: vi.fn(() => of([])),
-      migrations: vi.fn(() => of({ pending: [], applied: [{ name: '002_schema.sql', applied_at: '2026-10-01T10:00:00+00:00' }] })),
       syncStatus: vi.fn(() => of({ active: false, wait_ms: null, runs: [] })),
       exportSourceBuilds: vi.fn(() => exported),
       importSourceBuilds: vi.fn(),
@@ -94,52 +93,28 @@ describe('SourcesPage, moving builds through a file', () => {
   });
 });
 
-describe('SourcesPage, database updates waiting', () => {
-  let api: Record<string, ReturnType<typeof vi.fn>>;
-
-  function setup(admin: boolean, pending: string[]) {
-    api = {
-      sources: vi.fn(() => of([])),
+describe('SourcesPage and database updates', () => {
+  it('says nothing of them and asks nothing for an admin: while one waits the site gate shows its own page instead', async () => {
+    const api = {
+      sources: vi.fn(() => of([source('genshin-1', 'Source 1')])),
       syncRuns: vi.fn(() => of([])),
-      migrations: vi.fn(() => of({ pending: pending.map((name) => ({ name })), applied: [{ name: '002_schema.sql', applied_at: null }] })),
       syncStatus: vi.fn(() => of({ active: false, wait_ms: null, runs: [] })),
-      applyMigrations: vi.fn(),
     };
     TestBed.configureTestingModule({
       imports: [SourcesPage],
       providers: [
         { provide: Api, useValue: api },
         { provide: MatSnackBar, useValue: { open: vi.fn() } },
-        { provide: AuthService, useValue: { isAdmin: signal(admin), user: signal(null) } },
+        { provide: AuthService, useValue: { isAdmin: signal(true), user: signal(null) } },
         provideTestTranslations({}),
         provideRouter([]),
       ],
     });
-  }
-
-  it('tells an admin that updates wait, and links the Migrations page - applying is that page\'s', async () => {
-    setup(true, ['004_visitors_and_family_bar.sql', '005_next.sql']);
     const fixture = TestBed.createComponent(SourcesPage);
     await fixture.whenStable();
-    const panel: HTMLElement = fixture.nativeElement.querySelector('.migrations-panel');
-    expect(panel.textContent).toContain('2 database updates waiting');
-    expect(panel.querySelector('a')?.getAttribute('href')).toBe('/admin/migrations');
-    expect([...fixture.nativeElement.querySelectorAll('button')].some((button: HTMLButtonElement) => button.textContent?.includes('Apply'))).toBe(false);
-    expect(api['applyMigrations']).not.toHaveBeenCalled();
-  });
-
-  it('says nothing when nothing waits', async () => {
-    setup(true, []);
-    const fixture = TestBed.createComponent(SourcesPage);
-    await fixture.whenStable();
-    expect(fixture.nativeElement.querySelector('.migrations-panel')).toBeNull();
-  });
-
-  it('does not ask for an editor, whom the server would refuse', async () => {
-    setup(false, ['005_next.sql']);
-    const fixture = TestBed.createComponent(SourcesPage);
-    await fixture.whenStable();
-    expect(api['migrations']).not.toHaveBeenCalled();
-    expect(fixture.nativeElement.querySelector('.migrations-panel')).toBeNull();
+    const element: HTMLElement = fixture.nativeElement;
+    expect(element.querySelector('article.source')).not.toBeNull();
+    expect(element.textContent).not.toMatch(/database update|migration/i);
+    expect(element.querySelector('a[href="/admin/migrations"]')).toBeNull();
   });
 });
