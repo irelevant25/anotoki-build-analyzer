@@ -1,6 +1,18 @@
 [
   {
-    "version": "0.3",
+    "version": "0.4.0",
+    "date": "2026-10-07",
+    "changes": {
+      "added": [
+        "When you are signed in, the theme, the language and the way dates are written follow your anotoki account, the same on every anotoki site - and the theme and the language you choose at the top of the page are saved to your account"
+      ],
+      "updated": [
+        "While Build Analyzer is being updated, the page says so in your language instead of showing an error, and comes back by itself when the update is done"
+      ]
+    }
+  },
+  {
+    "version": "0.3.0",
     "date": "2026-10-04",
     "changes": {
       "added": [
@@ -11,13 +23,12 @@
       ],
       "updated": [
         "One top bar, as on the other anotoki sites: the sections, the language, the theme and your menu - on a phone, all in one menu button",
-        "The version and What's new are now at the foot of every page",
-        "Database updates have a Migrations page of their own in the admin panel: what is applied, what waits, and where an update stopped"
+        "The version and What's new are now at the foot of every page"
       ]
     }
   },
   {
-    "version": "0.2",
+    "version": "0.2.0",
     "date": "2026-09-29",
     "changes": {
       "added": [
@@ -27,7 +38,7 @@
     }
   },
   {
-    "version": "0.1",
+    "version": "0.1.0",
     "date": "2026-09-29",
     "changes": {
       "added": [

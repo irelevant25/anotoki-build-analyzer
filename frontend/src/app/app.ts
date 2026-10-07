@@ -1,14 +1,11 @@
-import { Component, computed, effect, inject, untracked } from '@angular/core';
-import { toSignal } from '@angular/core/rxjs-interop';
+import { Component, effect, inject, untracked } from '@angular/core';
 import { MatSnackBar } from '@angular/material/snack-bar';
-import { NavigationEnd, Router, RouterOutlet } from '@angular/router';
+import { RouterOutlet } from '@angular/router';
 import { SiteGateComponent, SiteStatus } from '@anotoki/lib/migrations';
-import { filter, map } from 'rxjs';
 import { AuthService } from './core/auth';
 import { Changelog } from './core/changelog';
 import { TranslationService } from './core/i18n/translation';
 import { LocalizationDrafts } from './core/localization-drafts';
-import { MIGRATIONS_ROUTE } from './core/site-status';
 import { ThemeService } from './core/theme';
 import { VisitorKey } from './core/visitor-key';
 
@@ -18,7 +15,10 @@ import { VisitorKey } from './core/visitor-key';
  * (@anotoki/lib/migrations, core/site-status.ts). While the site is not ready the gate shows its page instead:
  * "being updated" (with a quiet Sign in while nobody is signed in) to everybody but the site's ADMIN, who reads
  * that a database update waits and reaches the Migrations page - the one page that shows then; "not set up yet"
- * with the setup page only while the site was never installed; "not available right now" otherwise.
+ * with the setup page only while the site was never installed; "not available right now" otherwise. The
+ * router outlet is the gate's template, made only while the gate shows it: a page behind the gate's page is
+ * not made at all, so it sends no request (each would be a 503) and leaves nothing behind - no error, no
+ * snack bar, no sync "stopped" in a service the pages share.
  *
  * And what belongs to no page: the theme (applied before the first page draws), What's new once per version,
  * and the snack bar that says what moved from a visitor into an account after a sign-in.
@@ -32,27 +32,6 @@ import { VisitorKey } from './core/visitor-key';
 export class App {
   private readonly siteStatus = inject(SiteStatus);
   private readonly auth = inject(AuthService);
-  private readonly router = inject(Router);
-  private readonly url = toSignal(
-    this.router.events.pipe(
-      filter((event): event is NavigationEnd => event instanceof NavigationEnd),
-      map((event) => event.urlAfterRedirects),
-    ),
-    { initialValue: this.router.url },
-  );
-  /**
-   * Whether the router's pages are made at all. The gate projects them, and projected content is made whether
-   * or not the gate shows it: closed, the pages would still be built out of sight, send their requests (each a
-   * 503) and leave what those say in the services they share - a sync's "stopped" for the Sources page after
-   * an Apply in this tab, a snack bar over the gate's page. So while the site is not ready they are not made,
-   * but for the ADMIN on the Migrations route: the gate's own condition, a little wider (any state, any route
-   * under it), so that the gate never opens on nothing.
-   */
-  protected readonly pagesMade = computed(
-    () =>
-      !this.siteStatus.blocked() ||
-      (this.auth.isAdmin() && this.url().split(/[?#]/)[0].startsWith(MIGRATIONS_ROUTE)),
-  );
   private readonly changelog = inject(Changelog);
   private readonly i18n = inject(TranslationService);
   private readonly snackBar = inject(MatSnackBar);
@@ -68,7 +47,8 @@ export class App {
 
   constructor() {
     // What is new since this browser last looked - for somebody who has used the site before (signed in, or
-    // holding a visitor key), while the site is there to use; a first visit is never interrupted.
+    // holding a visitor key), while the site is there to use; a first visit is never interrupted. The dialog is
+    // the shell's, outside the gate, so the gate does not keep it away: it would stand over the gate's page.
     effect(() => {
       if (
         !this.siteStatus.blocked() &&

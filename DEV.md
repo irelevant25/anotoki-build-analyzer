@@ -118,30 +118,35 @@ longer read and can be deleted.
   translated. The admin panel (`/admin/`: Sources, Translations, Languages, People) stays English. See
   [docs/architecture.md](docs/architecture.md) ("The site's words").
 - **A new release**: add an entry at the top of `frontend/public/changelog.json` (version, date, and what
-  changed, in plain words for the people using the app) and raise `backend/src/Version.php` to the same
-  version. The version shows at the foot of every page, beside the button that opens "What's new".
+  changed, in plain words for the people using the app) and raise `backend/src/Version.php` and
+  `frontend/package.json`'s `version` to the same version (`tests/auth.test.php` holds the three together). A
+  version has three numbers, MAJOR.MINOR.PATCH: big changes, new features, bug fixes (0.4.0). What's new holds
+  only what the people using the site notice - nothing technical or for developers (a library, the servers, a
+  visitor counter). The version shows at the foot of every page, beside the button that opens "What's new".
 
 ## The shared library (anotoki-lib)
 
 What the anotoki sites share lives in one library, [irelevant25/anotoki-lib](https://github.com/irelevant25/anotoki-lib),
 in two halves with one version: the Composer package `anotoki/lib` (`backend/composer.json`: a `vcs` repository
 entry and `"anotoki/lib": "^0.1"`; installed into `backend/vendor/`, which the upload carries) and the npm
-package `@anotoki/lib` (`frontend/package.json`: the release's tarball). Version 0.1.0 holds the migrations
-module, one behaviour for every anotoki site while its database is not ready:
+package `@anotoki/lib` (`frontend/package.json`: the release's tarball). The frontend has 0.1.1 and the backend
+0.1.0 (0.1.1 changed only the Angular half); they hold the migrations module, one behaviour for every anotoki
+site while its database is not ready:
 
 - the engine (`Anotoki\Lib\Migrations\Migrator`), on this site's files and bookkeeping table through
   `backend/src/Db/Migrations.php` - `migration.php`, `setup.php`, the Migrations page and the tests;
 - the site gate in front of every API route (`SiteState`, `SiteGate`: `backend/api/middleware/site_gate.php`),
   `GET /api/site-status`, and the Migrations page's API (`MigrationsRoutes`: `backend/api/routes/admin.php`);
-- in the frontend, the gate around the router outlet with its page, and the Migrations page
-  (`frontend/src/app/core/site-status.ts` wires them to this site).
+- in the frontend, the gate with its page - the router outlet given to it as a template, so the pages are made
+  only while the site is open -, and the Migrations page (`frontend/src/app/core/site-status.ts` wires them to
+  this site).
 
 To update it, both halves together (while its version is 0.x a minor version may break: read its
 `CHANGELOG.md` first):
 
 ```bash
 cd backend && composer update anotoki/lib --prefer-dist   # after raising the constraint in composer.json, where the new version needs it
-cd frontend && bun install && npx -y npm@11 install      # after putting the new release's tarball URL in package.json: both lock files
+cd frontend && bun install && npx -y npm@11 install --package-lock-only   # after putting the new release's tarball URL in package.json: both lock files
 ```
 
 Composer reads the library through GitHub's API, 60 requests an hour without a token; when it stops on that
@@ -171,8 +176,8 @@ The browser check (the `verify-ui` skill) runs the site end to end in headless E
 stand-in IAM, on a throwaway database - nobody, a visitor's import and the move at sign-in, a member's own
 data, an editor and an admin, the top bar at 360-1280 px in light and dark with a real Tab press, Slovak at
 390 px with no key on the page, the account's theme, dates and language saved from the bar to the
-stand-in IAM, and the site while an update waits and while it is not set up (the site gate's pages, the
-Migrations page, Sign in from the waiting page):
+stand-in IAM, and the site while an update waits and while it is not set up (the site gate's pages with no
+page made behind them, the Migrations page, Sign in from the waiting page):
 
 ```bash
 node .claude/skills/verify-ui/scripts/run.mjs [--no-build] [--keep]   # from the root; ports 8590 and 8597
@@ -239,8 +244,9 @@ files; old hashed `*.js` do no harm). When it brings new migrations, **the site 
 files are up until they are applied** (the site gate, as on every anotoki site): everybody else reads "The
 site is being updated" in their language, and their page comes back by itself once the update is in;
 signed in as the site's ADMIN you read "A database update is waiting" with **Open Migrations** - the one page
-that works then (not signed in: that page's **Sign in** brings you back to it). Back the database up (hosting
-panel) and press **Apply pending** there at once. `config/*.local.php` and `storage/` stay as they are.
+that works then (not signed in: that page's **Sign in** brings you back to it); it too asks again by itself,
+and opens the site once another administrator has applied the update. Back the database up (hosting panel)
+and press **Apply pending** there at once. `config/*.local.php` and `storage/` stay as they are.
 
 - **The release that brings the site's words** (migration 003): upload, then press **Apply pending** on the
   Migrations page. Until then the site reads the English compiled into the app - Slovak readers too - and afterwards its
@@ -253,17 +259,18 @@ panel) and press **Apply pending** there at once. `config/*.local.php` and `stor
   everybody else); then apply IAM 007. If nobody holds ADMIN here yet, apply IAM 007 right after the upload, then
   Apply. Then check in a private window that a file imports without signing in and stays after a reload. The
   whole sequence: [docs/operations.md](docs/operations.md), "Deploying".
-- **The family's site gate and Migrations page** (anotoki-lib 0.1.0, migration 005): upload `vendor/` with the
-  rest (it holds `vendor/anotoki/lib`), then Apply on `/admin/migrations` - 005 only deletes the six words of
-  the old "Not set up yet" page. From this version on every upload with a migration closes the site until it
-  is applied, and the setup page is never offered again once `storage/installed.lock` is there.
+- **The family's site gate and Migrations page** (version 0.4.0: anotoki-lib 0.1.0 in `vendor/` and 0.1.1 in
+  the app, migration 005): upload `vendor/` with the rest (it holds `vendor/anotoki/lib`), then Apply on
+  `/admin/migrations` - 005 only deletes the six words of the old "Not set up yet" page. From this version on
+  every upload with a migration closes the site until it is applied, and the setup page is never offered
+  again once `storage/installed.lock` is there.
 - **The IAM's sign-in switch** (IAM SDK 1.1.0): upload only once the IAM answers
   `https://iam.anotoki.eu/api/public/applications/build-analyzer` with 200 - before that the site requires
   sign-in (fail closed) and turns visitors away. [docs/operations.md](docs/operations.md), "Deploying".
-- **The account's theme, dates and language** (the browser SDK 1.2.0; no migration here): upload in either
-  order with the IAM's migration 015 - before it the site keeps its own settings, as it did. Then, signed in,
-  the bar's theme and language are saved to the anotoki account and What's new writes dates in the account's
-  order. [docs/operations.md](docs/operations.md), "Deploying".
+- **The account's theme, dates and language** (version 0.4.0: the browser SDK 1.2.0; no migration here):
+  upload in either order with the IAM's migration 015 - before it the site keeps its own settings, as it did.
+  Then, signed in, the bar's theme and language are saved to the anotoki account and What's new writes dates in
+  the account's order. [docs/operations.md](docs/operations.md), "Deploying".
 - **Each installation holds its own strings.** Strings reworded in the browser live only in that
   installation's database; your computer and the host each have their own, and no upload carries them.
   Export a language (Translations page, or `php translations.php --export=sk file` on your computer) before a

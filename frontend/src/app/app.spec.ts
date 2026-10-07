@@ -227,6 +227,19 @@ describe('the shell', () => {
     await fixture.whenStable();
     expect(host.querySelector('.the-page')).not.toBeNull();
     expect(statusPage()).toBeNull();
+
+    // The gate alone decides (its template, @anotoki/lib 0.1.1): the ADMIN on the Migrations route of a site
+    // that is out of reach gets the gate's page, and the Migrations page is not made behind it either.
+    TestBed.resetTestingModule();
+    pagesMade = 0;
+    await setup({
+      who: 'admin',
+      site: { code: 'not_set_up', installed: true },
+      path: '/admin/migrations',
+    });
+    expect(statusPage()).not.toBeNull();
+    expect(host.querySelector('.the-page')).toBeNull();
+    expect(pagesMade).toBe(0);
   });
 
   it('closed while a page was open, the site takes the page away - and, once ready, makes it again where the person was', async () => {

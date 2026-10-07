@@ -284,7 +284,8 @@ map, are in [DEV.md](../DEV.md) ("Deploying"); in short:
    60`) but `/api/meta`, a language's strings, `/api/site-status` and the Migrations page's API; everybody reads
    "The site is being updated" in their language - their page asks again every 30 seconds and comes back by
    itself - and the site's ADMIN, signed in, reads "A database update is waiting" with **Open Migrations**
-   (signed out: that page's quiet **Sign in** goes to the IAM and back). The Migrations page (`/admin/migrations`,
+   (signed out: that page's quiet **Sign in** goes to the IAM and back; it asks again by itself too, so it
+   opens once another administrator has applied the update). The Migrations page (`/admin/migrations`,
    ADMIN only, the one page that works then) lists the waiting files in the order they will run beside the
    applied ones with their dates and SQL. Back the database up first where the panel allows, then **Apply
    pending** (`POST /api/admin/migrations/apply`) at once: the files run in order, each in its own transaction,
@@ -297,10 +298,11 @@ map, are in [DEV.md](../DEV.md) ("Deploying"); in short:
    - **A release that adds strings**: they are there once Apply is pressed - until then the site is closed
      anyway (only the ADMIN's frame of the Migrations page may show a new key). Upload and press Apply in one
      sitting.
-   - **This version: the family's site gate and Migrations page (anotoki-lib 0.1.0, migration 005)**: upload
-     with `vendor/` (it holds `vendor/anotoki/lib`), then Apply 005 on the Migrations page - it only deletes the
-     six words of the old "Not set up yet" page. From then on every upload with a migration closes the site
-     until it is applied, and a site whose `storage/installed.lock` is there never offers the setup page again.
+   - **Version 0.4.0: the family's site gate and Migrations page (anotoki-lib 0.1.0 in `vendor/`, 0.1.1 in the
+     app; migration 005)**: upload with `vendor/` (it holds `vendor/anotoki/lib`), then Apply 005 on the
+     Migrations page - it only deletes the six words of the old "Not set up yet" page. From then on every upload
+     with a migration closes the site until it is applied, and a site whose `storage/installed.lock` is there
+     never offers the setup page again.
    - **Version 0.3: visitors and the family's bar (migration 004, IAM migration 007)**, in this
      order: (1) before uploading, make sure an account that can sign in holds **ADMIN on `build-analyzer` now**
      (the IAM's admin panel; IAM 007 is what later gives every IAM administrator ADMIN here); (2) upload;
@@ -319,10 +321,10 @@ map, are in [DEV.md](../DEV.md) ("Deploying"); in short:
      has it. Then try it: switch "Sign-in required" on for Build Analyzer in the IAM's admin panel - within a
      minute `/api/meta` says `"login_required": true`, `/api/builds/genshin` answers 401 without a token and a
      private window opening the site goes to the IAM first - and off again.
-   - **The account's theme, dates and language (browser SDK 1.2.0; no migration here)**: upload in either order
-     with the IAM's migration 015 - before it, the site keeps its own settings exactly as it did (the SDK
-     finds no `preferences` in the tokens and saves nothing). Once both are up, try it: sign in, pick Dark in
-     the bar - the IAM's account page (and every anotoki site) shows Dark; pick a language - the account
+   - **Version 0.4.0: the account's theme, dates and language (browser SDK 1.2.0; no migration here)**: upload
+     in either order with the IAM's migration 015 - before it, the site keeps its own settings exactly as it did
+     (the SDK finds no `preferences` in the tokens and saves nothing). Once both are up, try it: sign in, pick
+     Dark in the bar - the IAM's account page (and every anotoki site) shows Dark; pick a language - the account
      has it too; What's new writes its dates in the order chosen on the account page. A visitor's choices stay
      the browser's. The site's server is not involved.
 

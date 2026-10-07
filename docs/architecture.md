@@ -73,13 +73,18 @@ tables missing.
 
 The frontend (`@anotoki/lib/migrations`, wired in `core/site-status.ts`): `SiteStatus.check()` at the start,
 beside `/api/meta` (`app.config.ts`); `siteStatusInterceptor` hears any 503 `not_set_up` / `update_pending`;
-`<anotoki-site-gate>` around the router outlet (`app.html`) shows the gate's page instead of the site:
+`<anotoki-site-gate>` (`app.html`) shows the gate's page instead of the site:
 "The site is being updated" in the reader's language to everybody (a quiet Sign in while nobody is signed in;
 it asks again every 30 s and reloads once the site is back), "A database update is waiting" with Open
-Migrations to the site's ADMIN - the Migrations page (`/admin/migrations`) is the one page that shows then -,
-"This site is not set up yet" with the setup page only while never installed, "The site is not available right
-now" otherwise. Nothing in the boot stops while an update waits: the sign-in (and its callback) completes, the
-words are asked for.
+Migrations to the site's ADMIN (asking again the same way: another administrator may apply it meanwhile) - the
+Migrations page (`/admin/migrations`) is the one page that shows then -, "This site is not set up yet" with the
+setup page only while never installed, "The site is not available right now" otherwise. The router outlet is
+the gate's template (`<anotoki-site-gate><ng-template><router-outlet /></ng-template></anotoki-site-gate>`,
+anotoki-lib 0.1.1), which the gate makes only while it shows the pages: a page behind the gate's page is not
+made at all, so it sends no request and leaves no error, snack bar or sync state behind. (0.1.0 took the outlet
+as plain content, which Angular made whether it showed or not; `app.ts` kept it out with a condition of its
+own, `pagesMade`, gone since.) Nothing in the boot stops while an update waits: the sign-in (and its callback)
+completes, the words are asked for.
 
 ### Sign-in
 
@@ -461,12 +466,17 @@ page's API answers its own: 404 `not_found` (a file that is none of the set's), 
   for the tab and the IAM person who typed it, and the one `beforeunload` question),
   `core/unsaved-changes.guard.ts` (`unsavedChangesGuard`, `canDeactivate` on both routes),
   `shared/confirm-dialog`.
-- The frame: `app.ts` is the router inside the site gate (`<anotoki-site-gate>`: the gate's own page while the
-  site is not ready - see "The site gate") plus what belongs to no page - the theme on `<html>`, What's new to
-  somebody who has used the site before (signed in, or holding a visitor key) while the site is there to use,
-  the move's snack bar. Two layouts draw the rest:
+- The frame: `app.ts` is the router inside the site gate (`<anotoki-site-gate>`, the outlet its template: the
+  gate's own page while the site is not ready, and no page made behind it - see "The site gate") plus what
+  belongs to no page - the theme on `<html>`, What's new to somebody who has used the site before (signed in,
+  or holding a visitor key) while the site is there to use (its dialog is the shell's, outside the gate, so
+  `app.ts` itself holds it back while `SiteStatus.blocked()`), the move's snack bar. Two layouts draw the rest:
   `layouts/app-layout/` (every page outside `/admin`: `<app-top-bar area="app">`, the page, the footer) and
-  `layouts/admin-layout/` (`area="admin"`). The footer (`layouts/footer/`): "Version 0.3 · What's new".
+  `layouts/admin-layout/` (`area="admin"`). The footer (`layouts/footer/`): "Version 0.4.0 · What's new" - the
+  newest entry of `public/changelog.json` (`core/changelog.ts`). What's new opens by itself with the releases
+  after the one this browser saw last (`build-analyzer-version-seen`), compared by their numbers
+  (`compareVersions()`: MAJOR.MINOR.PATCH, a missing part 0 - so "0.3", kept from before the versions had
+  three numbers, is 0.3.0).
 - The top bar (`layouts/top-bar/`, the anotoki family's bar - the survey's is the reference; here Angular
   Material pieces with the survey's own menu markup): one row - the brand (`shared/brand/`: the anotoki mark,
   "anotoki" and `brand.area`; on a phone the mark and `brand.short`), the area's links (`APP_LINKS`: Dashboard

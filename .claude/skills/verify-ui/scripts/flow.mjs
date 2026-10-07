@@ -158,6 +158,29 @@ async function gatePage(page) {
   });
 }
 
+/** What a page may ask the API for while the gate's page stands in its place: the open paths and nothing else. */
+const OPEN_WHILE_WAITING = /^\/api\/(meta|site-status|translations\/[a-z-]+)$/;
+
+/**
+ * Listens to the API paths a page asks for from now on; the function it returns stops listening and gives them.
+ * While the site waits for an update, anything but the open paths would be a page made behind the gate's page
+ * (anotoki-lib 0.1.1 makes them only while they show).
+ */
+function apiAsked(page) {
+  const paths = new Set();
+  const listener = (request) => {
+    const url = new URL(request.url());
+    if (url.origin === new URL(SITE).origin && url.pathname.startsWith('/api/')) {
+      paths.add(url.pathname);
+    }
+  };
+  page.on('request', listener);
+  return () => {
+    page.off('request', listener);
+    return [...paths];
+  };
+}
+
 /** Through the stand-in IAM and back, from the bar's Sign in (or the phone menu's). */
 async function signIn(page, user) {
   await iamAs(user);
@@ -622,11 +645,14 @@ try {
       check(closed.status === 503 && (await closed.json()).code === 'update_pending' && closed.headers.get('retry-after') === '60', 'every other path answers 503 update_pending, Retry-After 60');
 
       step('An update waits: a visitor and a member read that the site is being updated - in their language, no error, nothing to press but Sign in');
+      let apiPaths = apiAsked(guest);
       await openGated(guest, '/?lang=en');
       let gate = await gatePage(guest);
       check(gate.title === 'The site is being updated' && gate.text.includes('It will be back in a few minutes. This page reloads by itself.') && gate.role === 'status', `a visitor: "${gate.text}"`);
       check(gate.buttons.join('|') === 'Sign in' && gate.links.length === 0, `only a quiet Sign in (${gate.buttons.join(', ')}; links: ${gate.links.join(', ') || 'none'})`);
       check(!/update_pending|503|setup|migration|error/i.test(gate.page), 'no error, no code, no setup or Migrations button');
+      let paths = apiPaths();
+      check(paths.includes('/api/site-status') && paths.every((path) => OPEN_WHILE_WAITING.test(path)), `no dashboard made behind it: the API asked for ${paths.join(', ')} only`);
       await shot(guest, '12a-update-waiting-visitor', { fullPage: true });
       await guest.setViewportSize({ width: 390, height: 800 });
       await openGated(guest, '/import?lang=sk');
@@ -638,16 +664,22 @@ try {
       check(await darkSurface(guest, 'anotoki-site-status section'), "dark: the page is in the site's dark colours (the --anotoki-* properties)");
       await shot(guest, '12e-update-waiting-visitor-sk-390-dark', { fullPage: true });
 
+      apiPaths = apiAsked(tab);
       await openGated(tab, '/');
       gate = await gatePage(tab);
       check(gate.title === 'Stránku práve aktualizujeme' && gate.buttons.length === 0 && gate.links.length === 0, `mona, signed in: the same, with no button ("${gate.text}")`);
       check(!/update_pending|503|setup|migration/i.test(gate.page), 'and no error, code, setup or Migrations');
+      paths = apiPaths();
+      check(paths.every((path) => OPEN_WHILE_WAITING.test(path)), `no dashboard of hers made behind it: the API asked for ${paths.join(', ')} only`);
       await shot(tab, '12c-update-waiting-member', { fullPage: true });
 
       step('An update waits: the ADMIN reads that a database update is waiting, and reaches the Migrations page - the one page that shows');
+      apiPaths = apiAsked(ad);
       await openGated(ad, '/admin/sources');
       gate = await gatePage(ad);
       check(gate.title === 'A database update is waiting' && gate.links.join('|') === 'Open Migrations -> /admin/migrations', `the ADMIN: "${gate.text}" (${gate.links.join(', ')})`);
+      paths = apiPaths();
+      check(paths.every((path) => OPEN_WHILE_WAITING.test(path)), `no Sources page made behind it: the API asked for ${paths.join(', ')} only`);
       await shot(ad, '12d-update-waiting-admin', { fullPage: true });
       await ad.click('anotoki-site-status a');
       await ad.waitForURL('**/admin/migrations');

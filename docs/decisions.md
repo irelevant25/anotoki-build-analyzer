@@ -3,6 +3,40 @@
 Short records of choices that shape the code. Add a new entry (newest first) when you make a similar call.
 Older entries describe the Laravel version as it was; where a setting has since moved, the entry says so.
 
+**2026-10-07 — Versions have three numbers, and What's new is for the people using the site (the owner's rule; version 0.4.0).**
+The owner: a version is MAJOR.MINOR.PATCH - big changes, new features, bug fixes - and What's new holds only
+what means something to the people using the site, nothing technical or for developers.
+- *Renamed, not renumbered*: the releases are 0.1.0, 0.2.0 and 0.3.0 (`frontend/public/changelog.json`), and the
+  next is 0.4.0 - signed in, the theme, the language and the dates follow the anotoki account and the bar saves
+  to it; while an update waits the site says it is being updated, in the reader's language, instead of an
+  error, and comes back by itself. The visitor counter, the shared library and the development servers of the
+  same days are not in it. `backend/src/Version.php` (what `/api/meta` says, and what an accounts file carries)
+  and `frontend/package.json` (0.0.0 until now) say the same; `tests/auth.test.php` holds the three together.
+- *The version a browser saw* (`build-analyzer-version-seen`, kept as "0.3" before the rename) is compared by
+  its numbers (`compareVersions()`, `core/changelog.ts`: part by part, a missing part 0), so "0.3" is 0.3.0 and
+  nobody is shown an old note again. What's new opens with the releases after the one seen, and with nothing
+  when this one or a later one was seen (a release taken back); a seen value that is not a version counts as a
+  first visit - the newest release alone, as before. Rejected: comparing the strings ("0.3" is not "0.3.0", and
+  "0.10.0" would come before "0.9.0").
+
+**2026-10-07 — anotoki-lib 0.1.1: the gate makes the pages only while the site is open; this site's own guard for that went.**
+0.1.0's `<anotoki-site-gate>` showed its content - the router outlet - or its own page, but content handed to a
+component is made by Angular whether it shows or not: closed, the pages behind the gate's page were built, sent
+their requests (each a 503) and left what those said in the services they share - a sync's "stopped" for the
+Sources page after an Apply in this tab, a snack bar over the gate's page. This site kept them out itself
+(`pagesMade` in `app.ts`: the outlet made only while the site was ready, or for the ADMIN on the Migrations
+route - the gate's condition, a little wider, so that the gate never opened on nothing). 0.1.1 takes the pages
+as a template and makes them only while it shows them
+(`<anotoki-site-gate><ng-template><router-outlet /></ng-template></anotoki-site-gate>`), so `pagesMade` went and
+the gate's condition is the only one - narrower than the old one: the ADMIN on the Migrations route of a site
+that is not set up or out of reach no longer has that page made behind the gate's. Kept, because the template
+does not reach them: What's new waits while `SiteStatus.blocked()` (`app.ts` - its dialog is the shell's,
+outside the gate, and would stand over the gate's page); `/api/site-status` goes without a token or a key
+(`core/auth.interceptor.ts`); the boot asks for the status beside `/api/meta` and never stops on an update. The
+ADMIN's waiting page now asks again by itself too, as the visitors' does. Angular only: `vendor/anotoki/lib`
+stays at 0.1.0 (`^0.1`). `app.spec.ts` holds that no page is made behind the gate's page, and the browser check
+that a waiting page asks the API for nothing but the open paths.
+
 **2026-10-07 — One behaviour while the database is not ready: the anotoki family's library, anotoki-lib 0.1.0 (the owner's decision, for the whole family).**
 The owner: "When there is a new migration, some sites behave differently than others. Japanese won't let me go
 to the admin or anywhere if I am not logged in, but I cannot log in because a migration is waiting. Genshin

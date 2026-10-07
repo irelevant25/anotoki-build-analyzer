@@ -1,6 +1,9 @@
-<!-- The gate shows the pages while the site is ready, and its own page while it is not (core/site-status.ts). -->
+<!--
+  The gate shows the pages while the site is ready, and its own page while it is not (core/site-status.ts). The
+  pages come as a template, which the gate makes only while it shows them: nothing behind its page runs.
+-->
 <anotoki-site-gate>
-  @if (pagesMade()) {
+  <ng-template>
     <router-outlet />
-  }
+  </ng-template>
 </anotoki-site-gate>

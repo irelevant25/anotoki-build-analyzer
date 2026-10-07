@@ -138,8 +138,8 @@ this site requires a sign-in: then every page asks for one first), the admin pan
 `/admin/` (editors: Sources and Translations; admins also Languages, People and Migrations - the database's
 updates seen and applied, as on the IAM), and the "Your data" card for
 every signed-in person (export, import with a preview), under the anotoki top bar with the version in the
-footer - version 0.3. Migration 004 (the visitors' schema and every word of 0.3) is complete; it is applied
-when 0.3 is handed over and deployed: on the host Apply pending on the Migrations page, by an ADMIN, at once
+footer - version 0.4.0. Migration 004 (the visitors' schema and every word of 0.3.0) is complete; it is applied
+when 0.3.0 is handed over and deployed: on the host Apply pending on the Migrations page, by an ADMIN, at once
 after the upload - and only then the IAM's migration 007 (DEV.md, docs/operations.md). The browser check
 (`node .claude/skills/verify-ui/scripts/run.mjs`) goes through all of it on a throwaway database.
 
@@ -147,8 +147,9 @@ after the upload - and only then the IAM's migration 007 (DEV.md, docs/operation
 [anotoki-lib](https://github.com/irelevant25/anotoki-lib), and the owner's decision of 2026-10-07): while a
 database update waits, everybody reads "The site is being updated" in their language (a quiet Sign in while
 nobody is signed in) and the page comes back by itself once it is applied; the site's ADMIN reads "A database
-update is waiting" and reaches the Migrations page, the one page that works then. Not set up yet: the setup
-page is offered only while the site was never installed - never again after `setup.php` finished on a host.
+update is waiting" and reaches the Migrations page, the one page that works then - no other page runs behind
+the waiting page. Not set up yet: the setup page is offered only while the site was never installed - never
+again after `setup.php` finished on a host.
 
 ## Deploying
 

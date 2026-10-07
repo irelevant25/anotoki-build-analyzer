@@ -4,8 +4,8 @@
  * Signing in through the anotoki IAM - the only way in: which tokens are accepted, who a request is, what
  * a signed-in person, an EDITOR and an ADMIN may do (route by route), what the IAM's "sign-in required" closes
  * (and its reader, App\Auth\IamSignInPolicy, from the SDK's file seam), that a leftover sign-in "mode" opens
- * nothing, which settings make an installation set up (the site gate's every state: site_gate.test.php), and
- * the development router. Tokens are signed with a test key published as a JWKS file
+ * nothing, which settings make an installation set up (the site gate's every state: site_gate.test.php), the
+ * version meta says, and the development router. Tokens are signed with a test key published as a JWKS file
  * (tests/stand_in_iam.test.php signs in through the stand-in IAM itself).
  */
 
@@ -19,6 +19,7 @@ use App\Config;
 use App\Db\Db;
 use App\Db\Migrations;
 use App\DevRouter;
+use App\Version;
 use Tests\Support\Answer;
 use Tests\Support\Client;
 
@@ -70,6 +71,18 @@ test('meta is public and says where to sign in and whether the IAM requires it -
         ->path('games.0.key', 'genshin');
     same(['issuer', 'client_id', 'login_required'], array_keys($meta->json('auth')), 'the sign-in part of meta');
     same(['keep_days' => 30], $meta->json('visitors'), 'how long a visitor\'s imports are kept');
+});
+
+test('meta says the version people see: MAJOR.MINOR.PATCH, the changelog\'s newest entry and the frontend package\'s', function () {
+    $frontend = __DIR__.'/../../frontend';
+    $changelog = json_decode((string) file_get_contents($frontend.'/public/changelog.json'), true);
+    $package = json_decode((string) file_get_contents($frontend.'/package.json'), true);
+    $threeNumbers = fn (mixed $version): bool => is_string($version) && preg_match('/^\d+\.\d+\.\d+$/D', $version) === 1;
+    check($threeNumbers(Version::CURRENT), 'three numbers: '.Version::CURRENT);
+    same(Version::CURRENT, $changelog[0]['version'] ?? null, 'the newest entry of public/changelog.json');
+    same(Version::CURRENT, $package['version'] ?? null, 'frontend/package.json');
+    same([], array_values(array_filter(array_column($changelog, 'version'), fn ($version) => ! $threeNumbers($version))), 'every release in the changelog has three numbers');
+    (new Client)->get('/api/meta')->status(200)->path('version', Version::CURRENT);
 });
 
 test('the site\'s strings are public too: nobody is asked who they are', function () use ($users) {

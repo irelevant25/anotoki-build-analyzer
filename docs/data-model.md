@@ -218,7 +218,7 @@ written as compact JSON (one line), saved as `build-analyzer-accounts-YYYY-MM-DD
 {
   "format": "build-analyzer.accounts", "format_version": 1,
   "exported_at": "2026-10-04T08:15:00Z",             // UTC, to the second, like every time in the file
-  "app_version": "0.2",                              // Version::CURRENT where it was written
+  "app_version": "0.4.0",                            // Version::CURRENT where it was written
   "accounts": [{                                     // by game, then when they were made
     "game": "genshin", "uid": "700000001",           // uid null for an account from a file
     "nickname": "Alice", "level": 58, "world_level": 8, "signature": "…", "has_full_inventory": true,

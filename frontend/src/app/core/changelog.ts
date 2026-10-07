@@ -6,6 +6,7 @@ import { ChangelogDialog } from '../shared/changelog-dialog';
 
 /** One release in public/changelog.json, newest first; the newest entry is the version shown in the app. */
 export interface ChangelogEntry {
+  /** MAJOR.MINOR.PATCH: big changes, new features, bug fixes ("0.4.0"). */
   version: string;
   /** YYYY-MM-DD */
   date: string;
@@ -30,7 +31,7 @@ export class Changelog {
   private readonly dialog = inject(MatDialog);
 
   readonly entries = signal<ChangelogEntry[]>([]);
-  /** "0.1", or null until the changelog has loaded. */
+  /** "0.4.0", or null until the changelog has loaded. */
   readonly current = computed(() => this.entries()[0]?.version ?? null);
 
   async load(): Promise<void> {
@@ -53,17 +54,22 @@ export class Changelog {
   }
 
   /**
-   * Opens what is new since the version this browser saw last; on a first visit just the newest release,
-   * not the whole history. Nothing when this version was seen already.
+   * Opens what is new since the version this browser saw last: the releases after it. On a first visit - or
+   * with a seen version that is not one - just the newest release, not the whole history. Nothing when this
+   * version, or a later one, was seen already. Versions compare by their numbers (compareVersions()): a
+   * browser that kept "0.3" before the versions had three numbers has seen 0.3.0, and is not shown it again.
    */
   showIfNew(): void {
     const current = this.current();
     const seen = read(SEEN_KEY);
-    if (!current || seen === current) {
+    if (!current || (seen !== null && seenAlready(seen, current))) {
       return;
     }
-    const seenIndex = this.entries().findIndex((entry) => entry.version === seen);
-    this.open(seenIndex === -1 ? this.entries().slice(0, 1) : this.entries().slice(0, seenIndex));
+    const unseen =
+      seen === null
+        ? []
+        : this.entries().filter((entry) => (compareVersions(entry.version, seen) ?? 0) > 0);
+    this.open(unseen.length > 0 ? unseen : this.entries().slice(0, 1));
   }
 
   private remember(): void {
@@ -76,6 +82,36 @@ export class Changelog {
       }
     }
   }
+}
+
+/**
+ * Two versions compared by their numbers - MAJOR.MINOR.PATCH, a missing part counting as 0: negative when `a`
+ * is the older, 0 for the same release ("0.3", kept by a browser from before the versions had three numbers,
+ * is 0.3.0), positive when `a` is the newer; null when either is not a version.
+ */
+export function compareVersions(a: string, b: string): number | null {
+  const left = versionNumbers(a);
+  const right = versionNumbers(b);
+  if (left === null || right === null) {
+    return null;
+  }
+  for (let i = 0; i < Math.max(left.length, right.length); i++) {
+    const difference = (left[i] ?? 0) - (right[i] ?? 0);
+    if (difference !== 0) {
+      return Math.sign(difference);
+    }
+  }
+  return 0;
+}
+
+/** "0.4.0" -> [0, 4, 0]; null for anything that is not a version. */
+function versionNumbers(version: string): number[] | null {
+  return /^\d+(\.\d+)*$/.test(version) ? version.split('.').map(Number) : null;
+}
+
+/** Whether a browser that saw `seen` has seen `version`: the same release, or a later one. */
+function seenAlready(seen: string, version: string): boolean {
+  return seen === version || (compareVersions(seen, version) ?? -1) >= 0;
 }
 
 function read(key: string): string | null {

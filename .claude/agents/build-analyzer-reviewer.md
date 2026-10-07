@@ -135,7 +135,9 @@ Then quality:
   browser check (`node .claude/skills/verify-ui/scripts/run.mjs`) and its screenshots were looked at - English
   and Slovak at 390 px (Slovak runs longer).
 - Docs in `docs/`, `DEV.md` and the README updated when behavior they describe changed; a user-visible
-  release has a `frontend/public/changelog.json` entry and the same version in `backend/src/Version.php`.
+  release has a `frontend/public/changelog.json` entry - its version MAJOR.MINOR.PATCH (big changes, new
+  features, bug fixes), the same in `backend/src/Version.php` and `frontend/package.json` - that says only what
+  the people using the site notice: nothing technical or for developers.
 - Nothing sensitive or machine-specific committed: `backend/config/*.local.php`, credentials, cookies, absolute
   user paths (`.vscode/` is gitignored).
 

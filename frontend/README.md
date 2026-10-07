@@ -22,9 +22,10 @@ device's (`core/theme.ts`, `core/i18n/translation.ts`, `core/i18n/date-patterns.
 
 What the site shows while it is not ready comes from the anotoki family's library, `@anotoki/lib/migrations`
 (the npm package `@anotoki/lib`, installed from its GitHub release's tarball - `package.json`; DEV.md "The shared
-library" says how to update it): the gate around the router outlet (`app.html`) with its page - "The site is
-being updated", "A database update is waiting" for the site's ADMIN, "not set up yet" -, the interceptor that
-hears the server say so, and the admin panel's Migrations page (`pages/admin/migrations/`). `core/site-status.ts`
+library" says how to update it): the gate with its page - "The site is being updated", "A database update is
+waiting" for the site's ADMIN, "not set up yet" -, which takes the router outlet as a template (`app.html`) and
+makes the pages only while it shows them, so nothing behind its page runs; the interceptor that hears the
+server say so; and the admin panel's Migrations page (`pages/admin/migrations/`). `core/site-status.ts`
 wires them to this site (who is ADMIN, how to sign in, the language on the page, the account's dates), and
 `styles.scss` maps this site's colours onto the library's `--anotoki-*` properties, light and dark.
 
@@ -52,7 +53,9 @@ a visitor's is decided when `Api` issues it (`ISSUED_AS`), never by whether a to
 the pieces work: [docs/architecture.md](../docs/architecture.md), "Frontend" and "Visitors".
 
 The version in the footer and its "What's new" come from `public/changelog.json`; a new release adds an entry
-at the top (and the same version in `backend/src/Version.php`).
+at the top - its version MAJOR.MINOR.PATCH, the same in `package.json` and `backend/src/Version.php` - and What's
+new opens by itself with the releases after the one this browser saw last, compared by their numbers
+(`core/changelog.ts`: "0.3", kept from before the versions had three numbers, is 0.3.0).
 
 The browser check - the built app served by the backend on a throwaway database, signed in through the
 stand-in IAM - is `node .claude/skills/verify-ui/scripts/run.mjs` from the repository's root (the `verify-ui`
