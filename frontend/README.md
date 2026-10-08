@@ -23,11 +23,13 @@ device's (`core/theme.ts`, `core/i18n/translation.ts`, `core/i18n/date-patterns.
 What the site shows while it is not ready comes from the anotoki family's library, `@anotoki/lib/migrations`
 (the npm package `@anotoki/lib`, installed from its GitHub release's tarball - `package.json`; DEV.md "The shared
 library" says how to update it): the gate with its page - "The site is being updated", "A database update is
-waiting" for the site's ADMIN, "not set up yet" -, which takes the router outlet as a template (`app.html`) and
-makes the pages only while it shows them, so nothing behind its page runs; the interceptor that hears the
-server say so; and the admin panel's Migrations page (`pages/admin/migrations/`). `core/site-status.ts`
-wires them to this site (who is ADMIN, how to sign in, the language on the page, the account's dates), and
-`styles.scss` maps this site's colours onto the library's `--anotoki-*` properties, light and dark.
+waiting" for the site's ADMIN, "not set up yet" -, which takes the router outlet as a marked template
+(`<ng-template anotokiSitePages>`, `app.html`) and makes the pages only while it shows them, so nothing behind
+its page runs; the interceptor that hears the server say so; and the admin panel's Migrations page
+(`pages/admin/migrations/`, from `@anotoki/lib/migrations/page`). `core/site-status.ts` wires them to this site
+(who is ADMIN, how to sign in, the language on the page, the account's dates), and `styles.scss` maps this
+site's colours onto the library's `--anotoki-*` properties, light and dark - both pages are drawn with the
+library's kit (0.2.0).
 
 ```text
 src/app/

@@ -75,16 +75,20 @@ The frontend (`@anotoki/lib/migrations`, wired in `core/site-status.ts`): `SiteS
 beside `/api/meta` (`app.config.ts`); `siteStatusInterceptor` hears any 503 `not_set_up` / `update_pending`;
 `<anotoki-site-gate>` (`app.html`) shows the gate's page instead of the site:
 "The site is being updated" in the reader's language to everybody (a quiet Sign in while nobody is signed in;
-it asks again every 30 s and reloads once the site is back), "A database update is waiting" with Open
+it asks again every 30 s and reloads once the site is back - since anotoki-lib 0.2.0 without first telling the
+gate the site is ready, so no page is made in the page about to go), "A database update is waiting" with Open
 Migrations to the site's ADMIN (asking again the same way: another administrator may apply it meanwhile) - the
 Migrations page (`/admin/migrations`) is the one page that shows then -, "This site is not set up yet" with the
 setup page only while never installed, "The site is not available right now" otherwise. The router outlet is
-the gate's template (`<anotoki-site-gate><ng-template><router-outlet /></ng-template></anotoki-site-gate>`,
-anotoki-lib 0.1.1), which the gate makes only while it shows the pages: a page behind the gate's page is not
+the gate's marked template
+(`<anotoki-site-gate><ng-template anotokiSitePages><router-outlet /></ng-template></anotoki-site-gate>`,
+`SitePagesDirective` in `app.ts`; anotoki-lib 0.1.1 took any template, 0.2.0 only the marked one - an unmarked
+one draws nothing), which the gate makes only while it shows the pages: a page behind the gate's page is not
 made at all, so it sends no request and leaves no error, snack bar or sync state behind. (0.1.0 took the outlet
 as plain content, which Angular made whether it showed or not; `app.ts` kept it out with a condition of its
 own, `pagesMade`, gone since.) Nothing in the boot stops while an update waits: the sign-in (and its callback)
-completes, the words are asked for.
+completes, the words are asked for. The gate's pages and the Migrations page are drawn with the library's kit
+(0.2.0), in this site's colours: the `--anotoki-*` properties in `styles.scss`.
 
 ### Sign-in
 
@@ -390,7 +394,8 @@ page's API answers its own: 404 `not_found` (a file that is none of the set's), 
 - `core/api.ts` typed client (`API_BASE = '/api'`, same origin) + `errorMessage()`; `core/models.ts` mirrors the
   API responses (keep in step with the presenters); `core/meta-store.ts` loads `/api/meta` at startup (labels,
   formatting, sign-in settings); `core/site-status.ts` wires the family's site gate and Migrations page
-  (`@anotoki/lib/migrations`) to this site - see "The site gate" above; `core/format.ts` colors
+  (`@anotoki/lib/migrations`; the page itself from `@anotoki/lib/migrations/page`) to this site - see "The site
+  gate" above; `core/format.ts` colors
   and time helpers; `core/changelog.ts` loads `public/changelog.json` (the version shown in the footer, and
   "What's new" once per release per browser); `core/theme.ts` (`ThemeService`: light, dark or the device's, a
   class on `<html>`, kept in localStorage `build-analyzer-theme`; signed in at an IAM that keeps the

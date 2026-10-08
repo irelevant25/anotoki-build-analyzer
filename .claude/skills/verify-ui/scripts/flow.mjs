@@ -625,10 +625,10 @@ try {
     check(appliedFiles.join('|') === migrationFiles.join('|'), `every file applied, in order: ${appliedFiles.join(', ')}`);
     check(await ad.locator('[data-apply]').isDisabled(), 'Apply pending cannot be pressed with nothing pending');
     await ad.locator('[data-applied] li', { hasText: '005_' }).getByRole('button', { name: /^View/ }).click();
-    await ad.waitForSelector('dialog[data-sql] pre');
-    check((await ad.locator('dialog[data-sql] pre').innerText()).includes("DELETE FROM translation_keys"), 'View shows a file\'s SQL (005)');
+    await ad.waitForSelector('anotoki-dialog[data-sql] pre');
+    check((await ad.locator('anotoki-dialog[data-sql] pre').innerText()).includes("DELETE FROM translation_keys"), 'View shows a file\'s SQL (005)');
     await shot(ad, '11-admin-migrations-file');
-    await ad.click('dialog[data-sql] [data-close]');
+    await ad.click('anotoki-dialog[data-sql] [data-close]');
     await shot(ad, '11-admin-migrations-current', { fullPage: true });
 
     // 004 as if it had just been uploaded: its row forgotten (its schema stays, so applying it again fails -
@@ -704,8 +704,8 @@ try {
 
       step('An update waits: Apply pending asks first - and says where it stopped');
       await ad.click('[data-apply]');
-      await ad.waitForSelector('dialog[data-confirm][open] h2');
-      const asked = (await ad.locator('dialog[data-confirm] h2').innerText()).trim();
+      await ad.waitForSelector('anotoki-dialog[data-confirm] dialog[open] h2');
+      const asked = (await ad.locator('[data-confirm] h2').innerText()).trim();
       check(asked === 'Apply 1 pending migration?', `it asks first: ${asked}`);
       check((await ad.evaluate(() => document.activeElement?.hasAttribute('data-confirm-cancel'))) === true, 'Cancel has the focus: an Apply is never one keypress away');
       await shot(ad, '14-admin-migrations-confirm');

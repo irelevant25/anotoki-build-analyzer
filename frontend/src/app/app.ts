@@ -1,7 +1,7 @@
 import { Component, effect, inject, untracked } from '@angular/core';
 import { MatSnackBar } from '@angular/material/snack-bar';
 import { RouterOutlet } from '@angular/router';
-import { SiteGateComponent, SiteStatus } from '@anotoki/lib/migrations';
+import { SiteGateComponent, SitePagesDirective, SiteStatus } from '@anotoki/lib/migrations';
 import { AuthService } from './core/auth';
 import { Changelog } from './core/changelog';
 import { TranslationService } from './core/i18n/translation';
@@ -25,7 +25,7 @@ import { VisitorKey } from './core/visitor-key';
  */
 @Component({
   selector: 'app-root',
-  imports: [RouterOutlet, SiteGateComponent],
+  imports: [RouterOutlet, SiteGateComponent, SitePagesDirective],
   templateUrl: './app.html',
   styleUrl: './app.scss',
 })

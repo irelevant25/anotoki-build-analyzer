@@ -3,6 +3,24 @@
 Short records of choices that shape the code. Add a new entry (newest first) when you make a similar call.
 Older entries describe the Laravel version as it was; where a setting has since moved, the entry says so.
 
+**2026-10-08 — anotoki-lib 0.2.0 in the frontend: only what it requires; the site's own pages move onto the kit later.**
+The gate's pages are a marked template (`<ng-template anotokiSitePages>`, `SitePagesDirective` in `app.ts`):
+0.2.0 takes no other template for the pages, and an unmarked one draws nothing. The Migrations page comes from
+its own entry point (`@anotoki/lib/migrations/page`, imported by `pages/admin/migrations`), so it rides in that
+lazy route's chunk. The specs and the browser check read the kit's markup (`[data-confirm] h2`,
+`anotoki-dialog[data-sql]`, the result's `.heading` and `.result-text`). The waiting page now reloads without
+first telling the gate the site is ready (`SiteStatus.checkForReload()`); nothing here worked around the old
+reopening, so nothing went - What's new still waits while `SiteStatus.blocked()`, as its dialog is the shell's and
+would stand over the gate's page. Both pages are drawn with the library's kit, which reads more `--anotoki-*`
+names than 0.1 did, and a name left out takes the family's blue palette: `styles.scss` maps the kit's surfaces
+(`surface-2`, `surface-3`, `surface-raised`: the dialogs and their footers, a hovered button, a quiet badge),
+`border-strong` (Material's outline, 3:1), `link` and `focus` (the primary) and the hovers (`primary-hover`,
+`danger-hover`, drawn toward the text colour) to this site's; the soft grounds of its notes and badges, and the
+inks on them, keep the family's (4.5:1). The first load grew by 10 kB (692.40 kB to 702.49 kB, against a 1 MB
+budget): the page left it, but `@anotoki/lib/ui` came in whole with the status page's button, since a module
+that the first load and a lazy chunk share goes into the first load. `vendor/anotoki/lib` stays 0.1.0 (`^0.1`):
+0.2.0 did not change the PHP half. No What's new line: nobody using the site sees anything new.
+
 **2026-10-07 — Versions have three numbers, and What's new is for the people using the site (the owner's rule; version 0.4.0).**
 The owner: a version is MAJOR.MINOR.PATCH - big changes, new features, bug fixes - and What's new holds only
 what means something to the people using the site, nothing technical or for developers.

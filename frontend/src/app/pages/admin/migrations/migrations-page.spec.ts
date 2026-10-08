@@ -122,9 +122,7 @@ describe("/admin/migrations: the family's Migrations page in the admin panel (AD
   async function apply(answer: object, after: object): Promise<void> {
     host.querySelector<HTMLButtonElement>('[data-apply]')!.click();
     await settle(fixture);
-    expect(words(host.querySelector('dialog[data-confirm] h2'))).toBe(
-      'Apply 2 pending migrations?',
-    );
+    expect(words(host.querySelector('[data-confirm] h2'))).toBe('Apply 2 pending migrations?');
     host.querySelector<HTMLButtonElement>('[data-confirm-apply]')!.click();
     await settle(fixture);
     const request = http.expectOne('/api/admin/migrations/apply');
@@ -201,8 +199,10 @@ describe("/admin/migrations: the family's Migrations page in the admin panel (AD
 
     const result = host.querySelector('[data-result]');
     expect(result?.getAttribute('role')).toBe('alert');
-    expect(words(result?.querySelector('h2'))).toBe('Stopped at 004_visitors_and_family_bar.sql');
-    expect(words(result?.querySelector('p'))).toBe(
+    expect(words(result?.querySelector('.heading'))).toBe(
+      'Stopped at 004_visitors_and_family_bar.sql',
+    );
+    expect(words(result?.querySelector('.result-text'))).toBe(
       'Nothing was applied. The failed file was rolled back as a whole.',
     );
     expect(result?.querySelector('pre')?.textContent).toBe(error);

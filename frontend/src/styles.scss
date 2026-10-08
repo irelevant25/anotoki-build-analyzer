@@ -32,18 +32,32 @@ html {
   // The anotoki family's shared pages (@anotoki/lib/migrations: the site gate's page while the site is not
   // ready, and the admin panel's Migrations page) in this site's colours. Each is a light-dark() token of the
   // site's or Material's own, so both pages follow the theme - the toggle's and the device's - light and dark.
+  // Since @anotoki/lib 0.2.0 both are drawn with the library's kit, which reads more names than these 0.1 ones,
+  // and a name left out takes the family's blue palette: so its surfaces (dialogs and their footers, a hovered
+  // button, a quiet badge), the edges of its buttons (Material's outline, 3:1), its links and focus ring (the
+  // site's primary) and its buttons' hover (drawn toward the text colour, as the warning below) are this
+  // site's. The soft grounds of its notes and badges, and the inks on them, keep the family's (4.5:1 there).
   --anotoki-bg: var(--app-bg);
   --anotoki-surface: var(--app-surface);
+  --anotoki-surface-2: var(--app-surface-2);
+  --anotoki-surface-3: var(--app-surface-3);
+  --anotoki-surface-raised: var(--app-raised);
   --anotoki-text: var(--app-text);
   --anotoki-muted: var(--app-muted);
   --anotoki-border: var(--app-border);
+  --anotoki-border-strong: var(--mat-sys-outline);
   --anotoki-primary: var(--mat-sys-primary);
+  --anotoki-primary-hover: color-mix(in srgb, var(--mat-sys-primary) 85%, var(--app-text));
   --anotoki-primary-contrast: var(--mat-sys-on-primary);
+  --anotoki-link: var(--mat-sys-primary);
+  --anotoki-focus: var(--mat-sys-primary);
   --anotoki-danger: var(--mat-sys-error);
+  --anotoki-danger-hover: color-mix(in srgb, var(--mat-sys-error) 85%, var(--app-text));
   --anotoki-danger-contrast: var(--mat-sys-on-error);
   --anotoki-success: var(--grade-a);
-  // The grades' orange as text (a file's "pending" badge): drawn toward the text colour, so it reads on light
-  // and on dark alike - the orange itself is too faint on white for small words.
+  // The grades' orange, drawn toward the text colour, so it reads on light and on dark alike - the orange itself
+  // is too faint on white: the mark of a warning note. (0.1's "pending" badge took it for its words; 0.2.0's
+  // badge has an ink of its own, the family's warning-text, kept for its 4.5:1 on the badge's ground.)
   --anotoki-warning: color-mix(in srgb, var(--grade-c) 70%, var(--app-text));
   --anotoki-radius: 12px;
   // The anotoki mark (a dark navy picture, shared/brand) in the bar: the family's soft shadow in light; in dark a

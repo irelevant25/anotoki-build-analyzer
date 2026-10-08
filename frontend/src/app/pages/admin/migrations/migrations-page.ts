@@ -1,9 +1,10 @@
 import { Component } from '@angular/core';
-import { MigrationsPageComponent } from '@anotoki/lib/migrations';
+import { MigrationsPageComponent } from '@anotoki/lib/migrations/page';
 
 /**
  * /admin/migrations (ADMIN, English like the whole admin panel) - the schema, for a host with no shell: the
- * anotoki family's Migrations page (@anotoki/lib/migrations) in this admin panel's frame. Pending in the order
+ * anotoki family's Migrations page (@anotoki/lib/migrations/page, an entry point of its own: it comes with this
+ * lazy route, never in the first load) in this admin panel's frame. Pending in the order
  * they will run, Applied with their dates (the account's date order and clock where it has them:
  * core/site-status.ts) and each file's SQL, Apply pending after a confirmation; one apply at a time. On a
  * machine with a shell, `php migration.php` does the same.

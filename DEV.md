@@ -129,17 +129,18 @@ longer read and can be deleted.
 What the anotoki sites share lives in one library, [irelevant25/anotoki-lib](https://github.com/irelevant25/anotoki-lib),
 in two halves with one version: the Composer package `anotoki/lib` (`backend/composer.json`: a `vcs` repository
 entry and `"anotoki/lib": "^0.1"`; installed into `backend/vendor/`, which the upload carries) and the npm
-package `@anotoki/lib` (`frontend/package.json`: the release's tarball). The frontend has 0.1.1 and the backend
-0.1.0 (0.1.1 changed only the Angular half); they hold the migrations module, one behaviour for every anotoki
-site while its database is not ready:
+package `@anotoki/lib` (`frontend/package.json`: the release's tarball). The frontend has 0.2.0 and the backend
+0.1.0 (0.1.1 and 0.2.0 changed only the Angular half); they hold the migrations module, one behaviour for every
+anotoki site while its database is not ready:
 
 - the engine (`Anotoki\Lib\Migrations\Migrator`), on this site's files and bookkeeping table through
   `backend/src/Db/Migrations.php` - `migration.php`, `setup.php`, the Migrations page and the tests;
 - the site gate in front of every API route (`SiteState`, `SiteGate`: `backend/api/middleware/site_gate.php`),
   `GET /api/site-status`, and the Migrations page's API (`MigrationsRoutes`: `backend/api/routes/admin.php`);
-- in the frontend, the gate with its page - the router outlet given to it as a template, so the pages are made
-  only while the site is open -, and the Migrations page (`frontend/src/app/core/site-status.ts` wires them to
-  this site).
+- in the frontend, the gate with its page - the router outlet given to it as a marked template,
+  `<ng-template anotokiSitePages>`, so the pages are made only while the site is open -, and the Migrations
+  page, from its own entry point `@anotoki/lib/migrations/page` (`frontend/src/app/core/site-status.ts` wires
+  them to this site); since 0.2.0 both are drawn with the library's kit, in this site's colours (`styles.scss`).
 
 To update it, both halves together (while its version is 0.x a minor version may break: read its
 `CHANGELOG.md` first):
