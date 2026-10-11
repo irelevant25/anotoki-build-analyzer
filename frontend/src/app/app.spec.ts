@@ -2,8 +2,6 @@ import { provideHttpClient, withInterceptors } from '@angular/common/http';
 import { provideHttpClientTesting } from '@angular/common/http/testing';
 import { Component, computed, signal } from '@angular/core';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
-import { MATERIAL_ANIMATIONS } from '@angular/material/core';
-import { MatSnackBar } from '@angular/material/snack-bar';
 import { Router, provideRouter } from '@angular/router';
 import { SiteStatus, siteStatusInterceptor } from '@anotoki/lib/migrations';
 import { provideTestTranslations } from '@anotoki/lib/translations/testing';
@@ -12,6 +10,7 @@ import { AuthService } from './core/auth';
 import { Changelog } from './core/changelog';
 import { AnotokiUser } from '@anotoki/lib/auth';
 import { VisitorMove } from './core/models';
+import { provideShell } from './core/shell';
 import { provideSiteStatus } from './core/site-status';
 import { VisitorKey } from './core/visitor-key';
 
@@ -69,7 +68,6 @@ describe('the shell', () => {
   let host: HTMLElement;
   let user: ReturnType<typeof signal<AnotokiUser | null>>;
   let login: ReturnType<typeof vi.fn>;
-  let snackBar: { open: ReturnType<typeof vi.fn> };
   let visitor: {
     key: ReturnType<typeof signal<string | null>>;
     moved: ReturnType<typeof signal<VisitorMove | null>>;
@@ -87,7 +85,6 @@ describe('the shell', () => {
     login = vi.fn(async () => true);
     visitor = { key: signal(options.key ?? null), moved: signal<VisitorMove | null>(null) };
     changelog = { current: signal<string | null>('0.3'), open: vi.fn(), showIfNew: vi.fn() };
-    snackBar = { open: vi.fn() };
     TestBed.configureTestingModule({
       providers: [
         provideRouter([{ path: '**', component: TestPage }]),
@@ -95,6 +92,7 @@ describe('the shell', () => {
         provideHttpClientTesting(),
         provideSiteStatus(),
         provideTestTranslations(SLOVAK, { language: 'sk', english: ENGLISH }),
+        provideShell(),
         {
           provide: AuthService,
           useValue: {
@@ -102,14 +100,13 @@ describe('the shell', () => {
             signedIn: () => user() !== null,
             isAdmin: computed(() => (user()?.roles ?? []).includes('ADMIN')),
             preferences: () => null,
+            savePreferences: vi.fn(async () => ({})),
             failure: signal(null),
             login,
           },
         },
         { provide: Changelog, useValue: changelog },
         { provide: VisitorKey, useValue: visitor },
-        { provide: MatSnackBar, useValue: snackBar },
-        { provide: MATERIAL_ANIMATIONS, useValue: { animationsDisabled: true } },
       ],
     });
     // What the start asked of the server (app.config.ts): here told, not asked.
@@ -154,7 +151,7 @@ describe('the shell', () => {
 
   afterEach(() => {
     vi.restoreAllMocks();
-    document.documentElement.classList.remove('theme-light', 'theme-dark');
+    document.documentElement.removeAttribute('data-theme');
   });
 
   it('draws the router while the site is ready: the layouts bring the bar and the footer', async () => {
@@ -285,10 +282,16 @@ describe('the shell', () => {
     expect(words(host)).not.toMatch(/setup|nastaven/i);
   });
 
-  it('puts the theme chosen on this device on <html> before anything is drawn', async () => {
+  it("puts the theme chosen on this device on <html> - the family's ThemeService, under the key the site always used", async () => {
     localStorage.setItem('build-analyzer-theme', 'dark');
     await setup();
-    expect(document.documentElement.classList.contains('theme-dark')).toBe(true);
+    expect(document.documentElement.getAttribute('data-theme')).toBe('dark');
+  });
+
+  it("draws the kit's question and messages once, outside the gate, for every page and for the gate's page alike", async () => {
+    await setup({ who: 'nobody', site: { code: 'update_pending' } });
+    expect(host.querySelectorAll(':scope > anotoki-confirm-host')).toHaveLength(1);
+    expect(host.querySelectorAll(':scope > anotoki-toast-host')).toHaveLength(1);
   });
 
   it('says once, after a sign-in, what moved from the visitor into the account - in the language on the page', async () => {
@@ -296,12 +299,12 @@ describe('the shell', () => {
     visitor.moved.set({ found: true, moved: 2, kept: 1, imports: 3, held: false });
     await fixture.whenStable();
 
-    expect(snackBar.open).toHaveBeenCalledTimes(1);
-    expect(snackBar.open).toHaveBeenCalledWith(
-      'Účty importované bez prihlásenia sú teraz v tvojom anotoki účte (2). Účet, ktorý už bol v tvojom anotoki účte, zostal, ako bol (1).',
-      'Zavrieť',
-      expect.anything(),
+    const said = [...host.querySelectorAll('anotoki-toast-host .anotoki-toast-host__message')].map(
+      words,
     );
+    expect(said).toEqual([
+      'Účty importované bez prihlásenia sú teraz v tvojom anotoki účte (2). Účet, ktorý už bol v tvojom anotoki účte, zostal, ako bol (1).',
+    ]);
     expect(visitor.moved()).toBeNull();
   });
 

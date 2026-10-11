@@ -9,37 +9,11 @@
   justify-content: center;
   gap: 0.5rem;
   padding: 1.25rem 1rem 1.5rem;
-  border-top: 1px solid var(--app-border);
-  color: var(--app-muted);
+  border-top: 1px solid var(--anotoki-border);
+  color: var(--anotoki-muted);
   font-size: 0.8125rem;
 }
 
 .version {
   font-variant-numeric: tabular-nums;
-}
-
-.whats-new {
-  padding: 0.25rem 0.5rem;
-  border: 0;
-  border-radius: 999px;
-  background: transparent;
-  color: var(--mat-sys-primary);
-  font: inherit;
-  font-weight: 500;
-  cursor: pointer;
-
-  &:hover {
-    background: var(--app-surface-3);
-  }
-
-  &:focus-visible {
-    outline: 2px solid var(--mat-sys-primary);
-    outline-offset: 1px;
-  }
-}
-
-@media print {
-  :host {
-    display: none;
-  }
 }

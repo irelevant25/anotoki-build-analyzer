@@ -1,17 +1,18 @@
 import { HttpErrorResponse } from '@angular/common/http';
 import { signal } from '@angular/core';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
-import { MATERIAL_ANIMATIONS } from '@angular/material/core';
-import { MatSnackBar } from '@angular/material/snack-bar';
 import { provideRouter } from '@angular/router';
 import { Observable, Subject, of, throwError } from 'rxjs';
 import { provideTestTranslations } from '@anotoki/lib/translations/testing';
+import { ConfirmHostComponent } from '@anotoki/lib/ui/dialog';
+import { ToastService } from '@anotoki/lib/ui/toast';
 import { Api } from '../../core/api';
 import { AuthService } from '../../core/auth';
 import { en } from '../../core/i18n/en';
 import { AccountSummary, SourceStatus } from '../../core/models';
 import { VisitorKey } from '../../core/visitor-key';
 import { DashboardPage } from './dashboard-page';
+import { provideKit } from '../../core/kit';
 
 const HOUR = 3_600_000;
 /** A moment that reads "N hours ago" for as long as the spec runs. */
@@ -99,21 +100,20 @@ describe('the dashboard', () => {
   let fixture: ComponentFixture<DashboardPage>;
   let host: HTMLElement;
   let api: { accounts: ReturnType<typeof vi.fn>; sources: ReturnType<typeof vi.fn>; deleteAccount: ReturnType<typeof vi.fn> };
-  let snackBar: { open: ReturnType<typeof vi.fn> };
+  let toasts: { success: ReturnType<typeof vi.fn>; error: ReturnType<typeof vi.fn> };
+  /** The kit's "Are you sure?", as the app's root draws it. */
+  let confirmHost: ComponentFixture<ConfirmHostComponent>;
   let auth: { signedIn: ReturnType<typeof signal<boolean>>; isStaff: ReturnType<typeof signal<boolean>> };
   let visitor: { key: ReturnType<typeof signal<string | null>>; lost: ReturnType<typeof signal<boolean>>; moves: ReturnType<typeof signal<number>> };
 
-  const overlay = () => document.querySelector<HTMLElement>('.cdk-overlay-container');
-  /** What an element says, without the names of its icons. */
-  const text = (element: Element | null | undefined) => {
-    const copy = element?.cloneNode(true) as Element | undefined;
-    copy?.querySelectorAll('mat-icon').forEach((icon) => icon.remove());
-    return copy?.textContent?.replace(/\s+/g, ' ').trim();
-  };
+  /** What an element says. */
+  const text = (element: Element | null | undefined) => element?.textContent?.replace(/\s+/g, ' ').trim();
   const texts =(selector: string) => [...host.querySelectorAll(selector)].map(text);
   /** A card's counts: each a number above its caption. */
   const counts = (card: HTMLElement) => [...card.querySelectorAll('.counts div')].map((count) => [text(count.querySelector('strong')), text(count.querySelector('span'))].join(' '));
   const cards = () => [...host.querySelectorAll<HTMLElement>('article.account-card')];
+  /** An account card's line under its counts: its data's kind, and when it was imported. */
+  const imported = (card: HTMLElement) => text(card.querySelector('.account-main .cluster .muted'));
   const rows = () => [...host.querySelectorAll<HTMLElement>('.source-row')];
   /** What the page says about the accounts and the sources - the "Your data" card aside (it has cases of its own). */
   const pageText = () => {
@@ -140,7 +140,7 @@ describe('the dashboard', () => {
       sources: vi.fn(() => of(options.sources ?? [source('genshin-1')])),
       deleteAccount: vi.fn(() => of(undefined)),
     };
-    snackBar = { open: vi.fn() };
+    toasts = { success: vi.fn(), error: vi.fn() };
     const state = options.state ?? 'person';
     auth = { signedIn: signal(state === 'person'), isStaff: signal(options.admin ?? false) };
     visitor = { key: signal(state === 'visitor' ? 'K'.repeat(43) : null), lost: signal(false), moves: signal(0) };
@@ -148,31 +148,41 @@ describe('the dashboard', () => {
       providers: [
         provideRouter([]),
         (options.language ?? 'sk') === 'sk' ? provideTestTranslations({ ...SLOVAK, ...options.strings }, { language: 'sk', english: en }) : provideTestTranslations(en),
+        provideKit(),
         { provide: Api, useValue: api },
         { provide: AuthService, useValue: { ...auth, isAdmin: auth.isStaff, available: signal(true), failure: signal(null), user: signal(null) } },
         { provide: VisitorKey, useValue: visitor },
-        { provide: MatSnackBar, useValue: snackBar },
-        { provide: MATERIAL_ANIMATIONS, useValue: { animationsDisabled: true } },
+        { provide: ToastService, useValue: toasts },
       ],
     });
     fixture = TestBed.createComponent(DashboardPage);
     host = fixture.nativeElement;
+    confirmHost = TestBed.createComponent(ConfirmHostComponent);
+    document.body.appendChild(confirmHost.nativeElement);
     await fixture.whenStable();
   }
 
-  /** Opens an account card's menu and chooses Delete: the question is then on the page. */
+  /** Opens an account card's menu (the kit's) and chooses Delete: the kit's question is then on the page. */
   async function askToDelete(card: HTMLElement): Promise<void> {
     card.querySelector<HTMLButtonElement>('.account-actions button')!.click();
     await fixture.whenStable();
-    overlay()!.querySelector<HTMLButtonElement>('button[mat-menu-item]')!.click();
-    await fixture.whenStable();
+    card.querySelector<HTMLButtonElement>('anotoki-menu [role="menuitem"]')!.click();
+    await settleAll();
   }
-  const dialog = () => overlay()?.querySelector<HTMLElement>('mat-dialog-container') ?? null;
-  const dialogButtons = () => [...(dialog()?.querySelectorAll<HTMLButtonElement>('mat-dialog-actions button') ?? [])];
+  /** The page and the question both drawn after whatever a click began. */
+  async function settleAll(): Promise<void> {
+    for (let turn = 0; turn < 3; turn++) {
+      await new Promise((done) => setTimeout(done));
+      await fixture.whenStable();
+      await confirmHost.whenStable();
+    }
+  }
+  const dialog = () => confirmHost.nativeElement.querySelector('anotoki-dialog') as HTMLElement | null;
+  const dialogButtons = () => [...(dialog()?.querySelectorAll<HTMLButtonElement>('[data-answer]') ?? [])];
 
   afterEach(() => {
     vi.restoreAllMocks();
-    overlay()?.replaceChildren();
+    confirmHost?.nativeElement.remove();
   });
 
   it('words an account’s card in Slovak around the games’ own words', async () => {
@@ -181,7 +191,7 @@ describe('the dashboard', () => {
     });
 
     expect(texts('h1')).toEqual(['Tvoje účty']);
-    expect(text(host.querySelector('.page-header a'))).toBe('Importovať účet');
+    expect(text(host.querySelector('anotoki-page-header a'))).toBe('Importovať účet');
 
     const [genshin, hsr] = cards();
     // UID, AR and TL are the games' words: written as they are.
@@ -190,11 +200,11 @@ describe('the dashboard', () => {
     // A number with its caption under it: the site's word for characters, the game's for the rest.
     expect(counts(genshin)).toEqual(['12 Postavy', '187 Artifacts', '23 Weapons']);
     expect(counts(hsr)).toEqual(['12 Postavy', '187 Relics', '23 Light Cones']);
-    expect(text(genshin.querySelector('.chip'))).toBe('Celý inventár');
-    expect(text(hsr.querySelector('.chip'))).toBe('Len Showcase');
+    expect(text(genshin.querySelector('anotoki-badge'))).toBe('Celý inventár');
+    expect(text(hsr.querySelector('anotoki-badge'))).toBe('Len Showcase');
     // A relative time goes into the sentence; a missing one is a sentence of its own - never "never" glued on.
-    expect(text(genshin.querySelector('.account-main .row.wrap .muted'))).toBe('Importované pred 2 dňami');
-    expect(text(hsr.querySelector('.account-main .row.wrap .muted'))).toBe('Zatiaľ bez importu');
+    expect(imported(genshin)).toBe('Importované pred 2 dňami');
+    expect(imported(hsr)).toBe('Zatiaľ bez importu');
     expect([...genshin.querySelectorAll('.account-actions a')].map(text)).toEqual(['Otvoriť', 'Aktualizovať údaje']);
     expect(genshin.querySelector('.account-actions button')?.getAttribute('aria-label')).toBe('Ďalšie akcie');
 
@@ -212,7 +222,7 @@ describe('the dashboard', () => {
       ],
     });
 
-    expect(texts('.section-title').at(-1)).toBe('Zdroje buildov');
+    expect(texts('.section-head h2').at(-1)).toBe('Zdroje buildov');
     expect(rows().map((row) => [...row.querySelectorAll('span:not(.status-dot):not(.spacer)')].map(text))).toEqual([
       ['Source 1', '1 postava', 'pred 3 hodinami'],
       ['Source 2', '3 postavy', 'zatiaľ bez synchronizácie'],
@@ -236,8 +246,8 @@ describe('the dashboard', () => {
     expect(text(genshin.querySelector('.names .small'))).toBe('UID 800000001 · AR 58');
     expect(text(hsr.querySelector('.names .small'))).toBe('No UID · TL 58');
     expect(counts(genshin)).toEqual(['12 Characters', '187 Artifacts', '23 Weapons']);
-    expect(text(genshin.querySelector('.account-main .row.wrap .muted'))).toBe('Imported 2 days ago');
-    expect(text(hsr.querySelector('.account-main .row.wrap .muted'))).toBe('Not imported yet');
+    expect(imported(genshin)).toBe('Imported 2 days ago');
+    expect(imported(hsr)).toBe('Not imported yet');
     expect(rows().map((row) => [...row.querySelectorAll('.muted')].map(text))).toEqual([
       ['1 character', '3 hours ago'],
       ['12 characters', 'not synced yet'],
@@ -249,8 +259,8 @@ describe('the dashboard', () => {
   it('invites to import, a button for each game, while there is no account', async () => {
     await setup({ accounts: [] });
 
-    expect(texts('.hero h2')).toEqual(['Pozrime sa na tvoje postavy']);
-    const buttons = [...host.querySelectorAll<HTMLAnchorElement>('.hero a')];
+    expect(texts('anotoki-empty-state .anotoki-empty-state__heading')).toEqual(['Pozrime sa na tvoje postavy']);
+    const buttons = [...host.querySelectorAll<HTMLAnchorElement>('anotoki-empty-state a')];
     expect(buttons.map(text)).toEqual(['Importovať z hry Genshin Impact', 'Importovať z hry Honkai: Star Rail']);
     expect(buttons.map((button) => button.getAttribute('href'))).toEqual(['/import?game=genshin', '/import?game=hsr']);
   });
@@ -295,34 +305,34 @@ describe('the dashboard', () => {
     it('words the failure from its code, never with the server’s sentence', async () => {
       await setup({ accounts: throwError(() => refused) });
 
-      expect(text(host.querySelector('.error-panel strong'))).toBe('Toto môže urobiť len editor alebo správca.');
+      expect(text(host.querySelector('anotoki-error-state .anotoki-alert__text'))).toBe('Toto môže urobiť len editor alebo správca.');
       expect(host.textContent).not.toContain('Only an editor or an admin can do this.');
-      expect(text(host.querySelector('.error-panel button'))).toBe('Skúsiť znova');
-      expect(host.querySelector('.error-panel p')).toBeNull();
-      expect(host.querySelector('.hero')).toBeNull();
+      expect(text(host.querySelector('anotoki-error-state button'))).toBe('Skúsiť znova');
+      expect(host.querySelector('anotoki-error-state .anotoki-alert__heading')).toBeNull();
+      expect(host.querySelector('anotoki-empty-state')).toBeNull();
     });
 
     it('says the server is out of reach - and nothing about starting a backend', async () => {
       await setup({ accounts: throwError(() => new HttpErrorResponse({ status: 0 })) });
 
-      expect(text(host.querySelector('.error-panel strong'))).toBe('Nepodarilo sa spojiť so serverom. Skontroluj pripojenie a skús to znova.');
-      expect(host.querySelector('.error-panel p')).toBeNull();
+      expect(text(host.querySelector('anotoki-error-state .anotoki-alert__text'))).toBe('Nepodarilo sa spojiť so serverom. Skontroluj pripojenie a skús to znova.');
+      expect(host.querySelector('anotoki-error-state .anotoki-alert__heading')).toBeNull();
     });
 
     it('follows the language: the same failure is worded again', async () => {
       await setup({ language: 'en', accounts: throwError(() => refused) });
 
-      expect(text(host.querySelector('.error-panel strong'))).toBe('Only an editor or an admin can do this.');
-      expect(text(host.querySelector('.error-panel button'))).toBe('Retry');
+      expect(text(host.querySelector('anotoki-error-state .anotoki-alert__text'))).toBe('Only an editor or an admin can do this.');
+      expect(text(host.querySelector('anotoki-error-state button'))).toBe('Retry');
     });
 
     it('asks again', async () => {
       await setup({ accounts: throwError(() => refused) });
       api.accounts.mockImplementation(() => of([account(1)]));
-      host.querySelector<HTMLButtonElement>('.error-panel button')!.click();
+      host.querySelector<HTMLButtonElement>('anotoki-error-state button')!.click();
       await fixture.whenStable();
 
-      expect(host.querySelector('.error-panel')).toBeNull();
+      expect(host.querySelector('anotoki-error-state')).toBeNull();
       expect(cards()).toHaveLength(1);
     });
   });
@@ -343,8 +353,8 @@ describe('the dashboard', () => {
       expect(texts('app-visitor-hero button')).toEqual(['Sign in']);
       // The sources' freshness is everybody's.
       expect(rows()).toHaveLength(1);
-      expect(host.querySelector('.page-header')).toBeNull();
-      expect(host.querySelector('app-visitor-notice aside')).toBeNull();
+      expect(host.querySelector('anotoki-page-header')).toBeNull();
+      expect(host.querySelector('app-visitor-notice anotoki-alert')).toBeNull();
       expect(host.querySelector('app-data-card')).toBeNull();
       expect(host.textContent).not.toMatch(/\b(home|visitor|data)\.[A-Za-z]/);
     });
@@ -354,7 +364,7 @@ describe('the dashboard', () => {
 
       expect(api.accounts).toHaveBeenCalledTimes(1);
       expect(cards()).toHaveLength(1);
-      expect(text(host.querySelector('app-visitor-notice p'))).toBe(
+      expect(text(host.querySelector('app-visitor-notice .anotoki-alert__text'))).toBe(
         'You are not signed in. What you import is kept for this browser on our server for 30 days after your last visit. Signing in keeps it in your anotoki account.',
       );
       expect(host.querySelector('app-visitor-hero')).toBeNull();
@@ -366,7 +376,7 @@ describe('the dashboard', () => {
 
       expect(cards()).toHaveLength(1);
       expect(text(host.querySelector('app-data-card h2'))).toBe('Your data');
-      expect(host.querySelector('app-visitor-notice aside')).toBeNull();
+      expect(host.querySelector('app-visitor-notice anotoki-alert')).toBeNull();
       expect(host.querySelector('app-visitor-hero')).toBeNull();
     });
 
@@ -380,7 +390,7 @@ describe('the dashboard', () => {
       await fixture.whenStable();
 
       expect(api.accounts).not.toHaveBeenCalled();
-      expect(texts('p.lost')).toEqual([en['error.visitor_unknown']]);
+      expect(texts('anotoki-alert.lost .anotoki-alert__text')).toEqual([en['error.visitor_unknown']]);
       expect(host.querySelector('app-visitor-hero')).not.toBeNull();
       expect(cards()).toEqual([]);
     });
@@ -408,20 +418,21 @@ describe('the dashboard', () => {
       failing.error(new HttpErrorResponse({ status: 401, error: { code: 'visitor_unknown' } }));
       await fixture.whenStable();
 
-      expect(host.querySelector('.error-panel')).toBeNull();
+      expect(host.querySelector('anotoki-error-state')).toBeNull();
       expect(host.querySelector('app-visitor-hero')).not.toBeNull();
     });
   });
 
   describe('deleting an account', () => {
-    it('asks first, in its own dialog and in the reader’s language', async () => {
+    it('asks first, in the kit\'s question and in the reader’s language - its no first, its yes the danger', async () => {
       const browser = vi.spyOn(window, 'confirm');
       await setup();
       await askToDelete(cards()[0]);
 
       expect(text(dialog()?.querySelector('h2'))).toBe('Vymazať účet „Mona“ a všetko, čo sa preň importovalo?');
-      expect(text(dialog()?.querySelector('.message'))).toBe('Buildy zostanú.');
+      expect(text(dialog()?.querySelector('.anotoki-confirm-host__message'))).toBe('Buildy zostanú.');
       expect(dialogButtons().map(text)).toEqual(['Zrušiť', 'Vymazať']);
+      expect(dialogButtons()[1].classList).toContain('anotoki-button--danger');
       expect(browser).not.toHaveBeenCalled();
       expect(api.deleteAccount).not.toHaveBeenCalled();
     });
@@ -431,7 +442,7 @@ describe('the dashboard', () => {
       await askToDelete(cards()[0]);
 
       expect(text(dialog()?.querySelector('h2'))).toBe('Delete "UID 800000001" and everything imported for it?');
-      expect(text(dialog()?.querySelector('.message'))).toBe('Builds are kept.');
+      expect(text(dialog()?.querySelector('.anotoki-confirm-host__message'))).toBe('Builds are kept.');
       expect(dialogButtons().map(text)).toEqual(['Cancel', 'Delete']);
     });
 
@@ -439,22 +450,22 @@ describe('the dashboard', () => {
       await setup();
       await askToDelete(cards()[0]);
       dialogButtons()[0].click();
-      await fixture.whenStable();
+      await settleAll();
 
       expect(api.deleteAccount).not.toHaveBeenCalled();
       expect(cards()).toHaveLength(1);
-      expect(snackBar.open).not.toHaveBeenCalled();
+      expect(toasts.success).not.toHaveBeenCalled();
     });
 
     it('deletes on a yes, takes the card away and says so', async () => {
       await setup({ accounts: [account(1), account(2, { nickname: 'Keqing' })] });
       await askToDelete(cards()[0]);
       dialogButtons()[1].click();
-      await fixture.whenStable();
+      await settleAll();
 
       expect(api.deleteAccount).toHaveBeenCalledWith(1);
       expect(cards().map((card) => text(card.querySelector('.nickname')))).toEqual(['Keqing']);
-      expect(snackBar.open).toHaveBeenCalledWith('Účet „Mona“ je vymazaný.', undefined, { duration: 3000 });
+      expect(toasts.success).toHaveBeenCalledWith('Účet „Mona“ je vymazaný.');
     });
 
     it('words a failure from its code, and keeps the card', async () => {
@@ -462,9 +473,9 @@ describe('the dashboard', () => {
       api.deleteAccount.mockImplementation(() => throwError(() => new HttpErrorResponse({ status: 500, error: { message: 'Something went wrong on the server.', code: 'server_error' } })));
       await askToDelete(cards()[0]);
       dialogButtons()[1].click();
-      await fixture.whenStable();
+      await settleAll();
 
-      expect(snackBar.open).toHaveBeenCalledWith('Na serveri sa niečo pokazilo.', 'Zavrieť');
+      expect(toasts.error).toHaveBeenCalledWith('Na serveri sa niečo pokazilo.');
       expect(cards()).toHaveLength(1);
     });
   });

@@ -1,45 +1,57 @@
 <div class="page">
-  <header class="page-header">
-    <div>
-      <h1>{{ 'builds.title' | translate }}</h1>
-      <p class="subtitle">{{ 'builds.subtitle' | translate }}</p>
-    </div>
-    <mat-button-toggle-group [value]="gameKey()" (change)="switchGame($event.value)" hideSingleSelectionIndicator [attr.aria-label]="'builds.game' | translate">
-      <mat-button-toggle value="genshin">{{ gameLabels.genshin }}</mat-button-toggle>
-      <mat-button-toggle value="hsr">{{ gameLabels.hsr }}</mat-button-toggle>
-    </mat-button-toggle-group>
-  </header>
+  <anotoki-page-header [heading]="'builds.title' | translate" [lead]="'builds.subtitle' | translate">
+    <!-- The games' names are their own, in every language. -->
+    <anotoki-segmented
+      class="games"
+      [label]="'builds.game' | translate"
+      [options]="gameOptions"
+      [value]="gameKey()"
+      (valueChange)="switchGame($event)"
+    />
+  </anotoki-page-header>
 
-  <mat-form-field appearance="outline" subscriptSizing="dynamic" class="search">
-    <mat-icon matPrefix>search</mat-icon>
-    <mat-label>{{ 'builds.search' | translate: { game: gameLabels[gameKey()] } }}</mat-label>
-    <input matInput [ngModel]="search()" (ngModelChange)="search.set($event)" />
-  </mat-form-field>
+  <anotoki-text-field
+    class="search"
+    type="search"
+    [label]="'builds.search' | translate: { game: gameLabels[gameKey()] }"
+    [value]="search()"
+    (valueChange)="search.set($event)"
+  >
+    <anotoki-icon fieldPrefix name="search" [size]="18" />
+  </anotoki-text-field>
 
   @if (loading()) {
-    <mat-progress-bar mode="indeterminate" />
+    <anotoki-spinner class="loading" label [delay]="200" />
   }
   @if (error(); as problem) {
-    <div class="panel">{{ problem | errorText }}</div>
+    <anotoki-alert class="failure" tone="danger" [announce]="true">{{ problem | errorText }}</anotoki-alert>
   }
 
   <div class="grid-list">
     @for (c of filtered(); track c.key) {
-      <a class="panel card" [routerLink]="['/builds', gameKey(), c.key]">
+      <a class="tile card" [routerLink]="['/builds', gameKey(), c.key]">
         <app-avatar [src]="c.icon_url" [alt]="c.name" [rarity]="c.rarity" [element]="c.element" />
         <div class="text">
           <div class="name">{{ c.name }}</div>
-          <div class="muted small">{{ titleCase(c.element) }}{{ c.weapon_type ? ' · ' + titleCase(c.weapon_type) : '' }}</div>
-          <div class="muted small">{{ 'builds.count' | translatePlural: c.builds }} · {{ c.sources.join(', ') }}</div>
+          <div class="muted small">
+            {{ titleCase(c.element) }}{{ c.weapon_type ? ' · ' + titleCase(c.weapon_type) : '' }}
+          </div>
+          <div class="muted small">
+            {{ 'builds.count' | translatePlural: c.builds }} · {{ c.sources.join(', ') }}
+          </div>
         </div>
       </a>
     } @empty {
       @if (!loading()) {
-        <div class="empty-state">
-          <mat-icon>menu_book</mat-icon>
+        <anotoki-card class="no-builds">
+          <anotoki-icon class="no-builds-icon" name="layers" [size]="28" />
           <!-- The Sources page is the admin panel's: a link for an editor or an admin, its name alone for everybody else. -->
-          <p>{{ empty()[0] }}@if (empty()[2]) {@if (auth.isStaff()) {<a routerLink="/admin/sources">{{ 'builds.sourcesPage' | translate }}</a>} @else {<span>{{ 'builds.sourcesPage' | translate }}</span>}}{{ empty()[1] }}</p>
-        </div>
+          <p>
+            {{ empty()[0] }}@if (empty()[2]) {@if (auth.isStaff()) {<a routerLink="/admin/sources">{{
+                  'builds.sourcesPage' | translate
+                }}</a>} @else {<span>{{ 'builds.sourcesPage' | translate }}</span>}}{{ empty()[1] }}
+          </p>
+        </anotoki-card>
       }
     }
   </div>

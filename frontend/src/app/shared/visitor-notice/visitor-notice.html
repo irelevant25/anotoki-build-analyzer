@@ -1,11 +1,12 @@
 @if (!auth.signedIn()) {
-  <aside class="visitor-notice" role="note">
-    <mat-icon aria-hidden="true">cloud_done</mat-icon>
-    <p>{{ 'visitor.notice' | translate: { days: meta.visitorDays() } }}</p>
+  <anotoki-alert class="visitor-notice" tone="info">
+    {{ 'visitor.notice' | translate: { days: meta.visitorDays() } }}
     @if (auth.available()) {
-      <button mat-stroked-button (click)="signIn()">
-        <mat-icon>login</mat-icon>{{ 'common.signIn' | translate }}
-      </button>
+      <div alertActions>
+        <button anotokiButton size="sm" (click)="signIn()">
+          <anotoki-icon name="logIn" [size]="16" />{{ 'common.signIn' | translate }}
+        </button>
+      </div>
     }
-  </aside>
+  </anotoki-alert>
 }

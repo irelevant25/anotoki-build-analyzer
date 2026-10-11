@@ -1,214 +1,330 @@
 <div class="page">
   <!-- Not signed in: what will be kept, and for how long - before the first import too. -->
   <app-visitor-notice />
-  <header class="page-header">
-    <div>
-      <h1>{{ 'importWizard.title' | translate }}</h1>
-      <p class="subtitle">{{ 'importWizard.subtitle' | translate }}</p>
-    </div>
-  </header>
+  <anotoki-page-header
+    [heading]="'importWizard.title' | translate"
+    [lead]="'importWizard.subtitle' | translate"
+  />
 
-  <mat-stepper #stepper linear class="wizard panel" [orientation]="vertical() ? 'vertical' : 'horizontal'" labelPosition="bottom">
-    <!-- 1. Game -->
-    <mat-step [label]="'importWizard.step.game' | translate" [completed]="!!game()">
-      <h2 class="step-title">{{ 'importWizard.game.heading' | translate }}</h2>
-      <div class="choice-grid">
-        @for (g of games; track g) {
-          <button type="button" class="choice" [class.selected]="game() === g" (click)="chooseGame(g)">
-            <mat-icon class="choice-icon" [class.hsr]="g === 'hsr'">{{ g === 'hsr' ? 'rocket_launch' : 'auto_awesome' }}</mat-icon>
-            <span class="choice-title">{{ gameLabels[g] }}</span>
-            <span class="muted small">{{ 'importWizard.game.holds' | translate: { inventory: terms[g].inventory } }}</span>
-          </button>
-        }
-      </div>
-    </mat-step>
-
-    <!-- 2. Method -->
-    <mat-step [label]="'importWizard.step.method' | translate" [completed]="!!method()">
-      <h2 class="step-title">{{ 'importWizard.method.heading' | translate }}</h2>
-      <div class="choice-grid">
-        @for (m of methods(); track m.key) {
-          <button type="button" class="choice method" [class.selected]="method() === m.key" (click)="chooseMethod(m.key)">
-            <mat-icon class="choice-icon">{{ m.icon }}</mat-icon>
-            <span class="choice-title">{{ m.title | translate }}</span>
-            <span class="muted small">{{ m.summary | translate }}</span>
-            <ul class="pros">
-              @for (pro of m.pros; track pro) {
-                <li><mat-icon>check</mat-icon>{{ pro | translate }}</li>
-              }
-              @for (con of m.cons; track con) {
-                <li class="con"><mat-icon>remove</mat-icon>{{ con | translate }}</li>
-              }
-            </ul>
-          </button>
-        }
-      </div>
-      <p class="muted small hint">{{ 'importWizard.method.tip' | translate }}</p>
-      <div class="actions">
-        <button mat-button matStepperPrevious>{{ 'importWizard.back' | translate }}</button>
-      </div>
-    </mat-step>
-
-    <!-- 3. Prepare -->
-    <mat-step [label]="'importWizard.step.prepare' | translate" [completed]="prepared()">
-      @if (guide(); as g) {
-        <h2 class="step-title">{{ 'importWizard.prepare.heading' | translate }}</h2>
-        <p class="intro">{{ g.intro | translate }}</p>
-        <ol class="guide">
-          @for (step of g.steps; track step.title; let i = $index) {
-            <li>
-              <span class="num">{{ i + 1 }}</span>
-              <div class="guide-body">
-                <div class="guide-title"><mat-icon>{{ step.icon }}</mat-icon>{{ step.title | translate }}</div>
-                <p>{{ step.body | translate }}</p>
-                @if (step.tip; as tip) {
-                  <p class="tip"><mat-icon>lightbulb</mat-icon>{{ tip | translate }}</p>
-                }
-              </div>
-            </li>
-          }
-        </ol>
-
-        <mat-expansion-panel class="trouble">
-          <mat-expansion-panel-header><mat-panel-title>{{ 'importWizard.prepare.trouble' | translate }}</mat-panel-title></mat-expansion-panel-header>
-          <ul>
-            @for (item of g.troubleshooting; track item) {
-              <li>{{ item | translate }}</li>
-            }
-          </ul>
-        </mat-expansion-panel>
-      }
-      <div class="actions">
-        <button mat-button matStepperPrevious>{{ 'importWizard.back' | translate }}</button>
-        <button mat-flat-button (click)="confirmPrepared()">{{ 'importWizard.prepare.ready' | translate }}</button>
-      </div>
-    </mat-step>
-
-    <!-- 4. Import -->
-    <mat-step [label]="'importWizard.step.import' | translate" [completed]="!!result()">
-      @if (method() === 'showcase') {
-        <h2 class="step-title">{{ 'importWizard.uid.heading' | translate }}</h2>
-        <form class="uid-form" (ngSubmit)="importShowcase()">
-          <mat-form-field appearance="outline" class="uid-field">
-            <!-- The game's name and "UID": the games' own words, the same in every language. -->
-            <mat-label>{{ game() ? gameLabels[game()!] : '' }} {{ uidTerm }}</mat-label>
-            <input matInput name="uid" inputmode="numeric" autocomplete="off" maxlength="10"
-              [ngModel]="uid()" (ngModelChange)="uid.set($event)" [disabled]="busy()" [placeholder]="'importWizard.uid.example' | translate" />
-            <mat-hint>{{ 'importWizard.uid.hint' | translate }}</mat-hint>
-            @if (uid().length > 0 && !uidValid()) {
-              <mat-error>{{ 'importWizard.uid.invalid' | translate }}</mat-error>
-            }
-          </mat-form-field>
-          <button mat-flat-button type="submit" [disabled]="!uidValid() || busy()">
-            <mat-icon>download</mat-icon>{{ 'importWizard.uid.submit' | translate }}
-          </button>
-        </form>
-        @if (gameAccounts().length > 0) {
-          <mat-form-field appearance="outline" class="account-field">
-            <mat-label>{{ 'importWizard.target.label' | translate }}</mat-label>
-            <mat-select [value]="targetAccountId()" (valueChange)="targetAccountId.set($event)">
-              <mat-option [value]="null">{{ 'importWizard.target.auto' | translate }}</mat-option>
-              @for (account of gameAccounts(); track account.id) {
-                <mat-option [value]="account.id">{{
-                  account.uid
-                    ? ('importWizard.target.accountUid' | translate: { name: account.nickname, uid: account.uid })
-                    : ('importWizard.target.accountNoUid' | translate: { name: account.nickname })
-                }}</mat-option>
-              }
-            </mat-select>
-            <mat-hint>{{ 'importWizard.target.showcaseHint' | translate }}</mat-hint>
-          </mat-form-field>
-        }
-      } @else {
-        <h2 class="step-title">{{ 'importWizard.file.heading' | translate }}</h2>
-        <div class="drop" [class.dragging]="dragging()" (dragover)="onDragOver($event)" (dragleave)="dragging.set(false)" (drop)="onDrop($event)">
-          @if (fileInfoText(); as info) {
-            <mat-icon class="drop-icon ok">task</mat-icon>
-            <strong>{{ info }}</strong>
-            <button mat-button (click)="clearFile()">{{ 'importWizard.file.chooseAnother' | translate }}</button>
+  <anotoki-card class="wizard">
+    <!-- The row of steps: the one in hand marked, the ones done a way back to them. -->
+    <ol class="steps">
+      @for (item of steps(); track item.key; let i = $index) {
+        <li
+          class="step"
+          [class.step--done]="i < step()"
+          [class.step--current]="i === step()"
+          [attr.aria-current]="i === step() ? 'step' : null"
+        >
+          @if (i < step()) {
+            <button type="button" class="step-button" [disabled]="busy()" (click)="goTo(i)">
+              <span class="step-mark"><anotoki-icon name="check" [size]="14" /></span>
+              <span class="step-label">{{ item.label | translate }}</span>
+              <!-- Said after the step's name: done. -->
+              <span class="visually-hidden"> {{ 'stepper.completed' | translate }}</span>
+            </button>
           } @else {
-            <mat-icon class="drop-icon">upload_file</mat-icon>
-            <strong>{{ 'importWizard.file.drop' | translate }}</strong>
-            @if (guide()?.fileHint; as hint) {
-              <span class="muted small">{{ hint | translate }}</span>
-            }
-            <button mat-stroked-button (click)="fileInput.click()">{{ 'importWizard.file.choose' | translate }}</button>
+            <span class="step-mark">{{ i + 1 }}</span>
+            <span class="step-label">{{ item.label | translate }}</span>
           }
-          <input #fileInput type="file" accept=".json,application/json" hidden (change)="onFileSelected($event)" />
-        </div>
+        </li>
+      }
+    </ol>
 
-        @if (!fileContent()) {
-          <mat-expansion-panel class="paste">
-            <mat-expansion-panel-header><mat-panel-title>{{ 'importWizard.file.paste' | translate }}</mat-panel-title></mat-expansion-panel-header>
-            <mat-form-field appearance="outline" class="full">
-              <mat-label>{{ 'importWizard.file.pasteLabel' | translate }}</mat-label>
-              <textarea matInput rows="6" [ngModel]="pasteText()" (ngModelChange)="pasteText.set($event)"></textarea>
-            </mat-form-field>
-          </mat-expansion-panel>
+    <div #panel class="step-panel">
+      @switch (step()) {
+        @case (0) {
+          <!-- 1. Game -->
+          <h2 class="step-title" tabindex="-1">{{ 'importWizard.game.heading' | translate }}</h2>
+          <div class="choice-grid">
+            @for (g of games; track g) {
+              <button
+                type="button"
+                class="choice"
+                [class.selected]="game() === g"
+                [attr.aria-pressed]="game() === g"
+                (click)="chooseGame(g)"
+              >
+                <anotoki-icon class="choice-icon" [class.hsr]="g === 'hsr'" [name]="gameIcon(g)" [size]="36" />
+                <span class="choice-title">{{ gameLabels[g] }}</span>
+                <span class="muted small">{{
+                  'importWizard.game.holds' | translate: { inventory: terms[g].inventory }
+                }}</span>
+              </button>
+            }
+          </div>
         }
 
-        <mat-form-field appearance="outline" class="account-field">
-          <mat-label>{{ 'importWizard.target.label' | translate }}</mat-label>
-          <mat-select [value]="targetAccountId()" (valueChange)="targetAccountId.set($event)">
-            <mat-option [value]="null">{{ 'importWizard.target.new' | translate }}</mat-option>
-            @for (account of gameAccounts(); track account.id) {
-              <mat-option [value]="account.id">{{
-                account.uid ? ('importWizard.target.accountUid' | translate: { name: account.nickname, uid: account.uid }) : account.nickname
-              }}</mat-option>
+        @case (1) {
+          <!-- 2. Method -->
+          <h2 class="step-title" tabindex="-1">{{ 'importWizard.method.heading' | translate }}</h2>
+          <div class="choice-grid">
+            @for (m of methods(); track m.key) {
+              <button
+                type="button"
+                class="choice method"
+                [class.selected]="method() === m.key"
+                [attr.aria-pressed]="method() === m.key"
+                (click)="chooseMethod(m.key)"
+              >
+                <anotoki-icon class="choice-icon" [name]="m.icon" [size]="36" />
+                <span class="choice-title">{{ m.title | translate }}</span>
+                <span class="muted small">{{ m.summary | translate }}</span>
+                <ul class="pros">
+                  @for (pro of m.pros; track pro) {
+                    <li><anotoki-icon name="check" [size]="18" />{{ pro | translate }}</li>
+                  }
+                  @for (con of m.cons; track con) {
+                    <li class="con"><anotoki-icon name="minus" [size]="18" />{{ con | translate }}</li>
+                  }
+                </ul>
+              </button>
             }
-          </mat-select>
-          @if (game(); as chosen) {
-            <mat-hint>{{ 'importWizard.target.fileHint' | translate: { weapons: terms[chosen].weapons, items: terms[chosen].items } }}</mat-hint>
-          }
-        </mat-form-field>
-
-        <div class="actions">
-          <button mat-flat-button (click)="importFile()" [disabled]="!hasFile() || busy()"><mat-icon>upload</mat-icon>{{ 'importWizard.file.submit' | translate }}</button>
-        </div>
-      }
-
-      @if (busy()) {
-        <mat-progress-bar mode="indeterminate" class="progress" />
-      }
-      @if (error(); as problem) {
-        <div class="error" role="alert"><mat-icon>error</mat-icon><span>{{ problem.key | translate: problem.params }}</span></div>
-      }
-
-      <div class="actions">
-        <button mat-button matStepperPrevious [disabled]="busy()">{{ 'importWizard.back' | translate }}</button>
-      </div>
-    </mat-step>
-
-    <!-- 5. Done -->
-    <mat-step [label]="'importWizard.step.done' | translate">
-      @if (result(); as run) {
-        <div class="done">
-          <mat-icon class="done-icon">{{ run.status === 'success' ? 'check_circle' : 'info' }}</mat-icon>
-          <h2>{{ run.account ? ('importWizard.done.heading' | translate: { name: run.account.nickname }) : ('importWizard.done.headingNoName' | translate) }}</h2>
-          <div class="counts">
-            <div><strong>{{ count(run.summary?.characters) }}</strong><span class="muted small">{{ 'importWizard.done.characters' | translate }}</span></div>
-            <!-- The games' own words, as the games write them. -->
-            <div><strong>{{ count(run.summary?.weapons) }}</strong><span class="muted small">{{ terms[run.game].weapons }}</span></div>
-            <div><strong>{{ count(run.summary?.items) }}</strong><span class="muted small">{{ terms[run.game].items }}</span></div>
           </div>
-          @if (warnings().length > 0) {
-            <ul class="warnings">
-              @for (warning of warnings(); track $index) {
-                <!-- A warning without a kind is the stored English sentence, and says so. -->
-                <li><mat-icon>warning</mat-icon><span [attr.lang]="warning.lang">{{ warning.text }}</span></li>
+          <p class="muted small hint">{{ 'importWizard.method.tip' | translate }}</p>
+          <div class="actions">
+            <button anotokiButton variant="ghost" (click)="goTo(0)">
+              {{ 'importWizard.back' | translate }}
+            </button>
+          </div>
+        }
+
+        @case (2) {
+          <!-- 3. Prepare -->
+          @if (guide(); as g) {
+            <h2 class="step-title" tabindex="-1">{{ 'importWizard.prepare.heading' | translate }}</h2>
+            <p class="intro">{{ g.intro | translate }}</p>
+            <ol class="guide">
+              @for (item of g.steps; track item.title; let i = $index) {
+                <li>
+                  <span class="num">{{ i + 1 }}</span>
+                  <div class="guide-body">
+                    <div class="guide-title">
+                      <anotoki-icon [name]="item.icon" [size]="20" />{{ item.title | translate }}
+                    </div>
+                    <p>{{ item.body | translate }}</p>
+                    @if (item.tip; as tip) {
+                      <p class="tip"><anotoki-icon name="lightbulb" [size]="18" />{{ tip | translate }}</p>
+                    }
+                  </div>
+                </li>
               }
-            </ul>
+            </ol>
+
+            <details class="disclosure trouble">
+              <summary>{{ 'importWizard.prepare.trouble' | translate }}</summary>
+              <div class="disclosure-body">
+                <ul>
+                  @for (item of g.troubleshooting; track item) {
+                    <li>{{ item | translate }}</li>
+                  }
+                </ul>
+              </div>
+            </details>
           }
-          @if (unmatchedList(run).length > 0) {
-            <p class="muted small">{{ 'importWizard.done.unmatched' | translate: { names: unmatchedList(run).join(', ') } }}</p>
-          }
-          <div class="row wrap center">
-            <button mat-flat-button (click)="openAccount()"><mat-icon>insights</mat-icon>{{ 'importWizard.done.open' | translate }}</button>
-            <button mat-stroked-button (click)="restart()">{{ 'importWizard.done.more' | translate }}</button>
-            <a mat-button routerLink="/">{{ 'topbar.dashboard' | translate }}</a>
+          <div class="actions">
+            <button anotokiButton variant="ghost" (click)="goTo(1)">
+              {{ 'importWizard.back' | translate }}
+            </button>
+            <button anotokiButton variant="primary" (click)="confirmPrepared()">
+              {{ 'importWizard.prepare.ready' | translate }}
+            </button>
           </div>
-        </div>
+        }
+
+        @case (3) {
+          <!-- 4. Import -->
+          @if (method() === 'showcase') {
+            <h2 class="step-title" tabindex="-1">{{ 'importWizard.uid.heading' | translate }}</h2>
+            <form class="uid-form" (submit)="importShowcase($event)">
+              <!-- The game's name and "UID": the games' own words, the same in every language. -->
+              <anotoki-text-field
+                class="uid-field"
+                [label]="(game() ? gameLabels[game()!] : '') + ' ' + uidTerm"
+                name="uid"
+                inputmode="numeric"
+                autocomplete="off"
+                [maxlength]="10"
+                [value]="uid()"
+                (valueChange)="uid.set($event)"
+                (blurred)="uidTouched.set(true)"
+                [disabled]="busy()"
+                [placeholder]="'importWizard.uid.example' | translate"
+                [hint]="'importWizard.uid.hint' | translate"
+                [error]="uidProblem() ? ('importWizard.uid.invalid' | translate) : null"
+              />
+              <button
+                anotokiButton
+                variant="primary"
+                type="submit"
+                class="uid-submit"
+                [disabled]="!uidValid() || busy()"
+              >
+                <anotoki-icon name="download" [size]="18" />{{ 'importWizard.uid.submit' | translate }}
+              </button>
+            </form>
+            @if (gameAccounts().length > 0) {
+              <anotoki-select
+                class="account-field"
+                [label]="'importWizard.target.label' | translate"
+                [options]="targetOptions()"
+                [value]="targetValue()"
+                (valueChange)="chooseTarget($event)"
+                [hint]="'importWizard.target.showcaseHint' | translate"
+              />
+            }
+          } @else {
+            <h2 class="step-title" tabindex="-1">{{ 'importWizard.file.heading' | translate }}</h2>
+            <div
+              class="drop"
+              [class.dragging]="dragging()"
+              (dragover)="onDragOver($event)"
+              (dragleave)="dragging.set(false)"
+              (drop)="onDrop($event)"
+            >
+              @if (fileInfoText(); as info) {
+                <anotoki-icon class="drop-icon ok" name="checkCircle" [size]="40" />
+                <strong>{{ info }}</strong>
+                <button anotokiButton variant="ghost" class="choose-another" (click)="clearFile()">
+                  {{ 'importWizard.file.chooseAnother' | translate }}
+                </button>
+              } @else {
+                <anotoki-icon class="drop-icon" name="upload" [size]="40" />
+                <strong>{{ 'importWizard.file.drop' | translate }}</strong>
+                @if (guide()?.fileHint; as hint) {
+                  <span class="muted small">{{ hint | translate }}</span>
+                }
+                <button anotokiButton (click)="fileInput.click()">
+                  {{ 'importWizard.file.choose' | translate }}
+                </button>
+              }
+              <input
+                #fileInput
+                type="file"
+                accept=".json,application/json"
+                hidden
+                (change)="onFileSelected($event)"
+              />
+            </div>
+
+            @if (!fileContent()) {
+              <details class="disclosure paste">
+                <summary>{{ 'importWizard.file.paste' | translate }}</summary>
+                <div class="disclosure-body">
+                  <anotoki-textarea
+                    [label]="'importWizard.file.pasteLabel' | translate"
+                    [rows]="6"
+                    [spellcheck]="'false'"
+                    [value]="pasteText()"
+                    (valueChange)="pasteText.set($event)"
+                  />
+                </div>
+              </details>
+            }
+
+            <anotoki-select
+              class="account-field"
+              [label]="'importWizard.target.label' | translate"
+              [options]="targetOptions()"
+              [value]="targetValue()"
+              (valueChange)="chooseTarget($event)"
+              [hint]="
+                game()
+                  ? ('importWizard.target.fileHint'
+                    | translate: { weapons: terms[game()!].weapons, items: terms[game()!].items })
+                  : null
+              "
+            />
+
+            <div class="actions">
+              <button
+                anotokiButton
+                variant="primary"
+                class="file-submit"
+                (click)="importFile()"
+                [disabled]="!hasFile() || busy()"
+              >
+                <anotoki-icon name="upload" [size]="18" />{{ 'importWizard.file.submit' | translate }}
+              </button>
+            </div>
+          }
+
+          @if (busy()) {
+            <anotoki-spinner class="progress" label />
+          }
+          @if (error(); as problem) {
+            <anotoki-alert class="error" tone="danger" [announce]="true">{{
+              problem.key | translate: problem.params
+            }}</anotoki-alert>
+          }
+
+          <div class="actions">
+            <button anotokiButton variant="ghost" [disabled]="busy()" (click)="goTo(2)">
+              {{ 'importWizard.back' | translate }}
+            </button>
+          </div>
+        }
+
+        @case (4) {
+          <!-- 5. Done -->
+          @if (result(); as run) {
+            <div class="done">
+              <anotoki-icon
+                class="done-icon"
+                [class.partial]="run.status !== 'success'"
+                [name]="run.status === 'success' ? 'checkCircle' : 'info'"
+                [size]="56"
+              />
+              <h2 class="step-title" tabindex="-1">
+                {{
+                  run.account
+                    ? ('importWizard.done.heading' | translate: { name: run.account.nickname })
+                    : ('importWizard.done.headingNoName' | translate)
+                }}
+              </h2>
+              <div class="counts">
+                <div>
+                  <strong>{{ count(run.summary?.characters) }}</strong
+                  ><span class="muted small">{{ 'importWizard.done.characters' | translate }}</span>
+                </div>
+                <!-- The games' own words, as the games write them. -->
+                <div>
+                  <strong>{{ count(run.summary?.weapons) }}</strong
+                  ><span class="muted small">{{ terms[run.game].weapons }}</span>
+                </div>
+                <div>
+                  <strong>{{ count(run.summary?.items) }}</strong
+                  ><span class="muted small">{{ terms[run.game].items }}</span>
+                </div>
+              </div>
+              @if (warnings().length > 0) {
+                <ul class="warnings">
+                  @for (warning of warnings(); track $index) {
+                    <!-- A warning without a kind is the stored English sentence, and says so. -->
+                    <li>
+                      <anotoki-icon name="alert" [size]="18" /><span [attr.lang]="warning.lang">{{
+                        warning.text
+                      }}</span>
+                    </li>
+                  }
+                </ul>
+              }
+              @if (unmatchedList(run).length > 0) {
+                <p class="muted small">
+                  {{ 'importWizard.done.unmatched' | translate: { names: unmatchedList(run).join(', ') } }}
+                </p>
+              }
+              <div class="cluster done-actions">
+                <button anotokiButton variant="primary" (click)="openAccount()">
+                  <anotoki-icon name="chart" [size]="18" />{{ 'importWizard.done.open' | translate }}
+                </button>
+                <button anotokiButton (click)="restart()">{{ 'importWizard.done.more' | translate }}</button>
+                <a anotokiButton variant="ghost" routerLink="/">{{ 'topbar.dashboard' | translate }}</a>
+              </div>
+            </div>
+          }
+        }
       }
-    </mat-step>
-  </mat-stepper>
+    </div>
+  </anotoki-card>
 </div>

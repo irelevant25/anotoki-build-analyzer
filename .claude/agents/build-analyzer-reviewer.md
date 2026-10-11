@@ -142,12 +142,17 @@ Correctness first:
   writes secrets with owner-only permissions.
 - Analysis: scores stay 0–100, missing data yields `null` parts, suggestions never worsen set bonuses.
 - API changes are mirrored in `frontend/src/app/core/models.ts`; routes validate input (`Web\Input`).
-- The top bar (`layouts/top-bar/`) keeps the family's rules: one row in the family's order; every member word
-  a key (`brand.*`, `topbar.*`; the admin sections English); its menus are its own markup, not `mat-menu` -
-  Tab / Shift+Tab from any item `preventDefault()` and close with the focus on the menu button (its spec
-  checks `defaultPrevented`, the menu closed and `document.activeElement`); a new piece or longer words mean
-  measuring the row again (`run.mjs --measure`) and keeping `PHONE_BAR_MAX`, the admin panel's
-  `ADMIN_PHONE_BAR_MAX` / `EDITOR_PHONE_BAR_MAX` and the scss in step.
+- The top bar (`layouts/top-bar/`) is the family's `<anotoki-top-bar>` (`@anotoki/lib/shell`), told this site's
+  brand, sections, person and menu items: every member word a key (`brand.*`, `topbar.*`, the library's
+  `anotoki.topbar.*` and `anotoki.theme.*`; the admin sections English); its menus, keys and fold are the
+  library's (Tab / Shift+Tab from any item close the menu with the focus on its button) - never a copy here; a
+  new piece or longer words mean measuring the row again (`run.mjs --measure`) and keeping `PHONE_BAR_MAX`,
+  the admin panel's `ADMIN_PHONE_BAR_MAX` / `EDITOR_PHONE_BAR_MAX` in step.
+- The look is the family's kit (`@anotoki/lib/styles`, the `@anotoki/lib/ui/*` pieces each from its own entry
+  point, never the `@anotoki/lib/ui` barrel): no Angular Material or CDK coming back; colours only from the
+  `--anotoki-*` tokens (the site's palette set over them in `styles.scss`, light and dark - never a kit piece
+  re-styled) or the site's own meanings (`--grade-*`, `--sev-*`, `--rarity-*`, `--el-*`); text 4.5:1 and a
+  control's edge or focus ring 3:1 in both themes.
 
 Then quality:
 

@@ -1,7 +1,8 @@
 # Build analyzer: frontend
 
-Angular 21 + Angular Material. See [DEV.md](../DEV.md) for setting up, running, testing and
-deploying, and [docs/architecture.md](../docs/architecture.md) ("Frontend") for how it is organised.
+Angular 21 on the anotoki family's UI kit (`@anotoki/lib`: its styles, its pieces, its shell - no Angular
+Material, no CDK). See [DEV.md](../DEV.md) for setting up, running, testing and deploying, and
+[docs/architecture.md](../docs/architecture.md) ("Frontend") for how it is organised.
 
 ```bash
 bun ci                     # the packages, from bun.lock (npm start runs it first)
@@ -18,8 +19,8 @@ Sign-in goes through the anotoki family's auth module, `@anotoki/lib/auth` (set 
 screen on `/sign-in`): the IAM's client (the tokens under the same keys as the IAM's SDK kept them), the callback
 (`/auth/callback`), the interceptor, the guards, the sign-in hint (a visitor signed in at the IAM is signed in here
 without a click) and the account's theme, date order and clock (`AuthService.preferences()`, saved with
-`AuthService.savePreferences()`: signed in, the theme toggle, the language menu and the dates follow the account,
-which every anotoki site shares; a visitor's stay this device's - `core/theme.ts`,
+`AuthService.savePreferences()`: signed in, the theme switch, the language menu and the dates follow the account,
+which every anotoki site shares; a visitor's stay this device's - `core/shell.ts`,
 `core/i18n/translations.config.ts`, `core/i18n/date-patterns.ts`). `core/auth.ts` is the pages' view of it
 (`AuthService`, a facade); specs use `@anotoki/lib/auth/testing` or a fake `AuthService`.
 
@@ -43,11 +44,18 @@ waiting" for the site's ADMIN, "not set up yet" -, which takes the router outlet
 (`<ng-template anotokiSitePages>`, `app.html`) and makes the pages only while it shows them, so nothing behind
 its page runs; the interceptor that hears the server say so; and the admin panel's Migrations page
 (`pages/admin/migrations/`, from `@anotoki/lib/migrations/page`). `core/site-status.ts` wires them to this site
-(who is ADMIN, how to sign in, the language on the page, the account's dates), and `styles.scss` maps this
-site's colours onto the library's `--anotoki-*` properties, light and dark - the gate's page, Migrations,
-Translations, Languages, People, the admin tools, the feedback form and the sign-in failure's screen are drawn
-with the library's kit (0.4.1; each piece from its own entry point, never the `@anotoki/lib/ui` barrel), and every
-other page stays on Angular Material.
+(who is ADMIN, how to sign in, the language on the page, the account's dates).
+
+Every page is drawn with the family's kit (0.4.1): `src/styles.scss` takes `@anotoki/lib/styles` (the tokens,
+Manrope, the base, utilities and tables) and sets this site's colours over the family's `--anotoki-*` tokens,
+light and dark - never re-styling a kit piece; the pieces come each from its own entry point
+(`@anotoki/lib/ui/button`, `/ui/dialog`, `/ui/forms` ...), never the `@anotoki/lib/ui` barrel; `core/kit.ts`
+gives the kit its words and the site's extra icons (`core/icons.ts`), `core/shell.ts` the shell its theme
+(`build-analyzer-theme`, read before the first paint by the kit's `theme-boot.js` in `index.html`) and
+languages. The top bar and the page's frame are the family's (`<anotoki-top-bar>`, `<anotoki-shell>`); the
+kit's question and toasts sit once in `app.html`. What the kit has no piece for stays the site's, from its
+tokens: `.tile`, `.section-head` and `details.disclosure` in `styles.scss`, the import wizard's row of steps,
+the score bars and grade badges.
 
 ```text
 src/app/
@@ -56,15 +64,17 @@ src/app/
                feedback.ts (the family's form set up for this site),
                visitor-key.ts (somebody not signed in: the key, the move at sign-in), sign-in-kind.ts (whether
                the present sign-in was the IAM's hint's silent hop: the move asks with it), storage.ts, download.ts,
-               meta-store.ts, changelog.ts, sync-driver.ts, theme.ts (the account's while signed in, else this
-               device's), site-status.ts (the family's site gate and Migrations page, wired to this site),
+               meta-store.ts, changelog.ts, sync-driver.ts, kit.ts + icons.ts (the family's kit set up here),
+               shell.ts (the family's shell: the theme - the account's while signed in, else this device's - and
+               the languages), site-status.ts (the family's site gate and Migrations page, wired to this site),
                i18n/ (the site's words on @anotoki/lib/translations; date-patterns.ts: the account's date
                order and clock), localization-drafts.ts (the sign-out question about unsaved strings)
-  layouts/     top-bar/ (the anotoki family's bar: one row, a phone's menu up to 880 px - in the admin panel
-               the ADMIN's and an editor's rows each their own), footer/ (version, What's new, Feedback),
-               app-layout/ (everybody's pages), admin-layout/ (the admin panel: staff / signed out / no role)
-  shared/      brand/ (the anotoki mark, public/anotoki.png), theme-toggle/, language-switcher/, visitor-notice/,
-               visitor-hero/, data-card/ ("Your data"), feedback-dialog/, build-detail, item-card, confirm-dialog, ...
+  layouts/     top-bar/ (the anotoki family's bar, @anotoki/lib/shell, told this site's brand, sections and
+               person: a phone's menu up to PHONE_BAR_MAX - in the admin panel the ADMIN's and an editor's rows
+               each their own), footer/ (version, What's new, Feedback), app-layout/ (everybody's pages),
+               admin-layout/ (the admin panel: staff / signed out / no role) - both in the family's <anotoki-shell>
+  shared/      visitor-notice/, visitor-hero/, data-card/ ("Your data"), feedback-dialog/, build-detail,
+               item-card, changelog-dialog, grade-badge, score-bar, char-avatar, ...
   pages/       dashboard, import, account, character, builds;
                admin/ (sources, translations, languages, migrations - English, under /admin/; People and the
                admin tools are the family's pages, routed straight)

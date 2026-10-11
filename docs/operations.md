@@ -200,7 +200,7 @@ they import is kept on the server under a row of `users` with a negative id; the
   deleted: N"). Lower the limits in `config/app.php` if the database grows faster than it should.
 - **At sign-in** the page sends `POST /api/visitor/move` with the token and the key: the visitor's accounts
   become the person's (the person's copy of an account both have stays), and the key opens nothing any more; a
-  snack bar says how many moved and how many were kept. When the move cannot be made just then (no network, a
+  message (the kit's toast) says how many moved and how many were kept. When the move cannot be made just then (no network, a
   503) the browser keeps the key and asks again a few seconds later, then at the next page load - the
   visitor's accounts are out of sight meanwhile, never lost.
 - **After an automatic sign-in** (the IAM's sign-in hint's silent hop, nobody's click - the owner's decision of
@@ -425,7 +425,7 @@ map, are in [DEV.md](../DEV.md) ("Deploying"); in short:
      same rights (EDITOR the strings, ADMIN the languages), a few new refusals (415 a body that is not JSON, 413
      one over 1 MiB, 422 `empty_body`, 400 `invalid_json`).
    - **Version 0.4.0: signing in, people and the admin tools through the anotoki library (anotoki-lib 0.4.1 in
-     `vendor/` and in the app; the library's `anotoki_admin` 001-002, migrations 007-009, then `anotoki_translations`
+     `vendor/` and in the app; the library's `anotoki_admin` 001-002, migrations 007-010, then `anotoki_translations`
      003-004 and `anotoki_people` 001)**: the IAM must already set its sign-in hint (the IAM's release of
      2026-10-07) - without it nothing breaks, the automatic sign-in only waits for it. Before uploading,
      **Export** each language on the Translations page. Upload with `vendor/`, sign in with the ADMIN and **Apply
@@ -437,7 +437,9 @@ map, are in [DEV.md](../DEV.md) ("Deploying"); in short:
      `laravel_failed_jobs` (old payloads), with their sequences, in one statement - keeping only
      `laravel_migrations` (the owner's decisions); 009 moves the five
      sign-in words this site had to the library's `anotoki.signIn.*` keys with every rewording, its writer and its
-     time, retires three, and adds Feedback's words; the library's 003-004 add the sign-in screen's and the form's
+     time, retires three, and adds Feedback's words; 010 moves the top bar's twelve to `anotoki.topbar.*` and
+     `anotoki.theme.*` the same way (the bar is the family's now) and retires two of Material's stepper's; the
+     library's 003-004 add the sign-in screen's and the form's
      own words, never over a string that is there; `anotoki_people` makes where the scrub stands. Each refuses
      (rolled back whole) when what it proves does not hold. **A step of this release, not an option: delete the
      "before-migration" backup this Apply made** on the Backups page, once the site works - it still holds those

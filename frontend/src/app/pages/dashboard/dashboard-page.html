@@ -2,83 +2,118 @@
   @if (state() === 'nobody') {
     @if (visitor.lost()) {
       <!-- The key this browser held opens nothing any more: said once, before the page starts over. -->
-      <p class="panel lost" role="status">{{ 'error.visitor_unknown' | translate }}</p>
+      <anotoki-alert class="lost" tone="warning" announce="polite">{{
+        'error.visitor_unknown' | translate
+      }}</anotoki-alert>
     }
     <app-visitor-hero />
   } @else {
     @if (state() === 'visitor') {
       <app-visitor-notice />
     }
-    <header class="page-header">
-      <div>
-        <h1>{{ 'dashboard.title' | translate }}</h1>
-        <p class="subtitle">{{ 'dashboard.subtitle' | translate }}</p>
-      </div>
-      <a mat-flat-button routerLink="/import"><mat-icon>add</mat-icon>{{ 'dashboard.importAccount' | translate }}</a>
-    </header>
+    <anotoki-page-header
+      [heading]="'dashboard.title' | translate"
+      [lead]="'dashboard.subtitle' | translate"
+    >
+      <a anotokiButton variant="primary" routerLink="/import"
+        ><anotoki-icon name="plus" [size]="18" />{{ 'dashboard.importAccount' | translate }}</a
+      >
+    </anotoki-page-header>
   }
 
   @if (loading()) {
-    <mat-progress-bar mode="indeterminate" />
+    <anotoki-spinner class="loading" label [delay]="200" />
   }
 
   @if (error(); as failure) {
-    <div class="panel error-panel">
-      <mat-icon>cloud_off</mat-icon>
-      <div>
-        <strong>{{ failure | errorText }}</strong>
-      </div>
-      <button mat-stroked-button (click)="load()">{{ 'common.retry' | translate }}</button>
-    </div>
+    <anotoki-error-state
+      [message]="failure | errorText"
+      [retryLabel]="'common.retry' | translate"
+      (retry)="load()"
+    />
   }
 
   @if (state() !== 'nobody' && !loading() && !error() && accounts().length === 0) {
-    <div class="panel hero">
-      <mat-icon class="hero-icon">travel_explore</mat-icon>
-      <h2>{{ 'dashboard.emptyTitle' | translate }}</h2>
-      <p class="muted">{{ 'dashboard.emptyText' | translate }}</p>
-      <div class="row wrap center">
+    <anotoki-card>
+      <anotoki-empty-state
+        icon="search"
+        [heading]="'dashboard.emptyTitle' | translate"
+        [text]="'dashboard.emptyText' | translate"
+      >
         @for (game of games; track game) {
-          <a mat-flat-button routerLink="/import" [queryParams]="{ game: game }">{{ 'dashboard.importGame' | translate: { game: gameLabels[game] } }}</a>
+          <a anotokiButton variant="primary" routerLink="/import" [queryParams]="{ game: game }">{{
+            'dashboard.importGame' | translate: { game: gameLabels[game] }
+          }}</a>
         }
-      </div>
-    </div>
+      </anotoki-empty-state>
+    </anotoki-card>
   }
 
   @for (game of games; track game) {
     @if (accountsByGame()[game].length > 0) {
       <section class="game-section">
-        <h2 class="section-title">{{ gameLabels[game] }}</h2>
+        <div class="section-head">
+          <h2>{{ gameLabels[game] }}</h2>
+        </div>
         <div class="account-grid">
           @for (account of accountsByGame()[game]; track account.id) {
-            <article class="panel account-card">
+            <article class="tile account-card">
               <a class="account-main" [routerLink]="['/accounts', account.id]">
-                <div class="row">
-                  <mat-icon class="game-icon" [class.hsr]="game === 'hsr'">{{ game === 'hsr' ? 'rocket_launch' : 'auto_awesome' }}</mat-icon>
+                <div class="account-head">
+                  <anotoki-icon
+                    class="game-icon"
+                    [class.hsr]="game === 'hsr'"
+                    [name]="gameIcon(game)"
+                    [size]="24"
+                  />
                   <div class="names">
                     <div class="nickname">{{ account.nickname }}</div>
                     <!-- UID, and AR / TL, are the games' own words: written as they are, never worded. -->
                     <div class="muted small">
-                      @if (account.uid) { {{ uidTerm }} {{ account.uid }} } @else { {{ 'dashboard.noUid' | translate }} }
-                      @if (account.level) { · {{ terms[game].accountLevelShort }} {{ account.level }} }
+                      @if (account.uid) {
+                        {{ uidTerm }} {{ account.uid }}
+                      } @else {
+                        {{ 'dashboard.noUid' | translate }}
+                      }
+                      @if (account.level) {
+                        · {{ terms[game].accountLevelShort }} {{ account.level }}
+                      }
                     </div>
                   </div>
                 </div>
                 <!-- A number with its label under it. What a character wears and wields is named by the game. -->
                 <div class="counts">
-                  <div><strong>{{ account.counts.characters }}</strong><span class="muted small">{{ 'account.characters' | translate }}</span></div>
-                  <div><strong>{{ account.counts.items }}</strong><span class="muted small">{{ terms[game].items }}</span></div>
-                  <div><strong>{{ account.counts.weapons }}</strong><span class="muted small">{{ terms[game].weapons }}</span></div>
+                  <div>
+                    <strong>{{ account.counts.characters }}</strong
+                    ><span class="muted small">{{ 'account.characters' | translate }}</span>
+                  </div>
+                  <div>
+                    <strong>{{ account.counts.items }}</strong
+                    ><span class="muted small">{{ terms[game].items }}</span>
+                  </div>
+                  <div>
+                    <strong>{{ account.counts.weapons }}</strong
+                    ><span class="muted small">{{ terms[game].weapons }}</span>
+                  </div>
                 </div>
-                <div class="row wrap">
+                <div class="cluster">
                   @if (account.has_full_inventory) {
-                    <span class="chip ok" [matTooltip]="'account.fullInventoryHint' | translate">{{ 'account.fullInventory' | translate }}</span>
+                    <anotoki-badge
+                      tone="success"
+                      [anotokiTooltip]="'account.fullInventoryHint' | translate"
+                      >{{ 'account.fullInventory' | translate }}</anotoki-badge
+                    >
                   } @else {
-                    <span class="chip" [matTooltip]="'account.showcaseOnlyHint' | translate">{{ 'account.showcaseOnly' | translate }}</span>
+                    <anotoki-badge [anotokiTooltip]="'account.showcaseOnlyHint' | translate">{{
+                      'account.showcaseOnly' | translate
+                    }}</anotoki-badge>
                   }
                   <span class="muted small">
                     @if (account.last_import_at) {
-                      {{ 'dashboard.imported' | translate: { when: (account.last_import_at | localDate: 'ago') } }}
+                      {{
+                        'dashboard.imported'
+                          | translate: { when: (account.last_import_at | localDate: 'ago') }
+                      }}
                     } @else {
                       {{ 'dashboard.notImportedYet' | translate }}
                     }
@@ -86,13 +121,33 @@
                 </div>
               </a>
               <div class="account-actions">
-                <a mat-button [routerLink]="['/accounts', account.id]">{{ 'dashboard.open' | translate }}</a>
-                <a mat-button routerLink="/import" [queryParams]="{ game: account.game, account: account.id }">{{ 'dashboard.updateData' | translate }}</a>
+                <a anotokiButton variant="ghost" size="sm" [routerLink]="['/accounts', account.id]">{{
+                  'dashboard.open' | translate
+                }}</a>
+                <a
+                  anotokiButton
+                  variant="ghost"
+                  size="sm"
+                  routerLink="/import"
+                  [queryParams]="{ game: account.game, account: account.id }"
+                  >{{ 'dashboard.updateData' | translate }}</a
+                >
                 <span class="spacer"></span>
-                <button mat-icon-button [matMenuTriggerFor]="menu" [attr.aria-label]="'dashboard.moreActions' | translate"><mat-icon>more_vert</mat-icon></button>
-                <mat-menu #menu="matMenu">
-                  <button mat-menu-item (click)="deleteAccount(account)"><mat-icon>delete</mat-icon>{{ 'dashboard.deleteAccount' | translate }}</button>
-                </mat-menu>
+                <button
+                  anotokiButton
+                  variant="ghost"
+                  size="sm"
+                  iconOnly
+                  [anotokiMenuTrigger]="menu"
+                  [attr.aria-label]="'dashboard.moreActions' | translate"
+                >
+                  <anotoki-icon name="more" [size]="18" />
+                </button>
+                <anotoki-menu #menu [label]="'dashboard.moreActions' | translate" align="end">
+                  <button anotokiMenuItem (click)="deleteAccount(account)">
+                    <anotoki-icon name="trash" [size]="17" />{{ 'dashboard.deleteAccount' | translate }}
+                  </button>
+                </anotoki-menu>
               </div>
             </article>
           }
@@ -102,16 +157,17 @@
   }
 
   @if (state() === 'person') {
-    <app-data-card class="data-section" (imported)="load()" />
+    <app-data-card (imported)="load()" />
   }
 
   @if (sources().length > 0) {
     <section class="game-section">
-      <div class="row">
-        <h2 class="section-title">{{ 'dashboard.sources' | translate }}</h2>
-        <span class="spacer"></span>
+      <div class="section-head">
+        <h2>{{ 'dashboard.sources' | translate }}</h2>
         @if (auth.isStaff()) {
-          <a mat-button routerLink="/admin/sources">{{ 'dashboard.manageSources' | translate }}<mat-icon iconPositionEnd>chevron_right</mat-icon></a>
+          <a anotokiButton variant="ghost" size="sm" routerLink="/admin/sources"
+            >{{ 'dashboard.manageSources' | translate }}<anotoki-icon name="chevronRight" [size]="16"
+          /></a>
         }
       </div>
       @if (buildsTotal() === 0) {
@@ -119,7 +175,9 @@
           @if (auth.isStaff()) {
             <!-- One sentence, cut where the link stands; a language that leaves the page's name out gets no link. -->
             @let sentence = noBuildsAdmin();
-            {{ sentence[0] }}@if (sentence[2]) {<a routerLink="/admin/sources">{{ 'nav.sources' | translate }}</a>}{{ sentence[1] }}
+            {{ sentence[0] }}@if (sentence[2]) {<a routerLink="/admin/sources">{{
+                'nav.sources' | translate
+              }}</a>}{{ sentence[1] }}
           } @else {
             {{ 'dashboard.noBuildsMember' | translate }}
           }
@@ -127,13 +185,17 @@
       }
       <div class="source-grid">
         @for (game of games; track game) {
-          <div class="panel">
-            <h3 class="panel-title">{{ gameLabels[game] }}</h3>
+          <anotoki-card [heading]="gameLabels[game]" [headingLevel]="3">
             @for (source of sourcesByGame()[game]; track source.key) {
               <div class="source-row">
-                <span class="status-dot" [class]="source.running ? 'running' : (source.last_status ?? 'never')"></span>
+                <span
+                  class="status-dot"
+                  [class]="source.running ? 'running' : (source.last_status ?? 'never')"
+                ></span>
                 <span class="source-name">{{ source.name }}</span>
-                <span class="muted small">{{ 'dashboard.sourceCharacters' | translatePlural: source.characters }}</span>
+                <span class="muted small">{{
+                  'dashboard.sourceCharacters' | translatePlural: source.characters
+                }}</span>
                 <span class="spacer"></span>
                 <span class="muted small">
                   @if (source.running) {
@@ -146,7 +208,7 @@
                 </span>
               </div>
             }
-          </div>
+          </anotoki-card>
         }
       </div>
     </section>

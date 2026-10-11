@@ -41,11 +41,8 @@ function setup(
   return { auth };
 }
 
-const text = (element: Element | null | undefined) => {
-  const copy = element?.cloneNode(true) as Element | undefined;
-  copy?.querySelectorAll('mat-icon').forEach((icon) => icon.remove());
-  return copy?.textContent?.replace(/\s+/g, ' ').trim();
-};
+const text = (element: Element | null | undefined) =>
+  element?.textContent?.replace(/\s+/g, ' ').trim();
 
 describe('the visitor notice', () => {
   it("says, in the reader's language, how long the server keeps what this browser imports - the days the server says", async () => {
@@ -54,10 +51,12 @@ describe('the visitor notice', () => {
     await fixture.whenStable();
     const host: HTMLElement = fixture.nativeElement;
 
-    expect(text(host.querySelector('p'))).toBe(
+    expect(text(host.querySelector('.anotoki-alert__text'))).toBe(
       'Používaš stránku bez prihlásenia. Čo importuješ, uchováme pre tento prehliadač na našom serveri, kým od tvojej poslednej návštevy neuplynie toľko dní: 14. Keď sa prihlásiš, zostane to v tvojom anotoki účte.',
     );
-    expect(host.querySelector('aside')?.getAttribute('role')).toBe('note');
+    // The kit's note, part of the page: never announced as it is drawn.
+    expect(host.querySelector('anotoki-alert')?.getAttribute('data-tone')).toBe('info');
+    expect(host.querySelector('anotoki-alert')?.hasAttribute('role')).toBe(false);
     expect(text(host.querySelector('button'))).toBe('Prihlásiť sa');
   });
 
@@ -82,13 +81,13 @@ describe('the visitor notice', () => {
     setup({ signedIn: true });
     const signedIn = TestBed.createComponent(VisitorNotice);
     await signedIn.whenStable();
-    expect(signedIn.nativeElement.querySelector('aside')).toBeNull();
+    expect(signedIn.nativeElement.querySelector('anotoki-alert')).toBeNull();
 
     TestBed.resetTestingModule();
     setup({ available: false });
     const offline = TestBed.createComponent(VisitorNotice);
     await offline.whenStable();
-    expect(offline.nativeElement.querySelector('aside')).not.toBeNull();
+    expect(offline.nativeElement.querySelector('anotoki-alert')).not.toBeNull();
     expect(offline.nativeElement.querySelector('button')).toBeNull();
   });
 });

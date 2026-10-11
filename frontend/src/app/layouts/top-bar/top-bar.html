@@ -1,225 +1,26 @@
-<header class="topbar" [class.is-phone]="phone()" [class.is-nameless]="nameless()">
-  <div class="topbar-inner" [class.is-narrow]="width() === 'narrow'">
-    @if (area() === 'admin') {
-      <app-brand
-        [showName]="!phone()"
-        [area]="(phone() ? 'brand.short' : 'brand.admin') | translate"
-        link="/admin"
-        [linkLabel]="'topbar.homeAdmin' | translate"
-      />
-    } @else {
-      <app-brand
-        [showName]="!phone()"
-        [area]="(phone() ? 'brand.short' : 'brand.area') | translate"
-        link="/"
-        [linkLabel]="'topbar.home' | translate"
-      />
-    }
-
-    @if (!phone() && links().length > 0) {
-      <nav class="topbar-nav" [attr.aria-label]="'topbar.sections' | translate">
-        @for (link of links(); track link.path) {
-          <a
-            class="topbar-link"
-            [routerLink]="link.path"
-            [class.is-active]="inSection(link)"
-            [attr.aria-current]="isPage(link) ? 'page' : null"
-            [attr.aria-label]="badgeOf(link) ? link.label + ', ' + badgeOf(link) + ' new' : null"
-            >{{ link.key ? (link.key | translate) : link.label }}
-            @if (badgeOf(link); as count) {
-              <span class="link-badge" aria-hidden="true">{{ count }}</span>
-            }
-          </a>
-        }
-      </nav>
-    }
-
-    <div class="topbar-actions">
-      @if (syncing() && !phone()) {
-        <!-- An app widget, just left of the language: the sync this tab drives, and the way to its page. -->
-        <a
-          class="topbar-widget"
-          routerLink="/admin/sources"
-          [matTooltip]="'toolbar.syncing' | translate"
-          [attr.aria-label]="'toolbar.syncingLabel' | translate"
-          ><mat-icon class="spin" aria-hidden="true">sync</mat-icon></a
-        >
-      }
-      @if (chooser()) {
-        <app-language-switcher />
-      }
-      <app-theme-toggle />
-
-      @if (phone()) {
-        <div class="phone-menu">
-          <button
-            #phoneButton
-            type="button"
-            class="menu-button"
-            aria-haspopup="menu"
-            [attr.aria-expanded]="openMenu() === 'phone'"
-            aria-controls="topbar-menu"
-            [attr.aria-label]="'topbar.phoneMenu' | translate"
-            (click)="toggleMenu('phone')"
-          >
-            <mat-icon aria-hidden="true">{{ openMenu() === 'phone' ? 'close' : 'menu' }}</mat-icon>
-            @if (syncing() || newFeedback()) {
-              <span class="menu-badge" aria-hidden="true"></span>
-            }
-          </button>
-
-          @if (openMenu() === 'phone') {
-            <div
-              #menu
-              id="topbar-menu"
-              class="menu"
-              role="menu"
-              [attr.aria-label]="'topbar.phoneMenu' | translate"
-              (keydown)="onMenuKeydown($event)"
-            >
-              @for (link of links(); track link.path) {
-                <a
-                  role="menuitem"
-                  class="menu-item menu-link"
-                  [routerLink]="link.path"
-                  [class.is-active]="inSection(link)"
-                  [attr.aria-current]="isPage(link) ? 'page' : null"
-                  [attr.aria-label]="
-                    badgeOf(link) ? link.label + ', ' + badgeOf(link) + ' new' : null
-                  "
-                  (click)="closeMenu(false)"
-                  >{{ link.key ? (link.key | translate) : link.label }}
-                  @if (badgeOf(link); as count) {
-                    <span class="link-badge" aria-hidden="true">{{ count }}</span>
-                  }
-                </a>
-              }
-              @if (syncing()) {
-                <a
-                  role="menuitem"
-                  class="menu-item"
-                  routerLink="/admin/sources"
-                  (click)="closeMenu(false)"
-                >
-                  <mat-icon class="spin" aria-hidden="true">sync</mat-icon>
-                  {{ 'toolbar.syncingLabel' | translate }}
-                </a>
-              }
-              @if (auth.user()) {
-                <div class="menu-sep" role="separator"></div>
-                <ng-container [ngTemplateOutlet]="accountItems" />
-              } @else if (auth.available()) {
-                <div class="menu-sep" role="separator"></div>
-                <button role="menuitem" type="button" class="menu-item" (click)="signIn()">
-                  <mat-icon aria-hidden="true">login</mat-icon>
-                  {{ 'common.signIn' | translate }}
-                </button>
-              }
-            </div>
-          }
-        </div>
-      } @else if (auth.user(); as user) {
-        <div class="user-menu">
-          <button
-            #accountButton
-            type="button"
-            class="user-button"
-            aria-haspopup="menu"
-            [attr.aria-expanded]="openMenu() === 'account'"
-            aria-controls="user-menu"
-            [attr.aria-label]="
-              'topbar.menuButton'
-                | translate
-                  : {
-                      name:
-                        auth.displayName() ??
-                        ('common.userFallback' | translate: { sub: user.sub }),
-                    }
-            "
-            (click)="toggleMenu('account')"
-          >
-            <span class="avatar" aria-hidden="true">{{ initial() }}</span>
-            <span class="user-name">{{
-              auth.displayName() ?? ('common.userFallback' | translate: { sub: user.sub })
-            }}</span>
-            <mat-icon class="chevron" aria-hidden="true">expand_more</mat-icon>
-          </button>
-
-          @if (openMenu() === 'account') {
-            <div
-              #menu
-              id="user-menu"
-              class="menu"
-              role="menu"
-              [attr.aria-label]="'topbar.menu' | translate"
-              (keydown)="onMenuKeydown($event)"
-            >
-              <ng-container [ngTemplateOutlet]="accountItems" />
-            </div>
-          }
-        </div>
-      } @else if (auth.available()) {
-        <button mat-flat-button class="sign-in" type="button" (click)="signIn()">
-          <mat-icon>login</mat-icon>{{ 'common.signIn' | translate }}
-        </button>
-      }
-    </div>
-  </div>
-</header>
-
-<!-- The person's menu: on its own button on a desktop, after the sections in the phone's menu. -->
-<ng-template #accountItems>
-  @if (auth.user(); as user) {
-    <div class="menu-head" role="none">
-      <span class="menu-name">{{
-        auth.displayName() ?? ('common.userFallback' | translate: { sub: user.sub })
-      }}</span>
-      @if (email(); as email) {
-        <span class="menu-email">{{ email }}</span>
-      }
-      @if (auth.isAdmin()) {
-        <span class="menu-role">{{ 'topbar.roleAdmin' | translate }}</span>
-      } @else if (auth.isStaff()) {
-        <span class="menu-role">{{ 'topbar.roleEditor' | translate }}</span>
-      }
-    </div>
-    @if (auth.accountUrl(); as url) {
-      <a
-        role="menuitem"
-        class="menu-item"
-        [href]="url"
-        target="_blank"
-        rel="noopener"
-        (click)="closeMenu(false)"
-      >
-        <mat-icon aria-hidden="true">person</mat-icon>
-        {{ 'topbar.account' | translate }}
-        <mat-icon class="menu-external" aria-hidden="true">open_in_new</mat-icon>
-      </a>
-    }
-    @if (auth.isStaff()) {
-      @if (area() === 'admin') {
-        <a role="menuitem" class="menu-item" routerLink="/" (click)="closeMenu(false)">
-          <mat-icon aria-hidden="true">arrow_back</mat-icon>
-          {{ 'topbar.backToApp' | translate }}
-        </a>
-      } @else {
-        <a role="menuitem" class="menu-item" routerLink="/admin" (click)="closeMenu(false)">
-          <mat-icon aria-hidden="true">admin_panel_settings</mat-icon>
-          {{ 'topbar.admin' | translate }}
-        </a>
-      }
-    }
-    <div class="menu-sep" role="separator"></div>
-    <button
-      role="menuitem"
-      type="button"
-      class="menu-item"
-      [disabled]="signingOut()"
-      (click)="signOut()"
-    >
-      <mat-icon aria-hidden="true">logout</mat-icon>
-      {{ 'common.signOut' | translate }}
-    </button>
+<!-- The anotoki family's one bar (@anotoki/lib/shell), told what is this site's - and its widget before the language: the sync this tab drives. -->
+<anotoki-top-bar
+  #bar="anotokiTopBar"
+  [brand]="brand()"
+  [links]="links()"
+  [navLabel]="'topbar.sections' | translate"
+  [person]="person()"
+  [menuItems]="menuItems()"
+  [signIn]="signIn()"
+  [signOut]="signOut"
+  [languages]="chooser()"
+  [phoneMax]="phoneMax()"
+  [shortBrandMax]="shortBrandMax()"
+  [phoneMark]="phoneMark()"
+>
+  @if (syncing() && !bar.phone()) {
+    <a
+      topBarWidgets
+      class="sync-widget"
+      routerLink="/admin/sources"
+      [anotokiTooltip]="'toolbar.syncing' | translate"
+      [attr.aria-label]="'toolbar.syncingLabel' | translate"
+      ><anotoki-icon name="refresh" class="spin" [size]="20"
+    /></a>
   }
-</ng-template>
+</anotoki-top-bar>

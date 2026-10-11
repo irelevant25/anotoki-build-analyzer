@@ -1,20 +1,81 @@
+// A tile of the site's own (styles.scss .tile's look), on the host.
 :host {
-  display: flex; flex-direction: column; gap: 8px;
-  background: var(--app-surface);
-  border: 1px solid var(--app-border);
-  border-radius: 14px;
-  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  min-width: 0;
+  padding: 0.75rem;
+  border: 1px solid var(--anotoki-border);
+  border-radius: var(--anotoki-radius-lg);
+  background: var(--anotoki-surface);
+  box-shadow: var(--anotoki-shadow-sm);
+}
+
+.head {
+  display: flex;
+  align-items: center;
+  gap: 0.625rem;
+}
+
+.title {
+  flex: 1;
   min-width: 0;
 }
-.head { display: flex; align-items: center; gap: 10px; }
-.title { flex: 1; min-width: 0; }
-.slot { font-weight: 500; }
-.set { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.main { display: flex; align-items: center; gap: 6px; font-weight: 500; padding: 6px 8px; border-radius: 8px; background: var(--app-surface-2); }
-.main .value { margin-left: auto; }
-.main.bad { background: color-mix(in srgb, var(--grade-d) 16%, transparent); }
-.warn-icon { color: var(--grade-d); font-size: 18px; width: 18px; height: 18px; }
-.subs { list-style: none; margin: 0; padding: 0 4px; display: grid; gap: 2px; font-size: 0.9rem; }
-.subs li { display: flex; justify-content: space-between; gap: 8px; }
-.rolls { color: var(--app-muted); margin-left: 2px; }
-.foot { display: flex; justify-content: space-between; }
+
+.slot {
+  font-weight: 650;
+}
+
+.set {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.main {
+  display: flex;
+  align-items: center;
+  gap: 0.375rem;
+  padding: 0.375rem 0.5rem;
+  border-radius: var(--anotoki-radius-sm);
+  background: var(--anotoki-surface-2);
+  font-weight: 650;
+
+  .value {
+    margin-left: auto;
+  }
+
+  &.bad {
+    background: color-mix(in srgb, var(--grade-d) 16%, transparent);
+  }
+}
+
+.warn-icon {
+  flex: none;
+  color: var(--anotoki-danger-text);
+}
+
+.subs {
+  display: grid;
+  gap: 0.125rem;
+  margin: 0;
+  padding: 0 0.25rem;
+  font-size: 0.875rem;
+  list-style: none;
+
+  li {
+    display: flex;
+    justify-content: space-between;
+    gap: 0.5rem;
+  }
+}
+
+.rolls {
+  margin-left: 0.125rem;
+  color: var(--anotoki-muted);
+}
+
+.foot {
+  display: flex;
+  justify-content: space-between;
+}

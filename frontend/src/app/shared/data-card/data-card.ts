@@ -1,9 +1,12 @@
 import { HttpErrorResponse } from '@angular/common/http';
 import { Component, inject, output, signal } from '@angular/core';
-import { MatButtonModule } from '@angular/material/button';
-import { MatIconModule } from '@angular/material/icon';
-import { MatProgressBarModule } from '@angular/material/progress-bar';
-import { MatSnackBar } from '@angular/material/snack-bar';
+import { AlertComponent } from '@anotoki/lib/ui/alert';
+import { BadgeComponent } from '@anotoki/lib/ui/badge';
+import { ButtonComponent } from '@anotoki/lib/ui/button';
+import { CardComponent } from '@anotoki/lib/ui/card';
+import { IconComponent } from '@anotoki/lib/ui/icon';
+import { SpinnerComponent } from '@anotoki/lib/ui/spinner';
+import { ToastService } from '@anotoki/lib/ui/toast';
 import { Api } from '../../core/api';
 import { downloadName, saveFile } from '../../core/download';
 import { GAME_LABELS } from '../../core/format';
@@ -63,13 +66,19 @@ interface Preview {
  *
  * A problem is kept as a key with its parameters (the file's, from the answer's code) or as the failed
  * request itself, and worded where it is shown - never the server's English.
+ *
+ * Drawn with the anotoki family's kit: its card, buttons, spinner, badges, alerts (a problem; what an import did)
+ * and a message when the export is on its way.
  */
 @Component({
   selector: 'app-data-card',
   imports: [
-    MatButtonModule,
-    MatIconModule,
-    MatProgressBarModule,
+    AlertComponent,
+    BadgeComponent,
+    ButtonComponent,
+    CardComponent,
+    IconComponent,
+    SpinnerComponent,
     TranslatePipe,
     TranslatePluralPipe,
     ErrorTextPipe,
@@ -80,7 +89,7 @@ interface Preview {
 export class DataCard {
   private readonly api = inject(Api);
   private readonly i18n = inject(TranslationService);
-  private readonly snackBar = inject(MatSnackBar);
+  private readonly toasts = inject(ToastService);
 
   /** An import went through: the page loads the accounts again. */
   readonly imported = output<DataImportResult>();
@@ -107,8 +116,8 @@ export class DataCard {
               'build-analyzer-accounts.json',
             ),
           );
-          // A finished sentence when raised; a snack bar is not worded again.
-          this.snackBar.open(this.i18n.t('data.exported'), undefined, { duration: 4000 });
+          // A finished sentence when raised; a message is not worded again.
+          this.toasts.success(this.i18n.t('data.exported'));
         }
       },
       error: async (err: unknown) => {

@@ -1,91 +1,104 @@
-<section class="panel data-card" aria-labelledby="data-card-title">
-  <h2 id="data-card-title" class="panel-title">{{ 'data.title' | translate }}</h2>
-  <p class="muted">{{ 'data.text' | translate }}</p>
+<anotoki-card [heading]="'data.title' | translate" headingId="data-card-title">
+  <div class="data-card">
+    <p class="muted">{{ 'data.text' | translate }}</p>
 
-  <div class="row wrap">
-    <button mat-stroked-button class="export" (click)="exportData()" [disabled]="busy()">
-      <mat-icon>download</mat-icon>{{ 'data.export' | translate }}
-    </button>
-    <button mat-stroked-button class="import" (click)="fileInput.click()" [disabled]="busy()">
-      <mat-icon>upload_file</mat-icon>{{ 'data.import' | translate }}
-    </button>
-    <input
-      #fileInput
-      type="file"
-      accept="application/json,.json"
-      hidden
-      (change)="choose($event)"
-    />
-  </div>
-
-  @if (busy()) {
-    <mat-progress-bar mode="indeterminate" [attr.aria-label]="'data.busy' | translate" />
-  }
-
-  @if (error(); as problem) {
-    <p class="problem" role="alert">
-      <mat-icon aria-hidden="true">error</mat-icon><span>{{ problem | errorText }}</span>
-    </p>
-  }
-
-  @if (preview(); as current) {
-    <div class="preview" aria-live="polite">
-      <h3>{{ 'data.previewTitle' | translate: { name: current.name } }}</h3>
-      @if (current.result.accounts.length === 0) {
-        <p>{{ 'data.empty' | translate }}</p>
-      } @else {
-        <p class="summary">
-          {{
-            'data.preview'
-              | translate
-                : {
-                    added: current.result.added,
-                    replaced: current.result.replaced,
-                    kept: current.result.kept,
-                  }
-          }}
-        </p>
-        @if (current.result.skipped > 0) {
-          <p class="muted small skipped">
-            {{ 'data.skipped' | translatePlural: current.result.skipped }}
-          </p>
-        }
-        <ul class="outcomes">
-          @for (account of current.result.accounts; track $index) {
-            <!-- The game's name and the account's own name or UID are shown as they are, never worded. -->
-            <li>
-              <span class="account"
-                >{{ gameLabels[account.game] }} · {{ accountName(account) }}</span
-              >
-              <span class="chip" [class.ok]="account.outcome !== 'kept'">{{
-                outcomeKeys[account.outcome] | translate
-              }}</span>
-            </li>
-          }
-        </ul>
-      }
-      <div class="row wrap">
-        <button
-          mat-flat-button
-          class="confirm"
-          (click)="confirm()"
-          [disabled]="busy() || current.result.accounts.length === 0"
-        >
-          {{ 'data.confirm' | translate }}
-        </button>
-        <button mat-button class="cancel" (click)="cancel()" [disabled]="busy()">
-          {{ 'common.cancel' | translate }}
-        </button>
-      </div>
+    <div class="cluster">
+      <button anotokiButton class="export" (click)="exportData()" [disabled]="busy()">
+        <anotoki-icon name="download" [size]="18" />{{ 'data.export' | translate }}
+      </button>
+      <button anotokiButton class="import" (click)="fileInput.click()" [disabled]="busy()">
+        <anotoki-icon name="upload" [size]="18" />{{ 'data.import' | translate }}
+      </button>
+      <input
+        #fileInput
+        type="file"
+        accept="application/json,.json"
+        hidden
+        (change)="choose($event)"
+      />
     </div>
-  }
 
-  @if (done(); as result) {
-    <p class="done" role="status">
-      {{
-        'data.done'
-          | translate: { added: result.added, replaced: result.replaced, kept: result.kept }
-      }}
-    </p>
-  }
-</section>
+    @if (busy()) {
+      <anotoki-spinner
+        size="sm"
+        [inline]="true"
+        [showLabel]="true"
+        [label]="'data.busy' | translate"
+      />
+    }
+
+    @if (error(); as problem) {
+      <anotoki-alert class="problem" tone="danger" [announce]="true">{{
+        problem | errorText
+      }}</anotoki-alert>
+    }
+
+    @if (preview(); as current) {
+      <div class="preview" aria-live="polite">
+        <h3>{{ 'data.previewTitle' | translate: { name: current.name } }}</h3>
+        @if (current.result.accounts.length === 0) {
+          <p>{{ 'data.empty' | translate }}</p>
+        } @else {
+          <p class="summary">
+            {{
+              'data.preview'
+                | translate
+                  : {
+                      added: current.result.added,
+                      replaced: current.result.replaced,
+                      kept: current.result.kept,
+                    }
+            }}
+          </p>
+          @if (current.result.skipped > 0) {
+            <p class="muted small skipped">
+              {{ 'data.skipped' | translatePlural: current.result.skipped }}
+            </p>
+          }
+          <ul class="outcomes">
+            @for (account of current.result.accounts; track $index) {
+              <!-- The game's name and the account's own name or UID are shown as they are, never worded. -->
+              <li>
+                <span class="account"
+                  >{{ gameLabels[account.game] }} · {{ accountName(account) }}</span
+                >
+                <anotoki-badge [tone]="account.outcome !== 'kept' ? 'success' : 'neutral'">{{
+                  outcomeKeys[account.outcome] | translate
+                }}</anotoki-badge>
+              </li>
+            }
+          </ul>
+        }
+        <div class="cluster">
+          <button
+            anotokiButton
+            variant="primary"
+            class="confirm"
+            (click)="confirm()"
+            [disabled]="busy() || current.result.accounts.length === 0"
+          >
+            {{ 'data.confirm' | translate }}
+          </button>
+          <button
+            anotokiButton
+            variant="ghost"
+            class="cancel"
+            (click)="cancel()"
+            [disabled]="busy()"
+          >
+            {{ 'common.cancel' | translate }}
+          </button>
+        </div>
+      </div>
+    }
+
+    @if (done(); as result) {
+      <anotoki-alert class="done" tone="success" announce="polite">
+        {{
+          'data.done'
+            | translate: { added: result.added, replaced: result.replaced, kept: result.kept }
+        }}
+      </anotoki-alert>
+    }
+  </div>
+</anotoki-card>

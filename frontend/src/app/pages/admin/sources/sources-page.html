@@ -1,47 +1,49 @@
 <div class="page">
-  <header class="page-header">
-    <div>
-      <h1>Build sources</h1>
-      <p class="subtitle">
-        Builds come from these sources when you sync them here. A sync runs in short steps while this page is open;
-        closing it pauses the sync, and Resume continues where it stopped. Each source is read politely (some ask for
-        10 seconds between pages), so a full sync takes a while. Export and Import carry a source's builds to another
-        installation as a file: sync a source this server cannot reach on a computer that can, then import it here.
-      </p>
-    </div>
-    <div class="row wrap actions">
-      <button mat-stroked-button (click)="refresh()" matTooltip="Reload this page's data"><mat-icon>refresh</mat-icon>Refresh</button>
-      <button mat-stroked-button (click)="refreshCatalog()" [disabled]="starting()" matTooltip="Characters, weapons and sets from the game data source">
-        <mat-icon>library_books</mat-icon>Refresh catalog
-      </button>
-      <button mat-flat-button (click)="syncAll()" [disabled]="starting() || transfer() !== null" matTooltip="Every switched-on source not synced in the last 20 hours">
-        <mat-icon>sync</mat-icon>Sync all
-      </button>
-    </div>
-  </header>
+  <anotoki-page-header
+    heading="Build sources"
+    lead="Builds come from these sources when you sync them here. A sync runs in short steps while this page is open; closing it pauses the sync, and Resume continues where it stopped. Each source is read politely (some ask for 10 seconds between pages), so a full sync takes a while. Export and Import carry a source's builds to another installation as a file: sync a source this server cannot reach on a computer that can, then import it here."
+  >
+    <button anotokiButton (click)="refresh()" anotokiTooltip="Reload this page's data">
+      <anotoki-icon name="refresh" [size]="18" />Refresh
+    </button>
+    <button
+      anotokiButton
+      (click)="refreshCatalog()"
+      [disabled]="starting()"
+      anotokiTooltip="Characters, weapons and sets from the game data source"
+    >
+      <anotoki-icon name="database" [size]="18" />Refresh catalog
+    </button>
+    <button
+      anotokiButton
+      variant="primary"
+      (click)="syncAll()"
+      [disabled]="starting() || transfer() !== null"
+      anotokiTooltip="Every switched-on source not synced in the last 20 hours"
+    >
+      <anotoki-icon name="refresh" [size]="18" />Sync all
+    </button>
+  </anotoki-page-header>
 
   @if (loading()) {
-    <mat-progress-bar mode="indeterminate" />
+    <anotoki-spinner class="loading" label [delay]="200" />
   }
   @if (error(); as message) {
-    <div class="panel">{{ message }}</div>
+    <anotoki-alert tone="danger" [announce]="true">{{ message }}</anotoki-alert>
   }
   @if (sync.error(); as message) {
-    <div class="panel error-panel" role="alert">
-      <mat-icon>error</mat-icon>
-      <span>The sync stopped: {{ message }}</span>
-    </div>
+    <anotoki-alert class="sync-error" tone="danger" [announce]="true">The sync stopped: {{ message }}</anotoki-alert>
   }
 
   @if (activeRuns().length > 0) {
-    <section class="panel active-panel" aria-live="polite">
-      <div class="row">
-        <h2 class="panel-title">{{ sync.driving() ? 'Syncing' : 'Paused' }}</h2>
-        <span class="spacer"></span>
+    <anotoki-card class="active-panel" [heading]="sync.driving() ? 'Syncing' : 'Paused'" aria-live="polite">
+      <div cardActions>
         @if (sync.driving()) {
-          <button mat-stroked-button (click)="sync.pause()"><mat-icon>pause</mat-icon>Pause</button>
+          <button anotokiButton (click)="sync.pause()"><anotoki-icon name="pause" [size]="18" />Pause</button>
         } @else {
-          <button mat-flat-button (click)="sync.start()"><mat-icon>play_arrow</mat-icon>Resume</button>
+          <button anotokiButton variant="primary" (click)="sync.start()">
+            <anotoki-icon name="play" [size]="18" />Resume
+          </button>
         }
       </div>
       @if (!sync.driving()) {
@@ -50,105 +52,156 @@
 
       @for (run of activeRuns(); track run.id) {
         <div class="active-run">
-          <div class="row">
+          <div class="run-line">
             <span class="run-name">{{ runLabel(run) }}</span>
             <span class="muted small">{{ progressText(run) }}</span>
             <span class="spacer"></span>
             <span class="muted small">{{ runState(run) }}</span>
-            <button mat-icon-button (click)="cancel(run)" matTooltip="Cancel this sync" aria-label="Cancel this sync">
-              <mat-icon>close</mat-icon>
+            <button
+              anotokiButton
+              variant="ghost"
+              size="sm"
+              iconOnly
+              (click)="cancel(run)"
+              anotokiTooltip="Cancel this sync"
+              aria-label="Cancel this sync"
+            >
+              <anotoki-icon name="x" [size]="18" />
             </button>
           </div>
+          <!-- A run's progress: the native bar, in the site's colours (the kit has none); without a total yet, it waits. -->
           @let percent = progress(run);
-          <mat-progress-bar [mode]="percent === null ? 'indeterminate' : 'determinate'" [value]="percent ?? 0" />
+          <progress class="run-progress" max="100" [attr.value]="percent" [attr.aria-label]="runLabel(run)"></progress>
         </div>
       }
 
       @if (logTail()) {
         <pre class="log">{{ logTail() }}</pre>
       }
-    </section>
+    </anotoki-card>
   }
 
   @for (game of games; track game) {
-    <h2 class="section-title">{{ gameLabels[game] }}</h2>
-    <div class="source-grid">
-      @for (source of byGame()[game]; track source.key) {
-        <article class="panel source" [class.disabled]="!source.enabled">
-          <div class="row">
-            <div class="source-name">
-              <div class="name">{{ source.name }}</div>
-              <span class="muted small">{{ source.key }}</span>
+    <section class="game-section">
+      <div class="section-head">
+        <h2>{{ gameLabels[game] }}</h2>
+      </div>
+      <div class="source-grid">
+        @for (source of byGame()[game]; track source.key) {
+          <anotoki-card
+            class="source"
+            [class.disabled]="!source.enabled"
+            [heading]="source.name"
+            [subheading]="source.key"
+            [headingLevel]="3"
+          >
+            <div cardActions>
+              @if (auth.isAdmin()) {
+                <anotoki-switch [checked]="source.enabled" (checkedChange)="toggle(source, $event)"
+                  >In Sync all</anotoki-switch
+                >
+              } @else {
+                <anotoki-badge
+                  [tone]="source.enabled ? 'success' : 'neutral'"
+                  [anotokiTooltip]="source.enabled ? 'Included in Sync all' : 'Skipped by Sync all'"
+                  >{{ source.enabled ? 'On' : 'Off' }}</anotoki-badge
+                >
+              }
             </div>
-            <span class="spacer"></span>
-            @if (auth.isAdmin()) {
-              <mat-slide-toggle [checked]="source.enabled" (change)="toggle(source, $event.checked)" [matTooltip]="source.enabled ? 'Included in Sync all' : 'Skipped by Sync all'" />
-            } @else {
-              <span class="chip" [class.ok]="source.enabled" [matTooltip]="source.enabled ? 'Included in Sync all' : 'Skipped by Sync all'">{{ source.enabled ? 'On' : 'Off' }}</span>
-            }
-          </div>
 
-          <div class="facts">
-            <div><strong>{{ source.characters }}</strong><span class="muted small">characters</span></div>
-            <div><strong>{{ source.builds }}</strong><span class="muted small">builds</span></div>
-            <div>
-              <strong class="status" [class]="source.running ? 'running' : (source.last_status ?? 'never')">
-                {{ source.running ? 'syncing' : (source.last_status ?? 'never synced') }}
-              </strong>
-              <span class="muted small">{{ source.last_synced_at | timeAgo }}</span>
+            <div class="source-body">
+              <div class="source-facts">
+                <div><strong>{{ source.characters }}</strong><span class="muted small">characters</span></div>
+                <div><strong>{{ source.builds }}</strong><span class="muted small">builds</span></div>
+                <div>
+                  <strong class="status" [class]="source.running ? 'running' : (source.last_status ?? 'never')">
+                    {{ source.running ? 'syncing' : (source.last_status ?? 'never synced') }}
+                  </strong>
+                  <span class="muted small">{{ source.last_synced_at | timeAgo }}</span>
+                </div>
+              </div>
+
+              @if (source.last_error && !source.running) {
+                <pre class="error-text">{{ source.last_error }}</pre>
+              }
+
+              <div class="cluster source-actions">
+                @let moving = transfer()?.key === source.key ? transfer()?.action : null;
+                <button
+                  anotokiButton
+                  size="sm"
+                  (click)="exportBuilds(source)"
+                  [disabled]="transferBlocked(source)"
+                  anotokiTooltip="Save this source's builds as a file: a backup, or to import them on another installation"
+                >
+                  <anotoki-icon name="download" [size]="16" />{{ moving === 'export' ? 'Exporting…' : 'Export' }}
+                </button>
+                <button
+                  anotokiButton
+                  size="sm"
+                  (click)="importFile.click()"
+                  [disabled]="transferBlocked(source)"
+                  anotokiTooltip="Replace this source's builds with those of an exported file"
+                >
+                  <anotoki-icon name="upload" [size]="16" />{{ moving === 'import' ? 'Importing…' : 'Import' }}
+                </button>
+                <input
+                  #importFile
+                  type="file"
+                  accept=".json,application/json"
+                  hidden
+                  (change)="importBuilds(source, importFile)"
+                />
+                <button
+                  anotokiButton
+                  variant="primary"
+                  size="sm"
+                  class="sync-now"
+                  (click)="syncOne(source)"
+                  [disabled]="
+                    starting() ||
+                    syncingKeys().has(source.key) ||
+                    !source.enabled ||
+                    transfer()?.key === source.key
+                  "
+                >
+                  <anotoki-icon name="refresh" [size]="16" />{{ syncingKeys().has(source.key) ? 'Syncing' : 'Sync now' }}
+                </button>
+              </div>
             </div>
-          </div>
-
-          @if (source.last_error && !source.running) {
-            <pre class="error-text">{{ source.last_error }}</pre>
-          }
-
-          <div class="row wrap source-actions">
-            @let moving = transfer()?.key === source.key ? transfer()?.action : null;
-            <button mat-stroked-button (click)="exportBuilds(source)" [disabled]="transferBlocked(source)"
-              matTooltip="Save this source's builds as a file: a backup, or to import them on another installation">
-              <mat-icon>download</mat-icon>{{ moving === 'export' ? 'Exporting…' : 'Export' }}
-            </button>
-            <button mat-stroked-button (click)="importFile.click()" [disabled]="transferBlocked(source)"
-              matTooltip="Replace this source's builds with those of an exported file">
-              <mat-icon>upload</mat-icon>{{ moving === 'import' ? 'Importing…' : 'Import' }}
-            </button>
-            <input #importFile type="file" accept=".json,application/json" hidden (change)="importBuilds(source, importFile)" />
-            <button mat-flat-button class="sync-now" (click)="syncOne(source)"
-              [disabled]="starting() || syncingKeys().has(source.key) || !source.enabled || transfer()?.key === source.key">
-              <mat-icon>sync</mat-icon>{{ syncingKeys().has(source.key) ? 'Syncing' : 'Sync now' }}
-            </button>
-          </div>
-        </article>
-      }
-    </div>
+          </anotoki-card>
+        }
+      </div>
+    </section>
   }
 
-  <h2 class="section-title">Recent runs</h2>
-  <mat-accordion>
+  <section class="game-section">
+    <div class="section-head">
+      <h2>Recent runs</h2>
+    </div>
     @for (run of runs(); track run.id) {
-      <mat-expansion-panel (opened)="loadLog(run)">
-        <mat-expansion-panel-header class="run-header">
-          <mat-panel-title>
-            <span class="status-dot" [class]="run.status"></span>
-            {{ runLabel(run) }}
-          </mat-panel-title>
-          <mat-panel-description>
-            {{ run.started_at | timeAgo }} · {{ run.status === 'cancelled' ? 'cancelled' : duration(run) }} · {{ summary(run) }}
+      <details class="disclosure run" (toggle)="onRunToggle(run, $event)">
+        <summary>
+          <span class="status-dot" [class]="run.status"></span>
+          <span class="run-title">{{ runLabel(run) }}</span>
+          <span class="run-description muted small">
+            {{ run.started_at | timeAgo }} · {{ run.status === 'cancelled' ? 'cancelled' : duration(run) }} ·
+            {{ summary(run) }}
             @if (run.started_by) {
               · {{ run.started_by.name }}
             }
-          </mat-panel-description>
-        </mat-expansion-panel-header>
-        @if (logs()[run.id] !== undefined) {
-          <pre class="log">{{ logs()[run.id] }}</pre>
-        } @else {
-          <mat-progress-bar mode="indeterminate" />
-        }
-      </mat-expansion-panel>
+          </span>
+        </summary>
+        <div class="disclosure-body">
+          @if (logs()[run.id] !== undefined) {
+            <pre class="log">{{ logs()[run.id] }}</pre>
+          } @else {
+            <anotoki-spinner label />
+          }
+        </div>
+      </details>
     } @empty {
       <p class="muted">No sync has run yet.</p>
     }
-  </mat-accordion>
-
+  </section>
 </div>

@@ -1,11 +1,15 @@
 import { Component, DestroyRef, computed, effect, inject, signal, untracked } from '@angular/core';
-import { MatButtonModule } from '@angular/material/button';
-import { MatExpansionModule } from '@angular/material/expansion';
-import { MatIconModule } from '@angular/material/icon';
-import { MatProgressBarModule } from '@angular/material/progress-bar';
-import { MatSlideToggleModule } from '@angular/material/slide-toggle';
-import { MatSnackBar } from '@angular/material/snack-bar';
-import { MatTooltipModule } from '@angular/material/tooltip';
+import { AlertComponent } from '@anotoki/lib/ui/alert';
+import { BadgeComponent } from '@anotoki/lib/ui/badge';
+import { ButtonComponent } from '@anotoki/lib/ui/button';
+import { CardComponent } from '@anotoki/lib/ui/card';
+import { ConfirmService } from '@anotoki/lib/ui/dialog';
+import { SwitchComponent } from '@anotoki/lib/ui/forms';
+import { IconComponent } from '@anotoki/lib/ui/icon';
+import { PageHeaderComponent } from '@anotoki/lib/ui/page-header';
+import { SpinnerComponent } from '@anotoki/lib/ui/spinner';
+import { ToastService } from '@anotoki/lib/ui/toast';
+import { TooltipDirective } from '@anotoki/lib/ui/tooltip';
 import { Observable } from 'rxjs';
 import { Api, errorMessage, fileErrorMessage } from '../../../core/api';
 import { AuthService } from '../../../core/auth';
@@ -28,16 +32,32 @@ const PAUSED_AFTER_MS = 60_000;
  * admin's (the page hides it from an editor; the server refuses it anyway). The database's updates are
  * applied on the Migrations page (an admin's); while one waits the site gate shows its own page instead of
  * this one, so nothing here needs to say so.
+ *
+ * Drawn with the anotoki family's kit (English, as the whole admin panel): its page header, cards (a source each,
+ * its switch or its On / Off), buttons, alerts, messages and "Are you sure?"; a run's progress is the native
+ * progress bar and its log a disclosure (<details>), in the kit's colours - the kit has neither.
  */
 @Component({
   selector: 'app-sources-page',
-  imports: [MatButtonModule, MatExpansionModule, MatIconModule, MatProgressBarModule, MatSlideToggleModule, MatTooltipModule, TimeAgoPipe],
+  imports: [
+    AlertComponent,
+    BadgeComponent,
+    ButtonComponent,
+    CardComponent,
+    IconComponent,
+    PageHeaderComponent,
+    SpinnerComponent,
+    SwitchComponent,
+    TooltipDirective,
+    TimeAgoPipe,
+  ],
   templateUrl: './sources-page.html',
   styleUrl: './sources-page.scss',
 })
 export class SourcesPage {
   private readonly api = inject(Api);
-  private readonly snackBar = inject(MatSnackBar);
+  private readonly toasts = inject(ToastService);
+  private readonly confirm = inject(ConfirmService);
   protected readonly sync = inject(SyncDriver);
   protected readonly auth = inject(AuthService);
 
@@ -116,8 +136,15 @@ export class SourcesPage {
     this.start(this.api.syncCatalog());
   }
 
-  protected cancel(run: SyncRunSummary): void {
-    if (!confirm(`Cancel the sync of ${this.runLabel(run)}? What it has stored so far is kept.`)) {
+  protected async cancel(run: SyncRunSummary): Promise<void> {
+    const sure = await this.confirm.ask({
+      title: `Cancel the sync of ${this.runLabel(run)}?`,
+      message: 'What it has stored so far is kept.',
+      confirmLabel: 'Cancel the sync',
+      cancelLabel: 'Keep it running',
+      tone: 'danger',
+    });
+    if (!sure) {
       return;
     }
     this.api.cancelSyncRun(run.id).subscribe({
@@ -125,7 +152,7 @@ export class SourcesPage {
         void this.sync.refresh();
         this.refresh(false);
       },
-      error: (err) => this.snackBar.open(errorMessage(err), 'Close'),
+      error: (err) => this.toasts.error(errorMessage(err)),
     });
   }
 
@@ -147,7 +174,7 @@ export class SourcesPage {
       },
       error: async (err: unknown) => {
         this.transfer.set(null);
-        this.snackBar.open(await fileErrorMessage(err), 'Close');
+        this.toasts.error(await fileErrorMessage(err));
       },
     });
   }
@@ -161,9 +188,8 @@ export class SourcesPage {
       return;
     }
     if (file.size > BUILD_FILE_MAX_BYTES) {
-      this.snackBar.open(
+      this.toasts.error(
         `This file is larger than ${BUILD_FILE_MAX_BYTES / 1048576} MB: more than the server may accept, and far more than the builds of a source take. Is it the right file?`,
-        'Close',
       );
       return;
     }
@@ -172,15 +198,22 @@ export class SourcesPage {
     try {
       text = await file.text();
     } catch {
-      this.snackBar.open('This file could not be read.', 'Close');
+      this.toasts.error('This file could not be read.');
       return;
     }
     const check = checkBuildFile(text, source);
     if (!check.ok) {
-      this.snackBar.open(check.message, 'Close');
+      this.toasts.error(check.message);
       return;
     }
-    if (!confirm(importQuestion(source, check, this.auth.preferences()))) {
+    // The question itself is the dialog's title; a source that has builds loses them to the file's.
+    const replace = await this.confirm.ask({
+      title: importQuestion(source, check, this.auth.preferences()),
+      confirmLabel: 'Import',
+      cancelLabel: 'Cancel',
+      tone: source.builds > 0 ? 'danger' : 'primary',
+    });
+    if (!replace) {
       return;
     }
 
@@ -189,12 +222,12 @@ export class SourcesPage {
       next: (result) => {
         this.transfer.set(null);
         // Skipped characters ask for something to be done: that message stays until it is closed.
-        this.snackBar.open(importSummary(source, result), 'OK', { duration: result.skipped.length > 0 ? undefined : 8000 });
+        this.toasts.show(importSummary(source, result), result.skipped.length > 0 ? 'warning' : 'success', result.skipped.length > 0 ? 0 : 8000);
         this.refresh(false);
       },
       error: (err) => {
         this.transfer.set(null);
-        this.snackBar.open(errorMessage(err), 'Close');
+        this.toasts.error(errorMessage(err));
       },
     });
   }
@@ -202,10 +235,16 @@ export class SourcesPage {
   protected toggle(source: SourceStatus, enabled: boolean): void {
     this.api.setSourceEnabled(source.key, enabled).subscribe({
       next: () => this.sources.update((list) => list.map((s) => (s.key === source.key ? { ...s, enabled } : s))),
-      error: (err) => this.snackBar.open(errorMessage(err), 'Close'),
+      error: (err) => this.toasts.error(errorMessage(err)),
     });
   }
 
+  /** A run's line opened: its log, asked for then. */
+  protected onRunToggle(run: SyncRunSummary, event: Event): void {
+    if ((event.target as HTMLDetailsElement).open) {
+      this.loadLog(run);
+    }
+  }
 
   protected loadLog(run: SyncRunSummary): void {
     if (this.logs()[run.id] !== undefined && run.status !== 'running') {
@@ -275,11 +314,11 @@ export class SourcesPage {
         const message = result.started.length > 0
           ? `Syncing ${result.started.length} run(s). Keep this tab open; closing it pauses the sync.${skipped ? ` Skipped: ${skipped}.` : ''}`
           : `Nothing to sync. Skipped: ${skipped || 'everything is up to date'}.`;
-        this.snackBar.open(message, 'OK', { duration: 8000 });
+        this.toasts.show(message, result.started.length > 0 ? 'success' : 'info', 8000);
       },
       error: (err) => {
         this.starting.set(false);
-        this.snackBar.open(errorMessage(err), 'Close');
+        this.toasts.error(errorMessage(err));
       },
     });
   }

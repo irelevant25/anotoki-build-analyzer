@@ -28,14 +28,14 @@
               {
                 "glob": "**/*",
                 "input": "public"
+              },
+              {
+                "glob": "theme-boot.js",
+                "input": "node_modules/@anotoki/lib/assets",
+                "output": "/"
               }
             ],
             "styles": [
-              "@fontsource/roboto/300.css",
-              "@fontsource/roboto/400.css",
-              "@fontsource/roboto/500.css",
-              "@fontsource/roboto/700.css",
-              "material-symbols/outlined.css",
               "src/styles.scss"
             ]
           },

@@ -33,6 +33,26 @@ const EDITOR_PHONE_BAR_MAX = Number(/export const EDITOR_PHONE_BAR_MAX = (\d+);/
 /** Every key of the site's words: none of them may show where a word should be. */
 const KEYS = readdirSync(join(repo, 'frontend/src/app/core/i18n/en')).flatMap((file) => Object.keys(JSON.parse(readFileSync(join(repo, 'frontend/src/app/core/i18n/en', file), 'utf8'))));
 
+/**
+ * The family's bar (@anotoki/lib/shell's <anotoki-top-bar>, inside the site's app-top-bar) and the kit's pieces
+ * the tours press and read, by the kit's class names (anotoki-<piece>__<part>).
+ */
+const BAR = 'app-top-bar .anotoki-top-bar__topbar';
+const BAR_LINK = 'app-top-bar .anotoki-top-bar__link';
+const SIGN_IN = 'app-top-bar .anotoki-top-bar__sign-in';
+const PERSON_BUTTON = 'app-top-bar .anotoki-top-bar__person-button';
+const PERSON_NAME = 'app-top-bar .anotoki-top-bar__person-name';
+const MENU_BUTTON = 'app-top-bar .anotoki-top-bar__menu-button';
+/** The bar's own menu while it is open: the phone's, or the person's (the language's is the switcher's). */
+const BAR_MENU = 'app-top-bar .anotoki-top-bar__actions > anotoki-menu > [role=menu]';
+const LANGUAGE_BUTTON = 'app-top-bar .anotoki-language-switcher__switcher';
+const LANGUAGE_MENU = 'app-top-bar anotoki-language-switcher [role=menu]';
+const THEME_SWITCH = 'app-top-bar anotoki-theme-toggle';
+/** The kit's dialog - What's new, feedback, a question - around a native <dialog>. */
+const DIALOG = 'anotoki-dialog';
+/** A message of the kit's toasts. */
+const TOAST = 'anotoki-toast-host .anotoki-toast-host__message';
+
 const failures = [];
 function check(ok, what) {
   console.log(`${ok ? '  ok  ' : '  FAIL'} ${what}`);
@@ -125,7 +145,7 @@ async function shot(page, name, options = {}) {
 /** Opens a page of the site and waits for the bar. */
 async function open(page, path) {
   await page.goto(SITE + path);
-  await page.waitForSelector('app-top-bar .topbar', { timeout: 15000 });
+  await page.waitForSelector(BAR, { timeout: 15000 });
   await page.waitForLoadState('networkidle');
 }
 
@@ -136,13 +156,29 @@ async function openGated(page, path) {
   await page.waitForLoadState('networkidle');
 }
 
-/** Whether an element's own background is a dark one (the theme followed into the family's pages). */
+/**
+ * Whether an element's own background is a dark one (the theme followed into the family's pages) - within a
+ * moment: a change of the device's scheme on an open page is drawn at the next render (the shell's ThemeService
+ * writes <html data-theme> from an effect).
+ */
 async function darkSurface(page, selector) {
-  return page.evaluate((selector) => {
-    const element = document.querySelector(selector);
-    const [r, g, b] = (getComputedStyle(element).backgroundColor.match(/[\d.]+/g) ?? ['255', '255', '255']).map(Number);
-    return (r + g + b) / 3 < 80;
-  }, selector);
+  return page
+    .waitForFunction(
+      (selector) => {
+        const element = document.querySelector(selector);
+        if (!element) {
+          return false;
+        }
+        const [r, g, b] = (getComputedStyle(element).backgroundColor.match(/[\d.]+/g) ?? ['255', '255', '255']).map(Number);
+        return (r + g + b) / 3 < 80;
+      },
+      selector,
+      { timeout: 3000 },
+    )
+    .then(
+      () => true,
+      () => false,
+    );
 }
 
 /** The gate's page as a person reads it: its title, all its words, its buttons, its links (words and address). */
@@ -187,14 +223,14 @@ function apiAsked(page) {
 /** Through the stand-in IAM and back, from the bar's Sign in (or the phone menu's). */
 async function signIn(page, user) {
   await iamAs(user);
-  if (await page.locator('.menu-button').count()) {
-    await page.click('.menu-button');
-    await page.click('#topbar-menu [role=menuitem]:last-child');
+  if (await page.locator(MENU_BUTTON).count()) {
+    await page.click(MENU_BUTTON);
+    await page.click(`${BAR_MENU} .anotoki-top-bar__sign-in-item`);
   } else {
-    await page.click('.sign-in');
+    await page.click(SIGN_IN);
   }
   await page.waitForURL((url) => url.href.startsWith(SITE) && !url.pathname.startsWith('/auth/callback'), { timeout: 15000 });
-  await page.waitForSelector('.user-button, .menu-button', { timeout: 15000 });
+  await page.waitForSelector(`${PERSON_BUTTON}, ${MENU_BUTTON}`, { timeout: 15000 });
   await page.waitForFunction(() => !!localStorage.getItem('anotoki-auth:build-analyzer'));
   await page.waitForLoadState('networkidle');
 }
@@ -204,14 +240,14 @@ async function barLayout(page) {
   return page.evaluate(() => {
     const pick = (selector) => [...document.querySelectorAll(selector)].filter((element) => element.getBoundingClientRect().width > 0);
     const pieces = [
-      ...pick('app-top-bar app-brand'),
-      ...pick('app-top-bar .topbar-link'),
-      ...pick('app-top-bar .topbar-widget'),
-      ...pick('app-top-bar app-language-switcher'),
-      ...pick('app-top-bar app-theme-toggle'),
-      ...pick('app-top-bar .user-button'),
-      ...pick('app-top-bar .sign-in'),
-      ...pick('app-top-bar .menu-button'),
+      ...pick('app-top-bar anotoki-brand'),
+      ...pick('app-top-bar .anotoki-top-bar__link'),
+      ...pick('app-top-bar .sync-widget'),
+      ...pick('app-top-bar .anotoki-language-switcher__switcher'),
+      ...pick('app-top-bar anotoki-theme-toggle'),
+      ...pick('app-top-bar .anotoki-top-bar__person-button'),
+      ...pick('app-top-bar .anotoki-top-bar__sign-in'),
+      ...pick('app-top-bar .anotoki-top-bar__menu-button'),
     ].map((element) => {
       const box = element.getBoundingClientRect();
       return { what: (element.className || element.tagName).toString().split(' ')[0].toLowerCase(), left: Math.round(box.left), right: Math.round(box.right) };
@@ -225,7 +261,7 @@ async function barLayout(page) {
       }
     }
     const outside = pieces.filter((piece) => piece.left < 0 || piece.right > window.innerWidth).map((piece) => piece.what);
-    const name = document.querySelector('app-top-bar .user-name');
+    const name = document.querySelector('app-top-bar .anotoki-top-bar__person-name');
     return {
       pieces,
       overlaps,
@@ -259,27 +295,27 @@ async function keysShown(page) {
  */
 async function rowNeeds(page) {
   return page.evaluate(() => {
-    const inner = document.querySelector('app-top-bar .topbar-inner');
+    const inner = document.querySelector('app-top-bar .anotoki-top-bar__row');
     const style = getComputedStyle(inner);
     const gap = parseFloat(style.columnGap);
-    const actions = inner.querySelector('.topbar-actions');
+    const actions = inner.querySelector('.anotoki-top-bar__actions');
     const actionGap = parseFloat(getComputedStyle(actions).columnGap);
+    // A menu's own element draws no box (display: contents): only what shows is counted.
     const visible = [...actions.children].filter((child) => child.getBoundingClientRect().width > 0);
     let actionWidth = 0;
     for (const child of visible) {
-      const button = child.querySelector?.('.user-button');
-      if (button) {
-        const name = button.querySelector('.user-name');
+      if (child.classList.contains('anotoki-top-bar__person-button')) {
+        const name = child.querySelector('.anotoki-top-bar__person-name');
         // The round button alone: what it is without the name (and its gap), with the narrower right padding.
-        actionWidth += button.getBoundingClientRect().width - name.getBoundingClientRect().width - parseFloat(getComputedStyle(button).columnGap) - (0.6 - 0.4) * 16;
+        actionWidth += child.getBoundingClientRect().width - name.getBoundingClientRect().width - parseFloat(getComputedStyle(child).columnGap) - (0.6 - 0.4) * 16;
       } else {
         actionWidth += child.getBoundingClientRect().width;
       }
     }
     actionWidth += actionGap * (visible.length - 1);
-    const brand = inner.querySelector('app-brand').getBoundingClientRect().width;
-    const nav = inner.querySelector('.topbar-nav')?.getBoundingClientRect().width ?? 0;
-    return Math.ceil(parseFloat(style.paddingLeft) + parseFloat(style.paddingRight) + brand + gap + nav + gap + actionWidth);
+    const brand = inner.querySelector('anotoki-brand').getBoundingClientRect().width;
+    const nav = inner.querySelector('.anotoki-top-bar__nav')?.getBoundingClientRect().width ?? 0;
+    return Math.ceil(parseFloat(style.paddingLeft) + parseFloat(style.paddingRight) + brand + gap + (nav ? nav + gap : 0) + actionWidth);
   });
 }
 
@@ -298,7 +334,7 @@ try {
       console.log(`  ${language}, an admin: ${staff} px; with the sync spinner (40 px and a gap): ${staff + 40 + 9.6} px`);
       // The admin panel reads English whichever language was chosen: measured from both.
       await open(page, '/admin/sources');
-      await page.waitForSelector('app-top-bar .link-badge', { timeout: 5000 }).catch(() => null);
+      await page.waitForSelector('app-top-bar .anotoki-top-bar__badge', { timeout: 5000 }).catch(() => null);
       const area = await rowNeeds(page);
       console.log(`  the admin panel (English, every section, the count beside Feedback), an admin who chose ${language}: ${area} px; with the sync spinner: ${area + 40 + 9.6} px`);
       await context.close();
@@ -322,11 +358,12 @@ try {
     await open(page, '/?lang=en');
     check((await page.locator('app-visitor-hero').count()) === 1, 'the hero is there');
     check(!asked.some((path) => path.startsWith('/api/accounts')), 'no /api/accounts request');
-    check((await page.locator('.topbar-link').allInnerTexts()).join('|') === 'Dashboard|Import|Builds', 'the bar links Dashboard, Import, Builds');
-    check((await page.locator('app-top-bar .sign-in').innerText()).includes('Sign in'), 'Sign in in the bar');
+    check((await page.locator(BAR_LINK).allInnerTexts()).join('|') === 'Dashboard|Import|Builds', 'the bar links Dashboard, Import, Builds');
+    check((await page.locator(SIGN_IN).innerText()).includes('Sign in'), 'Sign in in the bar');
     check((await page.locator('app-footer').innerText()).includes(`Version ${version}`), `the footer says Version ${version}`);
-    await page.click('app-footer .whats-new');
-    check(await page.locator('mat-dialog-container').isVisible(), "the footer's What's new opens the notes");
+    await page.click('app-footer .whats-new:not(.feedback)');
+    await page.waitForSelector(`${DIALOG} dialog[open] .release`, { timeout: 10000 });
+    check(await page.locator(`${DIALOG} dialog[open]`).isVisible(), "the footer's What's new opens the notes");
     await shot(page, '01-nobody-whats-new');
     await page.keyboard.press('Escape');
     await shot(page, '02-nobody-dashboard-1280-light', { fullPage: true });
@@ -341,17 +378,17 @@ try {
       const hopsBefore = await authorizes();
       // Signed in at the IAM itself (another anotoki site's sign-in): a session there, and the hint it sets.
       await page.goto(`${IAM}/_test/sign-in?return=${encodeURIComponent(`${SITE}/builds/genshin?lang=en`)}`);
-      await page.waitForSelector('app-top-bar .user-button', { timeout: 20000 });
+      await page.waitForSelector(PERSON_BUTTON, { timeout: 20000 });
       await page.waitForLoadState('networkidle');
       check(new URL(page.url()).pathname === '/builds/genshin', `signed in without a click, on the page opened (${new URL(page.url()).pathname})`);
-      check((await page.locator('app-top-bar .user-name').innerText()).trim() === 'hana', 'the bar names hana');
+      check((await page.locator(PERSON_NAME).innerText()).trim() === 'hana', 'the bar names hana');
       check((await authorizes()) - hopsBefore === 1, 'one silent hop to the IAM (prompt=none), nothing to press');
       check(sql('SELECT name FROM users WHERE id = 13')[0]?.name === 'hana', 'the site knows hana now');
       check(JSON.parse((await page.evaluate(() => localStorage.getItem('anotoki-auth:build-analyzer:hint'))) ?? 'null')?.value?.length >= 16, 'the hint marked tried in this browser');
       await shot(page, '02b-hint-signed-in');
       // Signed out at the IAM (on another site): the next page load here follows it.
       await page.goto(`${IAM}/_test/sign-out?return=${encodeURIComponent(`${SITE}/?lang=en`)}`);
-      await page.waitForSelector('app-top-bar .sign-in', { timeout: 20000 });
+      await page.waitForSelector(SIGN_IN, { timeout: 20000 });
       await page.waitForLoadState('networkidle');
       check((await page.locator('app-visitor-hero').count()) === 1, 'signed out there: a visitor here again at the next page load');
       await hinted.close();
@@ -362,7 +399,7 @@ try {
       await iamState({ interaction: true });
       const quietBefore = await authorizes();
       await visitor.goto(`${IAM}/_test/sign-in?return=${encodeURIComponent(`${SITE}/?lang=en`)}`);
-      await visitor.waitForSelector('app-top-bar .sign-in', { timeout: 20000 });
+      await visitor.waitForSelector(SIGN_IN, { timeout: 20000 });
       await visitor.waitForLoadState('networkidle');
       check((await authorizes()) - quietBefore === 1 && new URL(visitor.url()).pathname === '/', 'the hop came back without a sign-in: a visitor on the page opened');
       check((await visitor.locator('anotoki-sign-in-failure').count()) === 0, 'and nothing said of it - no failure screen');
@@ -431,8 +468,8 @@ try {
     // ── The move at sign-in ────────────────────────────────────────────────────────────────────────────
     step('Signing in moves what the visitor imported into the person\'s account');
     await signIn(tab, MONA);
-    const snack = await tab.locator('mat-snack-bar-container').innerText({ timeout: 10000 }).catch(() => '');
-    check(snack.includes('now in your anotoki account'), `the snack bar says so: "${snack.replace(/\s+/g, ' ').trim()}"`);
+    const toast = await tab.locator(TOAST).first().innerText({ timeout: 10000 }).catch(() => '');
+    check(toast.includes('now in your anotoki account'), `a toast says so: "${toast.replace(/\s+/g, ' ').trim()}"`);
     check((await tab.evaluate(() => localStorage.getItem('build-analyzer-visitor'))) === null, 'the key is gone from the browser');
     check(sql('SELECT count(*) AS n FROM users WHERE visitor_key_hash = ?', [hash])[0].n == 0, 'the visitor row is gone');
     check(sql('SELECT count(*) AS n FROM accounts WHERE user_id = 7')[0].n == 1, 'the account is mona\'s now');
@@ -466,10 +503,10 @@ try {
           await tab.emulateMedia({ colorScheme: scheme });
           await open(tab, `/?lang=${language}`);
           const layout = await checkBar(tab, `${width} px, ${scheme}, ${language}, signed in`);
-          check((await tab.locator('.menu-button').count()) === (width <= PHONE_BAR_MAX ? 1 : 0), `${width} px: ${width <= PHONE_BAR_MAX ? "a phone's bar" : "a desktop's bar"}`);
+          check((await tab.locator(MENU_BUTTON).count()) === (width <= PHONE_BAR_MAX ? 1 : 0), `${width} px: ${width <= PHONE_BAR_MAX ? "a phone's bar" : "a desktop's bar"}`);
           if (width === 1280 && scheme === 'light') {
             // Label in Name (WCAG 2.5.3): the code the button shows is in its accessible name - "click SK".
-            const chooser = tab.locator('app-top-bar app-language-switcher .switcher');
+            const chooser = tab.locator(LANGUAGE_BUTTON);
             const shown = (await chooser.innerText()).trim();
             const name = await chooser.getAttribute('aria-label');
             check(shown === language.toUpperCase() && name === (language === 'sk' ? 'Jazyk: Slovenčina (SK)' : 'Language: English (EN)'), `${language}: the language button shows ${shown}, and its name says it too - ${name}`);
@@ -495,41 +532,47 @@ try {
     await tab.setViewportSize({ width: 390, height: 800 });
     await tab.emulateMedia({ colorScheme: 'light' });
     await open(tab, '/?lang=sk');
-    await tab.click('.menu-button');
-    await tab.waitForSelector('#topbar-menu');
-    // Each item's words, without its icons' ligature names.
-    const items = await tab.evaluate(() =>
-      [...document.querySelectorAll('#topbar-menu [role=menuitem]')].map((item) => {
-        const copy = item.cloneNode(true);
-        copy.querySelectorAll('mat-icon').forEach((icon) => icon.remove());
-        return copy.textContent.replace(/\s+/g, ' ').trim();
-      }),
+    await tab.click(MENU_BUTTON);
+    await tab.waitForSelector(BAR_MENU);
+    // Each item's words, without its icons.
+    const items = await tab.evaluate(
+      (menu) =>
+        [...document.querySelectorAll(`${menu} [role=menuitem]`)].map((item) => {
+          const copy = item.cloneNode(true);
+          copy.querySelectorAll('anotoki-icon').forEach((icon) => icon.remove());
+          return copy.textContent.replace(/\s+/g, ' ').trim();
+        }),
+      BAR_MENU,
     );
     check(items.join('|') === 'Prehľad|Import|Buildy|Tvoj anotoki účet|Odhlásiť sa', `the menu: ${items.join(' | ')}`);
-    check(await tab.evaluate(() => document.activeElement?.getAttribute('role') === 'menuitem'), 'the focus is on its first item');
+    check(await tab.evaluate((menu) => document.activeElement === document.querySelector(`${menu} [role=menuitem]`), BAR_MENU), 'the focus is on its first item');
     await shot(tab, '07-phone-menu-390-sk', { fullPage: false });
+    const onMenuButton = () => tab.evaluate(() => document.activeElement?.classList.contains('anotoki-top-bar__menu-button') ?? false);
     await tab.keyboard.press('ArrowDown');
     await tab.keyboard.press('Tab');
     await tab.waitForTimeout(200);
-    check((await tab.locator('#topbar-menu').count()) === 0, 'Tab closed it');
-    check(await tab.evaluate(() => document.activeElement?.classList.contains('menu-button')), `the focus is on the menu button (${await tab.evaluate(() => document.activeElement?.className || document.activeElement?.tagName)})`);
+    check((await tab.locator(BAR_MENU).count()) === 0, 'Tab closed it');
+    check(await onMenuButton(), `the focus is on the menu button (${await tab.evaluate(() => document.activeElement?.className || document.activeElement?.tagName)})`);
     await tab.keyboard.press('Enter');
-    await tab.waitForSelector('#topbar-menu');
+    await tab.waitForSelector(BAR_MENU);
     await tab.keyboard.press('Shift+Tab');
     await tab.waitForTimeout(200);
-    check(await tab.evaluate(() => document.activeElement?.classList.contains('menu-button')), 'Shift+Tab: the same');
+    check((await tab.locator(BAR_MENU).count()) === 0 && (await onMenuButton()), 'Shift+Tab: the same');
 
     step('The person\'s menu at 1280 px, and a real Tab press out of it');
     await tab.setViewportSize({ width: 1280, height: 800 });
     await open(tab, '/?lang=en');
-    await tab.click('.user-button');
-    await tab.waitForSelector('#user-menu');
-    check((await tab.locator('#user-menu .menu-head').innerText()).includes('mona@example.test'), 'name and email at its head; no role pill for a person without one');
+    await tab.click(PERSON_BUTTON);
+    await tab.waitForSelector(BAR_MENU);
+    check(
+      (await tab.locator(`${BAR_MENU} .anotoki-top-bar__menu-head`).innerText()).includes('mona@example.test') && (await tab.locator(`${BAR_MENU} .anotoki-top-bar__menu-role`).count()) === 0,
+      'name and email at its head; no role pill for a person without one',
+    );
     await shot(tab, '08-account-menu-1280', { clip: { x: 0, y: 0, width: 1280, height: 400 } });
     await tab.keyboard.press('End');
     await tab.keyboard.press('Tab');
     await tab.waitForTimeout(200);
-    check((await tab.locator('#user-menu').count()) === 0 && (await tab.evaluate(() => document.activeElement?.classList.contains('user-button'))), 'Tab from the last item: closed, the focus on the person\'s button, never <body>');
+    check((await tab.locator(BAR_MENU).count()) === 0 && (await tab.evaluate(() => document.activeElement?.classList.contains('anotoki-top-bar__person-button'))), 'Tab from the last item: closed, the focus on the person\'s button, never <body>');
 
     // ── Slovak ─────────────────────────────────────────────────────────────────────────────────────────
     step('Slovak at 390 px: no key where a word should be');
@@ -550,10 +593,12 @@ try {
       await open(page, '/import?lang=sk');
       check((await page.locator('app-footer .feedback').innerText()).trim() === 'Spätná väzba', 'the foot of the page: Spätná väzba');
       await page.click('app-footer .feedback');
-      await page.waitForSelector('mat-dialog-container anotoki-feedback-form [data-message] textarea', { timeout: 15000 });
-      const heading = page.locator('mat-dialog-container h2');
-      check((await heading.innerText()).trim().length > 0 && (await heading.getAttribute('lang')) === 'sk', `the dialog's title, in Slovak: ${(await heading.innerText()).trim()}`);
-      check((await page.locator('mat-dialog-container [data-anonymous]').count()) === 0, 'nobody signed in: no "without my name"');
+      await page.waitForSelector(`${DIALOG} anotoki-feedback-form [data-message] textarea`, { timeout: 15000 });
+      const heading = page.locator(`${DIALOG} h2`);
+      // The language of its words is said on the dialog, round the heading.
+      const headingLang = await heading.evaluate((element) => element.closest('[lang]')?.getAttribute('lang') ?? null);
+      check((await heading.innerText()).trim().length > 0 && headingLang === 'sk', `the dialog's title, in Slovak: ${(await heading.innerText()).trim()} (lang ${headingLang})`);
+      check((await page.locator(`${DIALOG} [data-anonymous]`).count()) === 0, 'nobody signed in: no "without my name"');
       const shown = await keysShown(page);
       check(shown.length === 0, `no key where a word should be${shown.length ? ` - ${shown.join(', ')}` : ''}`);
       const scroll = await page.evaluate(() => document.documentElement.scrollWidth);
@@ -568,23 +613,23 @@ try {
       const kept = sql('SELECT kind, message, language, user_id, contact_email, page FROM anotoki_feedback ORDER BY id DESC LIMIT 1')[0];
       check(kept?.message === 'Import sa zastaví pri druhom kroku.' && kept?.language === 'sk' && kept?.user_id === null && kept?.contact_email === null && kept?.page === '/import', `kept: ${JSON.stringify(kept)}`);
       await page.click('anotoki-feedback-form [data-close]');
-      await page.waitForSelector('mat-dialog-container', { state: 'detached' });
+      await page.waitForSelector(DIALOG, { state: 'detached' });
       await page.setViewportSize({ width: 1280, height: 900 });
       for (const scheme of ['light', 'dark']) {
         await page.emulateMedia({ colorScheme: scheme });
         await page.click('app-footer .feedback');
-        await page.waitForSelector('mat-dialog-container anotoki-feedback-form [data-message] textarea');
+        await page.waitForSelector(`${DIALOG} anotoki-feedback-form [data-message] textarea`);
         await shot(page, `22-feedback-form-1280-${scheme}`);
         await page.keyboard.press('Escape');
-        await page.waitForSelector('mat-dialog-container', { state: 'detached' });
+        await page.waitForSelector(DIALOG, { state: 'detached' });
       }
       // Signed in: their account's address written in for an answer, and "send it without my name" offered.
       await open(tab, '/?lang=en');
       await tab.click('app-footer .feedback');
-      await tab.waitForSelector('mat-dialog-container anotoki-feedback-form [data-anonymous]', { timeout: 15000 });
-      check((await tab.locator('mat-dialog-container [data-email] input').inputValue()) === 'mona@example.test', "mona: her account's address written in, and Send without my name offered");
+      await tab.waitForSelector(`${DIALOG} anotoki-feedback-form [data-anonymous]`, { timeout: 15000 });
+      check((await tab.locator(`${DIALOG} [data-email] input`).inputValue()) === 'mona@example.test', "mona: her account's address written in, and Send without my name offered");
       await tab.keyboard.press('Escape');
-      await tab.waitForSelector('mat-dialog-container', { state: 'detached' });
+      await tab.waitForSelector(DIALOG, { state: 'detached' });
       await writer.close();
     }
 
@@ -593,7 +638,9 @@ try {
     {
       const keeper = await newContext({ width: 390, height: 800 });
       const kept = await keeper.newPage();
-      const theme = () => kept.evaluate(() => (document.documentElement.classList.contains('theme-dark') ? 'dark' : document.documentElement.classList.contains('theme-light') ? 'light' : 'system'));
+      /** The theme as the page has it: the switch's choice (light, dark or auto), and the colours drawn (<html data-theme>). */
+      const theme = () =>
+        kept.evaluate(() => `${document.querySelector('app-top-bar anotoki-theme-toggle [role=radio][aria-checked=true]')?.getAttribute('data-value')}/${document.documentElement.getAttribute('data-theme')}`);
       /** What the stand-in IAM's account now says, once it says `done` (or after five seconds). */
       const account = async (done) => {
         let user = null;
@@ -607,27 +654,29 @@ try {
         return user;
       };
       await open(kept, '/');
-      check((await theme()) === 'system', "a visitor: this device's theme, as the device is set");
+      check((await theme()) === 'auto/light', `a visitor: this device's theme, as the device is set (${await theme()})`);
       await signIn(kept, PIA);
-      check((await theme()) === 'dark', "signed in: the account's dark theme, though this device had none");
+      check((await theme()) === 'dark/dark', `signed in: the account's dark theme, though this device had none (${await theme()})`);
       check((await kept.evaluate(() => localStorage.getItem('build-analyzer-theme'))) === 'dark', 'kept on this device for the next page load');
 
-      await kept.click('app-footer .whats-new');
-      // The dialog's frame comes before its releases: wait for their dates, not only the container.
-      await kept.waitForSelector('mat-dialog-container .release-head .muted');
-      const days = (await kept.locator('mat-dialog-container .release-head .muted').allInnerTexts()).map((day) => day.trim());
+      await kept.click('app-footer .whats-new:not(.feedback)');
+      // The dialog's frame comes before its releases: wait for their dates, not only the dialog.
+      await kept.waitForSelector(`${DIALOG} .release-head .date`);
+      const days = (await kept.locator(`${DIALOG} .release-head .date`).allInnerTexts()).map((day) => day.trim());
       check(days.length > 0 && days.every((day) => /^\d{4}-\d{2}-\d{2}$/.test(day)), `What's new: the dates in the account's order - ${days.slice(0, 3).join(', ')}`);
       await shot(kept, '08a-account-whats-new-390-dark');
       await kept.keyboard.press('Escape');
-      await kept.waitForSelector('mat-dialog-container', { state: 'detached' });
+      await kept.waitForSelector(DIALOG, { state: 'detached' });
 
-      await kept.click('app-theme-toggle [role=radio] >> nth=0');
-      check((await theme()) === 'light', 'the toggle: light at once');
+      await kept.click(`${THEME_SWITCH} [role=radio][data-value=light]`);
+      // Drawn at the next render (the shell's ThemeService writes <html data-theme> from an effect), not after the save.
+      await kept.waitForFunction(() => document.documentElement.getAttribute('data-theme') === 'light', null, { timeout: 2000 }).catch(() => {});
+      check((await theme()) === 'light/light', `the switch: light at once (${await theme()})`);
       const lit = await account((user) => user?.preferences?.theme === 'light');
       check(lit?.preferences?.theme === 'light', "...and saved to the account, across origins (POST /api/oidc/preferences at the stand-in IAM)");
 
-      await kept.click('app-language-switcher .switcher');
-      await kept.click('#language-menu [role=menuitemradio][lang=sk]');
+      await kept.click(LANGUAGE_BUTTON);
+      await kept.click(`${LANGUAGE_MENU} [role=menuitemradio][lang=sk]`);
       await kept.waitForFunction(() => document.documentElement.lang === 'sk', null, { timeout: 10000 });
       const spoken = await account((user) => user?.locale === 'sk');
       check(spoken?.locale === 'sk', 'the language menu: Slovak on the page, and saved to the account');
@@ -636,16 +685,18 @@ try {
       await shot(kept, '08b-account-preferences-390-sk', { fullPage: true });
 
       await kept.reload();
-      await kept.waitForSelector('app-top-bar .topbar', { timeout: 15000 });
+      await kept.waitForSelector(BAR, { timeout: 15000 });
       await kept.waitForLoadState('networkidle');
-      check((await theme()) === 'light' && (await kept.evaluate(() => document.documentElement.lang)) === 'sk', 'after a reload: light and Slovak, as the account now says');
+      check((await theme()) === 'light/light' && (await kept.evaluate(() => document.documentElement.lang)) === 'sk', 'after a reload: light and Slovak, as the account now says');
 
-      // The IAM out of reach: the choice shows, the save fails, the account's theme comes back - and a snack bar says why.
+      // The IAM out of reach: the choice shows, the save fails, the account's theme comes back - and the switch
+      // says so under itself (the family's note, role alert).
       await iamState({ down: true });
-      await kept.click('app-theme-toggle [role=radio] >> nth=1');
-      const snack = (await kept.locator('mat-snack-bar-container').innerText({ timeout: 10000 }).catch(() => '')).replace(/\s+/g, ' ').trim();
+      await kept.click(`${THEME_SWITCH} [role=radio][data-value=dark]`);
+      const note = (await kept.locator(`${THEME_SWITCH} .anotoki-theme-toggle__note`).innerText({ timeout: 10000 }).catch(() => '')).replace(/\s+/g, ' ').trim();
+      await shot(kept, '08c-account-theme-refused-390-sk');
       await iamState({ down: false });
-      check(snack.length > 0 && (await theme()) === 'light', `a save the IAM could not take: the account's theme is back, and the snack bar says "${snack}"`);
+      check(note.length > 0 && (await theme()) === 'light/light', `a save the IAM could not take: the account's theme is back, and the switch says "${note}"`);
       check((await account(() => true))?.preferences?.theme === 'light', 'the account still says light');
       await keeper.close();
     }
@@ -655,18 +706,22 @@ try {
     await tab.setViewportSize({ width: 1280, height: 800 });
     await open(tab, '/admin?lang=sk');
     check((await tab.locator('h1').innerText()) === 'This part is for editors and admins', 'mona (no role): the card');
-    check((await tab.locator('.topbar-link').count()) === 0, 'no admin sections in her bar');
+    check((await tab.locator(BAR_LINK).count()) === 0, 'no admin sections in her bar');
 
     const editor = await newContext();
     const ed = await editor.newPage();
     await open(ed, '/?lang=sk');
     await signIn(ed, EDDIE);
     await open(ed, '/admin');
-    check((await ed.locator('.topbar-link').allInnerTexts()).join('|') === 'Sources|Translations', 'an editor\'s sections: Sources, Translations');
+    check((await ed.locator(BAR_LINK).allInnerTexts()).join('|') === 'Sources|Translations', 'an editor\'s sections: Sources, Translations');
     check((await ed.evaluate(() => document.documentElement.lang)) === 'en', '<html lang="en"> in the admin panel');
-    check((await ed.locator('app-language-switcher').count()) === 0, 'no language chooser in the admin panel');
-    await ed.click('.user-button');
-    check((await ed.locator('#user-menu').innerText()).includes('Editor') && (await ed.locator('#user-menu').innerText()).includes('Back to Build Analyzer'), 'the role pill "Editor", "Back to Build Analyzer"');
+    check((await ed.locator('app-top-bar anotoki-language-switcher').count()) === 0, 'no language chooser in the admin panel');
+    await ed.click(PERSON_BUTTON);
+    await ed.waitForSelector(BAR_MENU);
+    check(
+      (await ed.locator(`${BAR_MENU} .anotoki-top-bar__menu-role`).innerText()).trim() === 'Editor' && (await ed.locator(BAR_MENU).innerText()).includes('Back to Build Analyzer'),
+      'the role pill "Editor", "Back to Build Analyzer"',
+    );
     await shot(ed, '09-admin-editor-sources', { fullPage: true });
     await ed.keyboard.press('Escape');
     await open(ed, '/admin/languages');
@@ -687,17 +742,19 @@ try {
     const ad = await admin.newPage();
     await open(ad, '/?lang=en');
     await signIn(ad, ADA);
-    await ad.click('.user-button');
-    await ad.waitForSelector('#user-menu [role=menuitem]');
-    const adminItems = (await ad.locator('#user-menu [role=menuitem]').allInnerTexts()).map((item) => item.replace(/\s+/g, ' ').trim());
+    await ad.click(PERSON_BUTTON);
+    await ad.waitForSelector(`${BAR_MENU} [role=menuitem]`);
+    const adminItems = (await ad.locator(`${BAR_MENU} [role=menuitem]`).allInnerTexts()).map((item) => item.replace(/\s+/g, ' ').trim());
     check(adminItems.some((item) => item.endsWith('Admin panel')), `the person's menu leads into the "Admin panel" (${adminItems.join(' | ')})`);
     await ad.keyboard.press('Escape');
     await ad.setViewportSize({ width: ADMIN_PHONE_BAR_MAX + 201, height: 900 });
     await open(ad, '/admin/people');
-    check((await ad.locator('.topbar-link').allInnerTexts()).map((words) => words.replace(/\s*\d+$/, '').trim()).join('|') === 'Sources|Translations|Languages|People|Migrations|Errors|Audit|Feedback|Backups', "an admin's sections: all nine - the family's admin tools too");
-    // As the IAM's: "anotoki admin panel" beside the mark, the app's name in the link's accessible name.
-    check((await ad.locator('app-top-bar app-brand .wordmark').innerText()).replace(/\s+/g, ' ').trim() === 'anotoki admin panel', 'the brand says "anotoki admin panel"');
-    check((await ad.locator('app-top-bar app-brand a').getAttribute('aria-label')) === 'anotoki Build Analyzer: the admin panel', 'its link is named "anotoki Build Analyzer: the admin panel"');
+    check((await ad.locator(BAR_LINK).allInnerTexts()).map((words) => words.replace(/\s*\d+$/, '').trim()).join('|') === 'Sources|Translations|Languages|People|Migrations|Errors|Audit|Feedback|Backups', "an admin's sections: all nine - the family's admin tools too");
+    // The family's brand of an admin panel, short at every width beside nine sections: the site's short name with
+    // "admin panel" under it; the app's whole name in the link's accessible name.
+    const wordmark = (await ad.locator('app-top-bar anotoki-brand .anotoki-brand__wordmark').innerText()).replace(/\s+/g, ' ').trim();
+    check(wordmark === 'Analyzer admin panel', `the brand says "Analyzer", "admin panel" under it (${wordmark})`);
+    check((await ad.locator('app-top-bar anotoki-brand a').getAttribute('aria-label')) === 'anotoki Build Analyzer: the admin panel', 'its link is named "anotoki Build Analyzer: the admin panel"');
     check((await ad.title()) === 'People · Admin panel · Build Analyzer', `the tab's title: ${await ad.title()}`);
     await ad.waitForSelector('anotoki-people-page [data-person]', { timeout: 15000 });
     const people = await ad.locator('main').innerText();
@@ -723,7 +780,7 @@ try {
         await ad.emulateMedia({ colorScheme: scheme });
         await open(ad, '/admin/migrations');
         const layout = await checkBar(ad, `admin panel, ${width} px, ${scheme}`);
-        check((await ad.locator('.menu-button').count()) === (width <= ADMIN_PHONE_BAR_MAX ? 1 : 0), `admin panel, ${width} px: ${width <= ADMIN_PHONE_BAR_MAX ? "a phone's bar" : "a desktop's bar"}`);
+        check((await ad.locator(MENU_BUTTON).count()) === (width <= ADMIN_PHONE_BAR_MAX ? 1 : 0), `admin panel, ${width} px: ${width <= ADMIN_PHONE_BAR_MAX ? "a phone's bar" : "a desktop's bar"}`);
         if (width === ADMIN_PHONE_BAR_MAX + 201) {
           check(layout.nameCut === false, `admin panel, ${width} px: the person's name shows, whole (${layout.nameCut})`);
         }
@@ -735,7 +792,7 @@ try {
       await ed.setViewportSize({ width, height: 760 });
       await open(ed, '/admin/sources');
       const layout = await checkBar(ed, `admin panel, an editor, ${width} px`);
-      check((await ed.locator('.menu-button').count()) === (width <= EDITOR_PHONE_BAR_MAX ? 1 : 0), `admin panel, an editor, ${width} px: ${width <= EDITOR_PHONE_BAR_MAX ? "a phone's bar" : "a desktop's bar"}`);
+      check((await ed.locator(MENU_BUTTON).count()) === (width <= EDITOR_PHONE_BAR_MAX ? 1 : 0), `admin panel, an editor, ${width} px: ${width <= EDITOR_PHONE_BAR_MAX ? "a phone's bar" : "a desktop's bar"}`);
       if (width === EDITOR_PHONE_BAR_MAX + 201) {
         check(layout.nameCut === false, `admin panel, an editor, ${width} px: the person's name shows, whole (${layout.nameCut})`);
       }
@@ -835,9 +892,11 @@ try {
       await ad.setViewportSize({ width: wide, height: 900 });
       await ad.emulateMedia({ colorScheme: 'light' });
       await open(ad, '/admin/sources');
-      await ad.waitForSelector('app-top-bar a[href="/admin/feedback"] .link-badge', { timeout: 15000 });
-      const count = (await ad.locator('app-top-bar a[href="/admin/feedback"] .link-badge').innerText()).trim();
-      check(count === '1' && (await ad.locator('app-top-bar a[href="/admin/feedback"]').getAttribute('aria-label')) === 'Feedback, 1 new', `the new feedback counted beside Feedback (${count})`);
+      await ad.waitForSelector('app-top-bar a[href="/admin/feedback"] .anotoki-top-bar__badge', { timeout: 15000 });
+      const count = (await ad.locator('app-top-bar a[href="/admin/feedback"] .anotoki-top-bar__badge').innerText()).trim();
+      // The family's bar names a section by its words and its count ("Feedback 1"): it has no words of a count's own.
+      const named = (await ad.locator('app-top-bar a[href="/admin/feedback"]').innerText()).replace(/\s+/g, ' ').trim();
+      check(count === '1' && named === 'Feedback 1', `the new feedback counted beside Feedback (${named})`);
       await shot(ad, '19-admin-bar-feedback-count', { clip: { x: 0, y: 0, width: wide, height: 120 } });
 
       const tools = [
@@ -887,7 +946,7 @@ try {
       await shot(ad, '19-admin-feedback-opened');
       await ad.keyboard.press('Escape');
       await ad.setViewportSize({ width: wide, height: 900 });
-      await ad.waitForFunction(() => document.querySelector('app-top-bar a[href="/admin/feedback"]') !== null && document.querySelector('app-top-bar a[href="/admin/feedback"] .link-badge') === null, null, { timeout: 10000 });
+      await ad.waitForFunction(() => document.querySelector('app-top-bar a[href="/admin/feedback"]') !== null && document.querySelector('app-top-bar a[href="/admin/feedback"] .anotoki-top-bar__badge') === null, null, { timeout: 10000 });
       check(sql("SELECT status FROM anotoki_feedback WHERE message = 'Import sa zastaví pri druhom kroku.'")[0]?.status === 'read', 'opened: read, and no count beside Feedback any more');
       await ad.setViewportSize({ width: 1280, height: 900 });
 
@@ -1009,7 +1068,7 @@ try {
       // Pending is one list in the order the files run (anotoki-lib 0.4), each named as its set's records name it.
       const pendingFiles = (await ad.locator('[data-pending] .anotoki-migrations-page__files li').allInnerTexts()).map((line) => line.replace(/\s+/g, ' ').trim());
       check(pendingFiles.join('|') === '004_visitors_and_family_bar.sql pending', `Migrations: 004 pending (${pendingFiles.join(', ')})`);
-      check((await ad.locator('app-top-bar .topbar').count()) === 1, 'in the admin panel\'s frame');
+      check((await ad.locator(BAR).count()) === 1, 'in the admin panel\'s frame');
       await shot(ad, '13-admin-migrations-pending', { fullPage: true });
 
       step('An update waits: a signed-out ADMIN presses Sign in on the waiting page and comes back to it - now the ADMIN\'s');
@@ -1054,7 +1113,7 @@ try {
 
     step('The update applied: the waiting pages reload by themselves, and the site is back');
     // The visitor's page asks again every 30 seconds, and starts afresh once the site is ready.
-    await guest.waitForSelector('app-top-bar .topbar', { timeout: 45000 });
+    await guest.waitForSelector(BAR, { timeout: 45000 });
     check((await guest.locator('anotoki-site-status').count()) === 0, 'the visitor\'s page came back by itself');
     await guests.close();
     await ad.setViewportSize({ width: 1280, height: 900 });
@@ -1099,10 +1158,10 @@ try {
     const rushedAnswer = rushed.waitForResponse((response) => response.url().endsWith('/api/imports/file'));
     await rushed.getByRole('button', { name: 'Import file' }).click();
     await iamAs(SAM);
-    await rushed.click('.sign-in');
+    await rushed.click(SIGN_IN);
     const rushedKey = (await rushedAnswer).headers()['x-visitor-key'] ?? '';
     await rushed.waitForURL((url) => url.href.startsWith(SITE) && !url.pathname.startsWith('/auth/callback'), { timeout: 15000 });
-    await rushed.waitForSelector('.user-button', { timeout: 15000 });
+    await rushed.waitForSelector(PERSON_BUTTON, { timeout: 15000 });
     await rushed.waitForLoadState('networkidle');
     await rushed.waitForTimeout(500);
     check(/^[A-Za-z0-9_-]{43}$/.test(rushedKey), 'the import made a visitor and answered its key');
@@ -1129,13 +1188,13 @@ try {
         };
       });
     await open(away, '/builds/genshin?lang=en');
-    await away.click('.sign-in');
+    await away.click(SIGN_IN);
     await away.waitForURL((url) => url.href.startsWith(SITE) && url.pathname === '/sign-in', { timeout: 15000 });
     await away.waitForSelector('anotoki-sign-in-failure [role=alert]');
     let seen = await failureScreen();
     check(seen.title === 'Signing in did not work' && seen.message.startsWith('The sign-in was not completed.') && seen.buttons.join('|') === 'Try again|Back', `back from the IAM: the failure's screen says why ("${seen.title}: ${seen.message}" - ${seen.buttons.join(', ')})`);
     check(seen.robots === 'noindex', `search engines are asked not to index it (${seen.robots})`);
-    check((await away.locator('app-top-bar .topbar').count()) === 1 && (await away.title()) === 'Sign in · Build Analyzer', `in the site's frame, under its bar ("${await away.title()}")`);
+    check((await away.locator(BAR).count()) === 1 && (await away.title()) === 'Sign in · Build Analyzer', `in the site's frame, under its bar ("${await away.title()}")`);
     await shot(away, '17-visitor-sign-in-refused-1280-light', { fullPage: true });
     for (const [scheme, width] of [['dark', 1280], ['light', 390], ['dark', 390]]) {
       await away.setViewportSize({ width, height: 800 });
@@ -1152,12 +1211,12 @@ try {
     await away.emulateMedia({ colorScheme: 'light' });
     await away.click('anotoki-sign-in-failure [data-back]');
     await away.waitForURL((url) => url.pathname === '/builds/genshin', { timeout: 10000 });
-    await away.waitForSelector('app-top-bar .sign-in', { timeout: 10000 });
+    await away.waitForSelector(SIGN_IN, { timeout: 10000 });
     check(new URL(away.url()).pathname === '/builds/genshin', 'Back: on to the page the sign-in started on, visiting');
     await open(away, '/?lang=sk');
     check(new URL(away.url()).pathname === '/' && (await away.locator('app-visitor-hero').count()) === 1, 'said once: the next page is the visitor\'s again');
     // In Slovak: the screen reads the site's own words, moved under the library's keys by 009.
-    await away.click('.sign-in');
+    await away.click(SIGN_IN);
     await away.waitForURL((url) => url.href.startsWith(SITE) && url.pathname === '/sign-in', { timeout: 15000 });
     await away.waitForSelector('anotoki-sign-in-failure [role=alert]');
     seen = await failureScreen();
@@ -1167,7 +1226,7 @@ try {
     await away.waitForURL((url) => url.href.startsWith(SITE) && url.pathname === '/sign-in', { timeout: 15000 });
     await away.waitForSelector('anotoki-sign-in-failure [role=alert]');
     check((await failureScreen()).message.length > 0, 'a visitor at /admin is sent to sign in; refused, the failure\'s screen says so');
-    check((await away.locator('.topbar-link', { hasText: 'Sources' }).count()) === 0, 'and no section of the panel shows');
+    check((await away.locator(BAR_LINK, { hasText: 'Sources' }).count()) === 0, 'and no section of the panel shows');
     await iamState({ deny: false });
     await turned.close();
 
@@ -1210,7 +1269,7 @@ try {
     await iamAs(RITA);
     await lateTab.click('anotoki-sign-in-failure [data-retry]');
     await lateTab.waitForURL((url) => url.href.startsWith(SITE) && url.pathname === '/builds/genshin', { timeout: 15000 });
-    await lateTab.waitForSelector('.user-button', { timeout: 15000 });
+    await lateTab.waitForSelector(PERSON_BUTTON, { timeout: 15000 });
     await lateTab.waitForLoadState('networkidle');
     await lateTab.waitForTimeout(500);
     check(sql('SELECT count(*) AS n FROM accounts WHERE user_id = 11')[0].n == 1, 'signed in, back on /builds/genshin: the visitor\'s account is rita\'s (the move works while sign-in is required)');

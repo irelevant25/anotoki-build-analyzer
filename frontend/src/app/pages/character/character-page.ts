@@ -1,10 +1,13 @@
 import { Component, computed, effect, inject, input, signal } from '@angular/core';
-import { MatButtonModule } from '@angular/material/button';
-import { MatIconModule } from '@angular/material/icon';
-import { MatProgressBarModule } from '@angular/material/progress-bar';
-import { MatTabsModule } from '@angular/material/tabs';
-import { MatTooltipModule } from '@angular/material/tooltip';
 import { RouterLink } from '@angular/router';
+import { AlertComponent } from '@anotoki/lib/ui/alert';
+import { BadgeComponent } from '@anotoki/lib/ui/badge';
+import { ButtonComponent } from '@anotoki/lib/ui/button';
+import { CardComponent } from '@anotoki/lib/ui/card';
+import { IconComponent } from '@anotoki/lib/ui/icon';
+import { SpinnerComponent } from '@anotoki/lib/ui/spinner';
+import { TabItem, TabsComponent } from '@anotoki/lib/ui/tabs';
+import { TooltipDirective } from '@anotoki/lib/ui/tooltip';
 import { Api } from '../../core/api';
 import { AuthService } from '../../core/auth';
 import { titleCase } from '../../core/format';
@@ -51,21 +54,32 @@ const REASON_KEYS = new Map<string, TranslationKey>([
 ]);
 const REASON_FALLBACK: TranslationKey = 'character.reason.unknown';
 
+/** A recommendation's mark by how much it matters: the kit's alert for what matters, its info for the rest. */
 const SEVERITY_ICONS = new Map<string, string>([
-  ['high', 'priority_high'],
-  ['medium', 'warning'],
+  ['high', 'alert'],
+  ['medium', 'alert'],
   ['low', 'info'],
 ]);
 
+/**
+ * One character of an account, against the recommended builds: its head (the game's facts, the grade against the
+ * build in hand), a tab a build (its score beside it), what to improve, the gear it wears and the better pieces the
+ * account already owns, the build itself (the site's own build sheet), what the sources agree on and the stats.
+ * Drawn with the anotoki family's kit - cards, tabs, badges, alerts, tooltips, icons - around the site's own
+ * pieces: the grade badge, the score bars, the item cards.
+ */
 @Component({
   selector: 'app-character-page',
   imports: [
     RouterLink,
-    MatButtonModule,
-    MatIconModule,
-    MatProgressBarModule,
-    MatTabsModule,
-    MatTooltipModule,
+    AlertComponent,
+    BadgeComponent,
+    ButtonComponent,
+    CardComponent,
+    IconComponent,
+    SpinnerComponent,
+    TabsComponent,
+    TooltipDirective,
     Avatar,
     BuildDetail,
     GradeBadge,
@@ -123,9 +137,17 @@ export class CharacterPage {
     return data.evaluations.find((e) => e.build.id === this.selectedBuildId()) ?? data.evaluations[0] ?? null;
   });
 
-  protected readonly selectedIndex = computed(() =>
-    Math.max(0, (this.data()?.evaluations ?? []).findIndex((e) => e.build.id === this.evaluation()?.build.id)),
+  /** A tab a build: its source and variant, its score beside them (the grade's number). */
+  protected readonly buildTabs = computed<TabItem[]>(() =>
+    (this.data()?.evaluations ?? []).map((evaluation) => ({
+      id: String(evaluation.build.id),
+      label: `${evaluation.build.source.name} · ${evaluation.build.variant}`,
+      count: evaluation.score.overall,
+    })),
   );
+
+  /** The tab of the build in hand. */
+  protected readonly activeTab = computed(() => String(this.evaluation()?.build.id ?? ''));
 
   protected readonly build = computed(() => this.data()?.builds.find((b) => b.id === this.evaluation()?.build.id) ?? null);
 
@@ -210,8 +232,9 @@ export class CharacterPage {
     });
   }
 
-  protected selectTab(index: number): void {
-    const evaluation = this.data()?.evaluations[index];
+  /** A build's tab chosen (by its build's id). */
+  protected selectBuild(id: string): void {
+    const evaluation = this.data()?.evaluations.find((e) => String(e.build.id) === id);
     if (!evaluation) {
       return;
     }

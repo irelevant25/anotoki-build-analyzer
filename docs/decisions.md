@@ -3,6 +3,43 @@
 Short records of choices that shape the code. Add a new entry (newest first) when you make a similar call.
 Older entries describe the Laravel version as it was; where a setting has since moved, the entry says so.
 
+**2026-10-11 — The site's own pages on the anotoki family's kit; Angular Material gone (the owner's round; version 0.4.0, unreleased).**
+- *The kit everywhere*: every page, piece and dialog is the family's kit (anotoki-lib 0.4.1: `@anotoki/lib/styles`
+  and the `@anotoki/lib/ui/*` pieces, each from its own entry point - never the `@anotoki/lib/ui` barrel, so a
+  page brings only what it uses) or the site's own drawn from the kit's tokens; the top bar, the page's frame and
+  the theme are the family's shell (`@anotoki/lib/shell`). `@angular/material`, `@angular/cdk`, Roboto and
+  Material Symbols left `package.json` (both lock files agree). The first load is 550 kB (158 kB sent), it was 726
+  kB (190 kB) - and the 4 MB icon font and Roboto are no longer fetched at all. Considered, and not chosen:
+  Material kept under the kit (two looks, two sets of tokens, and its icon font).
+- *One library palette, the site's colours by its tokens* (the owner's rule of 2026-10-07): `styles.scss` sets the
+  family's `--anotoki-*` tokens, light and dark, to the colours the site wore with Material's violet theme (the
+  violet #7d00fa / #d5baff, its greys and surfaces, the theme's red and outline, its cyan as the person's
+  initial's second colour) and never re-styles a kit piece. Two are darker than before, to reach WCAG AA where
+  the old ones did not: the light muted ink #625f6e (5:1 on every ground; #6b6878 was 4.4:1 on `surface-3`) and
+  `border-strong`, every control's edge (3.6:1 at the least). Every text token is 4.5:1 or more on every ground,
+  every edge and the focus ring 3:1, in both themes. Success and warning stay the family's. The site's own
+  meanings - grades, severities, rarity, elements - keep their colours, the same in both themes.
+- *The family's top bar, not the site's copy of it*: the bar the site had drawn after the survey's with Material's
+  pieces (`shared/brand`, `shared/theme-toggle`, `shared/language-switcher`, `core/theme.ts`, its own menus) is
+  the library's `<anotoki-top-bar>` in `<anotoki-shell>`, told the site's brand, sections, person, menu items and
+  its one widget, the sync this tab drives; its menus, keys and fold are the library's, tested there (Tab never
+  to `<body>` with them). In the admin panel its brand is the family's short form at every width - "Analyzer"
+  with "admin panel" under it, the app's whole name in the link's name. The count of new feedback is the family
+  bar's badge: the link reads "Feedback 1" (the site's "Feedback, 1 new" has no place in the library's link yet).
+  Where it folds was measured again in the family's bar (`run.mjs --measure`): the member pages' row needs 818 px
+  at the most (an admin with a sync running), so `PHONE_BAR_MAX` stays 880 (a scrollbar, and a language added
+  later); the admin panel's 1236 px, so `ADMIN_PHONE_BAR_MAX` is 1270, was 1320 (a 1280 px screen has the whole
+  row now); an editor's 610 px, so `EDITOR_PHONE_BAR_MAX` is 640, was 720.
+  Migration 010 moves the twelve words the site had for its bar under the library's keys with every rewording -
+  the site's Slovak "Správca" and its "System" stay what the bar says - and retires the two that only Material's
+  stepper said.
+- *What the kit has no piece for stays the site's, from its tokens*: the import wizard's row of steps (buttons back
+  to a step done, `aria-current="step"`), the disclosures (`<details>`: the import history, a build's notes, a
+  sync's log), a tile that is a link (an account, a character, a build), the score bars and grade badges, a
+  sync's progress (a native `<progress>`); the account page's element filter is the kit's select (its segmented
+  control has no colour marks). The question before a delete is the kit's `ConfirmService` (no `window.confirm`),
+  a passing message its toast, What's new and feedback its dialog. These are worth asking the library for.
+
 **2026-10-11 — Visitors' addresses through Cloudflare, the move after an automatic sign-in, and the security review's fixes (the owner's decisions; version 0.4.0, unreleased).**
 - *The real visitor address, through Cloudflare - and never kept* (the owner's decision): the site is behind
   Cloudflare, so `client_address.trusted_proxies` in `config/app.php` are Cloudflare's published ranges

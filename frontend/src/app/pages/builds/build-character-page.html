@@ -1,31 +1,56 @@
 <div class="page">
-  <a mat-button [routerLink]="['/builds', gameKey()]"><mat-icon>arrow_back</mat-icon>{{ 'builds.allCharacters' | translate }}</a>
+  <a anotokiButton variant="ghost" class="back" [routerLink]="['/builds', gameKey()]"
+    ><anotoki-icon name="arrowLeft" [size]="18" />{{ 'builds.allCharacters' | translate }}</a
+  >
   @if (loading()) {
-    <mat-progress-bar mode="indeterminate" />
+    <anotoki-spinner class="loading" label [delay]="200" />
   }
   @if (error(); as problem) {
-    <div class="panel">{{ problem | errorText }}</div>
+    <anotoki-alert class="failure" tone="danger" [announce]="true">{{ problem | errorText }}</anotoki-alert>
   }
   @if (data(); as d) {
-    <header class="panel hero">
-      <app-avatar [src]="d.character.icon_url" [alt]="d.character.name" [rarity]="d.character.rarity" [element]="d.character.element" size="lg" />
-      <div>
-        <h1>{{ d.character.name }}</h1>
-        <div class="muted">{{ titleCase(d.character.element) }}{{ d.character.weapon_type ? ' · ' + titleCase(d.character.weapon_type) : '' }} · {{ 'builds.count' | translatePlural: d.builds.length }}</div>
-      </div>
-    </header>
-
-    <mat-tab-group mat-stretch-tabs="false" animationDuration="0ms">
-      @for (b of d.builds; track b.id) {
-        <mat-tab [label]="b.source.name + ' · ' + b.variant">
-          <div class="tab-body">
-            @if (b.role && b.role !== b.variant) {
-              <span class="chip">{{ b.role }}</span>
-            }
-            <app-build-detail [build]="b" [game]="gameKey()" [element]="d.character.element" />
+    <anotoki-card class="hero">
+      <div class="hero-row">
+        <app-avatar
+          [src]="d.character.icon_url"
+          [alt]="d.character.name"
+          [rarity]="d.character.rarity"
+          [element]="d.character.element"
+          size="lg"
+        />
+        <div>
+          <h1>{{ d.character.name }}</h1>
+          <div class="muted">
+            {{ titleCase(d.character.element)
+            }}{{ d.character.weapon_type ? ' · ' + titleCase(d.character.weapon_type) : '' }} ·
+            {{ 'builds.count' | translatePlural: d.builds.length }}
           </div>
-        </mat-tab>
+        </div>
+      </div>
+    </anotoki-card>
+
+    @if (d.builds.length > 0) {
+      <!-- A tab a build: its source and variant. -->
+      <anotoki-tabs
+        #tabs="anotokiTabs"
+        [label]="'topbar.builds' | translate"
+        [tabs]="buildTabs()"
+        [active]="activeTab()"
+        (activeChange)="chosen.set($event)"
+      />
+      @if (build(); as b) {
+        <div
+          class="tab-body"
+          role="tabpanel"
+          [id]="tabs.panelId(activeTab())"
+          [attr.aria-labelledby]="tabs.tabId(activeTab())"
+        >
+          @if (b.role && b.role !== b.variant) {
+            <anotoki-badge>{{ b.role }}</anotoki-badge>
+          }
+          <app-build-detail [build]="b" [game]="gameKey()" [element]="d.character.element" />
+        </div>
       }
-    </mat-tab-group>
+    }
   }
 </div>

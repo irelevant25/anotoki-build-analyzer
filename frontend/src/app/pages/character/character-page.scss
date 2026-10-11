@@ -1,40 +1,42 @@
-.top-progress {
-  position: sticky;
-  top: 64px;
-  z-index: 5;
+.loading {
+  align-self: center;
 }
 
 .back {
-  margin-bottom: 8px;
+  align-self: flex-start;
 }
 
-.hero {
+.hero-row {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 20px;
-  margin-bottom: 16px;
+  gap: 1.25rem;
 
   h1 {
-    margin: 0 0 8px;
-    font: var(--mat-sys-headline-medium);
+    margin: 0 0 0.5rem;
   }
 }
 
 .hero-text {
   flex: 1;
-  min-width: 240px;
+  min-width: min(100%, 15rem);
+}
+
+// The character's element, weapon, level, constellation and talents. (Not "facts": that is the kit's global
+// label-value grid, which would stack these one under the other.)
+.traits {
+  --anotoki-cluster-gap: 0.375rem;
 }
 
 .hero-grade {
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: 0.75rem;
 }
 
 .big-score {
   font-size: 2rem;
-  font-weight: 600;
+  font-weight: 700;
 
   span {
     font-size: 1rem;
@@ -46,36 +48,38 @@
   display: inline-block;
   width: 10px;
   height: 10px;
+  margin-right: 0.3rem;
   border-radius: 50%;
 }
 
 .bonus {
-  color: var(--mat-sys-primary);
-  font-weight: 600;
-  margin-left: 2px;
+  margin-left: 0.125rem;
+  color: var(--anotoki-primary);
+  font-weight: 700;
 }
 
-.build-tabs {
-  margin-bottom: 16px;
+.no-builds {
+  text-align: center;
+
+  p {
+    margin-top: 0.5rem;
+  }
 }
 
-.tab-label {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
+.no-builds-icon {
+  color: var(--anotoki-muted);
 }
 
-.best-star {
-  color: var(--grade-s);
-  font-size: 18px;
-  width: 18px;
-  height: 18px;
+.build-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
 }
 
 .top-grid {
   display: grid;
-  grid-template-columns: minmax(280px, 1fr) minmax(320px, 1.6fr);
-  gap: 16px;
+  grid-template-columns: minmax(17.5rem, 1fr) minmax(20rem, 1.6fr);
+  gap: 1rem;
 }
 
 .top-grid > *,
@@ -87,42 +91,47 @@
 
 .parts {
   display: grid;
-  gap: 12px;
+  gap: 0.75rem;
+}
+
+.targets-note {
+  margin-top: 0.75rem;
 }
 
 .weapon-line {
   display: flex;
   flex-direction: column;
-  gap: 2px;
-  margin-top: 16px;
-  padding-top: 12px;
-  border-top: 1px solid var(--app-border);
+  gap: 0.125rem;
+  margin-top: 1rem;
+  padding-top: 0.75rem;
+  border-top: 1px solid var(--anotoki-border);
 }
 
-.recs {
+.rec-list {
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 0.5rem;
 }
 
+// A recommendation, marked by how much it matters (the site's own colours, as its icon's).
 .rec {
   display: flex;
-  gap: 10px;
   align-items: flex-start;
-  padding: 10px 12px;
-  border-radius: 12px;
+  gap: 0.625rem;
+  padding: 0.625rem 0.75rem;
   border-left: 4px solid var(--sev-low);
-  background: var(--app-surface-2);
+  border-radius: var(--anotoki-radius);
+  background: var(--anotoki-surface-2);
 
-  .mat-icon {
-    color: var(--sev-low);
+  anotoki-icon {
     flex: none;
+    color: var(--sev-low);
   }
 
   &.high {
     border-left-color: var(--sev-high);
 
-    .mat-icon {
+    anotoki-icon {
       color: var(--sev-high);
     }
   }
@@ -130,43 +139,37 @@
   &.medium {
     border-left-color: var(--sev-medium);
 
-    .mat-icon {
+    anotoki-icon {
       color: var(--sev-medium);
     }
   }
 }
 
 .rec-cat {
-  color: var(--app-muted);
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
+  color: var(--anotoki-muted);
   font-size: 0.72rem;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
 }
 
 .all-good {
   display: flex;
   align-items: center;
-  gap: 8px;
-  color: var(--grade-a);
+  gap: 0.5rem;
+  color: var(--anotoki-success);
+  font-weight: 650;
 }
 
 .section {
-  margin-top: 24px;
-}
-
-.section-title {
-  font: var(--mat-sys-title-large);
-  margin: 0 0 8px;
-}
-
-.legend {
-  margin-top: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
 }
 
 .items-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(210px, 1fr));
-  gap: 12px;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 13rem), 1fr));
+  gap: 0.75rem;
 }
 
 .empty-slot {
@@ -174,77 +177,85 @@
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 4px;
-  color: var(--app-muted);
-  min-height: 160px;
+  gap: 0.25rem;
+  min-height: 10rem;
+  color: var(--anotoki-muted);
+  text-align: center;
 }
 
 .suggestions {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
-  gap: 12px;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 16.25rem), 1fr));
+  gap: 0.75rem;
 }
 
 .suggestion {
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 0.5rem;
 }
 
-.plan {
+.suggestion-head {
   display: flex;
-  flex-direction: column;
-  gap: 12px;
-  margin-bottom: 16px;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
 }
 
 .plan-piece {
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: 0.25rem;
   min-width: 0;
 }
 
-.hint {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  margin-top: 16px;
+.plan-missing {
+  margin-top: 0.75rem;
 }
 
 .bottom-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
-  gap: 16px;
-  margin-top: 24px;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 20rem), 1fr));
+  gap: 1rem;
 }
 
 .consensus-row {
   display: grid;
-  grid-template-columns: 130px 1fr;
-  gap: 8px;
-  padding: 6px 0;
+  grid-template-columns: 8rem 1fr;
   align-items: start;
-  border-top: 1px solid var(--app-border);
+  gap: 0.5rem;
+  padding: 0.375rem 0;
+  border-top: 1px solid var(--anotoki-border);
+
+  .cluster {
+    --anotoki-cluster-gap: 0.25rem;
+  }
 
   b {
-    margin-left: 2px;
+    margin-left: 0.125rem;
   }
 }
 
 .stat-table {
   display: grid;
   grid-template-columns: 1fr auto;
-  gap: 4px 16px;
+  gap: 0.25rem 1rem;
 
   .value {
+    font-weight: 650;
     text-align: right;
-    font-weight: 500;
   }
 }
 
 @media (max-width: 860px) {
   .top-grid {
-    grid-template-columns: 1fr;
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+@media (max-width: 480px) {
+  .consensus-row {
+    grid-template-columns: minmax(0, 1fr);
   }
 }

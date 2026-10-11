@@ -1,22 +1,28 @@
-import { BreakpointObserver } from '@angular/cdk/layout';
 import { HttpErrorResponse } from '@angular/common/http';
-import { Component, afterNextRender, computed, inject, signal, viewChild } from '@angular/core';
-import { toSignal } from '@angular/core/rxjs-interop';
-import { FormsModule } from '@angular/forms';
-import { MatButtonModule } from '@angular/material/button';
-import { MatExpansionModule } from '@angular/material/expansion';
-import { MatFormFieldModule } from '@angular/material/form-field';
-import { MatIconModule } from '@angular/material/icon';
-import { MatInputModule } from '@angular/material/input';
-import { MatProgressBarModule } from '@angular/material/progress-bar';
-import { MatSelectModule } from '@angular/material/select';
-import { MatStepper, MatStepperIntl, MatStepperModule } from '@angular/material/stepper';
+import {
+  Component,
+  ElementRef,
+  Injector,
+  afterNextRender,
+  computed,
+  inject,
+  signal,
+  viewChild,
+} from '@angular/core';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
-import { map } from 'rxjs';
+import { AlertComponent } from '@anotoki/lib/ui/alert';
+import { ButtonComponent } from '@anotoki/lib/ui/button';
+import { CardComponent } from '@anotoki/lib/ui/card';
+import { SelectComponent, SelectOption, TextFieldComponent, TextareaComponent } from '@anotoki/lib/ui/forms';
+import { IconComponent } from '@anotoki/lib/ui/icon';
+import { PageHeaderComponent } from '@anotoki/lib/ui/page-header';
+import { SpinnerComponent } from '@anotoki/lib/ui/spinner';
 import { Api } from '../../core/api';
 import { AuthService } from '../../core/auth';
 import { GAME_LABELS } from '../../core/format';
 import { GAME_TERMS, UID_TERM } from '../../core/game-terms';
+import { gameIcon } from '../../core/icons';
+import { TranslationKey } from '../../core/i18n/en';
 import { errorCode } from '../../core/i18n/error-text';
 import { importFailure, importWarnings } from '../../core/i18n/import-words';
 import { TranslatePipe } from '../../core/i18n/translate';
@@ -25,7 +31,6 @@ import { AccountSummary, GameKey, ImportRun } from '../../core/models';
 import { VisitorKey } from '../../core/visitor-key';
 import { VisitorNotice } from '../../shared/visitor-notice/visitor-notice';
 import { GUIDES, ImportMethodKey, METHODS } from './import-guides';
-import { StepperWords } from './stepper-words';
 
 const MAX_FILE_BYTES = 20 * 1024 * 1024;
 
@@ -37,24 +42,44 @@ export interface ChosenFile {
   game: GameKey | null;
 }
 
+/** The wizard's five steps, in order, each with the key of its name. */
+const STEPS: readonly { key: string; label: TranslationKey }[] = [
+  { key: 'game', label: 'importWizard.step.game' },
+  { key: 'method', label: 'importWizard.step.method' },
+  { key: 'prepare', label: 'importWizard.step.prepare' },
+  { key: 'import', label: 'importWizard.step.import' },
+  { key: 'done', label: 'importWizard.step.done' },
+];
+
+/** The value the target select gives "no account": a new one (a file), or the one the UID names (the showcase). */
+const NO_ACCOUNT = '';
+
+/**
+ * Importing an account, in five steps: the game, the way in (the in-game Character Showcase by UID, or an
+ * inventory file), how to get the data ready (the guides, import-guides.ts), the import itself, and what came in.
+ *
+ * The wizard is the site's own - its row of steps (the step in hand marked aria-current="step", the steps done
+ * buttons that go back to them, as the linear Material stepper it replaced had them), its choice cards, the file's
+ * drop zone - drawn with the anotoki family's kit: its card, fields (the UID, the account to import into, the
+ * pasted text), buttons, alerts, spinner and icons. A step is shown at a time; going on moves the focus to the
+ * new step's heading, so a keyboard and a screen reader follow.
+ */
 @Component({
   selector: 'app-import-wizard',
   imports: [
-    FormsModule,
     RouterLink,
-    MatStepperModule,
-    MatButtonModule,
-    MatIconModule,
-    MatFormFieldModule,
-    MatInputModule,
-    MatSelectModule,
-    MatProgressBarModule,
-    MatExpansionModule,
+    AlertComponent,
+    ButtonComponent,
+    CardComponent,
+    IconComponent,
+    PageHeaderComponent,
+    SelectComponent,
+    SpinnerComponent,
+    TextFieldComponent,
+    TextareaComponent,
     TranslatePipe,
     VisitorNotice,
   ],
-  // The stepper's own words ("Completed", "Editable") follow the language on the page.
-  providers: [{ provide: MatStepperIntl, useClass: StepperWords }],
   templateUrl: './import-wizard.html',
   styleUrl: './import-wizard.scss',
 })
@@ -63,19 +88,19 @@ export class ImportWizard {
   private readonly route = inject(ActivatedRoute);
   private readonly router = inject(Router);
   private readonly i18n = inject(TranslationService);
+  private readonly injector = inject(Injector);
 
-  private readonly stepper = viewChild.required<MatStepper>('stepper');
-
-  protected readonly vertical = toSignal(
-    inject(BreakpointObserver).observe('(max-width: 760px)').pipe(map((state) => state.matches)),
-    { initialValue: false },
-  );
+  private readonly panel = viewChild<ElementRef<HTMLElement>>('panel');
 
   /** The games' own words: never translated, handed to a sentence as they are. */
   protected readonly gameLabels = GAME_LABELS;
   protected readonly terms = GAME_TERMS;
   protected readonly uidTerm = UID_TERM;
   protected readonly games: GameKey[] = ['genshin', 'hsr'];
+  protected readonly gameIcon = gameIcon;
+
+  /** The step in hand: 0 the game, 1 the way in, 2 the guide, 3 the import, 4 what came in. */
+  protected readonly step = signal(0);
 
   protected readonly game = signal<GameKey | null>(null);
   protected readonly method = signal<ImportMethodKey | null>(null);
@@ -88,6 +113,8 @@ export class ImportWizard {
   private readonly prefillAccount = signal<AccountSummary | null>(null);
 
   protected readonly uid = signal('');
+  /** The UID's box has been left once (or an import asked for): from then on it says when the UID is not one. */
+  protected readonly uidTouched = signal(false);
   protected readonly fileContent = signal<string | null>(null);
   protected readonly fileName = signal<string | null>(null);
   protected readonly fileInfo = signal<ChosenFile | null>(null);
@@ -98,11 +125,48 @@ export class ImportWizard {
   /** What went wrong, as a key with what fills it - never a sentence: the template words it, so it follows the language. */
   protected readonly error = signal<Wording | null>(null);
 
+  /** The row of steps: each with whether it is done (the step in hand is not, until it is left). */
+  protected readonly steps = computed(() => {
+    const done = [!!this.game(), !!this.method(), this.prepared(), !!this.result(), false];
+    return STEPS.map((step, index) => ({ ...step, done: done[index] }));
+  });
+
   protected readonly methods = computed(() => (this.game() ? METHODS[this.game()!] : []));
   protected readonly guide = computed(() => (this.game() && this.method() ? GUIDES[this.game()!][this.method()!] : null));
   protected readonly gameAccounts = computed(() => this.accounts().filter((account) => account.game === this.game()));
   protected readonly uidValid = computed(() => /^\d{9,10}$/.test(this.uid().trim()));
   protected readonly hasFile = computed(() => !!this.fileContent() || this.pasteText().trim().length > 0);
+
+  /** The UID's box says it is not one: only once left (or an import was asked for), and while something is typed. */
+  protected readonly uidProblem = computed(() => this.uidTouched() && this.uid().length > 0 && !this.uidValid());
+
+  /**
+   * The accounts to import into, as the select offers them: "find it by the UID" (the showcase) or "a new
+   * account" (a file) first, then the person's accounts of the game - each with its UID, or saying it has none
+   * yet (the showcase, which can fill it in).
+   */
+  protected readonly targetOptions = computed<SelectOption[]>(() => {
+    const showcase = this.method() === 'showcase';
+    const first: SelectOption = {
+      value: NO_ACCOUNT,
+      label: this.i18n.t(showcase ? 'importWizard.target.auto' : 'importWizard.target.new'),
+    };
+    return [
+      first,
+      ...this.gameAccounts().map((account) => ({
+        value: String(account.id),
+        label: account.uid
+          ? this.i18n.t('importWizard.target.accountUid', { name: account.nickname, uid: account.uid })
+          : showcase
+            ? this.i18n.t('importWizard.target.accountNoUid', { name: account.nickname })
+            : (account.nickname ?? ''),
+      })),
+    ];
+  });
+  protected readonly targetValue = computed(() => {
+    const id = this.targetAccountId();
+    return id === null ? NO_ACCOUNT : String(id);
+  });
 
   /** The chosen file in the language on the page; the size is a count of the site's own, the game's name is not. */
   protected readonly fileInfoText = computed(() => {
@@ -133,7 +197,7 @@ export class ImportWizard {
       this.prepared.set(false);
     }
     this.game.set(game);
-    this.advance();
+    this.goTo(1);
   }
 
   protected chooseMethod(method: ImportMethodKey): void {
@@ -142,17 +206,24 @@ export class ImportWizard {
     }
     this.method.set(method);
     this.targetAccountId.set(this.defaultAccount(this.game()!, method));
-    this.advance();
+    this.goTo(2);
   }
 
   protected confirmPrepared(): void {
     this.prepared.set(true);
-    this.advance();
+    this.goTo(3);
   }
 
-  protected importShowcase(): void {
+  /** The account the select names: none for "find it by the UID" / "a new account". */
+  protected chooseTarget(value: string): void {
+    this.targetAccountId.set(value === NO_ACCOUNT ? null : Number(value));
+  }
+
+  protected importShowcase(event?: Event): void {
+    event?.preventDefault();
+    this.uidTouched.set(true);
     const game = this.game();
-    if (!game || !this.uidValid()) {
+    if (!game || !this.uidValid() || this.busy()) {
       return;
     }
     this.run(this.api.importShowcase(game, this.uid().trim(), this.targetAccountId()));
@@ -202,20 +273,16 @@ export class ImportWizard {
     this.fileInfo.set(null);
   }
 
+  /** Another import: of the same game, from the way in. */
   protected restart(): void {
     this.result.set(null);
     this.error.set(null);
     this.clearFile();
     this.pasteText.set('');
+    this.uidTouched.set(false);
     this.prepared.set(false);
     this.method.set(null);
-    this.stepper().reset();
-    if (this.game()) {
-      // reset() clears completion; keep the chosen game and continue with the method step.
-      const game = this.game()!;
-      this.game.set(null);
-      queueMicrotask(() => this.chooseGame(game));
-    }
+    this.goTo(this.game() ? 1 : 0);
   }
 
   protected openAccount(): void {
@@ -234,6 +301,17 @@ export class ImportWizard {
     return typeof value === 'number' ? this.i18n.number(value) : '';
   }
 
+  /**
+   * To a step: the one ahead (a choice made, the guide read, an import done), back one, or back to one done. Once
+   * it is drawn, the focus goes to its heading, which says where the person is now.
+   */
+  protected goTo(step: number): void {
+    this.step.set(Math.max(0, Math.min(STEPS.length - 1, step)));
+    afterNextRender(() => this.panel()?.nativeElement.querySelector<HTMLElement>('.step-title')?.focus(), {
+      injector: this.injector,
+    });
+  }
+
   private run(request: ReturnType<Api['importShowcase']>): void {
     this.busy.set(true);
     this.error.set(null);
@@ -241,7 +319,7 @@ export class ImportWizard {
       next: (run) => {
         this.busy.set(false);
         this.result.set(run);
-        this.advance();
+        this.goTo(4);
       },
       error: (err: unknown) => {
         this.busy.set(false);
@@ -289,14 +367,6 @@ export class ImportWizard {
     }
   }
 
-  private advance(): void {
-    const stepper = this.stepper();
-    if (stepper.selected) {
-      stepper.selected.completed = true;
-    }
-    stepper.next();
-  }
-
   /**
    * Files carry no reliable UID, so they default to the account the wizard was opened for or the only one.
    * A UID identifies its account by itself; only an account without a UID yet is targeted explicitly.
@@ -324,19 +394,17 @@ export class ImportWizard {
     const account = accountId ? accounts.find((a) => a.id === accountId) : undefined;
 
     if (game === 'genshin' || game === 'hsr') {
-      queueMicrotask(() => {
-        this.prefillAccount.set(account ?? null);
-        this.chooseGame(game);
-        if (account) {
-          if (account.uid) {
-            this.uid.set(account.uid);
-          }
-          const asked = params.get('method');
-          const method: ImportMethodKey = asked === 'showcase' || asked === 'file' ? asked : account.has_full_inventory ? 'file' : 'showcase';
-          this.chooseMethod(method);
-          this.confirmPrepared();
+      this.prefillAccount.set(account ?? null);
+      this.chooseGame(game);
+      if (account) {
+        if (account.uid) {
+          this.uid.set(account.uid);
         }
-      });
+        const asked = params.get('method');
+        const method: ImportMethodKey = asked === 'showcase' || asked === 'file' ? asked : account.has_full_inventory ? 'file' : 'showcase';
+        this.chooseMethod(method);
+        this.confirmPrepared();
+      }
     }
   }
 }

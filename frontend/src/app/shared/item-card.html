@@ -5,14 +5,24 @@
     <div class="slot">{{ it.slot | slotLabel: game() }}</div>
     <div class="set muted small" [title]="it.set.name">{{ it.set.name }}</div>
   </div>
-  <app-grade-badge [grade]="it.grade" size="sm" [matTooltip]="'item.percentOfIdealForBuild' | translate: { percent: it.percent }" />
+  <app-grade-badge
+    [grade]="it.grade"
+    size="sm"
+    [anotokiTooltip]="'item.percentOfIdealForBuild' | translate: { percent: it.percent }"
+  />
 </div>
 
 <div class="main" [class.bad]="it.main_ok === false">
   <span>{{ it.main_stat | statLabel: game() }}</span>
   <span class="value">{{ it.main_value | statValue: game() : it.main_stat }}</span>
   @if (it.main_ok === false) {
-    <mat-icon class="warn-icon" [matTooltip]="'item.wrongMainStat' | translate">error</mat-icon>
+    <anotoki-icon
+      class="warn-icon"
+      name="alert"
+      [size]="18"
+      [label]="'item.wrongMainStat' | translate"
+      [anotokiTooltip]="'item.wrongMainStat' | translate"
+    />
   }
 </div>
 

@@ -44,7 +44,7 @@ export const METHODS: Record<GameKey, ImportMethod[]> = {
     {
       key: 'showcase',
       title: 'importGuide.genshin.showcase.title',
-      icon: 'badge',
+      icon: 'user',
       summary: 'importGuide.genshin.showcase.summary',
       pros: ['importGuide.genshin.showcase.pro1', 'importGuide.genshin.showcase.pro2', 'importGuide.genshin.showcase.pro3'],
       cons: ['importGuide.genshin.showcase.con1', 'importGuide.genshin.showcase.con2'],
@@ -52,7 +52,7 @@ export const METHODS: Record<GameKey, ImportMethod[]> = {
     {
       key: 'file',
       title: 'importGuide.genshin.file.title',
-      icon: 'inventory_2',
+      icon: 'layers',
       summary: 'importGuide.genshin.file.summary',
       pros: ['importGuide.genshin.file.pro1', 'importGuide.genshin.file.pro2', 'importGuide.genshin.file.pro3'],
       cons: ['importGuide.genshin.file.con1', 'importGuide.genshin.file.con2'],
@@ -62,7 +62,7 @@ export const METHODS: Record<GameKey, ImportMethod[]> = {
     {
       key: 'showcase',
       title: 'importGuide.hsr.showcase.title',
-      icon: 'badge',
+      icon: 'user',
       summary: 'importGuide.hsr.showcase.summary',
       pros: ['importGuide.hsr.showcase.pro1', 'importGuide.hsr.showcase.pro2', 'importGuide.hsr.showcase.pro3'],
       cons: ['importGuide.hsr.showcase.con1', 'importGuide.hsr.showcase.con2'],
@@ -70,7 +70,7 @@ export const METHODS: Record<GameKey, ImportMethod[]> = {
     {
       key: 'file',
       title: 'importGuide.hsr.file.title',
-      icon: 'inventory_2',
+      icon: 'layers',
       summary: 'importGuide.hsr.file.summary',
       pros: ['importGuide.hsr.file.pro1', 'importGuide.hsr.file.pro2', 'importGuide.hsr.file.pro3'],
       cons: ['importGuide.hsr.file.con1'],
@@ -84,28 +84,28 @@ export const GUIDES: Record<GameKey, Record<ImportMethodKey, Guide>> = {
       intro: 'importGuide.genshin.showcase.intro',
       steps: [
         {
-          icon: 'person',
+          icon: 'user',
           title: 'importGuide.genshin.showcase.step1.title',
           body: 'importGuide.genshin.showcase.step1.body',
         },
         {
-          icon: 'view_carousel',
+          icon: 'columns',
           title: 'importGuide.genshin.showcase.step2.title',
           body: 'importGuide.genshin.showcase.step2.body',
           tip: 'importGuide.genshin.showcase.step2.tip',
         },
         {
-          icon: 'visibility',
+          icon: 'eye',
           title: 'importGuide.genshin.showcase.step3.title',
           body: 'importGuide.genshin.showcase.step3.body',
         },
         {
-          icon: 'schedule',
+          icon: 'clock',
           title: 'importGuide.genshin.showcase.step4.title',
           body: 'importGuide.genshin.showcase.step4.body',
         },
         {
-          icon: 'fingerprint',
+          icon: 'key',
           title: 'importGuide.genshin.showcase.step5.title',
           body: 'importGuide.genshin.showcase.step5.body',
         },
@@ -127,12 +127,12 @@ export const GUIDES: Record<GameKey, Record<ImportMethodKey, Guide>> = {
           tip: 'importGuide.genshin.file.step1.tip',
         },
         {
-          icon: 'play_circle',
+          icon: 'play',
           title: 'importGuide.genshin.file.step2.title',
           body: 'importGuide.genshin.file.step2.body',
         },
         {
-          icon: 'sports_esports',
+          icon: 'gamepad',
           title: 'importGuide.genshin.file.step3.title',
           body: 'importGuide.genshin.file.step3.body',
           tip: 'importGuide.genshin.file.step3.tip',
@@ -155,28 +155,28 @@ export const GUIDES: Record<GameKey, Record<ImportMethodKey, Guide>> = {
       intro: 'importGuide.hsr.showcase.intro',
       steps: [
         {
-          icon: 'person',
+          icon: 'user',
           title: 'importGuide.hsr.showcase.step1.title',
           body: 'importGuide.hsr.showcase.step1.body',
         },
         {
-          icon: 'view_carousel',
+          icon: 'columns',
           title: 'importGuide.hsr.showcase.step2.title',
           body: 'importGuide.hsr.showcase.step2.body',
         },
         {
-          icon: 'group',
+          icon: 'users',
           title: 'importGuide.hsr.showcase.step3.title',
           body: 'importGuide.hsr.showcase.step3.body',
           tip: 'importGuide.hsr.showcase.step3.tip',
         },
         {
-          icon: 'schedule',
+          icon: 'clock',
           title: 'importGuide.hsr.showcase.step4.title',
           body: 'importGuide.hsr.showcase.step4.body',
         },
         {
-          icon: 'fingerprint',
+          icon: 'key',
           title: 'importGuide.hsr.showcase.step5.title',
           body: 'importGuide.hsr.showcase.step5.body',
         },
@@ -194,17 +194,17 @@ export const GUIDES: Record<GameKey, Record<ImportMethodKey, Guide>> = {
           tip: 'importGuide.hsr.file.step1.tip',
         },
         {
-          icon: 'pause_circle',
+          icon: 'pause',
           title: 'importGuide.hsr.file.step2.title',
           body: 'importGuide.hsr.file.step2.body',
         },
         {
-          icon: 'play_circle',
+          icon: 'play',
           title: 'importGuide.hsr.file.step3.title',
           body: 'importGuide.hsr.file.step3.body',
         },
         {
-          icon: 'sports_esports',
+          icon: 'gamepad',
           title: 'importGuide.hsr.file.step4.title',
           body: 'importGuide.hsr.file.step4.body',
         },

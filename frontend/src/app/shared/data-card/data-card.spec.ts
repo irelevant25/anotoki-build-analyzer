@@ -1,14 +1,14 @@
 import { HttpErrorResponse, HttpHeaders, HttpResponse } from '@angular/common/http';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
-import { MATERIAL_ANIMATIONS } from '@angular/material/core';
-import { MatSnackBar } from '@angular/material/snack-bar';
 import { Observable, of, throwError } from 'rxjs';
 import { provideTestTranslations } from '@anotoki/lib/translations/testing';
+import { ToastService } from '@anotoki/lib/ui/toast';
 import { Api } from '../../core/api';
 import { DYNAMIC_KEYS } from '../../core/i18n/dynamic-keys';
 import { en } from '../../core/i18n/en';
 import { DataImportResult } from '../../core/models';
 import { DATA_FILE_MAX_MB, DATA_PROBLEM_CODES, DataCard, OUTCOME_KEYS } from './data-card';
+import { provideKit } from '../../core/kit';
 
 /** Lets what a click or a file began finish, and the card be drawn. */
 const settle = () => new Promise((resolve) => setTimeout(resolve, 0));
@@ -47,15 +47,12 @@ describe('the "Your data" card', () => {
       typeof vi.fn<(file: string, dryRun: boolean) => Observable<DataImportResult>>
     >;
   };
-  let snackBar: { open: ReturnType<typeof vi.fn> };
+  let toasts: { success: ReturnType<typeof vi.fn> };
   let imported: DataImportResult[];
 
-  const text = (element: Element | null | undefined) => {
-    const copy = element?.cloneNode(true) as Element | undefined;
-    copy?.querySelectorAll('mat-icon').forEach((icon) => icon.remove());
-    return copy?.textContent?.replace(/\s+/g, ' ').trim();
-  };
-  const problem = () => text(host.querySelector('.problem'));
+  const text = (element: Element | null | undefined) =>
+    element?.textContent?.replace(/\s+/g, ' ').trim();
+  const problem = () => text(host.querySelector('.problem .anotoki-alert__text'));
   const button = (selector: string) => host.querySelector<HTMLButtonElement>(`button.${selector}`)!;
 
   async function setup(): Promise<void> {
@@ -65,14 +62,14 @@ describe('the "Your data" card', () => {
         (_file, dryRun) => of(result(dryRun)),
       ),
     };
-    snackBar = { open: vi.fn() };
+    toasts = { success: vi.fn() };
     imported = [];
     TestBed.configureTestingModule({
       providers: [
         provideTestTranslations(en),
+        provideKit(),
         { provide: Api, useValue: api },
-        { provide: MatSnackBar, useValue: snackBar },
-        { provide: MATERIAL_ANIMATIONS, useValue: { animationsDisabled: true } },
+        { provide: ToastService, useValue: toasts },
       ],
     });
     fixture = TestBed.createComponent(DataCard);
@@ -134,7 +131,7 @@ describe('the "Your data" card', () => {
 
     expect(created).toHaveBeenCalledTimes(1);
     expect(saved).toBe('build-analyzer-accounts-2026-10-04.json');
-    expect(snackBar.open).toHaveBeenCalledWith(en['data.exported'], undefined, { duration: 4000 });
+    expect(toasts.success).toHaveBeenCalledWith(en['data.exported']);
   });
 
   it('words an export the server refuses - its answer a file too - from the code and its numbers', async () => {
@@ -176,7 +173,7 @@ describe('the "Your data" card', () => {
     expect(
       [...host.querySelectorAll('.outcomes li')].map((item) => [
         text(item.querySelector('.account')),
-        text(item.querySelector('.chip')),
+        text(item.querySelector('anotoki-badge')),
       ]),
     ).toEqual([
       ['Genshin Impact · Mona', 'new'],
@@ -192,9 +189,10 @@ describe('the "Your data" card', () => {
     expect(api.importData).toHaveBeenCalledTimes(2);
     expect(api.importData).toHaveBeenLastCalledWith(FILE_TEXT, false);
     expect(host.querySelector('.preview')).toBeNull();
-    expect(text(host.querySelector('.done'))).toBe(
+    expect(text(host.querySelector('.done .anotoki-alert__text'))).toBe(
       'Imported: 1 new, 1 replaced by a newer copy, 1 kept.',
     );
+    expect(host.querySelector('.done')?.getAttribute('role')).toBe('status');
     expect(imported).toEqual([result(false)]);
   });
 

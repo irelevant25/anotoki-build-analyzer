@@ -1,11 +1,11 @@
 import { HttpErrorResponse } from '@angular/common/http';
 import { signal } from '@angular/core';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
-import { MATERIAL_ANIMATIONS } from '@angular/material/core';
-import { MatStepperIntl } from '@angular/material/stepper';
 import { provideRouter } from '@angular/router';
 import { of, throwError } from 'rxjs';
 import { provideTestTranslations } from '@anotoki/lib/translations/testing';
+import { IconComponent } from '@anotoki/lib/ui/icon';
+import { By } from '@angular/platform-browser';
 import { Api } from '../../core/api';
 import { AuthService } from '../../core/auth';
 import { en } from '../../core/i18n/en';
@@ -13,7 +13,7 @@ import { TranslationService } from '../../core/i18n/translation';
 import { AccountSummary, ImportRun } from '../../core/models';
 import { VisitorKey } from '../../core/visitor-key';
 import { ImportWizard } from './import-wizard';
-import { StepperWords } from './stepper-words';
+import { provideKit } from '../../core/kit';
 
 /** Every string of the site, marked: what a page shows without these marks did not come from a key. */
 const MARKED: Record<string, string> = Object.fromEntries(Object.entries(en).map(([key, value]) => [key, `«${value}»`]));
@@ -122,8 +122,8 @@ describe('the import wizard', () => {
       providers: [
         provideRouter([]),
         options.language === 'en' ? provideTestTranslations(en) : provideTestTranslations(options.strings ?? SLOVAK, { language: 'sk', english: en }),
+        provideKit(),
         { provide: Api, useValue: api },
-        { provide: MATERIAL_ANIMATIONS, useValue: { animationsDisabled: true } },
         { provide: AuthService, useValue: { signedIn: signal(who === 'person'), available: signal(true), user: signal(null), failure: signal(null) } },
         { provide: VisitorKey, useValue: { current: () => (who === 'visitor' ? 'K'.repeat(43) : null) } },
       ],
@@ -142,17 +142,15 @@ describe('the import wizard', () => {
     }
   }
 
-  /** An element's words, without the names of the icons in it. */
-  const text = (element: Element | null | undefined): string | undefined => {
-    if (!element) {
-      return undefined;
-    }
-    const copy = element.cloneNode(true) as Element;
-    copy.querySelectorAll('mat-icon').forEach((icon) => icon.remove());
-    return copy.textContent?.replace(/\s+/g, ' ').trim();
-  };
-  const buttonWith = (icon: string) => [...host.querySelectorAll<HTMLButtonElement>('button')].find((button) => button.querySelector('mat-icon')?.textContent?.trim() === icon)!;
+  /** An element's words (the kit's icons are drawings, with no words of their own). */
+  const text = (element: Element | null | undefined): string | undefined => element?.textContent?.replace(/\s+/g, ' ').trim();
+  /** The import's button: by UID, or of a file. */
+  const submit = (which: 'uid' | 'file') => host.querySelector<HTMLButtonElement>(`.${which}-submit`)!;
+  /** What went wrong: the kit's alert, said aloud as it appears. */
   const problem = () => host.querySelector<HTMLElement>('.error');
+  const problemText = () => text(problem()?.querySelector('.anotoki-alert__text'));
+  /** The names of the kit's icons. */
+  const icons = (selector: string) => fixture.debugElement.queryAll(By.css(selector)).map((icon) => (icon.componentInstance as IconComponent).name());
 
   /** Step 1 and 2 by their cards, step 3 by its only filled button. */
   async function choose(game: 'genshin' | 'hsr', method: 'showcase' | 'file'): Promise<void> {
@@ -161,6 +159,12 @@ describe('the import wizard', () => {
     host.querySelectorAll<HTMLButtonElement>('button.choice.method')[method === 'showcase' ? 0 : 1].click();
     await settle();
     [...host.querySelectorAll<HTMLButtonElement>('button')].find((button) => text(button) === i18n.t('importWizard.prepare.ready'))!.click();
+    await settle();
+  }
+
+  /** Back to a step done, by its button in the row of steps (0 the game, 1 the way in, 2 the guide). */
+  async function backTo(step: number): Promise<void> {
+    host.querySelectorAll<HTMLButtonElement>('.step-button')[step].click();
     await settle();
   }
 
@@ -184,7 +188,7 @@ describe('the import wizard', () => {
     const found: string[] = [];
     for (let node = walker.nextNode(); node; node = walker.nextNode()) {
       const value = node.textContent?.replace(/\s+/g, ' ').trim() ?? '';
-      if (value && !node.parentElement?.closest('mat-icon')) {
+      if (value) {
         found.push(value);
       }
     }
@@ -198,20 +202,37 @@ describe('the import wizard', () => {
 
   // ── The words ──────────────────────────────────────────────────────────────
 
-  it('names its steps in the language on the page, and gives the stepper its own words there too', async () => {
+  it('names its steps in the language on the page - the one in hand marked, the ones done a way back, saying they are done', async () => {
     await wizard();
 
     expect(text(host.querySelector('h1'))).toBe('Importuj svoj účet');
-    expect([...host.querySelectorAll('.mat-step-label')].map(text)).toEqual(['Hra', 'Spôsob', 'Príprava', 'Import', 'Hotovo']);
-    const intl = fixture.debugElement.injector.get(MatStepperIntl);
-    expect(intl).toBeInstanceOf(StepperWords);
-    expect(intl.completedLabel).toBe('Dokončené');
+    expect([...host.querySelectorAll('.step-label')].map(text)).toEqual(['Hra', 'Spôsob', 'Príprava', 'Import', 'Hotovo']);
+    expect([...host.querySelectorAll('.step')].map((step) => step.getAttribute('aria-current'))).toEqual(['step', null, null, null, null]);
+
+    document.body.appendChild(host);
+    host.querySelector<HTMLButtonElement>('button.choice')!.click();
+    await settle();
+    expect([...host.querySelectorAll('.step')].map((step) => step.getAttribute('aria-current'))).toEqual([null, 'step', null, null, null]);
+    // The step done: a button back to it, its name and that it is done for a screen reader.
+    const done = host.querySelector<HTMLButtonElement>('.step-button')!;
+    expect(text(done)).toBe('Hra Dokončené');
+    expect(text(done.querySelector('.visually-hidden'))).toBe('Dokončené');
+    // The focus on the new step's heading: a keyboard and a screen reader follow.
+    expect(document.activeElement?.classList.contains('step-title')).toBe(true);
+    expect(text(document.activeElement)).toBe(text(host.querySelector('.step-panel h2')));
+    host.remove();
 
     expect(await i18n.setLanguage('en', { remember: false })).toBe(true);
     await settle();
     expect(text(host.querySelector('h1'))).toBe('Import your account');
-    expect([...host.querySelectorAll('.mat-step-label')].map(text)).toEqual(['Game', 'Method', 'Prepare', 'Import', 'Done']);
-    expect(intl.completedLabel).toBe('Completed');
+    expect([...host.querySelectorAll('.step-label')].map(text)).toEqual(['Game', 'Method', 'Prepare', 'Import', 'Done']);
+    expect(text(host.querySelector('.step-button .visually-hidden'))).toBe('Completed');
+
+    // Back to the step done.
+    host.querySelector<HTMLButtonElement>('.step-button')!.click();
+    await settle();
+    expect(host.querySelector('.step')?.getAttribute('aria-current')).toBe('step');
+    expect(host.querySelectorAll('button.choice:not(.method)')).toHaveLength(2);
   });
 
   it('says what a game’s import holds in the game’s own words, never lower-cased or translated', async () => {
@@ -227,7 +248,12 @@ describe('the import wizard', () => {
     await choose('genshin', 'file');
 
     expect(notFromAKey(['Genshin Impact', 'Honkai: Star Rail', 'Second'])).toEqual([]);
-    // The guide of the chosen game and method is what is drawn, step by step.
+    expect(text(host.querySelector('.drop .small'))).toBe('«A .json file in the GOOD format»');
+    expect(text(host.querySelector('.account-field .anotoki-field__hint'))).toBe('«A full export replaces the account\'s Weapons and Artifacts; characters are kept.»');
+
+    // Back to the guide (a step is drawn at a time): the chosen game's and way's, step by step.
+    await backTo(2);
+    expect(notFromAKey(['Genshin Impact', 'Honkai: Star Rail', 'Second'])).toEqual([]);
     expect([...host.querySelectorAll('.guide-title')].map(text)).toEqual([
       '«Get an inventory exporter»',
       '«Start the exporter before the game»',
@@ -236,8 +262,6 @@ describe('the import wizard', () => {
     ]);
     expect([...host.querySelectorAll('.tip')].map(text)).toHaveLength(2);
     expect([...host.querySelectorAll('.trouble li')].map(text)).toHaveLength(3);
-    expect(text(host.querySelector('.drop .small'))).toBe('«A .json file in the GOOD format»');
-    expect(text(host.querySelector('.account-field mat-hint'))).toBe('«A full export replaces the account\'s Weapons and Artifacts; characters are kept.»');
   });
 
   it('takes every word of the way to an import by UID from a key', async () => {
@@ -245,17 +269,17 @@ describe('the import wizard', () => {
     await choose('hsr', 'showcase');
 
     expect(notFromAKey(['Genshin Impact', 'Honkai: Star Rail', 'Honkai: Star Rail UID'])).toEqual([]);
-    expect([...host.querySelectorAll('.guide-title')].map(text)).toHaveLength(5);
     expect(host.querySelector<HTMLInputElement>('input[name="uid"]')!.placeholder).toBe('«e.g. 700123456»');
+    await backTo(2);
+    expect(notFromAKey(['Genshin Impact', 'Honkai: Star Rail'])).toEqual([]);
+    expect([...host.querySelectorAll('.guide-title')].map(text)).toHaveLength(5);
   });
 
   it('lists the person’s accounts of the game with their UID, or says that one has none yet', async () => {
     await wizard({ accounts: [account(1), account(2, { uid: null, nickname: 'Second' }), account(3, { game: 'hsr', nickname: 'Elsewhere' })] });
     await choose('genshin', 'showcase');
 
-    host.querySelector<HTMLElement>('.account-field mat-select')!.click();
-    await settle();
-    const options = [...document.querySelectorAll('.cdk-overlay-container mat-option')].map(text);
+    const options = [...host.querySelectorAll('.account-field option')].map(text);
     expect(options.slice(1)).toEqual(['Mona · UID 700000001', 'Second · UID zatiaľ chýba']);
   });
 
@@ -265,7 +289,7 @@ describe('the import wizard', () => {
     await wizard({ language: 'en', who: 'nobody' });
 
     expect(api.accounts).not.toHaveBeenCalled();
-    expect(text(host.querySelector('app-visitor-notice p'))).toBe(
+    expect(text(host.querySelector('app-visitor-notice .anotoki-alert__text'))).toBe(
       'You are not signed in. What you import is kept for this browser on our server for 30 days after your last visit. Signing in keeps it in your anotoki account.',
     );
     // The way on is the same as anybody's.
@@ -277,7 +301,7 @@ describe('the import wizard', () => {
     await wizard({ language: 'en', who: 'visitor', accounts: [account(1)] });
 
     expect(api.accounts).toHaveBeenCalledTimes(1);
-    expect(host.querySelector('app-visitor-notice aside')).not.toBeNull();
+    expect(host.querySelector('app-visitor-notice anotoki-alert')).not.toBeNull();
   });
 
   it('words a visitor\'s limits from their code and {max} - each one offering the sign-in', async () => {
@@ -292,9 +316,9 @@ describe('the import wizard', () => {
     ];
     for (const [answer, sentence] of cases) {
       api.importShowcase.mockReturnValueOnce(throwError(() => answer));
-      buttonWith('download').click();
+      submit('uid').click();
       await settle();
-      expect(text(problem()), JSON.stringify(answer.error)).toBe(sentence);
+      expect(problemText(), JSON.stringify(answer.error)).toBe(sentence);
     }
   });
 
@@ -321,9 +345,9 @@ describe('the import wizard', () => {
     ];
     for (const [answer, sentence] of cases) {
       api.importShowcase.mockReturnValueOnce(throwError(() => answer));
-      buttonWith('download').click();
+      submit('uid').click();
       await settle();
-      expect(text(problem()), JSON.stringify(answer.error)).toBe(sentence);
+      expect(problemText(), JSON.stringify(answer.error)).toBe(sentence);
     }
     expect(api.importShowcase).toHaveBeenCalledTimes(cases.length);
     expect(api.importShowcase).toHaveBeenLastCalledWith('genshin', '700123456', null);
@@ -336,13 +360,13 @@ describe('the import wizard', () => {
     await choose('genshin', 'showcase');
     await typeUid('700123456');
     api.importShowcase.mockReturnValueOnce(throwError(() => refusedWith(422, { message: SERVER_ENGLISH, code: 'showcase_player_not_found', params: {} })));
-    buttonWith('download').click();
+    submit('uid').click();
     await settle();
-    expect(text(problem())).toBe('Hráč sa nenašiel (skontroluj UID aj hru).');
+    expect(problemText()).toBe('Hráč sa nenašiel (skontroluj UID aj hru).');
 
     expect(await i18n.setLanguage('en', { remember: false })).toBe(true);
     await settle();
-    expect(text(problem())).toBe('No player with this UID exists (check the UID and the game).');
+    expect(problemText()).toBe('No player with this UID exists (check the UID and the game).');
   });
 
   it('sends nothing while the UID is not 9 or 10 digits', async () => {
@@ -350,10 +374,13 @@ describe('the import wizard', () => {
     await choose('genshin', 'showcase');
     await typeUid('7001');
 
-    expect(buttonWith('download').disabled).toBe(true);
-    host.querySelector('form')!.dispatchEvent(new Event('submit'));
+    expect(submit('uid').disabled).toBe(true);
+    host.querySelector('form')!.dispatchEvent(new Event('submit', { cancelable: true }));
     await settle();
     expect(api.importShowcase).not.toHaveBeenCalled();
+    // Once asked for (or once the box is left), the box says why: the kit's field, its error tied to it.
+    expect(text(host.querySelector('.uid-field .anotoki-field__error'))).toBe(SLOVAK['importWizard.uid.invalid'] ?? MARKED['importWizard.uid.invalid']);
+    expect(host.querySelector('input[name="uid"]')?.getAttribute('aria-invalid')).toBe('true');
   });
 
   // ── The file ───────────────────────────────────────────────────────────────
@@ -363,22 +390,22 @@ describe('the import wizard', () => {
     await choose('genshin', 'file');
 
     await drop(file('huge.json', '{}', 20 * 1024 * 1024 + 1));
-    expect(text(problem())).toBe('Súbor má viac ako 20 MB; to nie je súbor z exportovacieho nástroja.');
+    expect(problemText()).toBe('Súbor má viac ako 20 MB; to nie je súbor z exportovacieho nástroja.');
 
     await drop(file('notes.json', 'not json at all'));
-    expect(text(problem())).toBe('Súbor nie je platný JSON.');
+    expect(problemText()).toBe('Súbor nie je platný JSON.');
 
     await drop(file('rail.json', '{"relics": []}'));
-    expect(text(problem())).toBe('Súbor obsahuje údaje z hry Honkai: Star Rail, ale zvolená hra je Genshin Impact.');
+    expect(problemText()).toBe('Súbor obsahuje údaje z hry Honkai: Star Rail, ale zvolená hra je Genshin Impact.');
 
     expect(host.querySelector('.drop-icon.ok')).toBeNull();
-    expect(buttonWith('upload').disabled).toBe(true);
+    expect(submit('file').disabled).toBe(true);
     expect(api.importFile).not.toHaveBeenCalled();
 
     // The refusal is a key with the games' names, so it follows the language.
     expect(await i18n.setLanguage('en', { remember: false })).toBe(true);
     await settle();
-    expect(text(problem())).toBe('This file contains Honkai: Star Rail data, but you chose Genshin Impact.');
+    expect(problemText()).toBe('This file contains Honkai: Star Rail data, but you chose Genshin Impact.');
   });
 
   it('says which file was chosen - its name, its size, the game it is from - in the language on the page', async () => {
@@ -404,10 +431,10 @@ describe('the import wizard', () => {
     api.importFile.mockReturnValue(throwError(() => refusedWith(422, { message: SERVER_ENGLISH, code: 'good_empty', params: {} })));
 
     await drop(file('inventory.json', '{"format": "GOOD"}'));
-    buttonWith('upload').click();
+    submit('file').click();
     await settle();
     expect(api.importFile).toHaveBeenLastCalledWith({ game: 'genshin', account_id: 1, content: '{"format": "GOOD"}', file_name: 'inventory.json' });
-    expect(text(problem())).toBe(MARKED['import.error.good_empty']);
+    expect(problemText()).toBe(MARKED['import.error.good_empty']);
 
     [...host.querySelectorAll<HTMLButtonElement>('.drop button')][0].click();
     await settle();
@@ -415,7 +442,7 @@ describe('the import wizard', () => {
     pasted.value = ' {"format": "GOOD", "artifacts": []} ';
     pasted.dispatchEvent(new Event('input'));
     await settle();
-    buttonWith('upload').click();
+    submit('file').click();
     await settle();
     expect(api.importFile).toHaveBeenLastCalledWith({ game: 'genshin', account_id: 1, content: '{"format": "GOOD", "artifacts": []}', file_name: 'pasted.json' });
   });
@@ -445,12 +472,12 @@ describe('the import wizard', () => {
       ),
     );
     await drop(file('inventory.json', '{"format": "GOOD"}'));
-    buttonWith('upload').click();
+    submit('file').click();
     await settle();
 
     const done = host.querySelector<HTMLElement>('.done')!;
     expect(text(done.querySelector('h2'))).toBe('Import je hotový: Mona');
-    expect(done.querySelector('.done-icon')?.textContent?.trim()).toBe('info');
+    expect(icons('.done-icon')).toEqual(['info']);
     expect([...done.querySelectorAll('.counts > div')].map((tile) => [text(tile.querySelector('strong')), text(tile.querySelector('span'))])).toEqual([
       ['12', 'Postavy'],
       ['31', 'Weapons'],
@@ -475,12 +502,12 @@ describe('the import wizard', () => {
       ),
     );
     await drop(file('rail.json', '{"relics": []}'));
-    buttonWith('upload').click();
+    submit('file').click();
     await settle();
 
     const done = host.querySelector<HTMLElement>('.done')!;
     expect(text(done.querySelector('h2'))).toBe('Import je hotový');
-    expect(done.querySelector('.done-icon')?.textContent?.trim()).toBe('check_circle');
+    expect(icons('.done-icon')).toEqual(['checkCircle']);
     expect([...done.querySelectorAll('.counts span')].map(text)).toEqual(['Postavy', 'Light Cones', 'Relics']);
     expect([...done.querySelectorAll<HTMLElement>('.warnings li span')].map((warning) => [text(warning), warning.getAttribute('lang')])).toEqual([
       ['A warning of a newer server.', 'en'],
@@ -494,7 +521,7 @@ describe('the import wizard', () => {
     await choose('genshin', 'file');
     api.importFile.mockReturnValue(of(finished({ summary: { characters: 12, weapons: 31, items: 40, full_inventory: true, warnings: ['Stored.'], warning_kinds: [{ code: 'catalog_behind', params: {} }], unmatched: { sets: ['NewSet'] } } })));
     await drop(file('inventory.json', '{"format": "GOOD"}'));
-    buttonWith('upload').click();
+    submit('file').click();
     await settle();
 
     expect(text(host.querySelector('.done h2'))).toBe('«Imported Mona»');

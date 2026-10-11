@@ -1,7 +1,6 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { By } from '@angular/platform-browser';
-import { MATERIAL_ANIMATIONS } from '@angular/material/core';
-import { MatTooltip } from '@angular/material/tooltip';
+import { TooltipDirective } from '@anotoki/lib/ui/tooltip';
 import { of } from 'rxjs';
 import { provideTestTranslations } from '@anotoki/lib/translations/testing';
 import { Api } from '../core/api';
@@ -11,6 +10,7 @@ import { TranslationService } from '../core/i18n/translation';
 import { MetaStore } from '../core/meta-store';
 import { Build, Evaluation, GameKey, GameMeta, Meta } from '../core/models';
 import { BuildDetail } from './build-detail';
+import { provideKit } from '../core/kit';
 
 /** The informal Slovak of a build's detail: the game's terms stay as they are, first or before a colon. */
 const SLOVAK: Record<string, string> = {
@@ -154,15 +154,17 @@ describe('BuildDetail: a recommended build in the reader’s words, the game’s
 
   const text = (selector: string) => [...host.querySelectorAll<HTMLElement>(selector)].map((element) => element.textContent?.replace(/\s+/g, ' ').trim() ?? '');
   const langs = (selector: string) => [...host.querySelectorAll<HTMLElement>(selector)].map((element) => element.getAttribute('lang'));
-  const tooltips = (selector: string) => fixture.debugElement.queryAll(By.css(selector)).map((element) => element.injector.get(MatTooltip).message);
+  /** The words of the kit's tooltip on each element (and the icon's own name: the same words). */
+  const tooltips = (selector: string) => fixture.debugElement.queryAll(By.css(selector)).map((element) => element.injector.get(TooltipDirective).text());
+  const labels = (selector: string) => [...host.querySelectorAll<HTMLElement>(selector)].map((element) => element.getAttribute('aria-label'));
 
   async function show(language: 'en' | 'sk', game: GameKey, shown: Build, evaluation: Evaluation | null = null): Promise<void> {
     TestBed.configureTestingModule({
       providers: [
         language === 'en' ? provideTestTranslations(en) : provideTestTranslations(SLOVAK, { language: 'sk', english: en }),
+        provideKit(),
         { provide: Api, useValue: { meta: () => of(META) } },
         { provide: AuthService, useValue: { user: () => null, signedIn: () => false, preferences: () => null } },
-        { provide: MATERIAL_ANIMATIONS, useValue: { animationsDisabled: true } },
       ],
     });
     await TestBed.inject(MetaStore).load();
@@ -185,15 +187,16 @@ describe('BuildDetail: a recommended build in the reader’s words, the game’s
     await show('en', 'genshin', build(), EVALUATION);
 
     expect(text('h3')).toEqual(['Weapons', 'Artifact sets', 'Main stats', 'Substat priority', 'Talents priority', 'Stat targets']);
-    expect(text('.weapons .chip')).toEqual(['Owned', 'Equipped']);
+    expect(text('.weapons anotoki-badge')).toEqual(['Owned', 'Equipped']);
     expect(text('.w-name .small')).toEqual(['R1']);
     expect(text('.sets .w-text > div:first-child')).toEqual(['4pc Crimson Witch of Flames', '2pc Alpha + 2pc Beta + 2pc ATK +18% set (any 2)']);
     expect(text('.sets .w-text > .small:not(.note)')).toEqual(['ATK +18% set: 2 sets qualify']);
-    expect(text('.sets .chip')).toEqual(['In use']);
-    expect(text('.stat-row .chip')).toEqual(['HP%', 'Pyro DMG Bonus']);
+    expect(text('.sets anotoki-badge')).toEqual(['In use']);
+    expect(text('.stat-row anotoki-badge')).toEqual(['HP%', 'Pyro DMG Bonus']);
     expect(tooltips('.check')).toEqual(['Yours: ATK%', 'Your main stat matches']);
+    expect(labels('.check svg')).toEqual(['Yours: ATK%', 'Your main stat matches']);
     expect(text('.target > span')).toEqual(['CRIT Rate', '70.0%+', 'you: 62.0%', 'At least 70% CRIT Rate.']);
-    expect(text('mat-panel-title')).toEqual(['Notes from Source 1']);
+    expect(text('.notes summary')).toEqual(['Notes from Source 1']);
     expect(text('footer')).toEqual(['Version 5.2 · Updated at the source 3 days ago · Checked 2 hours ago']);
     expect(warn).not.toHaveBeenCalled();
   });
@@ -202,13 +205,13 @@ describe('BuildDetail: a recommended build in the reader’s words, the game’s
     await show('sk', 'genshin', build(), EVALUATION);
 
     expect(text('h3')).toEqual(['Weapons', 'Artifact sets', 'Main stats', 'Substats: priorita', 'Talents: priorita', 'Cieľové hodnoty']);
-    expect(text('.weapons .chip')).toEqual(['Máš', 'Nasadené']);
+    expect(text('.weapons anotoki-badge')).toEqual(['Máš', 'Nasadené']);
     expect(text('.sets .w-text > div:first-child')).toEqual(['4pc Crimson Witch of Flames', '2pc Alpha + 2pc Beta + 2pc ATK +18% set (ľubovoľné 2)']);
     expect(text('.sets .w-text > .small:not(.note)')).toEqual(['ATK +18% set: vyhovujú 2 sety']);
-    expect(text('.sets .chip')).toEqual(['Používaš']);
+    expect(text('.sets anotoki-badge')).toEqual(['Používaš']);
     expect(tooltips('.check')).toEqual(['Máš: ATK%', 'Main stat sedí s odporúčaním']);
     expect(text('.target > span')).toEqual(['CRIT Rate', '70.0%+', 'máš: 62.0%', 'At least 70% CRIT Rate.']);
-    expect(text('mat-panel-title')).toEqual(['Poznámky: Source 1']);
+    expect(text('.notes summary')).toEqual(['Poznámky: Source 1']);
     expect(text('footer')).toEqual(['Verzia 5.2 · V zdroji aktualizované pred 3 dňami · Skontrolované pred 2 hodinami']);
     expect(warn).not.toHaveBeenCalled();
   });

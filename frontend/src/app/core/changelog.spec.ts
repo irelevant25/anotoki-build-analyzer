@@ -1,7 +1,7 @@
 import { provideHttpClient } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
 import { TestBed } from '@angular/core/testing';
-import { MatDialog } from '@angular/material/dialog';
+import { AnotokiDialog } from '@anotoki/lib/ui/dialog';
 import { Changelog, ChangelogEntry, compareVersions } from './changelog';
 
 const ENTRIES: ChangelogEntry[] = [
@@ -32,7 +32,7 @@ describe('Changelog', () => {
   beforeEach(() => {
     localStorage.clear();
     dialog = { open: vi.fn() };
-    TestBed.configureTestingModule({ providers: [provideHttpClient(), provideHttpClientTesting(), { provide: MatDialog, useValue: dialog }] });
+    TestBed.configureTestingModule({ providers: [provideHttpClient(), provideHttpClientTesting(), { provide: AnotokiDialog, useValue: dialog }] });
     changelog = TestBed.inject(Changelog);
     http = TestBed.inject(HttpTestingController);
   });
@@ -86,12 +86,13 @@ describe('Changelog', () => {
     expect(shown()).toEqual([['1.2.0']]);
   });
 
-  it('the version button opens the whole list', async () => {
+  it("What's new at the foot of the page opens the whole list, in the kit's wide dialog", async () => {
     localStorage.setItem('build-analyzer-version-seen', '1.2.0');
     await load(ENTRIES);
     changelog.showIfNew();
     changelog.open();
     expect(shown()).toEqual([['1.2.0', '1.1.0', '1.0.0']]);
+    expect(dialog.open.mock.calls[0][1].size).toBe('lg');
   });
 
   it('works without a changelog', async () => {

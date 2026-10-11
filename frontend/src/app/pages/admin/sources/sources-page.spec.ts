@@ -1,6 +1,6 @@
 import { HttpErrorResponse, HttpResponse } from '@angular/common/http';
 import { TestBed } from '@angular/core/testing';
-import { MatSnackBar } from '@angular/material/snack-bar';
+import { ToastService } from '@anotoki/lib/ui/toast';
 import { Subject, of } from 'rxjs';
 import { signal } from '@angular/core';
 import { provideRouter } from '@angular/router';
@@ -10,6 +10,7 @@ import { AuthService } from '../../../core/auth';
 import { SourceStatus } from '../../../core/models';
 import { BUILD_FILE_MAX_BYTES } from './build-file';
 import { SourcesPage } from './sources-page';
+import { provideKit } from '../../../core/kit';
 
 function source(key: string, name: string): SourceStatus {
   return {
@@ -21,7 +22,7 @@ function source(key: string, name: string): SourceStatus {
 describe('SourcesPage, moving builds through a file', () => {
   let exported: Subject<HttpResponse<Blob>>;
   let api: Record<string, ReturnType<typeof vi.fn>>;
-  let snackBar: { open: ReturnType<typeof vi.fn> };
+  let toasts: { error: ReturnType<typeof vi.fn>; show: ReturnType<typeof vi.fn> };
 
   beforeEach(() => {
     exported = new Subject();
@@ -32,14 +33,15 @@ describe('SourcesPage, moving builds through a file', () => {
       exportSourceBuilds: vi.fn(() => exported),
       importSourceBuilds: vi.fn(),
     };
-    snackBar = { open: vi.fn() };
+    toasts = { error: vi.fn(), show: vi.fn() };
     TestBed.configureTestingModule({
       imports: [SourcesPage],
       providers: [
         { provide: Api, useValue: api },
-        { provide: MatSnackBar, useValue: snackBar },
+        { provide: ToastService, useValue: toasts },
         { provide: AuthService, useValue: { isAdmin: signal(true), user: signal(null) } },
         provideTestTranslations({}),
+        provideKit(),
       ],
     });
   });
@@ -49,7 +51,7 @@ describe('SourcesPage, moving builds through a file', () => {
     await fixture.whenStable();
     const element: HTMLElement = fixture.nativeElement;
     const card = (key: string) =>
-      [...element.querySelectorAll<HTMLElement>('article.source')].find((article) => article.textContent?.includes(key))!;
+      [...element.querySelectorAll<HTMLElement>('anotoki-card.source')].find((article) => article.textContent?.includes(key))!;
     const button = (within: HTMLElement, label: string) =>
       [...within.querySelectorAll<HTMLButtonElement>('button')].find((candidate) => candidate.textContent?.includes(label))!;
     return { fixture, element, card, button };
@@ -70,7 +72,7 @@ describe('SourcesPage, moving builds through a file', () => {
     await fixture.whenStable();
     expect(button(card('genshin-1'), 'Sync now').disabled).toBe(false);
     expect(button(element, 'Sync all').disabled).toBe(false);
-    await vi.waitFor(() => expect(snackBar.open).toHaveBeenCalledWith('Only an admin can do this.', 'Close'));
+    await vi.waitFor(() => expect(toasts.error).toHaveBeenCalledWith('Only an admin can do this.'));
   });
 
   it('refuses a file larger than a server may accept before reading or sending it', async () => {
@@ -84,9 +86,8 @@ describe('SourcesPage, moving builds through a file', () => {
     input.dispatchEvent(new Event('change'));
     await fixture.whenStable();
 
-    expect(snackBar.open).toHaveBeenCalledWith(
+    expect(toasts.error).toHaveBeenCalledWith(
       'This file is larger than 8 MB: more than the server may accept, and far more than the builds of a source take. Is it the right file?',
-      'Close',
     );
     expect(read).not.toHaveBeenCalled();
     expect(api['importSourceBuilds']).not.toHaveBeenCalled();
@@ -104,16 +105,16 @@ describe('SourcesPage and database updates', () => {
       imports: [SourcesPage],
       providers: [
         { provide: Api, useValue: api },
-        { provide: MatSnackBar, useValue: { open: vi.fn() } },
         { provide: AuthService, useValue: { isAdmin: signal(true), user: signal(null) } },
         provideTestTranslations({}),
+        provideKit(),
         provideRouter([]),
       ],
     });
     const fixture = TestBed.createComponent(SourcesPage);
     await fixture.whenStable();
     const element: HTMLElement = fixture.nativeElement;
-    expect(element.querySelector('article.source')).not.toBeNull();
+    expect(element.querySelector('anotoki-card.source')).not.toBeNull();
     expect(element.textContent).not.toMatch(/database update|migration/i);
     expect(element.querySelector('a[href="/admin/migrations"]')).toBeNull();
   });

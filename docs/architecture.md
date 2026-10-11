@@ -85,7 +85,7 @@ the gate's marked template
 (`<anotoki-site-gate><ng-template anotokiSitePages><router-outlet /></ng-template></anotoki-site-gate>`,
 `SitePagesDirective` in `app.ts`; anotoki-lib 0.1.1 took any template, 0.2.0 only the marked one - an unmarked
 one draws nothing), which the gate makes only while it shows the pages: a page behind the gate's page is not
-made at all, so it sends no request and leaves no error, snack bar or sync state behind. (0.1.0 took the outlet
+made at all, so it sends no request and leaves no error, toast or sync state behind. (0.1.0 took the outlet
 as plain content, which Angular made whether it showed or not; `app.ts` kept it out with a condition of its
 own, `pagesMade`, gone since.) Nothing in the boot stops while an update waits: the sign-in (and its callback)
 completes, the words are asked for. The gate's pages and the Migrations, Translations and Languages pages -
@@ -348,10 +348,12 @@ and the admin Translations and Languages pages. One wire format for every anotok
 (this site's already). What stays this site's own: its keys and their English and Slovak (the migrations, and
 the compiled English in `core/i18n/en/*.json`), its released languages (`SiteTranslations::RELEASED`), its last
 check (`names_another_site`), who may do what (its role checks on each route group), its error body
-(`{message, code, …}`), its typed keys and pipes, its storage names, the bar's language switcher (its own, as
-its bar is: Angular Material) and the wording tables. The library has words of its own under `anotoki.` - its
-kit's and its status page's - which its migration set writes and its code asks for; this site's 006 moved its
-two copies of them (`language.button`, `language.notLoaded`) under the library's keys, with every rewording.
+(`{message, code, …}`), its typed keys and pipes, its storage names and the wording tables. The library has
+words of its own under `anotoki.` - its kit's, its shell's (the top bar, its menus, the theme switch, the
+language switcher) and its status page's - which its migration set writes and its code asks for; this site's
+006 moved its two copies of them (`language.button`, `language.notLoaded`) under the library's keys, and 010
+the top bar's twelve (`topbar.menu`, `topbar.roleAdmin`, `theme.*`, `common.signOut` ... - when the family's
+bar took the place of the site's own), each with every rewording.
 
 - **Keys, not sentences.** A template words a key with the `translate` / `translatePlural` pipes; state holds
   keys, kinds and errors, and a template or a `computed()` words them, so a page follows a change of language
@@ -387,9 +389,9 @@ two copies of them (`language.button`, `language.notLoaded`) under the library's
   when it changes (on another anotoki site, in another tab); the menu's choice is saved to the account
   (`savePreferences({ language })`, one save at a time, the latest last; a language the IAM does not offer -
   `invalid_request` - stays this site's own for the visit, silently; any other refusal keeps it for the visit
-  and the bar's language switcher says so in a snack bar, `anotoki.language.notSaved`). The theme is the
+  and the bar's language switcher says so under itself, `anotoki.language.notSaved`). The theme is the
   account's on every page, the admin panel included
-  (`core/theme.ts`, below). Dates follow the account's date order and clock where it has chosen them
+  (`core/shell.ts`, below). Dates follow the account's date order and clock where it has chosen them
   (`core/i18n/date-patterns.ts`): What's new's days (`localDate: 'day'`), and in the admin panel when a
   migration was applied and when a builds file was exported; relative times ("3 hours ago") have neither
   and read the same for everybody. A visitor, and anybody signed in at an IAM before 015 (no `preferences`),
@@ -477,7 +479,7 @@ string), 503 `visitors_unavailable` from the visitor paths while 004's
 columns are not (both behind the gate: a second line), and 503 `visitor_move_retry` (ask again). The Migrations
 page's API answers its own: 404 `not_found` (a file that is none of the set's), 409 `busy`.
 
-## Frontend (`frontend/`, Angular 21 + Angular Material 21)
+## Frontend (`frontend/`, Angular 21 on the anotoki family's kit)
 
 - `core/api.ts` typed client (`API_BASE = '/api'`, same origin) + `errorMessage()`; `core/models.ts` mirrors the
   API responses (keep in step with the presenters); `core/meta-store.ts` loads `/api/meta` at startup (labels,
@@ -485,13 +487,16 @@ page's API answers its own: 404 `not_found` (a file that is none of the set's), 
   (`@anotoki/lib/migrations`; the page itself from `@anotoki/lib/migrations/page`) to this site - see "The site
   gate" above; `core/format.ts` colors
   and time helpers; `core/changelog.ts` loads `public/changelog.json` (the version shown in the footer, and
-  "What's new" once per release per browser); `core/theme.ts` (`ThemeService`: light, dark or the device's, a
-  class on `<html>`, kept in localStorage `build-analyzer-theme`; signed in at an IAM that keeps the
-  preferences, the account's - shown from the first frame, followed when it changes, and the toggle saves to
-  it: shown at once, one save at a time with the latest choice last, never flicking back while its own save
-  is on its way, and a refusal puts the account's theme back with a snack bar worded from the code
-  (`preferencesProblem()`: `error.offline`, `error.sign_in_required`, `error.unknown`); the theme on the page is
-  written to localStorage either way, so the next load starts in it). `core/i18n/date-patterns.ts`: the
+  "What's new" once per release per browser); `core/shell.ts` (`provideShell()`: the family's shell,
+  `@anotoki/lib/shell`, set up for this site - its `ThemeService`: light, dark or automatic (the device's),
+  drawn on `<html data-theme>` and kept in localStorage `build-analyzer-theme` (nothing for automatic), where
+  the kit's `theme-boot.js` - `index.html`, copied by `angular.json`'s assets - reads it before the first paint;
+  signed in at an IAM that keeps the preferences, the account's - shown from the first frame, followed when it
+  changes, and the bar's switch saves to it: shown at once, one save at a time with the latest choice last,
+  never flicking back while its own save is on its way, and a refusal puts the account's theme back with a note
+  under the switch, `anotoki.theme.notSaved`; and the bar's languages, `TranslationService.forShell()`);
+  `core/kit.ts` (`provideKit()`: the kit's words in the language on the page - `forKit()` - and the icons the
+  site names beyond the kit's own, `core/icons.ts`). `core/i18n/date-patterns.ts`: the
   account's four date orders and two clocks, as the IAM writes them, and `chosenMoment()` for a day with its
   time (each part the account's where chosen, the page's own where not; all the page's own when neither is).
 - Sign-in, through the anotoki IAM only - the anotoki family's auth module (`@anotoki/lib/auth`, set up in
@@ -503,8 +508,7 @@ page's API answers its own: 404 `not_found` (a file that is none of the set's), 
   by the pages through `core/auth.ts` (`AuthService`, a facade under the names they always used:
   `available`, `loginRequired`, `user`, `signedIn`, `roles`, `isStaff` (EDITOR or ADMIN), `isAdmin`,
   `displayName`, `preferences` - the account's theme, date order and clock, null for a visitor or an IAM before
-  its migration 015 -, `failure`, `accountUrl`; `login()`, `logout()`, `savePreferences()`;
-  `preferencesProblem()` words a refused choice). `core/sign-in.ts` (`signInOrSayWhy()`: every Sign in button -
+  its migration 015 -, `failure`, `accountUrl`; `login()`, `logout()`, `savePreferences()`). `core/sign-in.ts` (`signInOrSayWhy()`: every Sign in button -
   and the failure's screen when the sign-in cannot start). The guards are the family's: `sitePagesGuard`
   (`core/auth.guards.ts`) on every child of the AppLayout is `personOrVisitorGuard` - a visitor passes while
   the IAM lets visitors in; while it requires a sign-in somebody not signed in goes to the IAM and back - plus
@@ -534,7 +538,7 @@ page's API answers its own: 404 `not_found` (a file that is none of the set's), 
   never-throwing helpers of `core/storage.ts` (in memory when storage refuses), kept in step across tabs by the
   `storage` event and read again at send time; `key`, `active` (not signed in, sign-in not required, a key
   held), `lost` (forgotten on `visitor_unknown`: the dashboard says so once), `moves` (a counter the pages that list accounts reload on),
-  `moved` (what the last move did, for the shell's snack bar - `visitor.moved` / `visitor.kept`). Its effect on
+  `moved` (what the last move did, for the shell's toast - `visitor.moved` / `visitor.kept`). Its effect on
   `auth.signedIn()`: signed in with a key held, `POST /api/visitor/move` once at a time, `{silent}` when the
   present sign-in was the hint's silent hop; a 200 (found or not) forgets the key - but `held` (a silent sign-in
   into an account with data here) keeps it, saying nothing -, a 422 too; a network error or a 5xx
@@ -560,8 +564,7 @@ page's API answers its own: 404 `not_found` (a file that is none of the set's), 
   `title` is a key; it tells the service where the page is, `noteAddress()`). The specs take the library's
   stand-in, `@anotoki/lib/translations/testing`. The kit's words (`provideAnotokiUi(... forKit())` in
   `app.config.ts`) and the status page's (`siteStatusWords()`, `core/site-status.ts`) are the database's too.
-  The game's own words: `core/game-terms.ts`, `shared/build-terms.ts`. `pages/import/stepper-words.ts` words
-  the Material stepper's own labels.
+  The game's own words: `core/game-terms.ts`, `shared/build-terms.ts`.
 - The admin panel (`/admin/...`, English with `lang="en"`; the old `/sources`, `/translations`, `/languages`
   redirect there): `layouts/admin-layout/` (`AdminLayout`: for staff the area's sections - Sources and
   Translations for an editor; Languages, People, Migrations, Errors, Audit, Feedback (with the count of new
@@ -577,55 +580,55 @@ page's API answers its own: 404 `not_found` (a file that is none of the set's), 
   `styles.scss`. Translations and Languages answer the route's `anotokiUnsavedChangesGuard` by asking the
   library's page. `core/localization-drafts.ts` reaches the library's `LocalizationDrafts` (what those pages
   have not saved, for the tab and the IAM person who typed it, and the one `beforeunload` question) only when
-  the tab holds some, `shared/confirm-dialog`.
+  the tab holds some; the sign-out's question about them is the kit's `ConfirmService`.
 - Feedback (`core/feedback.ts`: `provideFeedback()`, the family's form set up for this site - the language on the
   page, the four places `FEEDBACK_SECTIONS` with the server's names, the person's address written in):
-  `layouts/footer` opens `shared/feedback-dialog` (the form in a Material dialog, its title the form's own words),
-  loaded with the first press.
+  `layouts/footer` opens `shared/feedback-dialog` (the form in the kit's `<anotoki-dialog>`, its heading the
+  form's own words, the dialog's `lang` the language they are in), loaded with the first press.
 - The frame: `app.ts` is the router inside the site gate (`<anotoki-site-gate>`, the outlet its template: the
   gate's own page while the site is not ready, and no page made behind it - see "The site gate") plus what
   belongs to no page - the theme on `<html>`, What's new to somebody who has used the site before (signed in,
   or holding a visitor key) while the site is there to use (its dialog is the shell's, outside the gate, so
-  `app.ts` itself holds it back while `SiteStatus.blocked()`), the move's snack bar. Two layouts draw the rest:
+  `app.ts` itself holds it back while `SiteStatus.blocked()`), the move's toast, and the kit's one question
+  host and toast host (`<anotoki-confirm-host>`, `<anotoki-toast-host>` in `app.html`). Two layouts draw the
+  rest, each in the family's frame (`<anotoki-shell>`: the bar, the page, the footer):
   `layouts/app-layout/` (every page outside `/admin`: `<app-top-bar area="app">`, the page, the footer) and
-  `layouts/admin-layout/` (`area="admin"`). The footer (`layouts/footer/`): "Version 0.4.0 · What's new" - the
+  `layouts/admin-layout/` (`area="admin"`, `lang="en"`). The footer (`layouts/footer/`): "Version 0.4.0 · What's new" - the
   newest entry of `public/changelog.json` (`core/changelog.ts`). What's new opens by itself with the releases
   after the one this browser saw last (`build-analyzer-version-seen`), compared by their numbers
   (`compareVersions()`: MAJOR.MINOR.PATCH, a missing part 0 - so "0.3", kept from before the versions had
   three numbers, is 0.3.0).
-- The top bar (`layouts/top-bar/`, the anotoki family's bar - the survey's is the reference; here Angular
-  Material pieces with the survey's own menu markup): one row - the brand (`shared/brand/`: the anotoki mark,
-  "anotoki" and `brand.area`; on a phone the mark and `brand.short`), the area's links (`APP_LINKS`: Dashboard
-  with `/accounts/` under it, Import, Builds with `/builds/` under it - the same for nobody, a visitor and a
-  person; `ADMIN_LINKS`: Sources, Translations, and for ADMIN Languages, People and Migrations, English, staff only), then
-  the sync spinner (staff, while this tab drives a sync), the language (`shared/language-switcher/`: 40 px, a
-  menu of the languages in their own names; only with more than one and never under `/admin`; signed in, a
-  choice is the account's too - its languages and choice the library's `forShell()`, its words the library's
-  `anotoki.language.*`), the theme (`shared/theme-toggle/`: 102 x 40, a radio group; signed in, the
-  account's, in both areas), and the person's menu (name, email, the role pill
-  "Administrator" / "Editor"; "Your anotoki account"; "Admin panel" for staff, or "Back to Build Analyzer" in the
-  admin panel; Sign out, which first asks about strings typed on the Translations and Languages pages and not
-  saved) - or Sign in (`signInOrSayWhy()`). Up to `PHONE_BAR_MAX` = 880 px (a `matchMedia` signal; the bar
-  sets `is-phone` for the scss) the links, the spinner and the person's menu (or Sign in) fold into one menu
-  button; the person's name shows from 1081 px and gives way first (an ellipsis). 880 is measured, not copied:
-  the row needs 772 px in English and 781 in Slovak signed out, 799 for an admin with a sync running
-  (`verify-ui`'s `run.mjs --measure`). The admin panel's row is longer - the ADMIN has nine sections, the
-  admin tools among them, with the count of new feedback beside Feedback - so it has its own
-  `ADMIN_PHONE_BAR_MAX` = 1320 (1294 px measured with a sync running, and room for a scrollbar; the name from
-  1521 px, so a 1366 px screen has the whole row and a 1280 px one the menu button), and an editor's two
-  sections theirs, `EDITOR_PHONE_BAR_MAX` = 720 (685 px with a sync running; the name from 921 px); its brand is
-  short for it, as the IAM's:
-  "anotoki admin panel" (`brand.admin`; on a phone `brand.short`), the app's name in the link's accessible
-  name ("anotoki Build Analyzer: the admin panel", `topbar.homeAdmin`). The menus are not `mat-menu`: a spec test showed it closes on Tab and
-  focuses its trigger but leaves the Tab to the browser, which moves the focus on past the trigger. The bar's
-  menus (and the language's) follow the family's rule: focus into the menu on open, arrows / Home / End,
-  Escape and an outside click close it (Escape back to the button), Tab and Shift+Tab from any item
-  `preventDefault()` and close it with the focus on its button, a breakpoint crossing closes it. Every member
-  word is a key (`brand.*`, `topbar.*`, `footer.version`, `theme.*`, and the library's
-  `anotoki.language.button`); under `/admin` the translation service answers in English, so the same keys read
-  English there.
+- The top bar (`layouts/top-bar/`) is the anotoki family's own, `<anotoki-top-bar>` from `@anotoki/lib/shell`
+  (since 0.4.0; before, a copy of it built from Angular Material's pieces), told what is this site's: the brand
+  (the anotoki mark, "anotoki" and `brand.area`; on a phone and in the admin panel the family's short form,
+  `brand.short`, with `brand.admin` under it there - the whole wordmark does not fit beside nine sections - and
+  the app's whole name in the link's accessible name, `topbar.home` / `topbar.homeAdmin`), the area's sections
+  (`APP_LINKS`: Dashboard with `/accounts/` under it, Import, Builds with `/builds/` under it - the same for
+  nobody, a visitor and a person; `ADMIN_LINKS`: Sources, Translations, and for ADMIN Languages, People,
+  Migrations, Errors, Audit, Feedback - the count of new feedback beside it, the library's badge - and Backups,
+  English, staff only), its one widget before the language (the sync this tab drives, for staff: a turning
+  icon that leads to Sources; on a phone an item of the menu and a dot on its button), who is signed in (name,
+  address, the role "Administrator" / "Editor") with their menu items ("Your anotoki account"; "Admin panel" for
+  staff, or "Back to Build Analyzer" in the admin panel), Sign in (`signInOrSayWhy()`) and Sign out (which first
+  asks, the kit's `ConfirmService`, about strings typed on the Translations and Languages pages and not saved).
+  The library draws the row in the family's order and owns its pieces and their rules: the language switcher
+  (only with more than one language and never under `/admin`; signed in, a choice is the account's too - its
+  languages and choice `TranslationService.forShell()`), the theme switch (light, dark, automatic; signed in,
+  the account's, in both areas), its menus (focus into the menu on open, arrows / Home / End, Escape and an
+  outside click close it, Tab and Shift+Tab close it with the focus on its button - never on `<body>`) and the
+  fold. Up to `PHONE_BAR_MAX` = 880 px the sections, the widget and the person's menu (or Sign in) fold into one
+  menu button; the person's name shows from 1081 px and gives way first. The widths are this site's, measured
+  in the family's bar (`verify-ui`'s `run.mjs --measure`): the member pages' row needs 793 px in English and 803
+  in Slovak signed out, 818 for an admin with a sync running - 880 leaves room for a scrollbar and for a
+  language added later whose words run longer; the admin panel's row, the ADMIN's nine sections with a count
+  beside Feedback, needs 1186 px, 1236 with a sync running, so `ADMIN_PHONE_BAR_MAX` = 1270 (a 1280 px screen
+  has the whole row; the name from 1471 px), and an editor's two sections 560 px, 610 with a sync running,
+  `EDITOR_PHONE_BAR_MAX` = 640 (the name from 841 px). Every member word is a key - the site's (`brand.*`,
+  `topbar.*`, `toolbar.*`, `footer.version`) and the library's (`anotoki.topbar.*`, `anotoki.theme.*`,
+  `anotoki.language.*`, which 006 and 010 gave the site's own wording); under `/admin` the translation service
+  answers in English, so the same keys read English there.
 - `shared/`: `build-detail` (renders a build, optionally annotated with an evaluation), `item-card`,
-  `grade-badge`, `score-bar`, `char-avatar` (`app-avatar`), `changelog-dialog`, `confirm-dialog`,
+  `grade-badge`, `score-bar`, `char-avatar` (`app-avatar`), `changelog-dialog`,
   `stat-pipes` (`statLabel`, `statValue`, `slotLabel`, `timeAgo`), `visitor-notice/` (for somebody not signed
   in: kept for this browser on the server for `visitors.keep_days` days after the last visit, signing in keeps
   it - with a Sign in button), `visitor-hero/` (nobody's ways in: import, each game's builds, sign in),
@@ -652,10 +655,18 @@ page's API answers its own: 404 `not_found` (a file that is none of the set's), 
   again in the tab and the strings are read again), `sign-in`. Lazy-loaded
   from `app.routes.ts`; route params arrive as signal inputs (`withComponentInputBinding`).
 - Conventions: standalone components, always three files (`.ts`, `.html`, `.scss`), signals (`signal`,
-  `computed`, `input`), `inject()`, built-in control flow (`@if`, `@for`, `@let`), zoneless change detection,
-  Material 3 theme with CSS tokens in `src/styles.scss` (`--app-*`, `--grade-*`, `--el-*`, light/dark via
-  `light-dark()`). Fonts (Roboto, Material Symbols) come from npm packages and are bundled; nothing is loaded
-  from another site.
+  `computed`, `input`), `inject()`, built-in control flow (`@if`, `@for`, `@let`), zoneless change detection.
+  The look is the anotoki family's kit, as on every anotoki site (no Angular Material, no CDK since 0.4.0 -
+  [decisions.md](decisions.md), 2026-10-11): `src/styles.scss` takes `@anotoki/lib/styles` (its tokens, Manrope,
+  its base, utilities and tables) with this site's palette over the family's tokens, light and dark - one
+  library palette, a site keeping its look by its tokens and never by re-styling a kit piece; the pieces come
+  each from its own entry point (`@anotoki/lib/ui/button`, `/ui/dialog`, `/ui/tabs` ...), never the
+  `@anotoki/lib/ui` barrel; a colour is a `--anotoki-*` token, or one of the site's own meanings (`--grade-*`,
+  `--sev-*`, `--rarity-*`, `--el-*`, the same in both themes). What the kit has no piece for stays the site's,
+  drawn from its tokens: `.tile` (a game account, a character, a build, a piece of gear), `.section-head`,
+  `details.disclosure` (the import history, a build's notes, a sync's log), the import wizard's row of steps,
+  the score bars and grade badges. Manrope comes with the kit and is bundled; nothing is loaded from another
+  site.
 - The dev server (http://localhost:4600) proxies `/api` and `/setup.php` to `http://localhost:8400`
   (`proxy.conf.json`). `ng build` writes `dist/frontend/browser/`, which `router.php` serves in development and
   `backend/tools/build.php` puts into the upload.

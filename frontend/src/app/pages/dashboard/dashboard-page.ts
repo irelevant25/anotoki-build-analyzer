@@ -1,17 +1,24 @@
 import { Component, computed, effect, inject, signal, untracked } from '@angular/core';
-import { MatButtonModule } from '@angular/material/button';
-import { MatDialog } from '@angular/material/dialog';
-import { MatIconModule } from '@angular/material/icon';
-import { MatMenuModule } from '@angular/material/menu';
-import { MatProgressBarModule } from '@angular/material/progress-bar';
-import { MatSnackBar } from '@angular/material/snack-bar';
-import { MatTooltipModule } from '@angular/material/tooltip';
 import { RouterLink } from '@angular/router';
+import { AlertComponent } from '@anotoki/lib/ui/alert';
+import { BadgeComponent } from '@anotoki/lib/ui/badge';
+import { ButtonComponent } from '@anotoki/lib/ui/button';
+import { CardComponent } from '@anotoki/lib/ui/card';
+import { ConfirmService } from '@anotoki/lib/ui/dialog';
+import { EmptyStateComponent } from '@anotoki/lib/ui/empty-state';
+import { ErrorStateComponent } from '@anotoki/lib/ui/error-state';
+import { IconComponent } from '@anotoki/lib/ui/icon';
+import { MenuComponent, MenuItemComponent, MenuTriggerDirective } from '@anotoki/lib/ui/menu';
+import { PageHeaderComponent } from '@anotoki/lib/ui/page-header';
+import { SpinnerComponent } from '@anotoki/lib/ui/spinner';
+import { ToastService } from '@anotoki/lib/ui/toast';
+import { TooltipDirective } from '@anotoki/lib/ui/tooltip';
 import { forkJoin, of } from 'rxjs';
 import { Api } from '../../core/api';
 import { AuthService } from '../../core/auth';
 import { GAME_LABELS } from '../../core/format';
 import { GAME_TERMS, UID_TERM } from '../../core/game-terms';
+import { gameIcon } from '../../core/icons';
 import { ErrorTextPipe, errorText } from '../../core/i18n/error-text';
 import { LocalDatePipe } from '../../core/i18n/local-date';
 import { TranslatePipe } from '../../core/i18n/translate';
@@ -19,7 +26,6 @@ import { TranslatePluralPipe } from '../../core/i18n/translate-plural';
 import { TranslationService } from '../../core/i18n/translation';
 import { AccountSummary, GameKey, SourceStatus } from '../../core/models';
 import { VisitorKey } from '../../core/visitor-key';
-import { askConfirm } from '../../shared/confirm-dialog';
 import { DataCard } from '../../shared/data-card/data-card';
 import { VisitorHero } from '../../shared/visitor-hero/visitor-hero';
 import { VisitorNotice } from '../../shared/visitor-notice/visitor-notice';
@@ -30,15 +36,28 @@ import { VisitorNotice } from '../../shared/visitor-notice/visitor-notice';
  */
 export type DashboardState = 'person' | 'visitor' | 'nobody';
 
+/**
+ * The start page: what the site does and the ways on for somebody new; for a visitor and a person their game
+ * accounts (tiles of the site's own, with the kit's badges, buttons and menu), the "Your data" card for a person,
+ * and the sources' freshness - drawn with the anotoki family's kit.
+ */
 @Component({
   selector: 'app-dashboard-page',
   imports: [
     RouterLink,
-    MatButtonModule,
-    MatIconModule,
-    MatMenuModule,
-    MatProgressBarModule,
-    MatTooltipModule,
+    AlertComponent,
+    BadgeComponent,
+    ButtonComponent,
+    CardComponent,
+    EmptyStateComponent,
+    ErrorStateComponent,
+    IconComponent,
+    MenuComponent,
+    MenuItemComponent,
+    MenuTriggerDirective,
+    PageHeaderComponent,
+    SpinnerComponent,
+    TooltipDirective,
     TranslatePipe,
     TranslatePluralPipe,
     LocalDatePipe,
@@ -52,8 +71,8 @@ export type DashboardState = 'person' | 'visitor' | 'nobody';
 })
 export class DashboardPage {
   private readonly api = inject(Api);
-  private readonly snackBar = inject(MatSnackBar);
-  private readonly dialog = inject(MatDialog);
+  private readonly toasts = inject(ToastService);
+  private readonly confirm = inject(ConfirmService);
   private readonly i18n = inject(TranslationService);
   protected readonly auth = inject(AuthService);
   protected readonly visitor = inject(VisitorKey);
@@ -78,6 +97,8 @@ export class DashboardPage {
   /** The games' own words - Artifacts / Relics, AR / TL, UID: shown as they are in every language. */
   protected readonly terms = GAME_TERMS;
   protected readonly uidTerm = UID_TERM;
+  /** A game's mark: Genshin Impact's sparkle, Honkai: Star Rail's rocket. */
+  protected readonly gameIcon = gameIcon;
 
   protected readonly accountsByGame = computed(() => {
     const groups: Record<GameKey, AccountSummary[]> = { genshin: [], hsr: [] };
@@ -140,17 +161,17 @@ export class DashboardPage {
   }
 
   /**
-   * Asks first, in the app's own dialog. The question, and what is said afterwards, are finished
-   * sentences: worded now, in the language the page is in.
+   * Asks first, in the kit's "Are you sure?" (the focus on Cancel). The question, and what is said afterwards,
+   * are finished sentences: worded now, in the language the page is in.
    */
   protected async deleteAccount(account: AccountSummary): Promise<void> {
     const name = account.nickname ?? `${UID_TERM} ${account.uid}`;
-    const sure = await askConfirm(this.dialog, {
+    const sure = await this.confirm.ask({
       title: this.i18n.t('confirm.deleteAccount', { name }),
       message: this.i18n.t('confirm.deleteAccountKept'),
       confirmLabel: this.i18n.t('confirm.delete'),
       cancelLabel: this.i18n.t('common.cancel'),
-      danger: true,
+      tone: 'danger',
     });
     if (!sure) {
       return;
@@ -158,9 +179,9 @@ export class DashboardPage {
     this.api.deleteAccount(account.id).subscribe({
       next: () => {
         this.accounts.update((list) => list.filter((a) => a.id !== account.id));
-        this.snackBar.open(this.i18n.t('dashboard.deleted', { name }), undefined, { duration: 3000 });
+        this.toasts.success(this.i18n.t('dashboard.deleted', { name }));
       },
-      error: (err: unknown) => this.snackBar.open(errorText(this.i18n, err), this.i18n.t('common.close')),
+      error: (err: unknown) => this.toasts.error(errorText(this.i18n, err)),
     });
   }
 }

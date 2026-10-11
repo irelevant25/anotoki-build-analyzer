@@ -1,42 +1,24 @@
 import { Component, inject, signal } from '@angular/core';
-import { MatDialog } from '@angular/material/dialog';
+import { ButtonComponent } from '@anotoki/lib/ui/button';
 import { Changelog } from '../../core/changelog';
 import { TranslatePipe } from '../../core/i18n/translate';
+import { FeedbackDialog } from '../../shared/feedback-dialog/feedback-dialog';
 
 /**
  * The foot of every page (the family's: "version · What's new"): the version this copy runs - the newest entry
  * of public/changelog.json - and the button that opens every release's notes (nothing of them while there is no
- * changelog: a broken upload); and Feedback, which opens the anotoki family's feedback form in a dialog
- * (@anotoki/lib/feedback/form, shared/feedback-dialog - loaded when it is first opened, so no first load carries
- * the form). In the admin panel it reads English, as the rest of the panel.
+ * changelog: a broken upload); and Feedback, which opens the anotoki family's feedback form in the kit's dialog
+ * (@anotoki/lib/feedback/form, shared/feedback-dialog - in a @defer block, so the dialog and the form come with the
+ * first press and no first load carries them). In the admin panel it reads English, as the rest of the panel.
  */
 @Component({
   selector: 'app-footer',
-  imports: [TranslatePipe],
+  imports: [ButtonComponent, TranslatePipe, FeedbackDialog],
   templateUrl: './footer.html',
   styleUrl: './footer.scss',
 })
 export class Footer {
   protected readonly changelog = inject(Changelog);
-  private readonly dialog = inject(MatDialog);
-  /** The form is on its way (its chunk loading): one dialog for one press. */
-  protected readonly opening = signal(false);
-
-  protected async openFeedback(): Promise<void> {
-    if (this.opening()) {
-      return;
-    }
-    this.opening.set(true);
-    try {
-      const { FeedbackDialog } = await import('../../shared/feedback-dialog/feedback-dialog');
-      this.dialog.open(FeedbackDialog, {
-        width: '36rem',
-        maxWidth: 'calc(100vw - 2rem)',
-        autoFocus: 'first-tabbable',
-        restoreFocus: true,
-      });
-    } finally {
-      this.opening.set(false);
-    }
-  }
+  /** The feedback dialog is open: drawn (and, the first time, loaded) while this holds. */
+  protected readonly feedbackOpen = signal(false);
 }

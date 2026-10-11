@@ -6,7 +6,7 @@ these steps (configuration keys, sign-in and roles, syncs, troubleshooting) is [
 | Part | Folder | Stack | Address in development |
 | --- | --- | --- | --- |
 | Backend (API, importers, scrapers, analysis) | `backend/` | PHP 8.4+, Slim 4, PostgreSQL | http://localhost:8400 |
-| Frontend | `frontend/` | Angular 21, Angular Material | http://localhost:4600 (proxies `/api` and `/setup.php` to :8400) |
+| Frontend | `frontend/` | Angular 21, the anotoki family's kit (`@anotoki/lib`) | http://localhost:4600 (proxies `/api` and `/setup.php` to :8400) |
 | Sign-in | the anotoki IAM (`../anotoki-iam`) | | pages http://localhost:4300, API :8100 |
 
 ## Prerequisites
@@ -161,10 +161,10 @@ and the translations module (since this site's 0.4.0), the strings every anotoki
   into the app as the fallback (`translations.config.ts`); the admin Translations and Languages pages from
   `@anotoki/lib/translations/admin`.
 
-The status page, the Migrations page, the Translations and Languages pages, the People page, the admin tools,
-the feedback form and the screen of a sign-in that failed are drawn with the library's kit (each piece from its
-own entry point, never the `@anotoki/lib/ui` barrel), in this site's colours (`styles.scss`); the rest of the
-site stays on Angular Material.
+Every page is drawn with the library's kit and shell since this site's 0.4.0 - its own pages too, and the top
+bar and the page's frame are the family's (`@anotoki/lib/shell`): `@anotoki/lib/styles` in `styles.scss` with
+this site's colours over the family's tokens, light and dark, and the pieces each from its own entry point
+(never the `@anotoki/lib/ui` barrel). There is no Angular Material and no CDK.
 
 To update it, both halves together (while its version is 0.x a minor version may break: read its
 `CHANGELOG.md` first):
@@ -301,12 +301,13 @@ one (the Backups page, "before an update"). `config/*.local.php` and `storage/` 
   library's `anotoki_translations/001` (checks this site's tables, changes nothing) and `002` (its own words,
   never over a string that is there). [docs/operations.md](docs/operations.md), "Deploying".
 - **Signing in, people and the admin tools through the anotoki library** (version 0.4.0: anotoki-lib 0.4.1,
-  migrations 007-009 between the library's `anotoki_admin` and `anotoki_translations` 003-004 / `anotoki_people`):
+  migrations 007-010 between the library's `anotoki_admin` and `anotoki_translations` 003-004 / `anotoki_people`):
   Export each language first, upload with `vendor/`, then one Apply runs them all after a backup of the database
   as it was (007: `users.anonymized_at`; 008: what the Laravel version left dropped - its login tables
   `laravel_users`, `laravel_password_reset_tokens`, `laravel_sessions` and its queue's `laravel_jobs`,
   `laravel_job_batches`, `laravel_failed_jobs`, only `laravel_migrations` kept; 009: the sign-in screen's words
-  under the library's keys, every rewording kept, and the feedback button's and its sections'). Then delete that
+  under the library's keys, every rewording kept, and the feedback button's and its sections'; 010: the top
+  bar's words under the library's keys likewise - the bar is the family's now). Then delete that
   "before-migration" backup on the Backups page once the site works: it still holds those tables. Nothing on disk
   is deleted by the update (`storage/logs/app.log` stays; the error log and the backups are new beside it).
   [docs/operations.md](docs/operations.md), "Deploying".

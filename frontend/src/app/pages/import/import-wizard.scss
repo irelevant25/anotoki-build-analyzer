@@ -1,53 +1,161 @@
-.wizard {
-  padding: 8px;
-  background: var(--app-surface);
+// ── The row of steps ──────────────────────────────────────────────────────────────────────────────────────────
+
+.steps {
+  display: flex;
+  gap: 0.25rem;
+  margin: 0 0 1.25rem;
+  padding: 0 0 1rem;
+  border-bottom: 1px solid var(--anotoki-border);
+  list-style: none;
+  counter-reset: none;
+}
+
+.step {
+  display: flex;
+  flex: 1 1 0;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  min-width: 0;
+  min-height: 2.75rem;
+  padding: 0 0.25rem;
+  color: var(--anotoki-muted);
+  font-weight: 650;
+
+  &.step--current {
+    color: var(--anotoki-text);
+  }
+}
+
+// A step done: a way back to it, as a step header of the linear stepper it replaced was.
+.step-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  min-height: 2.75rem;
+  padding: 0 0.6rem;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--anotoki-text);
+  font: inherit;
+  cursor: pointer;
+
+  &:hover {
+    background: var(--anotoki-surface-3);
+  }
+
+  &:disabled {
+    cursor: default;
+    opacity: 0.6;
+  }
+}
+
+.step-mark {
+  display: inline-grid;
+  flex: none;
+  place-items: center;
+  width: 1.75rem;
+  height: 1.75rem;
+  border: 1.5px solid var(--anotoki-border-strong);
+  border-radius: 50%;
+  font-size: 0.8125rem;
+  font-weight: 700;
+
+  .step--current & {
+    border-color: var(--anotoki-primary);
+    background: var(--anotoki-primary);
+    color: var(--anotoki-primary-contrast);
+  }
+
+  .step--done & {
+    border-color: var(--anotoki-primary-soft);
+    background: var(--anotoki-primary-soft);
+    color: var(--anotoki-primary-soft-text);
+  }
+}
+
+.step-label {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+// On a phone the steps are their numbers, and the step in hand its name too.
+@media (max-width: 760px) {
+  .step:not(.step--current) {
+    flex: none;
+
+    .step-label {
+      position: absolute;
+      width: 1px;
+      height: 1px;
+      overflow: hidden;
+      clip: rect(0, 0, 0, 0);
+      white-space: nowrap;
+    }
+  }
+
+  .step.step--current {
+    justify-content: flex-start;
+  }
+}
+
+// ── A step ───────────────────────────────────────────────────────────────────────────────────────────────────
+
+.step-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
 }
 
 .step-title {
-  font: var(--mat-sys-title-large);
-  margin: 8px 0 16px;
+  font-size: 1.25rem;
+
+  &:focus {
+    outline: none;
+  }
 }
 
 .choice-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
-  gap: 16px;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 16.25rem), 1fr));
+  gap: 1rem;
 }
 
+// A card to choose: the game, the way in. The site's own (a choice the wizard makes with a press), in the kit's colours.
 .choice {
   display: flex;
   flex-direction: column;
   align-items: flex-start;
-  gap: 6px;
-  text-align: left;
-  padding: 20px;
-  border-radius: 16px;
-  border: 2px solid var(--app-border);
-  background: var(--app-surface-2);
+  gap: 0.375rem;
+  padding: 1.25rem;
+  border: 2px solid var(--anotoki-border);
+  border-radius: var(--anotoki-radius-lg);
+  background: var(--anotoki-surface-2);
   color: inherit;
   font: inherit;
+  text-align: left;
   cursor: pointer;
-  transition: border-color 150ms ease, transform 150ms ease;
+  transition: border-color var(--anotoki-duration) var(--anotoki-ease);
 
   &:hover {
-    border-color: color-mix(in srgb, var(--mat-sys-primary) 60%, transparent);
+    border-color: color-mix(in srgb, var(--anotoki-primary) 60%, transparent);
   }
 
   &:focus-visible {
-    outline: 3px solid var(--mat-sys-primary);
+    outline: 3px solid var(--anotoki-focus);
     outline-offset: 2px;
   }
 
   &.selected {
-    border-color: var(--mat-sys-primary);
-    background: color-mix(in srgb, var(--mat-sys-primary) 10%, var(--app-surface-2));
+    border-color: var(--anotoki-primary);
+    background: color-mix(in srgb, var(--anotoki-primary) 10%, var(--anotoki-surface-2));
   }
 }
 
 .choice-icon {
-  font-size: 36px;
-  width: 36px;
-  height: 36px;
   color: var(--el-hydro);
 
   &.hsr {
@@ -56,218 +164,187 @@
 }
 
 .method .choice-icon {
-  color: var(--mat-sys-primary);
+  color: var(--anotoki-primary);
 }
 
 .choice-title {
-  font: var(--mat-sys-title-medium);
+  font-size: 1rem;
+  font-weight: 700;
 }
 
 .pros {
-  list-style: none;
-  padding: 0;
-  margin: 8px 0 0;
   display: grid;
-  gap: 4px;
+  gap: 0.25rem;
+  margin: 0.5rem 0 0;
+  padding: 0;
   font-size: 0.9rem;
+  list-style: none;
 
   li {
     display: flex;
-    gap: 6px;
     align-items: flex-start;
+    gap: 0.375rem;
   }
 
-  .mat-icon {
-    font-size: 18px;
-    width: 18px;
-    height: 18px;
-    color: var(--grade-a);
+  anotoki-icon {
     flex: none;
+    color: var(--anotoki-success);
   }
 
-  .con .mat-icon {
-    color: var(--app-muted);
+  .con anotoki-icon {
+    color: var(--anotoki-muted);
   }
-}
-
-.hint {
-  margin-top: 16px;
 }
 
 .intro {
-  max-width: 760px;
+  max-width: 47.5rem;
 }
 
 .guide {
-  list-style: none;
-  padding: 0;
-  margin: 16px 0;
   display: grid;
-  gap: 14px;
+  gap: 0.875rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
 
   li {
     display: flex;
-    gap: 14px;
+    gap: 0.875rem;
   }
 }
 
 .num {
-  width: 32px;
-  height: 32px;
-  border-radius: 50%;
   display: grid;
-  place-items: center;
-  font-weight: 600;
-  background: color-mix(in srgb, var(--mat-sys-primary) 16%, transparent);
-  color: var(--mat-sys-primary);
   flex: none;
+  place-items: center;
+  width: 2rem;
+  height: 2rem;
+  border-radius: 50%;
+  background: var(--anotoki-primary-soft);
+  color: var(--anotoki-primary-soft-text);
+  font-weight: 700;
 }
 
 .guide-body {
   flex: 1;
+  min-width: 0;
 
   p {
-    margin: 4px 0 8px;
-    line-height: 1.5;
+    margin: 0.25rem 0 0.5rem;
   }
 }
 
 .guide-title {
   display: flex;
   align-items: center;
-  gap: 6px;
-  font-weight: 500;
+  gap: 0.375rem;
+  font-weight: 650;
 
-  .mat-icon {
-    color: var(--app-muted);
+  anotoki-icon {
+    color: var(--anotoki-muted);
   }
 }
 
+// A tip in a guide: the warning's soft ground and ink of the family (4.5:1), the site's gold for its bulb.
 .tip {
   display: flex;
-  gap: 6px;
   align-items: flex-start;
-  padding: 8px 10px;
-  border-radius: 10px;
-  background: color-mix(in srgb, var(--grade-s) 12%, transparent);
+  gap: 0.375rem;
+  padding: 0.5rem 0.625rem;
+  border-radius: var(--anotoki-radius);
+  background: var(--anotoki-warning-soft);
   font-size: 0.9rem;
 
-  .mat-icon {
-    color: var(--grade-s);
+  anotoki-icon {
     flex: none;
+    color: var(--anotoki-warning);
   }
 }
 
-.trouble {
-  margin-bottom: 8px;
+.trouble ul {
+  margin: 0;
+  padding-left: 1.25rem;
 }
 
 .actions {
   display: flex;
-  gap: 8px;
+  flex-wrap: wrap;
   justify-content: flex-end;
-  margin-top: 16px;
+  gap: 0.5rem;
 }
 
 .uid-form {
   display: flex;
   flex-wrap: wrap;
   align-items: flex-start;
-  gap: 12px;
+  gap: 0.75rem;
 }
 
 .uid-field {
-  width: 280px;
+  flex: 0 1 17.5rem;
 }
 
-.uid-form button {
-  margin-top: 10px;
+// Level with the box (under the field's label), not with the label.
+.uid-submit {
+  margin-top: 1.6rem;
 }
 
 .drop {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 8px;
-  padding: 32px 16px;
-  border: 2px dashed var(--app-border);
-  border-radius: 16px;
+  gap: 0.5rem;
+  padding: 2rem 1rem;
+  border: 2px dashed var(--anotoki-border-strong);
+  border-radius: var(--anotoki-radius-lg);
   text-align: center;
-  transition: border-color 150ms ease, background 150ms ease;
+  overflow-wrap: anywhere;
+  transition:
+    border-color var(--anotoki-duration) var(--anotoki-ease),
+    background var(--anotoki-duration) var(--anotoki-ease);
 
   &.dragging {
-    border-color: var(--mat-sys-primary);
-    background: color-mix(in srgb, var(--mat-sys-primary) 8%, transparent);
+    border-color: var(--anotoki-primary);
+    background: var(--anotoki-primary-soft);
   }
 }
 
 .drop-icon {
-  font-size: 40px;
-  width: 40px;
-  height: 40px;
-  color: var(--app-muted);
+  color: var(--anotoki-muted);
 
   &.ok {
-    color: var(--grade-a);
+    color: var(--anotoki-success);
   }
-}
-
-.paste {
-  margin-top: 12px;
-}
-
-.full {
-  width: 100%;
 }
 
 .account-field {
-  width: 100%;
-  max-width: 520px;
-  margin-top: 16px;
+  max-width: 32.5rem;
 }
 
 .progress {
-  margin-top: 16px;
-}
-
-.error {
-  display: flex;
-  align-items: flex-start;
-  gap: 8px;
-  margin-top: 16px;
-  padding: 12px;
-  border-radius: 12px;
-  background: color-mix(in srgb, var(--grade-d) 14%, transparent);
-
-  .mat-icon {
-    color: var(--grade-d);
-    flex: none;
-  }
+  align-self: flex-start;
 }
 
 .done {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 12px;
+  gap: 0.75rem;
+  padding: 1rem;
   text-align: center;
-  padding: 16px;
-
-  h2 {
-    margin: 0;
-  }
 }
 
 .done-icon {
-  font-size: 56px;
-  width: 56px;
-  height: 56px;
-  color: var(--grade-a);
+  color: var(--anotoki-success);
+
+  &.partial {
+    color: var(--anotoki-info);
+  }
 }
 
 .counts {
   display: flex;
-  gap: 32px;
+  gap: 2rem;
 
   div {
     display: flex;
@@ -280,20 +357,22 @@
 }
 
 .warnings {
-  list-style: none;
+  margin: 0;
   padding: 0;
   text-align: left;
+  list-style: none;
 
   li {
     display: flex;
-    gap: 6px;
+    gap: 0.375rem;
   }
 
-  .mat-icon {
-    color: var(--grade-c);
+  anotoki-icon {
+    flex: none;
+    color: var(--anotoki-warning);
   }
 }
 
-.center {
+.done-actions {
   justify-content: center;
 }

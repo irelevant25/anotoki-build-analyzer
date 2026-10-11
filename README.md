@@ -7,7 +7,7 @@ open to every anotoki account, each person with their own accounts; the builds b
 signing in what you import is kept for your browser for 30 days after your last visit.
 
 - **Backend:** PHP 8.4+, Slim 4, PostgreSQL, in `backend/`
-- **Frontend:** Angular 21 + Angular Material, in `frontend/`
+- **Frontend:** Angular 21 on the anotoki family's UI kit (`@anotoki/lib`), in `frontend/`
 
 Setting it up, running, testing, building and deploying: **[DEV.md](DEV.md)**.
 

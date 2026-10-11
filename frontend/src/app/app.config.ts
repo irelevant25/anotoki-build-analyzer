@@ -5,7 +5,6 @@ import {
   provideAppInitializer,
   provideBrowserGlobalErrorListeners,
 } from '@angular/core';
-import { MatIconRegistry } from '@angular/material/icon';
 import {
   TitleStrategy,
   provideRouter,
@@ -21,17 +20,18 @@ import {
 } from '@anotoki/lib/auth';
 import { SiteStatus, siteStatusInterceptor } from '@anotoki/lib/migrations';
 import { provideAnotokiPeople } from '@anotoki/lib/people';
-import { provideAnotokiUi } from '@anotoki/lib/ui/config';
 
 import { routes } from './app.routes';
 import { AuthService } from './core/auth';
 import { SIGN_IN_FAILED_PATH } from './core/auth.guards';
 import { Changelog } from './core/changelog';
 import { provideFeedback } from './core/feedback';
+import { provideKit } from './core/kit';
 import { AppTitleStrategy } from './core/i18n/title-strategy';
 import { TranslationService } from './core/i18n/translation';
 import { provideTranslations } from './core/i18n/translations.config';
 import { MetaStore } from './core/meta-store';
+import { provideShell } from './core/shell';
 import { signInKindClientFactory } from './core/sign-in-kind';
 import {
   MIGRATIONS_ROUTE,
@@ -88,10 +88,12 @@ export const appConfig: ApplicationConfig = {
     { provide: ANOTOKI_AUTH_CLIENT_FACTORY, useFactory: signInKindClientFactory },
     // The site's words: the anotoki library's translations, set up for this site (core/i18n/translations.config.ts).
     provideTranslations(),
-    // The words of the library's kit - the pieces of the site gate's page and of the library's admin pages - in
-    // the language on the page, from the database's anotoki.* strings (an editor's rewording on the Translations
-    // page reaches them), the kit's own words under them.
-    provideAnotokiUi(() => inject(TranslationService).forKit()),
+    // The anotoki family's kit draws every page (@anotoki/lib/ui/*): its words in the language on the page, from the
+    // database's anotoki.* strings, and the site's icons (core/kit.ts).
+    provideKit(),
+    // The family's shell (@anotoki/lib/shell): the top bar's theme switch and language chooser - the account's
+    // theme while it keeps one, else this device's; the translations module's languages (core/shell.ts).
+    provideShell(),
     // Where the site stands, and what is shown while it is not ready (core/site-status.ts).
     provideSiteStatus(),
     // The People page (ADMIN; @anotoki/lib/people/page on /admin/people): everybody the IAM signed in here, with
@@ -135,7 +137,6 @@ export const appConfig: ApplicationConfig = {
     // Words a route's title in the language on the page, and tells the translation service where the page is.
     { provide: TitleStrategy, useClass: AppTitleStrategy },
     provideAppInitializer(async () => {
-      inject(MatIconRegistry).setDefaultFontSetClass('material-symbols-outlined');
       // Everything is injected before the first await: inject() does not work after one.
       const auth = inject(AnotokiAuth);
       const i18n = inject(TranslationService);

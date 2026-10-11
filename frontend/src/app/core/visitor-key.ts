@@ -43,7 +43,7 @@ export const MOVE_RETRY_MS: readonly number[] = [2_000, 10_000, 30_000];
  * - **The move, after a sign-in** (whether or not the site requires one). Signed in with a key held:
  *   `POST /api/visitor/move` with the token and the key, once at a time - and `silent` when the sign-in was the
  *   IAM's hint's silent hop (SignInKind). On a 200 (found or not) the key is forgotten, `moves` counts up (the pages that
- *   list accounts load them again) and `moved` holds what it did, for the shell's snack bar. On a network
+ *   list accounts load them again) and `moved` holds what it did, for the shell's toast. On a network
  *   error or a 5xx (`visitor_move_retry`, `visitors_unavailable`) the key stays and the move is asked again
  *   later: the data is out of sight meanwhile, never lost.
  * - **Held, after a silent sign-in into an account that has data here** (the owner's decision of 2026-10-11):
@@ -74,7 +74,7 @@ export class VisitorKey implements VisitorKeyStore {
   );
   /** The key was forgotten because the server no longer knew it: the dashboard says so, once. */
   readonly lost = signal(false);
-  /** The last move that moved or kept anything - for the snack bar (worded where it is shown). */
+  /** The last move that moved or kept anything - for the toast (worded where it is shown). */
   readonly moved = signal<VisitorMove | null>(null);
   /** Counts the moves that finished: a page that lists accounts loads them again when it changes. */
   readonly moves = signal(0);

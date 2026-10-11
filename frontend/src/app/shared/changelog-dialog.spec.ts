@@ -1,13 +1,13 @@
 import { ApplicationRef } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
-import { MATERIAL_ANIMATIONS } from '@angular/material/core';
-import { MatDialog } from '@angular/material/dialog';
 import { provideTestTranslations } from '@anotoki/lib/translations/testing';
+import { AnotokiDialog, AnotokiDialogRef } from '@anotoki/lib/ui/dialog';
 import { AuthService } from '../core/auth';
 import type { ChangelogEntry } from '../core/changelog';
 import { en } from '../core/i18n/en';
 import { TranslationService } from '../core/i18n/translation';
 import { ChangelogDialog } from './changelog-dialog';
+import { provideKit } from '../core/kit';
 
 const ENTRIES: ChangelogEntry[] = [
   { version: '1.2', date: '2026-11-01', changes: { added: ['A new page', 'A second thing'], fixed: ['A fixed thing'] } },
@@ -27,30 +27,28 @@ const SLOVAK = {
 };
 
 describe('the What’s-new dialog: a frame in the reader’s language around entries that stay English', () => {
+  let ref: AnotokiDialogRef | null = null;
   const stable = () => TestBed.inject(ApplicationRef).whenStable();
-  const overlay = () => document.querySelector<HTMLElement>('.cdk-overlay-container')!;
-  /** What each element says, without the names of its icons. */
+  /** The kit's dialog the changelog opened (AnotokiDialog puts it at the end of <body>). */
+  const dialog = () => document.querySelector<HTMLElement>('anotoki-dialog')!;
   const texts = (selector: string) =>
-    [...overlay().querySelectorAll<HTMLElement>(selector)].map((element) => {
-      const copy = element.cloneNode(true) as Element;
-      copy.querySelectorAll('mat-icon').forEach((icon) => icon.remove());
-      return copy.textContent?.replace(/\s+/g, ' ').trim();
-    });
+    [...dialog().querySelectorAll<HTMLElement>(selector)].map((element) => element.textContent?.replace(/\s+/g, ' ').trim());
 
   async function open(language: 'en' | 'sk'): Promise<void> {
     TestBed.configureTestingModule({
       providers: [
         language === 'sk' ? provideTestTranslations(SLOVAK, { language: 'sk', english: en }) : provideTestTranslations(en),
-        { provide: MATERIAL_ANIMATIONS, useValue: { animationsDisabled: true } },
+        provideKit(),
         { provide: AuthService, useValue: { user: () => null, signedIn: () => false, preferences: () => null } },
       ],
     });
-    TestBed.inject(MatDialog).open(ChangelogDialog, { data: ENTRIES });
+    ref = TestBed.inject(AnotokiDialog).open(ChangelogDialog, { data: ENTRIES, size: 'lg' });
     await stable();
   }
 
   afterEach(async () => {
-    TestBed.inject(MatDialog).closeAll();
+    ref?.close();
+    ref = null;
     await stable();
   });
 
@@ -59,21 +57,21 @@ describe('the What’s-new dialog: a frame in the reader’s language around ent
 
     expect(texts('h2')).toEqual(['Čo je nové']);
     expect(texts('.version')).toEqual(['Verzia 1.2', 'Verzia 1.1']);
-    expect(texts('.chip')).toEqual(['Najnovšia']);
+    expect(texts('anotoki-badge')).toEqual(['Najnovšia']);
     expect(texts('h3.kind')).toEqual(['Nové', 'Opravené', 'Zmenené']);
-    expect(texts('.release-head .muted')).toEqual(['1. novembra 2026', '15. októbra 2026']);
-    expect(texts('mat-dialog-actions button')).toEqual(['Zavrieť']);
+    expect(texts('.release-head .date')).toEqual(['1. novembra 2026', '15. októbra 2026']);
+    expect(texts('.anotoki-dialog__footer button')).toEqual(['Zavrieť']);
   });
 
   it('shows the entries as they were written, each list saying it is English', async () => {
     await open('sk');
 
     expect(texts('li')).toEqual(['A new page', 'A second thing', 'A fixed thing', 'A changed thing']);
-    const lists = [...overlay().querySelectorAll('ul')];
+    const lists = [...dialog().querySelectorAll('ul')];
     expect(lists).toHaveLength(3);
     expect(lists.map((list) => list.getAttribute('lang'))).toEqual(['en', 'en', 'en']);
     // Only the lists: the frame around them is in the page's language.
-    expect(overlay().querySelectorAll('[lang]')).toHaveLength(3);
+    expect(dialog().querySelectorAll('.release [lang]')).toHaveLength(3);
   });
 
   it('is English through and through on an English page, with nothing marked', async () => {
@@ -81,11 +79,11 @@ describe('the What’s-new dialog: a frame in the reader’s language around ent
 
     expect(texts('h2')).toEqual(["What's new"]);
     expect(texts('.version')).toEqual(['Version 1.2', 'Version 1.1']);
-    expect(texts('.chip')).toEqual(['Latest']);
+    expect(texts('anotoki-badge')).toEqual(['Latest']);
     expect(texts('h3.kind')).toEqual(['New', 'Fixed', 'Changed']);
-    expect(texts('.release-head .muted')).toEqual(['1 November 2026', '15 October 2026']);
-    expect(texts('mat-dialog-actions button')).toEqual(['Close']);
-    expect(overlay().querySelectorAll('[lang]')).toHaveLength(0);
+    expect(texts('.release-head .date')).toEqual(['1 November 2026', '15 October 2026']);
+    expect(texts('.anotoki-dialog__footer button')).toEqual(['Close']);
+    expect(dialog().querySelectorAll('.release [lang]')).toHaveLength(0);
   });
 
   it('is English on the English pages, whatever the reader’s language', async () => {
@@ -94,13 +92,21 @@ describe('the What’s-new dialog: a frame in the reader’s language around ent
     await stable();
 
     expect(texts('h2')).toEqual(["What's new"]);
-    expect(texts('.release-head .muted')).toEqual(['1 November 2026', '15 October 2026']);
-    expect(overlay().querySelectorAll('[lang]')).toHaveLength(0);
+    expect(texts('.release-head .date')).toEqual(['1 November 2026', '15 October 2026']);
+    expect(dialog().querySelectorAll('.release [lang]')).toHaveLength(0);
+  });
+
+  it('closes with its Close', async () => {
+    await open('en');
+    dialog().querySelector<HTMLButtonElement>('.anotoki-dialog__footer button')!.click();
+    await stable();
+    expect(document.querySelector('anotoki-dialog')).toBeNull();
+    expect(ref?.isClosed).toBe(true);
   });
 
   it('shows no key where a word should be', async () => {
     await open('sk');
 
-    expect(overlay().textContent).not.toMatch(/\b(whatsNew|common)\.[A-Za-z]/);
+    expect(dialog().textContent).not.toMatch(/\b(whatsNew|common)\.[A-Za-z]/);
   });
 });

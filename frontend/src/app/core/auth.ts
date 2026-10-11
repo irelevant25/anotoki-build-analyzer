@@ -5,16 +5,14 @@ import {
   AnotokiPreferences,
   AnotokiSavedPreferences,
 } from '@anotoki/lib/auth';
-// The shape only: this service never injects the translation service (which reads this one).
-import type { Wording } from './i18n/translation';
 
 /**
  * Who is signed in, as this site's pages ask it - the anotoki family's auth module (@anotoki/lib/auth:
  * AnotokiAuth, set up in app.config.ts) seen through the names the pages have always used. The module is the
  * sign-in: the IAM's client, the tokens (in localStorage under the same keys as the IAM's SDK kept them, so
  * nobody was signed out by the move), the callback, following the IAM, the sign-in hint's automatic sign-in of
- * a visitor, the interceptor and the guards. This adds nothing of its own but the site's wording of a refused
- * preference (preferencesProblem()).
+ * a visitor, the interceptor and the guards. This adds nothing of its own. A theme or a language the account
+ * refused is said by the family's bar itself (its theme switch's and language chooser's notes).
  *
  * Somebody who is not signed in uses the site all the same, as a visitor (core/visitor-key.ts) - unless the IAM
  * says this site requires a sign-in (`loginRequired`): then every page asks for one (core/auth.guards.ts).
@@ -84,33 +82,9 @@ export class AuthService {
 
   /**
    * Saves what the person chose with this site's own controls - the theme, the language - to their account, for
-   * every anotoki site. Only while `preferences()` is not null. Rejects with an error whose `code` says why
-   * (preferencesProblem() words it).
+   * every anotoki site. Only while `preferences()` is not null. Rejects with an error whose `code` says why.
    */
   savePreferences(changes: AnotokiPreferenceChanges): Promise<AnotokiSavedPreferences> {
     return this.auth.savePreferences(changes);
-  }
-}
-
-/**
- * What to say of a choice the account did not take (AuthService.savePreferences() rejected) - from the error's
- * code alone, never from its message, in the words of a failed request:
- *
- *   network                         the IAM could not be reached: error.offline
- *   invalid_token, login_required   the sign-in has ended: error.sign_in_required
- *   anything else                   error.unknown - also `access_denied` (the IAM no longer lets the person into
- *                                   this site: signing in again would not help) and `temporarily_unavailable`
- *
- * A language the IAM does not offer (`invalid_request`) is no news: its caller says nothing of it.
- */
-export function preferencesProblem(error: unknown): Wording {
-  switch ((error as { code?: unknown } | null)?.code) {
-    case 'network':
-      return { key: 'error.offline', params: {} };
-    case 'invalid_token':
-    case 'login_required':
-      return { key: 'error.sign_in_required', params: {} };
-    default:
-      return { key: 'error.unknown', params: {} };
   }
 }

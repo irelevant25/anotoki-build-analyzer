@@ -40,7 +40,7 @@ describe('the import guides (METHODS and GUIDES)', () => {
   it('keep their shape: both games, both ways in, the steps, tips and hints they had', () => {
     for (const game of GAMES) {
       expect(METHODS[game].map((method) => method.key)).toEqual(['showcase', 'file']);
-      expect(METHODS[game].map((method) => method.icon)).toEqual(['badge', 'inventory_2']);
+      expect(METHODS[game].map((method) => method.icon)).toEqual(['user', 'layers']);
       expect(Object.keys(GUIDES[game])).toEqual(['showcase', 'file']);
     }
     const shape = (game: GameKey, way: ImportMethodKey) => {
@@ -59,8 +59,8 @@ describe('the import guides (METHODS and GUIDES)', () => {
     expect(shape('genshin', 'file')).toEqual({ pros: 3, cons: 2, steps: 4, tips: 2, troubleshooting: 3, fileHint: true });
     expect(shape('hsr', 'showcase')).toEqual({ pros: 3, cons: 2, steps: 5, tips: 1, troubleshooting: 2, fileHint: false });
     expect(shape('hsr', 'file')).toEqual({ pros: 3, cons: 1, steps: 5, tips: 1, troubleshooting: 4, fileHint: true });
-    expect(GUIDES.genshin.showcase.steps.map((step) => step.icon)).toEqual(['person', 'view_carousel', 'visibility', 'schedule', 'fingerprint']);
-    expect(GUIDES.hsr.file.steps.map((step) => step.icon)).toEqual(['download', 'pause_circle', 'play_circle', 'sports_esports', 'save']);
+    expect(GUIDES.genshin.showcase.steps.map((step) => step.icon)).toEqual(['user', 'columns', 'eye', 'clock', 'key']);
+    expect(GUIDES.hsr.file.steps.map((step) => step.icon)).toEqual(['download', 'pause', 'play', 'gamepad', 'save']);
   });
 
   it('hold keys and nothing else: each one a key of the site, each written once, none left over', () => {

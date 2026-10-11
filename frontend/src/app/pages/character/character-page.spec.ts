@@ -2,11 +2,11 @@ import { HttpErrorResponse } from '@angular/common/http';
 import { signal } from '@angular/core';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { By } from '@angular/platform-browser';
-import { MATERIAL_ANIMATIONS } from '@angular/material/core';
-import { MatTooltip } from '@angular/material/tooltip';
 import { provideRouter } from '@angular/router';
 import { Observable, of, throwError } from 'rxjs';
 import { provideTestTranslations } from '@anotoki/lib/translations/testing';
+import { IconComponent } from '@anotoki/lib/ui/icon';
+import { TooltipDirective } from '@anotoki/lib/ui/tooltip';
 import { Api } from '../../core/api';
 import { AuthService } from '../../core/auth';
 import { en } from '../../core/i18n/en';
@@ -14,6 +14,7 @@ import { TranslationService } from '../../core/i18n/translation';
 import { MetaStore } from '../../core/meta-store';
 import { AnalyzedItem, Build, CharacterAnalysis, Evaluation, GameKey, GameMeta, Meta, Recommendation, SetPlan, Suggestion } from '../../core/models';
 import { CharacterPage } from './character-page';
+import { provideKit } from '../../core/kit';
 
 /** The informal Slovak of the strings these cases look at: every game term stays as it is, first or after a colon. */
 const SLOVAK: Record<string, string> = {
@@ -253,7 +254,10 @@ describe('CharacterPage: the site’s words are keys, the game’s words stay', 
   let warn: ReturnType<typeof vi.spyOn>;
 
   const text = (selector: string) => [...host.querySelectorAll<HTMLElement>(selector)].map((element) => element.textContent?.replace(/\s+/g, ' ').trim() ?? '');
-  const tooltip = (selector: string) => fixture.debugElement.query(By.css(selector)).injector.get(MatTooltip).message;
+  /** The words of the kit's tooltip on an element. */
+  const tooltip = (selector: string) => fixture.debugElement.query(By.css(selector)).injector.get(TooltipDirective).text();
+  /** The names of the kit's icons. */
+  const icons = (selector: string) => fixture.debugElement.queryAll(By.css(selector)).map((icon) => (icon.componentInstance as IconComponent).name());
 
   /** Who looks: somebody signed in (an editor: the Sources page is a link), or nobody. */
   async function open(language: 'en' | 'sk' | 'marked', answer: Observable<CharacterAnalysis> = of(analysis()), who: 'editor' | 'member' | 'nobody' = 'editor'): Promise<void> {
@@ -261,9 +265,9 @@ describe('CharacterPage: the site’s words are keys, the game’s words stay', 
       providers: [
         provideRouter([]),
         language === 'en' ? provideTestTranslations(en) : provideTestTranslations(language === 'sk' ? SLOVAK : MARKED, { language: 'sk', english: en }),
+        provideKit(),
         { provide: Api, useValue: { meta: () => of(META), character: () => answer } },
         { provide: AuthService, useValue: { signedIn: signal(who !== 'nobody'), isStaff: signal(who === 'editor'), available: signal(true), failure: signal(null), user: signal(null), preferences: signal(null) } },
-        { provide: MATERIAL_ANIMATIONS, useValue: { animationsDisabled: true } },
       ],
     });
     await TestBed.inject(MetaStore).load();
@@ -283,23 +287,27 @@ describe('CharacterPage: the site’s words are keys, the game’s words stay', 
   it('reads in English as it did, with every game term as the game writes it', async () => {
     await open('en');
 
-    expect(text('.hero .chip')).toEqual(['Pyro', 'Polearm', 'Lv. 90', 'C1', 'Elemental Skill 12+3']);
-    expect(tooltip('.hero .chip:last-child')).toBe('+3 from Constellations');
+    expect(text('.hero anotoki-badge')).toEqual(['Pyro', 'Polearm', 'Lv. 90', 'C1', 'Elemental Skill 12+3']);
+    expect(tooltip('.hero anotoki-badge:last-child')).toBe('+3 from Constellations');
     expect(text('.hero-grade .small')).toEqual(['vs. Source 1 · Main DPS']);
-    expect(tooltip('.best-star')).toBe('Closest match to your current setup');
-    expect(text('.panel-title')).toEqual(['speedScore breakdown', 'checklistWhat to improve', 'groupsWhat the sources agree on', 'bar_chartStats']);
+    // The kit's tabs: a build each, its score beside it; the closest match says so on its build.
+    expect(text('[role="tab"]')).toEqual(['Source 1 · Main DPS 71', 'Source 2 · Main DPS 71']);
+    expect(text('.build-card [cardActions] anotoki-badge')).toEqual(['Closest match to your current setup']);
+    expect(text('.top-grid .anotoki-card__title')).toEqual(['Score breakdown', 'What to improve']);
+    expect(text('.bottom-grid .anotoki-card__title')).toEqual(['What the sources agree on', 'Stats']);
     expect(text('app-score-bar .head span:first-child')).toEqual(['Weapon', 'Set bonuses', 'Main stats', 'Substats', 'Stat targets']);
     expect(text('app-score-bar .value')).toEqual(['80', '50', '66', '70', 'n/a']);
-    expect(text('.parts + p')).toEqual(['Stat targets need in-game totals; import this character by UID (Character Showcase) to check them.']);
+    expect(text('.targets-note')).toEqual(['Stat targets need in-game totals; import this character by UID (Character Showcase) to check them.']);
     expect(text('.weapon-line > *')).toEqual(['Your Weapon:', "Dragon's Bane R5", 'Lv. 90 · option #2 of 5']);
-    expect(text('.section-title')).toEqual(['Your Artifacts', 'Better pieces you already own', 'Source 1 · Main DPS']);
-    expect(text('.section > .row > .chip')).toEqual(['Crit value 182.4']);
-    expect(tooltip('.section > .row > .chip')).toBe('2 × CRIT Rate + CRIT DMG from Artifacts');
+    expect(text('.section-head h2')).toEqual(['Your Artifacts', 'Better pieces you already own']);
+    expect(text('.build-card > .anotoki-card__header .anotoki-card__title')).toEqual(['Source 1 · Main DPS']);
+    expect(text('.crit-value')).toEqual(['Crit value 182.4']);
+    expect(tooltip('.crit-value')).toBe('2 × CRIT Rate + CRIT DMG from Artifacts');
     expect(text('.legend')).toEqual(['Substats in color matter most for this build; grayed ones are useless for it.']);
     expect(text('.legend .stat-good')).toEqual(['color']);
-    expect(text('.empty-slot')).toEqual(['blockFlower of LifeNothing equipped']);
+    expect(text('.empty-slot')).toEqual(['Flower of LifeNothing equipped']);
     expect(text('.stat-table')[0]).toBe('CRIT Rate62.0%');
-    expect(text('.bottom-grid > .panel:last-child > p')).toEqual(['In-game totals from your Character Showcase, 3 hours ago.']);
+    expect(text('.bottom-grid > anotoki-card:last-child .anotoki-card__body > p')).toEqual(['In-game totals from your Character Showcase, 3 hours ago.']);
     // A key the page has no string for would stand on the page as itself, and warn.
     expect(warn).not.toHaveBeenCalled();
   });
@@ -316,7 +324,7 @@ describe('CharacterPage: the site’s words are keys, the game’s words stay', 
     ]);
     // English on an English page needs no mark.
     expect(host.querySelectorAll('.rec [lang]')).toHaveLength(0);
-    expect(text('.rec mat-icon')).toEqual(['priority_high', 'warning', 'info', 'info']);
+    expect(icons('.rec anotoki-icon')).toEqual(['alert', 'alert', 'info', 'info']);
   });
 
   it('words them in Slovak around the game’s terms, and marks the stored English as English', async () => {
@@ -338,40 +346,40 @@ describe('CharacterPage: the site’s words are keys, the game’s words stay', 
   it('says the counted sentences in the form the number asks for', async () => {
     await open('sk');
 
-    expect(text('.plan strong')).toEqual(['Prejdi na set: 4pc Alpha', 'Prejdi na set: 4pc Alpha', 'Prejdi na set: 4pc Alpha']);
-    expect(text('.plan .chip')).toEqual(['Máš 2 / 4 kusy', 'Máš 0 / 1 kus', 'Máš 0 / 5 kusov']);
-    expect(text('.plan > p')).toEqual(['Na celý bonus ti chýbajú ešte 2 kusy tohto setu.', 'Na celý bonus ti chýba ešte 1 kus tohto setu.', 'Na celý bonus ti chýba ešte 5 kusov tohto setu.']);
-    expect(text('.suggestion .chip')).toEqual(['Substats: +3 body kvality', 'Doplní set bonus podľa odporúčania', 'Lepšie pre tento build']);
+    expect(text('.plan .anotoki-card__title')).toEqual(['Prejdi na set: 4pc Alpha', 'Prejdi na set: 4pc Alpha', 'Prejdi na set: 4pc Alpha']);
+    expect(text('.plan [cardActions] anotoki-badge')).toEqual(['Máš 2 / 4 kusy', 'Máš 0 / 1 kus', 'Máš 0 / 5 kusov']);
+    expect(text('.plan .plan-missing')).toEqual(['Na celý bonus ti chýbajú ešte 2 kusy tohto setu.', 'Na celý bonus ti chýba ešte 1 kus tohto setu.', 'Na celý bonus ti chýba ešte 5 kusov tohto setu.']);
+    expect(text('.suggestion-head anotoki-badge')).toEqual(['Substats: +3 body kvality', 'Doplní set bonus podľa odporúčania', 'Lepšie pre tento build']);
     expect(text('.suggestion > .small')).toEqual(['Terajší kus: 41 % · Teraz na postave: Xiangling', 'Terajší kus: 41 % · Nie je na žiadnej postave', 'Terajší kus: 41 % · Nie je na žiadnej postave']);
-    expect(text('.bottom-grid .panel-title + p')[0]).toBe('2 buildy, zdroje: Source 1, Source 2');
+    expect(text('.bottom-grid .anotoki-card__body > p')[0]).toBe('2 buildy, zdroje: Source 1, Source 2');
   });
 
   it('says them in English too, one piece and several', async () => {
     await open('en');
 
-    expect(text('.plan .chip')).toEqual(['You own 2 of 4 pieces', 'You own 0 of 1 piece', 'You own 0 of 5 pieces']);
-    expect(text('.plan > p')).toEqual([
+    expect(text('.plan [cardActions] anotoki-badge')).toEqual(['You own 2 of 4 pieces', 'You own 0 of 1 piece', 'You own 0 of 5 pieces']);
+    expect(text('.plan .plan-missing')).toEqual([
       'Farm 2 more pieces of this set to complete the bonus.',
       'Farm 1 more piece of this set to complete the bonus.',
       'Farm 5 more pieces of this set to complete the bonus.',
     ]);
-    expect(text('.suggestion .chip')).toEqual(['+3 points of substat quality', 'Completes the recommended set bonus', 'Better for this build']);
+    expect(text('.suggestion-head anotoki-badge')).toEqual(['+3 points of substat quality', 'Completes the recommended set bonus', 'Better for this build']);
     expect(text('.suggestion > .small')).toEqual(['Current piece: 41% · Currently on Xiangling', 'Current piece: 41% · Not equipped by anyone', 'Current piece: 41% · Not equipped by anyone']);
-    expect(text('.bottom-grid .panel-title + p')[0]).toBe('2 builds from Source 1, Source 2');
+    expect(text('.bottom-grid .anotoki-card__body > p')[0]).toBe('2 builds from Source 1, Source 2');
   });
 
   it('shows what the sources agree on: each set as its pieces, with the any-phrase where only some are needed', async () => {
     await open('sk');
 
     expect(text('.consensus-row > .muted')).toEqual(['Sands of Eon', 'Artifact sets', 'Sety', 'Weapon – najlepšie voľby']);
-    expect(text('.consensus-row .chip')).toEqual(['HP% 2×', '2pc Alpha + 2pc Beta + 2pc Gamma (ľubovoľné 2) 1×', '4pc Delta 1×', '2pc Omega 2×', 'Staff of Homa 2×']);
+    expect(text('.consensus-row anotoki-badge')).toEqual(['HP% 2×', '2pc Alpha + 2pc Beta + 2pc Gamma (ľubovoľné 2) 1×', '4pc Delta 1×', '2pc Omega 2×', 'Staff of Homa 2×']);
   });
 
   it('cuts the sentence with a link inside at its placeholder', async () => {
     await open('sk', of(analysis('genshin', { evaluations: [] })));
 
-    expect(text('.empty-state p')).toEqual(['Hu Tao: zatiaľ žiadne buildy. Pribudnú po ďalšej synchronizácii buildov (správcovia ju spúšťajú na stránke Zdroje).']);
-    const link = host.querySelector<HTMLAnchorElement>('.empty-state a')!;
+    expect(text('.no-builds p')).toEqual(['Hu Tao: zatiaľ žiadne buildy. Pribudnú po ďalšej synchronizácii buildov (správcovia ju spúšťajú na stránke Zdroje).']);
+    const link = host.querySelector<HTMLAnchorElement>('.no-builds a')!;
     expect(link.textContent).toBe('Zdroje');
     expect(link.getAttribute('href')).toBe('/admin/sources');
   });
@@ -379,15 +387,15 @@ describe('CharacterPage: the site’s words are keys, the game’s words stay', 
   it('names the Sources page without a link for somebody who cannot open it', async () => {
     await open('sk', of(analysis('genshin', { evaluations: [] })), 'member');
 
-    expect(text('.empty-state p')).toEqual(['Hu Tao: zatiaľ žiadne buildy. Pribudnú po ďalšej synchronizácii buildov (správcovia ju spúšťajú na stránke Zdroje).']);
-    expect(host.querySelector('.empty-state a')).toBeNull();
+    expect(text('.no-builds p')).toEqual(['Hu Tao: zatiaľ žiadne buildy. Pribudnú po ďalšej synchronizácii buildov (správcovia ju spúšťajú na stránke Zdroje).']);
+    expect(host.querySelector('.no-builds a')).toBeNull();
   });
 
   it('shows nobody the ways in, not an error, when the account is not theirs to open (401)', async () => {
     await open('en', throwError(() => new HttpErrorResponse({ status: 401, error: { message: 'Sign in.', code: 'sign_in_required' } })), 'nobody');
 
     expect(host.querySelector('app-visitor-hero')).not.toBeNull();
-    expect(text('.panel mat-icon')).not.toContain('error');
+    expect(host.querySelector('anotoki-alert.failure')).toBeNull();
     expect(host.textContent).toContain(en['home.title']);
   });
 
@@ -402,8 +410,8 @@ describe('CharacterPage: the site’s words are keys, the game’s words stay', 
 
       TestBed.resetTestingModule();
       await open('sk', of(analysis('genshin', { evaluations: [] })));
-      expect(text('.empty-state p')).toEqual(['Hu Tao: zatiaľ žiadne buildy.']);
-      expect(host.querySelector('.empty-state a')).toBeNull();
+      expect(text('.no-builds p')).toEqual(['Hu Tao: zatiaľ žiadne buildy.']);
+      expect(host.querySelector('.no-builds a')).toBeNull();
     } finally {
       SLOVAK['character.legend'] = kept.legend;
       SLOVAK['character.noBuilds'] = kept.noBuilds;
@@ -413,14 +421,14 @@ describe('CharacterPage: the site’s words are keys, the game’s words stay', 
   it('uses the other game’s terms for the other game', async () => {
     await open('sk', of(analysis('hsr', { character: { ...analysis('hsr').character, final_stats: null, final_stats_source: null } })));
 
-    expect(text('.hero .chip').slice(2)).toEqual(['Lv. 90', 'E1', 'Skill 12+3']);
-    expect(tooltip('.hero .chip:last-child')).toBe('Eidolons: +3');
+    expect(text('.hero anotoki-badge').slice(2)).toEqual(['Lv. 90', 'E1', 'Skill 12+3']);
+    expect(tooltip('.hero anotoki-badge:last-child')).toBe('Eidolons: +3');
     expect(text('app-score-bar .head span:first-child')[0]).toBe('Light Cone');
     expect(text('.weapon-line > *')).toEqual(['Light Cone:', "Dragon's Bane S5", 'Lv. 90 · možnosť č. 2 / 5']);
-    expect(text('.section-title')[0]).toBe('Relics na postave');
-    expect(host.querySelector('.section > .row > .chip')).toBeNull();
+    expect(text('.section-head h2')[0]).toBe('Relics na postave');
+    expect(host.querySelector('.crit-value')).toBeNull();
     expect(text('.consensus-row > .muted').at(-1)).toBe('Light Cone – najlepšie voľby');
-    expect(text('.bottom-grid > .panel:last-child > p')).toEqual(['Zdroj: len Relics (celkové hodnoty z hry uvidíš po importe zadaním UID):']);
+    expect(text('.bottom-grid > anotoki-card:last-child .anotoki-card__body > p')).toEqual(['Zdroj: len Relics (celkové hodnoty z hry uvidíš po importe zadaním UID):']);
   });
 
   it('leaves nothing of its own outside a key', async () => {
@@ -447,25 +455,25 @@ describe('CharacterPage: the site’s words are keys, the game’s words stay', 
   it('words a failed request from its code, never with the server’s sentence, and follows the language', async () => {
     await open('sk', throwError(() => new HttpErrorResponse({ status: 403, error: { message: 'Only an editor or an admin can do this.', code: 'editor_only' } })));
 
-    expect(text('.panel')).toEqual(['error Toto môže urobiť len editor alebo správca.']);
+    expect(text('.failure .anotoki-alert__text')).toEqual(['Toto môže urobiť len editor alebo správca.']);
 
     await TestBed.inject(TranslationService).setLanguage('en');
     await fixture.whenStable();
-    expect(text('.panel')).toEqual(['error Only an editor or an admin can do this.']);
+    expect(text('.failure .anotoki-alert__text')).toEqual(['Only an editor or an admin can do this.']);
   });
 
   it('words again when the language changes: state holds kinds and keys, not sentences', async () => {
     await open('sk');
     expect(text('.rec-cat + div')[0]).toBe('Sands of Eon: main stat je ATK%, tento build chce HP%.');
-    expect(text('.plan .chip')[0]).toBe('Máš 2 / 4 kusy');
+    expect(text('.plan [cardActions] anotoki-badge')[0]).toBe('Máš 2 / 4 kusy');
 
     await TestBed.inject(TranslationService).setLanguage('en');
     await fixture.whenStable();
     expect(text('.rec-cat + div')[0]).toBe('Sands of Eon has ATK% as main stat; this build wants HP%.');
     expect(text('.rec-cat')).toEqual(['Main stat · Sands of Eon', 'Sets', 'Stat target', 'Other']);
-    expect(text('.plan .chip')[0]).toBe('You own 2 of 4 pieces');
-    expect(text('.suggestion .chip')[0]).toBe('+3 points of substat quality');
-    expect(text('.consensus-row .chip')[1]).toBe('2pc Alpha + 2pc Beta + 2pc Gamma (any 2) 1×');
+    expect(text('.plan [cardActions] anotoki-badge')[0]).toBe('You own 2 of 4 pieces');
+    expect(text('.suggestion-head anotoki-badge')[0]).toBe('+3 points of substat quality');
+    expect(text('.consensus-row anotoki-badge')[1]).toBe('2pc Alpha + 2pc Beta + 2pc Gamma (any 2) 1×');
     expect(host.querySelectorAll('.rec [lang]')).toHaveLength(0);
   });
 });

@@ -1,11 +1,11 @@
 import { signal } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
-import { MatSnackBar } from '@angular/material/snack-bar';
 import { provideRouter } from '@angular/router';
 import { provideTestTranslations } from '@anotoki/lib/translations/testing';
 import { AuthService } from '../../core/auth';
 import { en } from '../../core/i18n/en';
 import { VisitorHero } from './visitor-hero';
+import { provideKit } from '../../core/kit';
 
 const SLOVAK = {
   'common.signIn': 'Prihlásiť sa',
@@ -29,18 +29,15 @@ function setup(options: { available?: boolean } = {}) {
     providers: [
       provideRouter([]),
       provideTestTranslations(SLOVAK, { language: 'sk', english: en }),
+      provideKit(),
       { provide: AuthService, useValue: auth },
-      { provide: MatSnackBar, useValue: { open: vi.fn() } },
     ],
   });
   return { auth };
 }
 
-const text = (element: Element | null | undefined) => {
-  const copy = element?.cloneNode(true) as Element | undefined;
-  copy?.querySelectorAll('mat-icon').forEach((icon) => icon.remove());
-  return copy?.textContent?.replace(/\s+/g, ' ').trim();
-};
+const text = (element: Element | null | undefined) =>
+  element?.textContent?.replace(/\s+/g, ' ').trim();
 
 describe('the ways in for somebody new (visitor hero)', () => {
   it("offers the import, each game's builds and the sign-in, in the reader's language, the games' names as they are", async () => {

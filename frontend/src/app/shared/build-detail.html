@@ -21,13 +21,15 @@
               }
             </div>
             @if (weapon.note) {
-              <div class="note muted small" [attr.lang]="storedLang()" [matTooltip]="weapon.note">{{ weapon.note }}</div>
+              <div class="note muted small" [attr.lang]="storedLang()" [anotokiTooltip]="weapon.note">
+                {{ weapon.note }}
+              </div>
             }
           </div>
           @if (weapon.key === equippedWeaponKey()) {
-            <span class="chip ok">{{ 'buildDetail.equipped' | translate }}</span>
+            <anotoki-badge tone="success">{{ 'buildDetail.equipped' | translate }}</anotoki-badge>
           } @else if (ownedWeaponKeys().has(weapon.key)) {
-            <span class="chip">{{ 'buildDetail.owned' | translate }}</span>
+            <anotoki-badge>{{ 'buildDetail.owned' | translate }}</anotoki-badge>
           }
         </li>
       }
@@ -51,20 +53,29 @@
               <div>
                 {{ pieceText(option) }}
                 @if (option.choose && option.choose < option.pieces.length) {
-                  <span class="muted small">{{ 'buildDetail.optionAny' | translatePlural: option.choose }}</span>
+                  <span class="muted small">{{
+                    'buildDetail.optionAny' | translatePlural: option.choose
+                  }}</span>
                 }
               </div>
               @for (piece of option.pieces; track $index) {
                 @if (piece.names.length > 1) {
-                  <div class="muted small" [matTooltip]="piece.names.join(', ')">{{ 'buildDetail.setsQualify' | translatePlural: piece.names.length : { label: piece.label } }}</div>
+                  <div class="muted small" [anotokiTooltip]="piece.names.join(', ')">
+                    {{
+                      'buildDetail.setsQualify'
+                        | translatePlural: piece.names.length : { label: piece.label }
+                    }}
+                  </div>
                 }
               }
               @if (option.note) {
-                <div class="note muted small" [attr.lang]="storedLang()" [matTooltip]="option.note">{{ option.note }}</div>
+                <div class="note muted small" [attr.lang]="storedLang()" [anotokiTooltip]="option.note">
+                  {{ option.note }}
+                </div>
               }
             </div>
             @if (group.matchedRank === $index + 1) {
-              <span class="chip ok">{{ 'buildDetail.inUse' | translate }}</span>
+              <anotoki-badge tone="success">{{ 'buildDetail.inUse' | translate }}</anotoki-badge>
             }
           </li>
         }
@@ -85,17 +96,31 @@
             <span class="priority">
               @for (group of slot.groups; track $index; let last = $last) {
                 @for (entry of group; track entry.stat; let lastInGroup = $last) {
-                  <span class="chip" [class.ok]="isCurrentMain(slot.key, entry.stat)">{{ stat(entry.stat) }}</span>
-                  @if (!lastInGroup) { <span class="sep">=</span> }
+                  <anotoki-badge [tone]="isCurrentMain(slot.key, entry.stat) ? 'success' : 'neutral'">{{
+                    stat(entry.stat)
+                  }}</anotoki-badge>
+                  @if (!lastInGroup) {
+                    <span class="sep">=</span>
+                  }
                 }
-                @if (!last) { <span class="sep">&gt;</span> }
+                @if (!last) {
+                  <span class="sep">&gt;</span>
+                }
               }
             </span>
-            @if (slot.check) {
-              <mat-icon class="check" [class.bad]="!slot.check.ok"
-                [matTooltip]="slot.check.ok ? ('buildDetail.mainStatMatches' | translate) : ('buildDetail.mainStatYours' | translate: { stat: stat(slot.check.current ?? '-') })">
-                {{ slot.check.ok ? 'check_circle' : 'cancel' }}
-              </mat-icon>
+            @if (slot.check; as check) {
+              @let said =
+                check.ok
+                  ? ('buildDetail.mainStatMatches' | translate)
+                  : ('buildDetail.mainStatYours' | translate: { stat: stat(check.current ?? '-') });
+              <anotoki-icon
+                class="check"
+                [class.bad]="!check.ok"
+                [name]="check.ok ? 'checkCircle' : 'xCircle'"
+                [size]="20"
+                [label]="said"
+                [anotokiTooltip]="said"
+              />
             }
           </div>
         }
@@ -112,10 +137,14 @@
       <div class="priority">
         @for (group of substatGroups(); track $index; let last = $last) {
           @for (entry of group; track entry.stat; let lastInGroup = $last) {
-            <span class="chip">{{ stat(entry.stat) }}</span>
-            @if (!lastInGroup) { <span class="sep">=</span> }
+            <anotoki-badge>{{ stat(entry.stat) }}</anotoki-badge>
+            @if (!lastInGroup) {
+              <span class="sep">=</span>
+            }
           }
-          @if (!last) { <span class="sep">&gt;</span> }
+          @if (!last) {
+            <span class="sep">&gt;</span>
+          }
         }
       </div>
     }
@@ -124,8 +153,10 @@
       <h3 class="mt">{{ 'buildDetail.talentPriority' | translate: { talents: terms().talents } }}</h3>
       <div class="priority">
         @for (label of talentGroups(); track $index; let last = $last) {
-          <span class="chip">{{ label }}</span>
-          @if (!last) { <span class="sep">&gt;</span> }
+          <anotoki-badge>{{ label }}</anotoki-badge>
+          @if (!last) {
+            <span class="sep">&gt;</span>
+          }
         }
       </div>
     }
@@ -141,12 +172,20 @@
         <div class="target" [class.ok]="target.ok === true" [class.bad]="target.ok === false">
           <span class="t-stat">{{ stat(target.stat) }}</span>
           <span class="t-goal">
-            {{ target.min | statValue: game() : target.stat }}@if (target.max) { – {{ target.max | statValue: game() : target.stat }} }+
+            {{ target.min | statValue: game() : target.stat
+            }}@if (target.max) {
+              – {{ target.max | statValue: game() : target.stat }}
+            }+
           </span>
           @if (target.current !== undefined && target.current !== null) {
-            <span class="t-current">{{ 'buildDetail.targetYours' | translate: { value: (target.current | statValue: game() : target.stat) } }}</span>
+            <span class="t-current">{{
+              'buildDetail.targetYours'
+                | translate: { value: (target.current | statValue: game() : target.stat) }
+            }}</span>
           }
-          <span class="t-text muted small" [attr.lang]="storedLang()" [matTooltip]="target.text">{{ target.text }}</span>
+          <span class="t-text muted small" [attr.lang]="storedLang()" [anotokiTooltip]="target.text">{{
+            target.text
+          }}</span>
         </div>
       }
     </div>
@@ -154,17 +193,22 @@
 }
 
 @if (b.notes) {
-  <mat-expansion-panel class="notes">
-    <mat-expansion-panel-header>
-      <mat-panel-title>{{ 'buildDetail.notesFrom' | translate: { source: b.source.name } }}</mat-panel-title>
-    </mat-expansion-panel-header>
-    <p class="notes-text" [attr.lang]="storedLang()">{{ b.notes }}</p>
-  </mat-expansion-panel>
+  <details class="disclosure notes">
+    <summary>{{ 'buildDetail.notesFrom' | translate: { source: b.source.name } }}</summary>
+    <div class="disclosure-body">
+      <p class="notes-text" [attr.lang]="storedLang()">{{ b.notes }}</p>
+    </div>
+  </details>
 }
 
 <footer class="muted small">
-  @if (b.game_version) { {{ 'buildDetail.version' | translate: { version: b.game_version } }} · }
-  @if (b.source_updated_at) { {{ 'buildDetail.updatedAtSource' | translate: { when: (b.source_updated_at | localDate: 'ago') } }} · }
+  @if (b.game_version) {
+    {{ 'buildDetail.version' | translate: { version: b.game_version } }} ·
+  }
+  @if (b.source_updated_at) {
+    {{ 'buildDetail.updatedAtSource' | translate: { when: (b.source_updated_at | localDate: 'ago') } }}
+    ·
+  }
   @if (b.fetched_at) {
     {{ 'buildDetail.checked' | translate: { when: (b.fetched_at | localDate: 'ago') } }}
   } @else {

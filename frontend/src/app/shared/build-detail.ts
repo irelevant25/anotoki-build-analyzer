@@ -1,7 +1,7 @@
 import { Component, computed, inject, input } from '@angular/core';
-import { MatExpansionModule } from '@angular/material/expansion';
-import { MatIconModule } from '@angular/material/icon';
-import { MatTooltipModule } from '@angular/material/tooltip';
+import { BadgeComponent } from '@anotoki/lib/ui/badge';
+import { IconComponent } from '@anotoki/lib/ui/icon';
+import { TooltipDirective } from '@anotoki/lib/ui/tooltip';
 import { GAME_TERMS, SET_KIND_TERMS, pieces } from '../core/game-terms';
 import { LocalDatePipe } from '../core/i18n/local-date';
 import { TranslatePipe } from '../core/i18n/translate';
@@ -27,10 +27,22 @@ interface SetGroup {
  * talent names - are terms and stay as they are. What a source wrote (a weapon's or a set's note, a
  * target's text, the build's notes) is stored English: shown as it is, marked `lang="en"` while the page
  * is in another language.
+ *
+ * The build sheet is the site's own; its parts are the kit's: badges for the stats and what the player has, its
+ * icons, tooltips for the notes cut to a line, and a disclosure (<details>) for the build's notes.
  */
 @Component({
   selector: 'app-build-detail',
-  imports: [Avatar, StatValuePipe, LocalDatePipe, TranslatePipe, TranslatePluralPipe, MatIconModule, MatTooltipModule, MatExpansionModule],
+  imports: [
+    Avatar,
+    StatValuePipe,
+    LocalDatePipe,
+    TranslatePipe,
+    TranslatePluralPipe,
+    BadgeComponent,
+    IconComponent,
+    TooltipDirective,
+  ],
   templateUrl: './build-detail.html',
   styleUrl: './build-detail.scss',
 })

@@ -8,7 +8,7 @@ import {
   provideTestAnotokiAuth,
   testAnotokiAuth,
 } from '@anotoki/lib/auth/testing';
-import { AuthService, preferencesProblem } from './auth';
+import { AuthService } from './auth';
 
 /** The auth module with the IAM's client in memory, started as the app starts it. */
 async function start(
@@ -88,34 +88,5 @@ describe("AuthService: the auth module (@anotoki/lib/auth) under the names the s
   it('is fail-closed about requiring a sign-in, and offers none where the IAM does not know the site', async () => {
     const { auth } = await start({ signInAvailable: false });
     expect([auth.loginRequired(), auth.available()]).toEqual([true, false]);
-  });
-});
-
-describe('preferencesProblem: a refused choice, worded from its code alone', () => {
-  it("says offline, signed out, or that something went wrong - never the IAM's sentence", () => {
-    expect(preferencesProblem({ code: 'network' })).toEqual({ key: 'error.offline', params: {} });
-    expect(preferencesProblem({ code: 'invalid_token' })).toEqual({
-      key: 'error.sign_in_required',
-      params: {},
-    });
-    expect(preferencesProblem({ code: 'login_required' })).toEqual({
-      key: 'error.sign_in_required',
-      params: {},
-    });
-    expect(preferencesProblem({ code: 'access_denied' })).toEqual({
-      key: 'error.unknown',
-      params: {},
-    });
-    expect(
-      preferencesProblem(
-        Object.assign(new Error('Your account is locked. Call 0900 123 456'), {
-          code: 'temporarily_unavailable',
-        }),
-      ),
-    ).toEqual({
-      key: 'error.unknown',
-      params: {},
-    });
-    expect(preferencesProblem(null)).toEqual({ key: 'error.unknown', params: {} });
   });
 });

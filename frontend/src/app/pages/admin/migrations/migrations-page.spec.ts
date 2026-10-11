@@ -2,7 +2,6 @@ import { provideHttpClient, withInterceptors } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
 import { signal } from '@angular/core';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
-import { MatSnackBar } from '@angular/material/snack-bar';
 import { provideRouter } from '@angular/router';
 import { SiteStatus, siteStatusInterceptor } from '@anotoki/lib/migrations';
 import { provideTestTranslations } from '@anotoki/lib/translations/testing';
@@ -116,7 +115,6 @@ describe("/admin/migrations: the family's Migrations page in the admin panel (AD
             login: vi.fn(),
           },
         },
-        { provide: MatSnackBar, useValue: { open: vi.fn() } },
       ],
     });
     http = TestBed.inject(HttpTestingController);

@@ -5,11 +5,24 @@
   border-radius: 14px;
   overflow: hidden;
   display: grid; place-items: center;
-  background-color: var(--app-surface-2);
+  background-color: var(--anotoki-surface-2);
   box-shadow: inset 0 0 0 2px var(--ring, transparent);
 }
 .avatar.sm { --dim: 32px; border-radius: 10px; }
 .avatar.lg { --dim: 88px; border-radius: 20px; }
 .avatar.xs { --dim: 24px; border-radius: 6px; }
 img { width: 100%; height: 100%; object-fit: cover; }
-.fallback { font-weight: 600; color: var(--app-muted); font-size: 0.8em; }
+.fallback { font-weight: 600; color: var(--anotoki-muted); font-size: 0.8em; }
+
+// The game's rarity as the picture's ground: gold for 5 stars, violet for 4, blue for 3.
+.rarity-5 {
+  background-image: linear-gradient(160deg, color-mix(in srgb, var(--rarity-5) 55%, transparent), transparent 80%);
+}
+
+.rarity-4 {
+  background-image: linear-gradient(160deg, color-mix(in srgb, var(--rarity-4) 55%, transparent), transparent 80%);
+}
+
+.rarity-3 {
+  background-image: linear-gradient(160deg, color-mix(in srgb, var(--rarity-3) 45%, transparent), transparent 80%);
+}

@@ -1,6 +1,5 @@
 import { computed, signal } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
-import { MatSnackBar } from '@angular/material/snack-bar';
 import { ANOTOKI_MIGRATIONS_CONFIG, AnotokiMigrationsConfig } from '@anotoki/lib/migrations';
 import { provideTestTranslations } from '@anotoki/lib/translations/testing';
 import { AuthService } from './auth';
@@ -81,7 +80,6 @@ describe('the site status, wired to this site (provideSiteStatus)', () => {
         provideSiteStatus(),
         provideTestTranslations({}, { language: 'sk', english: {} }),
         { provide: AuthService, useValue: auth },
-        { provide: MatSnackBar, useValue: { open: vi.fn() } },
       ],
     });
     config = TestBed.inject(ANOTOKI_MIGRATIONS_CONFIG);

@@ -1,11 +1,12 @@
 import { Component, computed, effect, inject, input, signal } from '@angular/core';
-import { FormsModule } from '@angular/forms';
-import { MatButtonToggleModule } from '@angular/material/button-toggle';
-import { MatFormFieldModule } from '@angular/material/form-field';
-import { MatIconModule } from '@angular/material/icon';
-import { MatInputModule } from '@angular/material/input';
-import { MatProgressBarModule } from '@angular/material/progress-bar';
 import { Router, RouterLink } from '@angular/router';
+import { AlertComponent } from '@anotoki/lib/ui/alert';
+import { CardComponent } from '@anotoki/lib/ui/card';
+import { TextFieldComponent } from '@anotoki/lib/ui/forms';
+import { IconComponent } from '@anotoki/lib/ui/icon';
+import { PageHeaderComponent } from '@anotoki/lib/ui/page-header';
+import { SegmentedComponent, SegmentedOption } from '@anotoki/lib/ui/segmented';
+import { SpinnerComponent } from '@anotoki/lib/ui/spinner';
 import { Api } from '../../core/api';
 import { AuthService } from '../../core/auth';
 import { GAME_LABELS, titleCase } from '../../core/format';
@@ -16,16 +17,21 @@ import { TranslationService } from '../../core/i18n/translation';
 import { BuildCharacter, GameKey } from '../../core/models';
 import { Avatar } from '../../shared/char-avatar';
 
+/**
+ * The recommended builds, for everybody (no account needed): a game at a time (the kit's segmented control), its
+ * characters as tiles of the site's own, a search - drawn with the anotoki family's kit.
+ */
 @Component({
   selector: 'app-builds-page',
   imports: [
-    FormsModule,
     RouterLink,
-    MatButtonToggleModule,
-    MatFormFieldModule,
-    MatIconModule,
-    MatInputModule,
-    MatProgressBarModule,
+    AlertComponent,
+    CardComponent,
+    IconComponent,
+    PageHeaderComponent,
+    SegmentedComponent,
+    SpinnerComponent,
+    TextFieldComponent,
     Avatar,
     ErrorTextPipe,
     TranslatePipe,
@@ -49,6 +55,11 @@ export class BuildsPage {
   protected readonly search = signal('');
 
   protected readonly gameLabels = GAME_LABELS;
+  /** The two games, by their own names. */
+  protected readonly gameOptions: SegmentedOption[] = [
+    { value: 'genshin', label: GAME_LABELS.genshin },
+    { value: 'hsr', label: GAME_LABELS.hsr },
+  ];
   protected readonly titleCase = titleCase;
   protected readonly gameKey = computed<GameKey>(() => (this.game() === 'hsr' ? 'hsr' : 'genshin'));
 
@@ -78,7 +89,9 @@ export class BuildsPage {
     });
   }
 
-  protected switchGame(game: GameKey): void {
-    void this.router.navigate(['/builds', game]);
+  protected switchGame(game: string): void {
+    if (game === 'genshin' || game === 'hsr') {
+      void this.router.navigate(['/builds', game]);
+    }
   }
 }

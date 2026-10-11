@@ -77,7 +77,18 @@ the site is closed to everybody but its ADMIN on the Migrations page (the site g
   `signIn.notConfigured` and `signIn.unreachable` with their strings; adds `footer.feedback` and the feedback
   form's four places (`feedback.section.*`) in English and Slovak. Gated: every moved string as it was (or an
   owner's rewording of the library key), no `signIn.*` left, the new keys in both languages, and the site's own
-  keys (450 - 8 + 5 = 447). Then the library's `anotoki_translations/003` (the sign-in screen's words) and `004`
+  keys (450 - 8 + 5 = 447).
+- `010_top_bar_words_through_the_library.sql` (the site's own pages on the family's kit: the top bar is the
+  library's now) moves the twelve words the site had for its own bar under the library's keys -
+  `topbar.phoneMenu`, `menuButton`, `menu`, `roleAdmin`, `roleEditor`, `account`, `admin` → `anotoki.topbar.*`,
+  `common.signOut` → `anotoki.topbar.signOut`, `theme.label`, `light`, `dark` → `anotoki.theme.*` and
+  `theme.system` → `anotoki.theme.auto` - with every language's string as it is, who saved it and when (where the
+  library's 002 ran first, the site's words take the place of the library's own - the Slovak "Správca",
+  "System" - never of an owner's rewording of the library's key); copies `common.signIn` under
+  `anotoki.topbar.signIn` (the start page keeps its own); retires `stepper.optional` and `stepper.editable`,
+  which only Angular Material's stepper said. Gated: every moved string as it was (or an owner's rewording), the
+  library keys in English, the fourteen gone, `common.signIn` and `stepper.completed` there, and the site's own
+  keys (447 - 14 = 433). Then the library's `anotoki_translations/003` (the sign-in screen's words) and `004`
   (the feedback form's), and `anotoki_people/001`.
 
 Rules: never edit a migration that has run somewhere; add `NNN_what.sql`. A migration runs in one transaction

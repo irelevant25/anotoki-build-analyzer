@@ -17,8 +17,9 @@
 
 .block h3 {
   margin: 0 0 8px;
-  font: var(--mat-sys-title-small);
-  color: var(--app-muted);
+  font-size: 0.8125rem;
+  font-weight: 700;
+  color: var(--anotoki-muted);
   text-transform: uppercase;
   letter-spacing: 0.04em;
 }
@@ -57,7 +58,7 @@ ol li.matched {
   width: 22px;
   text-align: center;
   font-weight: 600;
-  color: var(--app-muted);
+  color: var(--anotoki-muted);
   flex: none;
 }
 
@@ -92,7 +93,7 @@ ol li.matched {
 .slot-name {
   width: 120px;
   flex: none;
-  color: var(--app-muted);
+  color: var(--anotoki-muted);
   font-size: 0.9rem;
 }
 
@@ -105,18 +106,18 @@ ol li.matched {
 }
 
 .sep {
-  color: var(--app-muted);
+  color: var(--anotoki-muted);
   font-weight: 600;
   padding: 0 2px;
 }
 
 .check {
-  color: var(--grade-a);
+  color: var(--anotoki-success);
   flex: none;
 }
 
 .check.bad {
-  color: var(--grade-d);
+  color: var(--anotoki-danger-text);
 }
 
 .targets {
@@ -132,8 +133,8 @@ ol li.matched {
   gap: 2px 8px;
   padding: 8px 10px;
   border-radius: 10px;
-  background: var(--app-surface-2);
-  border: 1px solid var(--app-border);
+  background: var(--anotoki-surface-2);
+  border: 1px solid var(--anotoki-border);
 }
 
 .target.ok {

@@ -40,11 +40,11 @@ const IAM_META: Meta = {
   },
 };
 
-const ENGLISH = { 'theme.label': 'Appearance' };
+const ENGLISH = { 'footer.feedback': 'Reply' };
 const SK_BUNDLE: TranslationBundle = {
   language: 'sk',
   languages: TEST_LANGUAGES,
-  values: { 'theme.label': 'Vzhľad' },
+  values: { 'footer.feedback': 'Spätná väzba' },
   english: ENGLISH,
 };
 const EN_BUNDLE: TranslationBundle = { language: 'en', languages: TEST_LANGUAGES, values: ENGLISH };
@@ -139,7 +139,7 @@ describe('the start of the app (app.config.ts)', () => {
 
     const i18n = TestBed.inject(TranslationService);
     expect(i18n.ready()).toBe(true);
-    expect(i18n.t('theme.label')).toBe('Appearance');
+    expect(i18n.t('footer.feedback')).toBe('Reply');
     // The Router builds the title strategy, which needs the service: no circle.
     expect(TestBed.inject(Router)).toBeTruthy();
     expect(TestBed.inject(TitleStrategy)).toBeInstanceOf(AppTitleStrategy);
@@ -202,7 +202,7 @@ describe('the start of the app (app.config.ts)', () => {
 
     expect(TestBed.inject(AuthService).displayName()).toBe('mona');
     expect(TestBed.inject(TranslationService).language()).toBe('sk');
-    expect(TestBed.inject(TranslationService).t('theme.label')).toBe('Vzhľad');
+    expect(TestBed.inject(TranslationService).t('footer.feedback')).toBe('Spätná väzba');
     TestBed.tick();
     expect(document.documentElement.lang).toBe('sk');
   });
@@ -341,7 +341,7 @@ describe('the start of the app (app.config.ts)', () => {
     expect(translations()).toEqual([]);
     const i18n = TestBed.inject(TranslationService);
     expect(i18n.ready()).toBe(false);
-    expect(i18n.t('theme.label')).toBe('Theme');
+    expect(i18n.t('common.cancel')).toBe('Cancel');
     expect(i18n.t('footer.feedback')).toBe('Feedback');
     const status = TestBed.inject(SiteStatus);
     expect([status.state(), status.installed()]).toEqual(['not-set-up', false]);
@@ -358,7 +358,7 @@ describe('the start of the app (app.config.ts)', () => {
 
     expect(translations()).toEqual([]);
     expect(TestBed.inject(TranslationService).language()).toBe('sk');
-    expect(TestBed.inject(TranslationService).t('theme.label')).toBe('Vzhľad');
+    expect(TestBed.inject(TranslationService).t('footer.feedback')).toBe('Spätná väzba');
     expect(TestBed.inject(SiteStatus).state()).toBe('unavailable');
   });
 
@@ -400,7 +400,7 @@ describe('the start of the app (app.config.ts)', () => {
     expect(translations()).toEqual([]);
     const i18n = TestBed.inject(TranslationService);
     expect(i18n.ready()).toBe(false);
-    expect(i18n.t('theme.label')).toBe('Theme');
+    expect(i18n.t('footer.feedback')).toBe('Feedback');
     expect(i18n.languages()).toEqual([]);
     expect(TestBed.inject(SiteStatus).state()).toBe('update-pending');
   });

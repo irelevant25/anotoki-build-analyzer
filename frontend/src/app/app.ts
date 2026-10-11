@@ -1,31 +1,40 @@
 import { Component, Injector, effect, inject, untracked } from '@angular/core';
-import { MatSnackBar } from '@angular/material/snack-bar';
 import { RouterOutlet } from '@angular/router';
 import { SiteGateComponent, SitePagesDirective, SiteStatus } from '@anotoki/lib/migrations';
+import { ThemeService } from '@anotoki/lib/shell';
+import { ConfirmHostComponent } from '@anotoki/lib/ui/dialog';
+import { ToastHostComponent, ToastService } from '@anotoki/lib/ui/toast';
 import { AuthService } from './core/auth';
 import { Changelog } from './core/changelog';
 import { TranslationService } from './core/i18n/translation';
 import { localizationDrafts } from './core/localization-drafts';
-import { ThemeService } from './core/theme';
 import { VisitorKey } from './core/visitor-key';
 
 /**
- * The shell: the router, whose two layouts draw the family's top bar and the footer (layouts/app-layout for
- * everybody's pages, layouts/admin-layout for /admin) - inside the anotoki family's site gate
+ * The shell: the router, whose two layouts draw the family's frame - its top bar and the footer (layouts/app-layout
+ * for everybody's pages, layouts/admin-layout for /admin) - inside the anotoki family's site gate
  * (@anotoki/lib/migrations, core/site-status.ts). While the site is not ready the gate shows its page instead:
  * "being updated" (with a quiet Sign in while nobody is signed in) to everybody but the site's ADMIN, who reads
  * that a database update waits and reaches the Migrations page - the one page that shows then; "not set up yet"
  * with the setup page only while the site was never installed; "not available right now" otherwise. The
  * router outlet is the gate's template, made only while the gate shows it: a page behind the gate's page is
  * not made at all, so it sends no request (each would be a 503) and leaves nothing behind - no error, no
- * snack bar, no sync "stopped" in a service the pages share.
+ * message, no sync "stopped" in a service the pages share.
  *
- * And what belongs to no page: the theme (applied before the first page draws), What's new once per version,
- * and the snack bar that says what moved from a visitor into an account after a sign-in.
+ * And what belongs to no page: the theme (the family's ThemeService - theme-boot.js has put the stored one on the
+ * page before anything was drawn), What's new once per version, the kit's "Are you sure?" and its messages
+ * (<anotoki-confirm-host>, <anotoki-toast-host>: outside the gate, so they serve its page too), and the message
+ * that says what moved from a visitor into an account after a sign-in.
  */
 @Component({
   selector: 'app-root',
-  imports: [RouterOutlet, SiteGateComponent, SitePagesDirective],
+  imports: [
+    RouterOutlet,
+    SiteGateComponent,
+    SitePagesDirective,
+    ConfirmHostComponent,
+    ToastHostComponent,
+  ],
   templateUrl: './app.html',
   styleUrl: './app.scss',
 })
@@ -34,9 +43,9 @@ export class App {
   private readonly auth = inject(AuthService);
   private readonly changelog = inject(Changelog);
   private readonly i18n = inject(TranslationService);
-  private readonly snackBar = inject(MatSnackBar);
+  private readonly toasts = inject(ToastService);
   private readonly visitor = inject(VisitorKey);
-  /** The theme - the account's while somebody is signed in, else this device's - on <html> before anything is drawn. */
+  /** The theme - the account's while somebody is signed in, else this device's - followed from the start. */
   private readonly theme = inject(ThemeService);
   constructor() {
     // What an editor typed on the Translations and Languages pages and did not save, brought back by a page
@@ -58,7 +67,8 @@ export class App {
       }
     });
 
-    // After a sign-in: what the visitor had imported is now the person's - said once, in the language on the page.
+    // After a sign-in: what the visitor had imported is now the person's - said once, in the language on the page,
+    // and kept on the screen a little longer than a passing message (it is news about the person's own data).
     effect(() => {
       const move = this.visitor.moved();
       if (!move) {
@@ -69,10 +79,8 @@ export class App {
           move.moved > 0 ? this.i18n.plural('visitor.moved', move.moved) : '',
           move.kept > 0 ? this.i18n.plural('visitor.kept', move.kept) : '',
         ];
-        // A finished sentence when raised; a snack bar is not worded again.
-        this.snackBar.open(said.filter(Boolean).join(' '), this.i18n.t('common.close'), {
-          duration: 10000,
-        });
+        // A finished sentence when raised; a message is not worded again.
+        this.toasts.show(said.filter(Boolean).join(' '), 'success', 10000);
         this.visitor.moved.set(null);
       });
     });

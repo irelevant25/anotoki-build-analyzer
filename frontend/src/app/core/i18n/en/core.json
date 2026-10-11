@@ -1,9 +1,4 @@
 {
-  "theme.label": "Theme",
-  "theme.system": "System",
-  "theme.light": "Light",
-  "theme.dark": "Dark",
-
   "title.import": "Import account",
   "title.account": "Account",
   "title.character": "Character analysis",

@@ -1,46 +1,41 @@
-<h2 mat-dialog-title>{{ 'whatsNew.title' | translate }}</h2>
+@for (entry of entries; track entry.version; let first = $first) {
+  <section class="release" [class.latest]="first">
+    <header class="release-head">
+      <span class="version">{{ 'whatsNew.version' | translate: { version: entry.version } }}</span>
+      @if (first) {
+        <anotoki-badge tone="success">{{ 'whatsNew.latest' | translate }}</anotoki-badge>
+      }
+      <span class="date muted small">{{ entry.date | localDate: 'day' }}</span>
+    </header>
 
-<mat-dialog-content>
-  @for (entry of entries; track entry.version; let first = $first) {
-    <section class="release" [class.latest]="first">
-      <header class="release-head">
-        <span class="version">{{ 'whatsNew.version' | translate: { version: entry.version } }}</span>
-        @if (first) {
-          <span class="chip ok">{{ 'whatsNew.latest' | translate }}</span>
+    <!-- The entries are written once, in English, and shown as they are: each list says which language it is in. -->
+    @if (entry.changes.added?.length) {
+      <h3 class="kind added"><anotoki-icon name="plus" [size]="18" />{{ 'whatsNew.added' | translate }}</h3>
+      <ul [attr.lang]="i18n.storedEnglishLang()">
+        @for (item of entry.changes.added; track item) {
+          <li>{{ item }}</li>
         }
-        <span class="spacer"></span>
-        <span class="muted small">{{ entry.date | localDate: 'day' }}</span>
-      </header>
+      </ul>
+    }
+    @if (entry.changes.fixed?.length) {
+      <h3 class="kind fixed"><anotoki-icon name="wrench" [size]="18" />{{ 'whatsNew.fixed' | translate }}</h3>
+      <ul [attr.lang]="i18n.storedEnglishLang()">
+        @for (item of entry.changes.fixed; track item) {
+          <li>{{ item }}</li>
+        }
+      </ul>
+    }
+    @if (entry.changes.updated?.length) {
+      <h3 class="kind updated"><anotoki-icon name="refresh" [size]="18" />{{ 'whatsNew.updated' | translate }}</h3>
+      <ul [attr.lang]="i18n.storedEnglishLang()">
+        @for (item of entry.changes.updated; track item) {
+          <li>{{ item }}</li>
+        }
+      </ul>
+    }
+  </section>
+}
 
-      <!-- The entries are written once, in English, and shown as they are: each list says which language it is in. -->
-      @if (entry.changes.added?.length) {
-        <h3 class="kind added"><mat-icon>add_circle</mat-icon>{{ 'whatsNew.added' | translate }}</h3>
-        <ul [attr.lang]="i18n.storedEnglishLang()">
-          @for (item of entry.changes.added; track item) {
-            <li>{{ item }}</li>
-          }
-        </ul>
-      }
-      @if (entry.changes.fixed?.length) {
-        <h3 class="kind fixed"><mat-icon>build</mat-icon>{{ 'whatsNew.fixed' | translate }}</h3>
-        <ul [attr.lang]="i18n.storedEnglishLang()">
-          @for (item of entry.changes.fixed; track item) {
-            <li>{{ item }}</li>
-          }
-        </ul>
-      }
-      @if (entry.changes.updated?.length) {
-        <h3 class="kind updated"><mat-icon>update</mat-icon>{{ 'whatsNew.updated' | translate }}</h3>
-        <ul [attr.lang]="i18n.storedEnglishLang()">
-          @for (item of entry.changes.updated; track item) {
-            <li>{{ item }}</li>
-          }
-        </ul>
-      }
-    </section>
-  }
-</mat-dialog-content>
-
-<mat-dialog-actions align="end">
-  <button mat-flat-button mat-dialog-close>{{ 'common.close' | translate }}</button>
-</mat-dialog-actions>
+<ng-template anotokiDialogFooter>
+  <button anotokiButton variant="primary" (click)="ref.close()">{{ 'common.close' | translate }}</button>
+</ng-template>

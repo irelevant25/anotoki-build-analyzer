@@ -1,11 +1,10 @@
 import { HttpErrorResponse } from '@angular/common/http';
 import { signal } from '@angular/core';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
-import { MATERIAL_ANIMATIONS } from '@angular/material/core';
-import { MatSnackBar } from '@angular/material/snack-bar';
 import { provideRouter } from '@angular/router';
 import { Observable, of, throwError } from 'rxjs';
 import { provideTestTranslations } from '@anotoki/lib/translations/testing';
+import { ToastService } from '@anotoki/lib/ui/toast';
 import { Api } from '../../core/api';
 import { AuthService } from '../../core/auth';
 import { en } from '../../core/i18n/en';
@@ -13,6 +12,7 @@ import { TranslationService } from '../../core/i18n/translation';
 import { MetaStore } from '../../core/meta-store';
 import { AccountDetail, CharacterOverview, GameKey, ImportRun } from '../../core/models';
 import { AccountPage } from './account-page';
+import { provideKit } from '../../core/kit';
 
 const HOUR = 3_600_000;
 /** A moment that reads "N hours ago" for as long as the spec runs. */
@@ -150,14 +150,12 @@ describe('the account page', () => {
   let fixture: ComponentFixture<AccountPage>;
   let host: HTMLElement;
   let api: { account: ReturnType<typeof vi.fn>; accountImports: ReturnType<typeof vi.fn>; renameAccount: ReturnType<typeof vi.fn> };
-  let snackBar: { open: ReturnType<typeof vi.fn> };
+  let toasts: { error: ReturnType<typeof vi.fn> };
 
-  /** What an element says, without the names of its icons. */
-  const text = (element: Element | null | undefined) => {
-    const copy = element?.cloneNode(true) as Element | undefined;
-    copy?.querySelectorAll('mat-icon').forEach((icon) => icon.remove());
-    return copy?.textContent?.replace(/\s+/g, ' ').trim();
-  };
+  /** What an element says. */
+  const text = (element: Element | null | undefined) => element?.textContent?.replace(/\s+/g, ' ').trim();
+  /** The words of the option a select of the kit shows. */
+  const chosen = (selector: string) => text(host.querySelector<HTMLSelectElement>(`${selector} select`)?.selectedOptions[0]);
   const texts = (selector: string, within: Element = host) => [...within.querySelectorAll(selector)].map(text);
   /** The tiles under the head: each a caption above its value. */
   const tiles = () => [...host.querySelectorAll('.stat')].map((tile) => [text(tile.querySelector('span')), text(tile.querySelector('strong'))]);
@@ -179,7 +177,7 @@ describe('the account page', () => {
       accountImports: vi.fn(() => of(options.imports ?? [])),
       renameAccount: vi.fn(),
     };
-    snackBar = { open: vi.fn() };
+    toasts = { error: vi.fn() };
     const meta = {
       // No metadata: the page falls back on the games' own prefixes.
       game: (_key: GameKey) => null,
@@ -190,10 +188,10 @@ describe('the account page', () => {
       providers: [
         provideRouter([]),
         (options.language ?? 'sk') === 'sk' ? provideTestTranslations(SLOVAK, { language: 'sk', english: en }) : provideTestTranslations(en),
+        provideKit(),
         { provide: Api, useValue: api },
         { provide: MetaStore, useValue: meta },
-        { provide: MatSnackBar, useValue: snackBar },
-        { provide: MATERIAL_ANIMATIONS, useValue: { animationsDisabled: true } },
+        { provide: ToastService, useValue: toasts },
         // Somebody signed in: no visitor notice; one who is not is a case of its own.
         { provide: AuthService, useValue: { signedIn: signal(options.signedIn ?? true), available: signal(true), user: signal(null), failure: signal(null) } },
       ],
@@ -211,8 +209,8 @@ describe('the account page', () => {
 
     // The game's name, UID and Adventure Rank stay; the relative time goes into the site's own word.
     expect(text(host.querySelector('.subtitle'))).toBe('Genshin Impact · UID 800000001 · Adventure Rank 58 · importované pred 3 hodinami');
-    expect(texts('.page-header .row a')).toEqual(['Aktualizovať zadaním UID', 'Nahrať inventár']);
-    const rename = host.querySelector('h1 button')!;
+    expect(texts('anotoki-page-header a')).toEqual(['Aktualizovať zadaním UID', 'Nahrať inventár']);
+    const rename = host.querySelector('anotoki-page-header button.rename')!;
     expect(rename.getAttribute('aria-label')).toBe('Premenovať účet');
 
     // A caption above its number; what a character wears is named by the game.
@@ -223,10 +221,10 @@ describe('the account page', () => {
       ['Údaje', 'Len Showcase'],
     ]);
     expect(text(host.querySelector('.note'))).toBe('Známe sú len postavy, ktoré ukazuje Character Showcase.');
-    expect(texts('mat-label')).toEqual(['Hľadať', 'Zoradiť']);
-    expect(host.querySelector('mat-button-toggle-group')?.getAttribute('aria-label')).toBe('Element');
-    expect(texts('mat-button-toggle')).toEqual(['Všetky']);
-    expect(text(host.querySelector('.mat-mdc-select-value-text'))).toBe('Najprv tie, ktoré treba zlepšiť');
+    // The kit's fields: the search, the element (the game's names), the order.
+    expect(texts('.filters .anotoki-field__label')).toEqual(['Hľadať', 'Element', 'Zoradiť']);
+    expect(texts('.element option')).toEqual(['Všetky']);
+    expect(chosen('.sort')).toBe('Najprv tie, ktoré treba zlepšiť');
 
     expect(host.textContent).not.toMatch(A_KEY);
   });
@@ -263,7 +261,7 @@ describe('the account page', () => {
     expect(text(cards()[0].querySelector('.sets'))).toBe('Artifacts: none equipped');
     expect(text(cards()[0].querySelector('.char-names .muted'))).toBe('Lv. 90 · C2');
     expect(text(cards()[0].querySelector('.best-line'))).toBe('Best match: Source 1 · Burst DPS');
-    expect(text(host.querySelector('.mat-mdc-select-value-text'))).toBe('Needs work first');
+    expect(chosen('.sort')).toBe('Needs work first');
   });
 
   describe('a character’s card', () => {
@@ -330,7 +328,7 @@ describe('the account page', () => {
 
   it('counts the characters without builds the way Slovak counts', async () => {
     const without = (count: number) => account({ characters: [character(1), ...Array.from({ length: count }, (_, index) => character(10 + index, { best: null, builds_count: 0 }))] });
-    const sentence = () => text(host.querySelector('.page > p.muted.small:not(.note)'));
+    const sentence = () => text(host.querySelector('.without-builds'));
 
     await setup({ account: without(1) });
     expect(sentence()).toBe('1 postava zatiaľ nemá buildy; pribudnú po ďalšej synchronizácii buildov.');
@@ -349,14 +347,19 @@ describe('the account page', () => {
 
     TestBed.resetTestingModule();
     await setup({ account: without(0) });
-    expect(host.querySelector('.page > p.muted.small:not(.note)')).toBeNull();
+    expect(host.querySelector('.without-builds')).toBeNull();
   });
 
   it('offers the characters with nothing equipped, saying how many, and says when the filters leave none', async () => {
     await setup({ account: account({ characters: [character(1, { items_count: 0 }), character(2, { items_count: 0 })] }) });
 
-    expect(text(host.querySelector('mat-slide-toggle label'))).toBe('Zobraziť aj postavy bez výbavy (2)');
-    expect(text(host.querySelector('.empty-state'))).toBe('Filtrom nezodpovedá žiadna postava.');
+    expect(text(host.querySelector('anotoki-switch .anotoki-switch__words'))).toBe('Zobraziť aj postavy bez výbavy (2)');
+    expect(text(host.querySelector('anotoki-empty-state .anotoki-empty-state__heading'))).toBe('Filtrom nezodpovedá žiadna postava.');
+
+    // Shown, the two come back.
+    host.querySelector<HTMLInputElement>('anotoki-switch input')!.click();
+    await fixture.whenStable();
+    expect(cards()).toHaveLength(2);
   });
 
   describe('the import history', () => {
@@ -372,12 +375,12 @@ describe('the account page', () => {
     it('words each run: when, from where, how it ended, and what came in - a count beside the game’s noun as "noun: count"', async () => {
       await setup({ imports: RUNS });
 
-      expect(text(host.querySelector('mat-panel-title'))).toBe('História importov');
+      expect(text(host.querySelector('.history summary'))).toBe('História importov');
       const rows = history();
       expect(rows.map((cells) => text(cells[0]))).toEqual(Array(5).fill('pred 2 hodinami'));
       expect(rows.map((cells) => text(cells[1]))).toEqual(['Súbor s inventárom', 'Showcase (UID)', 'Súbor s inventárom', 'Showcase (UID)', 'Súbor s inventárom']);
       expect(rows.map((cells) => text(cells[2]))).toEqual(['úspešný', 'čiastočný', 'čiastočný', 'neúspešný', 'neúspešný']);
-      expect(rows.map((cells) => cells[2].querySelector('.chip')?.className)).toEqual(['chip ok', 'chip warn', 'chip warn', 'chip bad', 'chip bad']);
+      expect(rows.map((cells) => cells[2].querySelector('anotoki-badge')?.getAttribute('data-tone'))).toEqual(['success', 'warning', 'warning', 'danger', 'danger']);
       // 1 523 is written the way Slovak writes numbers: a space that does not break.
       expect(rows.map((cells) => text(cells[3])?.replace(/ /g, ' '))).toEqual([
         '12 postáv, Artifacts: 1 523',
@@ -432,10 +435,10 @@ describe('the account page', () => {
     it('shows a visitor their account under the notice that says how long it is kept', async () => {
       await setup({ language: 'en', signedIn: false });
 
-      expect(text(host.querySelector('app-visitor-notice p'))).toBe(
+      expect(text(host.querySelector('app-visitor-notice .anotoki-alert__text'))).toBe(
         'You are not signed in. What you import is kept for this browser on our server for 30 days after your last visit. Signing in keeps it in your anotoki account.',
       );
-      expect(host.querySelector('.page-header')).not.toBeNull();
+      expect(host.querySelector('anotoki-page-header')).not.toBeNull();
     });
 
     it('shows nobody the ways in, not an error, for an account that is not theirs to open (401)', async () => {
@@ -450,7 +453,7 @@ describe('the account page', () => {
       await setup({ language: 'en', account: throwError(() => new HttpErrorResponse({ status: 401, error: { message: 'Sign in.', code: 'sign_in_required' } })) });
 
       expect(host.querySelector('app-visitor-hero')).toBeNull();
-      expect(text(host.querySelector('.panel'))).toBe(en['error.sign_in_required']);
+      expect(text(host.querySelector('.failure .anotoki-alert__text'))).toBe(en['error.sign_in_required']);
     });
   });
 
@@ -458,24 +461,24 @@ describe('the account page', () => {
     it('words a page that could not be loaded from the failure’s code, never with the server’s sentence', async () => {
       await setup({ account: throwError(() => new HttpErrorResponse({ status: 404, error: { message: 'Not found.', code: 'not_found' } })) });
 
-      expect(text(host.querySelector('.panel'))).toBe('Nenašlo sa.');
+      expect(text(host.querySelector('.failure .anotoki-alert__text'))).toBe('Nenašlo sa.');
       expect(host.textContent).not.toContain('Not found.');
-      expect(host.querySelector('.page-header')).toBeNull();
+      expect(host.querySelector('anotoki-page-header')).toBeNull();
     });
 
-    it('says why a new name was not saved, in a snack bar worded when it is raised', async () => {
+    it('says why a new name was not saved, in a message worded when it is raised', async () => {
       await setup();
       api.renameAccount.mockImplementation(() => throwError(() => new HttpErrorResponse({ status: 422, error: { message: 'The nickname is too long.', code: 'invalid', errors: { nickname: ['The nickname is too long.'] } } })));
 
-      host.querySelector<HTMLButtonElement>('h1 button')!.click();
+      host.querySelector<HTMLButtonElement>('anotoki-page-header button.rename')!.click();
       await fixture.whenStable();
-      expect(texts('mat-label')[0]).toBe('Názov účtu');
+      expect(texts('.rename-form .anotoki-field__label')).toEqual(['Názov účtu']);
       expect(texts('form button')).toEqual(['Uložiť', 'Zrušiť']);
 
       host.querySelector('form')!.dispatchEvent(new Event('submit'));
       await fixture.whenStable();
       expect(api.renameAccount).toHaveBeenCalledWith(3, 'Mona');
-      expect(snackBar.open).toHaveBeenCalledWith('Niečo z odoslaného nie je v poriadku.', 'Zavrieť');
+      expect(toasts.error).toHaveBeenCalledWith('Niečo z odoslaného nie je v poriadku.');
     });
   });
 });

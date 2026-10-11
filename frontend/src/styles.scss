@@ -1,69 +1,106 @@
-@use '@angular/material' as mat;
+@use '@anotoki/lib/styles' as anotoki;
 
-// Material 3 theme. "color-scheme" follows the OS setting; the toolbar toggle forces light or dark
-// by setting `color-scheme` on <html>.
-html {
-  color-scheme: light dark;
-  @include mat.theme((
-    color: (
-      primary: mat.$violet-palette,
-      tertiary: mat.$cyan-palette,
+// The anotoki family's kit (@anotoki/lib/styles): its tokens, Manrope, its base, utilities and tables - with this
+// site's own colours over the family's palette, light and dark (the owner's decision of 2026-10-07: one library
+// palette, each site keeping its look by its tokens, never by re-styling the kit's pieces). The colours are the
+// ones the site wore with Angular Material's violet theme: its violet (#7d00fa, #d5baff in dark), its greys and
+// surfaces, the theme's red and outline, and its cyan as the second colour of the person's initial. Two are made
+// to reach WCAG AA where the old ones did not: the light muted ink (#625f6e: 5:1 on every ground; #6b6878 was
+// 4.4:1 on surface-3) - and every edge of a control (border-strong, Material's outline) is 3:1 on every ground.
+// The success, warning and their inks stay the family's (4.5:1 on their soft grounds). The theme is the shell's
+// ThemeService: <html data-theme>, written before the first paint by theme-boot.js (index.html).
+@include anotoki.root(
+  (
+    light: (
+      bg: #f6f5fb,
+      surface: #ffffff,
+      surface-2: #f0eef7,
+      surface-3: #e9e6f2,
+      surface-raised: #ffffff,
+      border: #e2dfeb,
+      border-strong: #7b757f,
+      text: #1c1b20,
+      muted: #625f6e,
+      subtle: #625f6e,
+      primary: #7d00fa,
+      primary-hover: #6900d2,
+      primary-contrast: #ffffff,
+      primary-soft: rgb(125 0 250 / 12%),
+      primary-soft-text: #7d00fa,
+      accent: #006a6a,
+      link: #7d00fa,
+      danger: #ba1a1a,
+      danger-hover: #9c1515,
+      danger-contrast: #ffffff,
+      danger-soft: #fdecea,
+      danger-border: #f2c4bf,
+      danger-text: #ba1a1a,
+      info: #7d00fa,
+      info-soft: rgb(125 0 250 / 8%),
+      info-border: rgb(125 0 250 / 28%),
+      ring: rgb(125 0 250 / 30%),
+      focus: #7d00fa,
+      backdrop: rgb(28 27 32 / 45%),
+      skeleton: #ebe8f3,
+      skeleton-shine: #f6f5fb,
+      shadow-sm: (
+        0 1px 2px rgb(28 27 32 / 6%),
+      ),
+      shadow: (
+        0 1px 2px rgb(28 27 32 / 5%),
+        0 8px 24px rgb(28 27 32 / 7%),
+      ),
+      shadow-lg: (
+        0 4px 12px rgb(28 27 32 / 9%),
+        0 24px 56px rgb(28 27 32 / 15%),
+      ),
+      brand-area: #7d00fa,
     ),
-    typography: Roboto,
-    density: 0,
-  ));
+    dark: (
+      bg: #121218,
+      surface: #1c1b24,
+      surface-2: #24232e,
+      surface-3: #2d2c38,
+      surface-raised: #24232e,
+      border: #33323f,
+      border-strong: #958e99,
+      text: #ebe8f4,
+      muted: #a09cb0,
+      subtle: #a09cb0,
+      primary: #d5baff,
+      primary-hover: #e4d2ff,
+      primary-contrast: #42008a,
+      primary-soft: rgb(213 186 255 / 14%),
+      primary-soft-text: #d5baff,
+      accent: #00dddd,
+      link: #d5baff,
+      danger: #ffb4ab,
+      danger-hover: #ffcdc6,
+      danger-contrast: #690005,
+      danger-soft: rgb(255 180 171 / 12%),
+      danger-border: rgb(255 180 171 / 35%),
+      danger-text: #ffb4ab,
+      info: #d5baff,
+      info-soft: rgb(213 186 255 / 10%),
+      info-border: rgb(213 186 255 / 30%),
+      ring: rgb(213 186 255 / 40%),
+      focus: #d5baff,
+      backdrop: rgb(0 0 0 / 62%),
+      skeleton: #24232e,
+      skeleton-shine: #2d2c38,
+      brand-area: #d5baff,
+    ),
+  )
+);
+@include anotoki.fonts;
+@include anotoki.base;
+@include anotoki.utilities;
+@include anotoki.tables;
 
-  // App tokens (light / dark aware).
-  --app-bg: light-dark(#f6f5fb, #121218);
-  --app-surface: light-dark(#ffffff, #1c1b24);
-  --app-surface-2: light-dark(#f0eef7, #24232e);
-  --app-border: light-dark(#e2dfeb, #33323f);
-  --app-muted: light-dark(#6b6878, #a09cb0);
-  --app-text: light-dark(#1c1b20, #ebe8f4);
-
-  // The family's top bar and its menus (layouts/top-bar), in this theme's colours.
-  --app-surface-3: light-dark(#e9e6f2, #2d2c38);
-  --app-raised: light-dark(#ffffff, #24232e);
-  --app-primary-soft: color-mix(in srgb, var(--mat-sys-primary) 14%, transparent);
-  --app-primary-soft-text: var(--mat-sys-primary);
-  --app-shadow-lg: 0 12px 32px rgb(0 0 0 / 16%), 0 2px 6px rgb(0 0 0 / 10%);
-  --topbar-height: 60px;
-
-  // The anotoki family's shared pages (@anotoki/lib/migrations: the site gate's page while the site is not
-  // ready, and the admin panel's Migrations page) in this site's colours. Each is a light-dark() token of the
-  // site's or Material's own, so both pages follow the theme - the toggle's and the device's - light and dark.
-  // Since @anotoki/lib 0.2.0 both are drawn with the library's kit, which reads more names than these 0.1 ones,
-  // and a name left out takes the family's blue palette: so its surfaces (dialogs and their footers, a hovered
-  // button, a quiet badge), the edges of its buttons (Material's outline, 3:1), its links and focus ring (the
-  // site's primary) and its buttons' hover (drawn toward the text colour, as the warning below) are this
-  // site's. The soft grounds of its notes and badges, and the inks on them, keep the family's (4.5:1 there).
-  --anotoki-bg: var(--app-bg);
-  --anotoki-surface: var(--app-surface);
-  --anotoki-surface-2: var(--app-surface-2);
-  --anotoki-surface-3: var(--app-surface-3);
-  --anotoki-surface-raised: var(--app-raised);
-  --anotoki-text: var(--app-text);
-  --anotoki-muted: var(--app-muted);
-  --anotoki-border: var(--app-border);
-  --anotoki-border-strong: var(--mat-sys-outline);
-  --anotoki-primary: var(--mat-sys-primary);
-  --anotoki-primary-hover: color-mix(in srgb, var(--mat-sys-primary) 85%, var(--app-text));
-  --anotoki-primary-contrast: var(--mat-sys-on-primary);
-  --anotoki-link: var(--mat-sys-primary);
-  --anotoki-focus: var(--mat-sys-primary);
-  --anotoki-danger: var(--mat-sys-error);
-  --anotoki-danger-hover: color-mix(in srgb, var(--mat-sys-error) 85%, var(--app-text));
-  --anotoki-danger-contrast: var(--mat-sys-on-error);
-  --anotoki-success: var(--grade-a);
-  // The grades' orange, drawn toward the text colour, so it reads on light and on dark alike - the orange itself
-  // is too faint on white: the mark of a warning note. (0.1's "pending" badge took it for its words; 0.2.0's
-  // badge has an ink of its own, the family's warning-text, kept for its 4.5:1 on the badge's ground.)
-  --anotoki-warning: color-mix(in srgb, var(--grade-c) 70%, var(--app-text));
-  --anotoki-radius: 12px;
-  // The anotoki mark (a dark navy picture, shared/brand) in the bar: the family's soft shadow in light; in dark a
-  // light halo (below), or it sinks into the dark bar. A filter, so not light-dark(): set per theme.
-  --mark-shadow: drop-shadow(0 2px 6px rgb(0 0 0 / 18%));
-
+// The site's own colours: what the games and the analysis mean by them (grades, how much a recommendation
+// matters, rarity, elements) - the same in both themes, drawn by the site's own pieces (the grade badge, the
+// score bars, the character pictures, a recommendation's mark).
+:root {
   --grade-s: #e0a526;
   --grade-a: #3fae6a;
   --grade-b: #3b9ad9;
@@ -96,207 +133,120 @@ html {
   --el-imaginary: #d8b53a;
 }
 
-html.theme-light {
-  color-scheme: light;
+// A substat the build values most, and one it does not value at all (the item cards, the legend above them).
+.stat-good {
+  color: var(--anotoki-primary);
+  font-weight: 650;
 }
 
-html.theme-dark {
-  color-scheme: dark;
-  --mark-shadow: drop-shadow(0 0 1px rgb(255 255 255 / 70%)) drop-shadow(0 0 6px rgb(255 255 255 / 22%));
+.stat-dim {
+  color: var(--anotoki-muted);
 }
 
-// Dark by the OS setting, unless the toggle forced light.
-@media (prefers-color-scheme: dark) {
-  html:not(.theme-light) {
-    --mark-shadow: drop-shadow(0 0 1px rgb(255 255 255 / 70%)) drop-shadow(0 0 6px rgb(255 255 255 / 22%));
+// A tile of the site's own - a game account, a character, a build, a piece of gear: the kit's card look (its
+// surface, edge, corners and shadow), on an element that is the site's (often the link itself). What only shows
+// content uses the kit's <anotoki-card>.
+.tile {
+  display: block;
+  min-width: 0;
+  padding: 1rem;
+  border: 1px solid var(--anotoki-border);
+  border-radius: var(--anotoki-radius-lg);
+  background: var(--anotoki-surface);
+  color: var(--anotoki-text);
+  box-shadow: var(--anotoki-shadow-sm);
+}
+
+a.tile {
+  text-decoration: none;
+  transition:
+    border-color var(--anotoki-duration) var(--anotoki-ease),
+    transform var(--anotoki-duration) var(--anotoki-ease);
+
+  &:hover {
+    border-color: var(--anotoki-primary);
   }
 }
 
-html,
-body {
-  height: 100%;
-}
-
-body {
-  margin: 0;
-  background: var(--app-bg);
-  color: var(--app-text);
-  font-family: Roboto, 'Helvetica Neue', sans-serif;
-}
-
-a {
-  color: var(--mat-sys-primary);
-}
-
-.mat-icon {
-  font-family: 'Material Symbols Outlined';
-}
-
-// ---------------------------------------------------------------- layout helpers
-
-.page,
-// The anotoki family's admin pages, routed straight into the admin panel (app.routes.ts: the People page and
-// the admin tools - each its own lazy entry point of @anotoki/lib): the panel's page frame, as a .page gives the
-// pages it wraps. Each answers to the width it is given; a long word (a file's path, a fingerprint) breaks
-// rather than push a 390 px screen sideways.
-.admin main > :is(anotoki-people-page, anotoki-error-log-page, anotoki-audit-log-page, anotoki-feedback-page, anotoki-backups-page) {
-  max-width: 1280px;
-  margin: 0 auto;
-  padding: 24px 16px 64px;
-  box-sizing: border-box;
-}
-
-.admin main > :is(anotoki-people-page, anotoki-error-log-page, anotoki-audit-log-page, anotoki-feedback-page, anotoki-backups-page) {
-  display: block;
-  overflow-wrap: break-word;
-}
-
-.page-header {
+// A heading of a part of a page, with what belongs beside it (a count, a link) on the same line.
+.section-head {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
   justify-content: space-between;
-  gap: 12px;
-  margin-bottom: 20px;
+  gap: 0.5rem 1rem;
 
-  h1 {
-    margin: 0;
-    font: var(--mat-sys-headline-small);
-  }
-
-  .subtitle {
-    margin: 4px 0 0;
-    color: var(--app-muted);
+  h2 {
+    font-size: 1.125rem;
   }
 }
 
-.panel {
-  background: var(--app-surface);
-  border: 1px solid var(--app-border);
-  border-radius: 16px;
-  padding: 16px;
-  box-sizing: border-box;
-}
+// A native disclosure (<details><summary>) in the kit's colours: the import history, a build's notes, a sync's
+// log, the wizard's help - none of which the kit has a piece for.
+details.disclosure {
+  border: 1px solid var(--anotoki-border);
+  border-radius: var(--anotoki-radius-lg);
+  background: var(--anotoki-surface);
+  box-shadow: var(--anotoki-shadow-sm);
 
-.panel-title {
-  margin: 0 0 12px;
-  font: var(--mat-sys-title-medium);
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
+  > summary {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    min-height: 48px;
+    padding: 0.6rem 1rem;
+    border-radius: var(--anotoki-radius-lg);
+    font-weight: 650;
+    cursor: pointer;
+    list-style: none;
 
-.muted {
-  color: var(--app-muted);
-}
+    &::-webkit-details-marker {
+      display: none;
+    }
 
-.small {
-  font-size: 0.85rem;
-}
+    // The chevron: down while closed, up while open.
+    &::after {
+      content: '';
+      flex: none;
+      width: 0.55rem;
+      height: 0.55rem;
+      margin-left: auto;
+      border-right: 2px solid currentColor;
+      border-bottom: 2px solid currentColor;
+      transform: translateY(-2px) rotate(45deg);
+      transition: transform var(--anotoki-duration) var(--anotoki-ease);
+    }
 
-.row {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
+    &:hover {
+      background: var(--anotoki-surface-2);
+    }
+  }
 
-.wrap {
-  flex-wrap: wrap;
-}
+  &[open] > summary {
+    border-bottom-left-radius: 0;
+    border-bottom-right-radius: 0;
 
-.spacer {
-  flex: 1 1 auto;
-}
+    &::after {
+      transform: translateY(2px) rotate(-135deg);
+    }
+  }
 
-.grid {
-  display: grid;
-  gap: 16px;
-}
-
-.empty-state {
-  text-align: center;
-  padding: 48px 16px;
-  color: var(--app-muted);
-
-  .mat-icon {
-    font-size: 48px;
-    width: 48px;
-    height: 48px;
+  > .disclosure-body {
+    padding: 0.25rem 1rem 1rem;
   }
 }
 
-.chip {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  padding: 2px 10px;
-  border-radius: 999px;
-  font-size: 0.8rem;
-  line-height: 1.6;
-  background: var(--app-surface-2);
-  border: 1px solid var(--app-border);
-  white-space: nowrap;
+// The anotoki family's admin pages, routed straight into the admin panel (app.routes.ts: the People page and the
+// admin tools, each its own lazy entry point of @anotoki/lib): a long word (a file's path, a fingerprint) breaks
+// rather than push a 390 px screen sideways.
+.admin :is(anotoki-people-page, anotoki-error-log-page, anotoki-audit-log-page, anotoki-feedback-page, anotoki-backups-page) {
+  display: block;
+  overflow-wrap: break-word;
 }
 
-.chip.ok {
-  border-color: color-mix(in srgb, var(--grade-a) 60%, transparent);
-  background: color-mix(in srgb, var(--grade-a) 14%, transparent);
-}
-
-.chip.bad {
-  border-color: color-mix(in srgb, var(--grade-d) 60%, transparent);
-  background: color-mix(in srgb, var(--grade-d) 14%, transparent);
-}
-
-.chip.warn {
-  border-color: color-mix(in srgb, var(--grade-c) 60%, transparent);
-  background: color-mix(in srgb, var(--grade-c) 14%, transparent);
-}
-
-.icon-img {
-  width: 40px;
-  height: 40px;
-  border-radius: 10px;
-  object-fit: cover;
-  background: var(--app-surface-2);
-  flex: none;
-}
-
-.icon-img.sm {
-  width: 28px;
-  height: 28px;
-  border-radius: 8px;
-}
-
-.icon-img.lg {
-  width: 72px;
-  height: 72px;
-  border-radius: 16px;
-}
-
-.rarity-5 {
-  background: linear-gradient(160deg, color-mix(in srgb, var(--rarity-5) 55%, transparent), transparent 80%);
-}
-
-.rarity-4 {
-  background: linear-gradient(160deg, color-mix(in srgb, var(--rarity-4) 55%, transparent), transparent 80%);
-}
-
-.rarity-3 {
-  background: linear-gradient(160deg, color-mix(in srgb, var(--rarity-3) 45%, transparent), transparent 80%);
-}
-
-.stat-good {
-  color: var(--mat-sys-primary);
-  font-weight: 500;
-}
-
-.stat-dim {
-  color: var(--app-muted);
-}
-
-@media (max-width: 600px) {
-  .page {
-    padding: 16px 12px 48px;
+@media print {
+  anotoki-top-bar,
+  app-footer {
+    display: none;
   }
 }

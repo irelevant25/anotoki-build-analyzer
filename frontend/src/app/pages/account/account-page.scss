@@ -1,22 +1,29 @@
-.title-block h1 {
+.loading {
+  align-self: center;
+}
+
+.rename-form {
   display: flex;
-  align-items: center;
-  gap: 4px;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 0.75rem;
+}
+
+.name-field {
+  flex: 0 1 22rem;
 }
 
 .stats-row {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
-  gap: 12px;
-  margin-bottom: 16px;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 10rem), 1fr));
+  gap: 0.75rem;
 }
 
+// A number with its label over it.
 .stat {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-
   strong {
+    display: block;
+    margin-top: 0.25rem;
     font-size: 1.5rem;
   }
 
@@ -25,54 +32,61 @@
   }
 }
 
-.note {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-}
-
 .filters {
   display: flex;
   flex-wrap: wrap;
-  align-items: center;
-  gap: 12px;
-  margin: 16px 0;
+  align-items: flex-end;
+  gap: 0.75rem 1rem;
 }
 
 .search {
-  width: 240px;
+  flex: 1 1 15rem;
+  max-width: 20rem;
 }
 
+.element,
 .sort {
-  width: 200px;
+  flex: 0 1 13rem;
 }
 
-.el-dot {
-  display: inline-block;
-  width: 10px;
-  height: 10px;
-  border-radius: 50%;
-  margin-right: 6px;
+// On a phone each field has the whole width: a sort's Slovak words are longer than 13rem.
+@media (max-width: 600px) {
+  .search,
+  .element,
+  .sort {
+    flex: 1 1 100%;
+    max-width: none;
+  }
+}
+
+// The switch stands level with the fields' boxes, not with their labels.
+.unbuilt {
+  padding-bottom: 0.6rem;
 }
 
 .char-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(290px, 1fr));
-  gap: 16px;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 18rem), 1fr));
+  gap: 1rem;
 }
 
+// A character: the site's own tile, the whole of it a link.
 .char-card {
   display: flex;
   flex-direction: column;
-  gap: 10px;
-  color: inherit;
-  text-decoration: none;
-  transition: border-color 150ms ease, transform 150ms ease;
+  gap: 0.625rem;
 
   &:hover {
-    border-color: var(--mat-sys-primary);
     transform: translateY(-2px);
   }
+}
+
+.char-head,
+.weapon {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  min-width: 0;
 }
 
 .char-names {
@@ -81,76 +95,62 @@
 }
 
 .char-name {
-  font: var(--mat-sys-title-medium);
-}
-
-.weapon {
-  min-width: 0;
+  font-size: 1rem;
+  font-weight: 650;
 }
 
 .ellipsis {
-  white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .sets {
-  gap: 4px;
+  --anotoki-cluster-gap: 0.25rem;
 }
 
 .parts {
   display: grid;
-  gap: 6px;
-}
-
-.best-line {
-  margin-top: 2px;
+  gap: 0.375rem;
 }
 
 .issue {
   display: flex;
-  gap: 6px;
   align-items: flex-start;
-  padding: 8px;
-  border-radius: 10px;
-  background: var(--app-surface-2);
+  gap: 0.375rem;
+  padding: 0.5rem;
+  border-radius: var(--anotoki-radius);
+  background: var(--anotoki-surface-2);
 
-  .mat-icon {
-    font-size: 18px;
-    width: 18px;
-    height: 18px;
-    color: var(--grade-c);
+  anotoki-icon {
     flex: none;
+    color: var(--grade-c);
   }
 }
 
-.history {
-  margin-top: 24px;
+.no-matches {
+  grid-column: 1 / -1;
 }
 
 .history-table {
-  width: 100%;
-  border-collapse: collapse;
-
   td {
-    padding: 6px 8px;
-    border-bottom: 1px solid var(--app-border);
+    vertical-align: middle;
   }
 }
 
 // On a phone the four columns squeezed the last one (what came in, or why it failed) to a few letters a
-// line, cut off at the panel's edge: there a row wraps, and that text takes a line of its own.
+// line, cut off at the edge: there a row wraps, and that text takes a line of its own.
 @media (max-width: 600px) {
   .history-table tr {
     display: flex;
     flex-wrap: wrap;
     align-items: center;
-    padding: 4px 0;
-    border-bottom: 1px solid var(--app-border);
+    padding: 0.25rem 0;
+    border-bottom: 1px solid var(--anotoki-border);
   }
 
   .history-table td {
-    padding: 2px 8px;
+    padding: 0.125rem 0.5rem;
     border-bottom: 0;
   }
 

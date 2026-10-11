@@ -1,27 +1,17 @@
-import { NgTemplateOutlet } from '@angular/common';
-import {
-  Component,
-  DestroyRef,
-  ElementRef,
-  Injector,
-  Signal,
-  afterNextRender,
-  computed,
-  effect,
-  inject,
-  input,
-  signal,
-  untracked,
-  viewChild,
-} from '@angular/core';
-import { toSignal } from '@angular/core/rxjs-interop';
-import { MatButtonModule } from '@angular/material/button';
-import { MatDialog } from '@angular/material/dialog';
-import { MatIconModule } from '@angular/material/icon';
-import { MatTooltipModule } from '@angular/material/tooltip';
-import { NavigationEnd, Router, RouterLink } from '@angular/router';
+import { Component, Injector, computed, inject, input, viewChild } from '@angular/core';
+import { Router, RouterLink } from '@angular/router';
 import { FeedbackUnread } from '@anotoki/lib/admin';
-import { filter, map } from 'rxjs';
+import {
+  TopBarComponent as FamilyTopBar,
+  TopBarBrand,
+  TopBarLink,
+  TopBarMenuItem,
+  TopBarPerson,
+  TopBarPhoneMark,
+} from '@anotoki/lib/shell';
+import { ConfirmService } from '@anotoki/lib/ui/dialog';
+import { IconComponent } from '@anotoki/lib/ui/icon';
+import { TooltipDirective } from '@anotoki/lib/ui/tooltip';
 import { AuthService } from '../../core/auth';
 import { TranslationKey } from '../../core/i18n/en';
 import { TranslatePipe } from '../../core/i18n/translate';
@@ -29,10 +19,6 @@ import { TranslationService } from '../../core/i18n/translation';
 import { localizationDrafts } from '../../core/localization-drafts';
 import { signInOrSayWhy } from '../../core/sign-in';
 import { SyncDriver } from '../../core/sync-driver';
-import { Brand } from '../../shared/brand/brand';
-import { askConfirm } from '../../shared/confirm-dialog';
-import { LanguageSwitcher } from '../../shared/language-switcher/language-switcher';
-import { ThemeToggle } from '../../shared/theme-toggle/theme-toggle';
 
 /**
  * A section in the bar: its words, where it goes, and the address beginnings that belong to it too (an
@@ -75,296 +61,234 @@ export const ADMIN_LINKS: readonly BarLink[] = [
 
 /**
  * Up to this width the bar is a phone's: the links and the person's menu fold into one menu button. This
- * site's own number, measured in the browser with the real labels (verify-ui's run.mjs --measure): the row
- * without the person's name needs 772 px in English and 781 px in Slovak signed out, and 799 px for an
- * admin with a sync running. Above 880 px the whole row fits and only the person's name gives way (an
- * ellipsis); it shows from 1081 px (PHONE_BAR_MAX + 200).
+ * site's own number, measured in the browser with the real labels in the family's bar (verify-ui's run.mjs
+ * --measure): the row without the person's name needs 793 px in English and 803 px in Slovak signed out, and
+ * 818 px for an admin with a sync running - and room for a scrollbar, and for a language added on the Languages
+ * page whose words run longer. Above it the whole row fits and only the person's name gives way; it shows from
+ * PHONE_BAR_MAX + 201 (the family's bar's own rule).
  */
 export const PHONE_BAR_MAX = 880;
 
 /**
  * The same for the admin panel, whose row is longer: the ADMIN has nine sections - the anotoki family's admin
- * tools among them, the count of new feedback beside Feedback. Its brand is short for it, as the IAM's -
- * "anotoki admin panel" (`brand.admin`), the app's name in the brand link's accessible name
- * (`topbar.homeAdmin`). Measured as above (the panel reads English whichever language is chosen): 1244 px
- * for the ADMIN with a count beside Feedback, 1294 px with a sync running - and room for a scrollbar: a 1366 px
- * screen has the whole row, a 1280 px one the menu button. The person's name shows from 1521 px
- * (ADMIN_PHONE_BAR_MAX + 200).
+ * tools among them, the count of new feedback beside Feedback. Its brand is the family's "anotoki Build Analyzer
+ * · admin panel", short at every width there ("Analyzer" with "admin panel" under it, ADMIN_SHORT_BRAND_MAX): the
+ * whole wordmark does not fit beside nine sections in the family's row (84rem). Measured as above (the panel
+ * reads English whichever language is chosen): 1186 px with a count beside Feedback, 1236 px with a sync running
+ * too - and room for a scrollbar and a count of two digits. A 1280 px screen has the whole row.
  */
-export const ADMIN_PHONE_BAR_MAX = 1320;
+export const ADMIN_PHONE_BAR_MAX = 1270;
 
 /**
- * The admin panel's row for an editor, who has two sections (Sources, Translations): measured as above, 635 px,
- * 685 px with a sync running - and room for a scrollbar. The person's name shows from 921 px
- * (EDITOR_PHONE_BAR_MAX + 200).
+ * The admin panel's row for an editor, who has two sections (Sources, Translations): 560 px measured as above,
+ * 610 px with a sync running - and room for a scrollbar.
  */
-export const EDITOR_PHONE_BAR_MAX = 720;
+export const EDITOR_PHONE_BAR_MAX = 640;
 
-/** Which of the bar's two menus is open: the person's (account) or the phone's (links and account). */
-type OpenMenu = 'account' | 'phone' | null;
+/** No screen is this wide: in the admin panel the brand is the short one at every width (the bar's shortBrandMax). */
+export const ADMIN_SHORT_BRAND_MAX = 100000;
 
 /**
- * The bar across the top of every page - the anotoki family's one bar (topbar-spec), in one row and this
- * order: the brand (the mark, "anotoki" and the app's name, leading home); the area's sections; then - for
- * an editor or an admin while this tab drives a sync - the sync's spinner, the language (where members
- * read, with more than one on offer; never in the admin panel, which is English), the theme, and the
- * person's menu (name, email, role; their anotoki account; the way into the admin panel for staff, or back
- * from it; Sign out) - or Sign in.
+ * The bar across the top of every page: the anotoki family's one bar (@anotoki/lib/shell's <anotoki-top-bar>),
+ * told what is this site's - its brand, its sections, who is signed in and what they may do, and the one widget it
+ * carries before the language: the sync this tab drives, for an editor or an admin. The family's bar draws the row
+ * in the family's order - the brand, the sections, the widget, the language (where members read, with more than
+ * one on offer; never in the admin panel, which is English), the theme switch, and the person's menu (name,
+ * address, role; their anotoki account; the way into the admin panel for staff, or back from it; Sign out) or
+ * Sign in - folds into one menu button up to the row's measured width (PHONE_BAR_MAX, and the admin panel's), and
+ * has the family's menus and keys: the focus into a menu as it opens, the arrows, Home and End, Escape back to
+ * its button, and Tab or Shift+Tab closing it with the focus on its button - never on <body>.
  *
- * On a phone (up to PHONE_BAR_MAX) the brand is the mark and the app's short name, and the sections, the
- * sync and the person's menu (or Sign in) are inside one menu button after the language and the theme.
+ * On a phone the sync is an item of the menu (and a dot on its button), and the count of new feedback a badge on
+ * the button in the admin panel. Signing out asks first, in the language on the page (the kit's "Are you
+ * sure?"), when the Translations or Languages page holds what was typed and not saved: signed out, it is lost.
  *
- * The menus are this app's own markup, not mat-menu: mat-menu closes on Tab and gives the focus back to
- * its trigger, but leaves the Tab to the browser, which then moves the focus past the trigger (a spec test
- * of exactly that decided it). Here, as in the survey's bar: the focus goes into a menu when it opens, the
- * arrow keys, Home and End move between its items, Escape and a click outside close it (Escape back to the
- * button), and Tab or Shift+Tab from any item close it with the focus on its button - the browser's own
- * move is stopped, so the next Tab moves on from there and the focus never falls to <body>. A change
- * across the breakpoint closes what is open.
- *
- * Every member word is a key; under /admin the translation service answers in English (englishOnly), so
- * the same keys read English there with no case here.
+ * Every member word is a key; under /admin the translation service answers in English (the library's English
+ * areas), so the same keys read English there. The family's own words - the role, "Your anotoki account",
+ * "Admin panel", the menus' names, Sign out - are the library's keys (anotoki.topbar.*: migration 010 moved this
+ * site's wording of them there), as every anotoki site words them.
  */
 @Component({
   selector: 'app-top-bar',
-  imports: [
-    NgTemplateOutlet,
-    RouterLink,
-    MatButtonModule,
-    MatIconModule,
-    MatTooltipModule,
-    Brand,
-    LanguageSwitcher,
-    ThemeToggle,
-    TranslatePipe,
-  ],
+  imports: [FamilyTopBar, RouterLink, IconComponent, TooltipDirective, TranslatePipe],
   templateUrl: './top-bar.html',
   styleUrl: './top-bar.scss',
-  host: {
-    '(document:click)': 'onDocumentClick($event)',
-    '(document:keydown.escape)': 'closeMenu(true)',
-  },
 })
 export class TopBar {
   /** Which part of the site the page is in: where the brand leads, the links, and which way the Admin item points. */
   readonly area = input<'app' | 'admin'>('app');
-  /** A narrower row, for pages whose content is narrow too. */
-  readonly width = input<'wide' | 'narrow'>('wide');
 
   protected readonly auth = inject(AuthService);
   protected readonly i18n = inject(TranslationService);
   protected readonly sync = inject(SyncDriver);
   private readonly router = inject(Router);
-  private readonly dialog = inject(MatDialog);
   private readonly unread = inject(FeedbackUnread);
-  private readonly host = inject<ElementRef<HTMLElement>>(ElementRef);
+  private readonly confirm = inject(ConfirmService);
   private readonly injector = inject(Injector);
 
-  protected readonly openMenu = signal<OpenMenu>(null);
-  protected readonly signingOut = signal(false);
-  private readonly appPhone = this.matches(`(max-width: ${PHONE_BAR_MAX}px)`);
-  private readonly adminPhone = this.matches(`(max-width: ${ADMIN_PHONE_BAR_MAX}px)`);
-  private readonly editorPhone = this.matches(`(max-width: ${EDITOR_PHONE_BAR_MAX}px)`);
-  private readonly appNameless = this.matches(`(max-width: ${PHONE_BAR_MAX + 200}px)`);
-  private readonly adminNameless = this.matches(`(max-width: ${ADMIN_PHONE_BAR_MAX + 200}px)`);
-  private readonly editorNameless = this.matches(`(max-width: ${EDITOR_PHONE_BAR_MAX + 200}px)`);
-  /**
-   * The bar of a phone: the links and the person's menu inside the menu button. Each row has its own width: the
-   * member pages', and the admin panel's - the ADMIN's nine sections, or an editor's two.
-   */
-  protected readonly phone = computed(() =>
+  private readonly bar = viewChild(FamilyTopBar);
+
+  /** Where the bar folds: each row has its own width - the member pages', and the admin panel's (the ADMIN's nine sections, or an editor's two). */
+  protected readonly phoneMax = computed(() =>
     this.area() === 'admin'
       ? this.auth.isAdmin()
-        ? this.adminPhone()
-        : this.editorPhone()
-      : this.appPhone(),
+        ? ADMIN_PHONE_BAR_MAX
+        : EDITOR_PHONE_BAR_MAX
+      : PHONE_BAR_MAX,
   );
-  /** A row wide enough for the links but not for the person's name as well: the round button alone. */
-  protected readonly nameless = computed(() =>
+  /** Up to where the brand is the short one: the family's default (the fold) on the member pages, always in the admin panel. */
+  protected readonly shortBrandMax = computed(() =>
+    this.area() === 'admin' ? ADMIN_SHORT_BRAND_MAX : null,
+  );
+
+  protected readonly brand = computed<TopBarBrand>(() =>
     this.area() === 'admin'
-      ? this.auth.isAdmin()
-        ? this.adminNameless()
-        : this.editorNameless()
-      : this.appNameless(),
+      ? {
+          area: this.i18n.t('brand.area'),
+          short: this.i18n.t('brand.short'),
+          panel: this.i18n.t('brand.admin'),
+          link: '/admin',
+          label: this.i18n.t('topbar.homeAdmin'),
+        }
+      : {
+          area: this.i18n.t('brand.area'),
+          short: this.i18n.t('brand.short'),
+          link: '/',
+          label: this.i18n.t('topbar.home'),
+        },
+  );
+
+  /** The feedback nobody has opened yet - beside Feedback, for the site's ADMIN; none when there is none (or no answer). */
+  private readonly newFeedback = computed(() =>
+    this.auth.isAdmin() ? this.unread.count() || null : null,
   );
 
   /** The area's sections: everybody's in the app; in the admin panel the ones this editor or admin may open, none for anybody else. */
-  protected readonly links = computed(() =>
-    this.area() === 'admin'
-      ? this.auth.isStaff()
-        ? ADMIN_LINKS.filter((link) => !link.admin || this.auth.isAdmin())
-        : []
-      : APP_LINKS,
-  );
+  protected readonly links = computed<TopBarLink[]>(() => {
+    const links =
+      this.area() === 'admin'
+        ? this.auth.isStaff()
+          ? ADMIN_LINKS.filter((link) => !link.admin || this.auth.isAdmin())
+          : []
+        : APP_LINKS;
+    return links.map((link) => ({
+      id: link.path,
+      label: link.key ? this.i18n.t(link.key) : (link.label ?? ''),
+      path: link.path,
+      under: link.under,
+      badge: link.badge === 'feedback' ? this.newFeedback() : null,
+    }));
+  });
+
   /** The language chooser: where members read, with a choice to make. */
   protected readonly chooser = computed(
     () => this.area() === 'app' && !this.i18n.englishOnly() && this.i18n.languages().length > 1,
   );
   /** The sync this tab drives, for the people who may run one. */
   protected readonly syncing = computed(() => this.auth.isStaff() && this.sync.driving());
-  /** The feedback nobody has opened yet - beside Feedback, for the site's ADMIN; none when there is none (or no answer). */
-  protected readonly newFeedback = computed(() =>
-    this.auth.isAdmin() ? this.unread.count() || null : null,
-  );
-  /** The person's email address, when it is not already their name. */
-  protected readonly email = computed(() => {
+  /** The bar is a phone's (the family's bar decides, at the width given it). */
+  private readonly phone = computed(() => this.bar()?.phone() ?? false);
+
+  /** Who is signed in: their name (worded only when the token names nobody), the address when it is not the name, the role. */
+  protected readonly person = computed<TopBarPerson | null>(() => {
     const user = this.auth.user();
-    return user?.email && user.email !== this.auth.displayName() ? user.email : null;
+    if (!user) {
+      return null;
+    }
+    const name = this.auth.displayName() ?? this.i18n.t('common.userFallback', { sub: user.sub });
+    return {
+      name,
+      email: user.email && user.email !== name ? user.email : null,
+      role: this.auth.isAdmin()
+        ? this.i18n.t('anotoki.topbar.roleAdmin')
+        : this.auth.isStaff()
+          ? this.i18n.t('anotoki.topbar.roleEditor')
+          : null,
+    };
   });
-  protected readonly initial = computed(() =>
-    (this.auth.displayName()?.trim()[0] ?? '?').toUpperCase(),
-  );
-
-  /** The address of the page, without its query and hash: which link is the page's. */
-  private readonly path = toSignal(
-    this.router.events.pipe(
-      filter((event) => event instanceof NavigationEnd),
-      map(() => this.router.url),
-    ),
-    { initialValue: this.router.url },
-  );
-  private readonly here = computed(() => this.path().split(/[?#]/)[0] || '/');
-
-  private readonly accountButton = viewChild<ElementRef<HTMLButtonElement>>('accountButton');
-  private readonly phoneButton = viewChild<ElementRef<HTMLButtonElement>>('phoneButton');
-  private readonly menu = viewChild<ElementRef<HTMLElement>>('menu');
-
-  constructor() {
-    // From a phone's bar to a desktop's (a turned tablet, a wider window): the open menu would belong to neither.
-    effect(() => {
-      this.phone();
-      untracked(() => this.closeMenu(false));
-    });
-  }
-
-  /** The page is this link's own address. */
-  protected isPage(link: BarLink): boolean {
-    return this.here() === link.path;
-  }
-
-  /** The count beside a link: the new feedback beside Feedback; null for none. */
-  protected badgeOf(link: BarLink): number | null {
-    return link.badge === 'feedback' ? this.newFeedback() : null;
-  }
-
-  /** The page is in this link's section: its own address or one under it. */
-  protected inSection(link: BarLink): boolean {
-    const here = this.here();
-    return here === link.path || link.under.some((start) => here.startsWith(start));
-  }
-
-  /** To the IAM and back to this page, its pages in the language read here; the failure's screen when it cannot start. */
-  protected signIn(): void {
-    this.closeMenu(false);
-    void signInOrSayWhy(this.auth, this.router);
-  }
-
-  protected toggleMenu(which: 'account' | 'phone'): void {
-    if (this.openMenu() === which) {
-      this.closeMenu(true);
-      return;
-    }
-    this.openMenu.set(which);
-    // Into the menu once it is drawn, as a menu button is expected to do. Drawn means after the next
-    // render: with no zone, a microtask runs before it.
-    afterNextRender(() => this.menuItems()[0]?.focus(), { injector: this.injector });
-  }
-
-  /** Closes the open menu; `returnFocus`: back to the button that opened it (Escape, Tab, the button again). */
-  closeMenu(returnFocus: boolean): void {
-    const open = this.openMenu();
-    if (!open) {
-      return;
-    }
-    this.openMenu.set(null);
-    if (returnFocus) {
-      (open === 'account' ? this.accountButton() : this.phoneButton())?.nativeElement.focus();
-    }
-  }
-
-  protected onDocumentClick(event: MouseEvent): void {
-    const open = this.openMenu();
-    if (!open) {
-      return;
-    }
-    const root = this.host.nativeElement.querySelector(
-      open === 'account' ? '.user-menu' : '.phone-menu',
-    );
-    if (!root || !root.contains(event.target as Node)) {
-      this.closeMenu(false);
-    }
-  }
-
-  protected onMenuKeydown(event: KeyboardEvent): void {
-    const items = this.menuItems();
-    const index = items.indexOf(document.activeElement as HTMLElement);
-    let next = -1;
-    if (event.key === 'ArrowDown') {
-      next = (index + 1) % items.length;
-    } else if (event.key === 'ArrowUp') {
-      next = (index - 1 + items.length) % items.length;
-    } else if (event.key === 'Home') {
-      next = 0;
-    } else if (event.key === 'End') {
-      next = items.length - 1;
-    } else if (event.key === 'Tab') {
-      // Tab (or Shift+Tab) leaves the menu from its button. Left to the browser, the focus would move to
-      // the next item of a menu still drawn - with no zone it is removed only at the next render - and
-      // then fall to <body>.
-      event.preventDefault();
-      this.closeMenu(true);
-      return;
-    }
-    if (next >= 0) {
-      event.preventDefault();
-      items[next]?.focus();
-    }
-  }
 
   /**
-   * Signs out everywhere (the IAM ends its session). What is typed on the Translations and Languages pages
-   * and not saved is asked about first, in one question in the language on the page: a sign-out asked for
-   * here gives it up (the next person at this browser starts clean), where a session that ends by itself
-   * keeps it for the person's return (the library's LocalizationDrafts, reached only when this tab holds some:
+   * Between the person's name and Sign out: their anotoki account (a new tab); for an editor or an admin the way
+   * into the admin panel, or back from it; and on a phone the sync this tab drives (on a wider bar it stands in the
+   * row itself).
+   */
+  protected readonly menuItems = computed<TopBarMenuItem[]>(() => {
+    const items: TopBarMenuItem[] = [];
+    const account = this.auth.user() ? this.auth.accountUrl() : null;
+    if (account) {
+      items.push({
+        id: 'account',
+        label: this.i18n.t('anotoki.topbar.account'),
+        icon: 'user',
+        href: account,
+        newTab: true,
+      });
+    }
+    if (this.auth.isStaff()) {
+      items.push(
+        this.area() === 'admin'
+          ? { id: 'back', label: this.i18n.t('topbar.backToApp'), icon: 'arrowLeft', path: '/' }
+          : {
+              id: 'admin',
+              label: this.i18n.t('anotoki.topbar.admin'),
+              icon: 'shield',
+              path: '/admin',
+            },
+      );
+    }
+    if (this.syncing() && this.phone()) {
+      items.push({
+        id: 'sync',
+        label: this.i18n.t('toolbar.syncingLabel'),
+        icon: 'refresh',
+        path: '/admin/sources',
+      });
+    }
+    return items;
+  });
+
+  /** On a phone's menu button: the count of new feedback in the admin panel, or a dot while this tab syncs. */
+  protected readonly phoneMark = computed<TopBarPhoneMark | null>(() => {
+    const count = this.area() === 'admin' ? this.newFeedback() : null;
+    if (count) {
+      return { badge: count, label: `Menu: ${count} new feedback` };
+    }
+    return this.syncing() ? { dot: true, description: this.i18n.t('toolbar.syncingLabel') } : null;
+  });
+
+  /**
+   * To the IAM and back to this page, its pages in the language read here; the failure's screen when it cannot
+   * start. A promise: the bar's Sign in waits ("Saving…") while a visitor's save on its way gets its answer.
+   */
+  protected readonly signIn = computed(() =>
+    this.auth.available() ? () => signInOrSayWhy(this.auth, this.router) : null,
+  );
+
+  /**
+   * Signs out everywhere (the IAM ends its session). What is typed on the Translations and Languages pages and
+   * not saved is asked about first, in one question in the language on the page: a sign-out asked for here gives
+   * it up (the next person at this browser starts clean), where a session that ends by itself keeps it for the
+   * person's return (the library's LocalizationDrafts, reached only when this tab holds some:
    * core/localization-drafts.ts).
    */
-  protected async signOut(): Promise<void> {
-    this.signingOut.set(true);
+  protected readonly signOut = async (): Promise<void> => {
     const drafts = await localizationDrafts(this.injector);
     if (drafts && drafts.count() > 0) {
-      this.closeMenu(false);
+      // The question stands alone: the menu that asked goes first.
+      this.bar()?.closeMenu(false);
       // Finished sentences when asked; a question is not worded again.
-      const sure = await askConfirm(this.dialog, {
+      const sure = await this.confirm.ask({
         title: this.i18n.t('topbar.signOutUnsaved.title'),
         message: this.i18n.t('topbar.signOutUnsaved.message'),
         confirmLabel: this.i18n.t('topbar.signOutUnsaved.confirm'),
         cancelLabel: this.i18n.t('topbar.signOutUnsaved.stay'),
-        danger: true,
+        tone: 'danger',
       });
       if (!sure) {
-        this.signingOut.set(false);
         return;
       }
       drafts.clear();
     }
     await this.auth.logout();
-  }
-
-  /** Whether the screen matches a media query, kept current while the bar is there. */
-  private matches(media: string): Signal<boolean> {
-    const matches = signal(false);
-    const query = globalThis.matchMedia?.(media);
-    if (query) {
-      const update = () => matches.set(query.matches);
-      update();
-      query.addEventListener('change', update);
-      inject(DestroyRef).onDestroy(() => query.removeEventListener('change', update));
-    }
-    return matches.asReadonly();
-  }
-
-  private menuItems(): HTMLElement[] {
-    const menu = this.menu()?.nativeElement;
-    return menu ? Array.from(menu.querySelectorAll<HTMLElement>('[role="menuitem"]')) : [];
-  }
+  };
 }

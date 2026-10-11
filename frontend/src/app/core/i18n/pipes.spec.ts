@@ -11,7 +11,7 @@ import { TranslationService } from './translation';
 
 const ENGLISH = {
   'footer.version': 'Version {version}',
-  'theme.label': 'Theme',
+  'footer.feedback': 'Feedback',
   'buildDetail.optionAny.one': '(any {count})',
   'buildDetail.optionAny.few': '(any {count})',
   'buildDetail.optionAny.other': '(any {count})',
@@ -19,7 +19,7 @@ const ENGLISH = {
 };
 const SLOVAK = {
   'footer.version': 'Verzia {version}',
-  'theme.label': 'Vzhľad',
+  'footer.feedback': 'Spätná väzba',
   'buildDetail.optionAny.one': '(ľubovoľný 1)',
   'buildDetail.optionAny.few': '(ľubovoľné {count})',
   'buildDetail.optionAny.other': '(ľubovoľných {count})',
@@ -74,14 +74,14 @@ describe('the translate pipes', () => {
 
   it('answer again when the language on the page changes under the same key', async () => {
     const { i18n, translate, plural } = pipes('sk');
-    expect(translate.transform('theme.label')).toBe('Vzhľad');
+    expect(translate.transform('footer.feedback')).toBe('Spätná väzba');
     i18n.noteAddress('/admin/sources');
-    expect(translate.transform('theme.label')).toBe('Theme');
+    expect(translate.transform('footer.feedback')).toBe('Feedback');
     expect(plural.transform('buildDetail.optionAny', 3)).toBe('(any 3)');
     i18n.noteAddress('/');
-    expect(translate.transform('theme.label')).toBe('Vzhľad');
+    expect(translate.transform('footer.feedback')).toBe('Spätná väzba');
     expect(await i18n.setLanguage('en', { remember: false })).toBe(true);
-    expect(translate.transform('theme.label')).toBe('Theme');
+    expect(translate.transform('footer.feedback')).toBe('Feedback');
   });
 });
 

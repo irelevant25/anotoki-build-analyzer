@@ -1,17 +1,15 @@
 import { Component, computed, effect, inject, input, signal } from '@angular/core';
-import { FormsModule } from '@angular/forms';
-import { MatButtonModule } from '@angular/material/button';
-import { MatButtonToggleModule } from '@angular/material/button-toggle';
-import { MatExpansionModule } from '@angular/material/expansion';
-import { MatFormFieldModule } from '@angular/material/form-field';
-import { MatIconModule } from '@angular/material/icon';
-import { MatInputModule } from '@angular/material/input';
-import { MatProgressBarModule } from '@angular/material/progress-bar';
-import { MatSelectModule } from '@angular/material/select';
-import { MatSlideToggleModule } from '@angular/material/slide-toggle';
-import { MatSnackBar } from '@angular/material/snack-bar';
-import { MatTooltipModule } from '@angular/material/tooltip';
 import { RouterLink } from '@angular/router';
+import { AlertComponent } from '@anotoki/lib/ui/alert';
+import { BadgeComponent, BadgeTone } from '@anotoki/lib/ui/badge';
+import { ButtonComponent } from '@anotoki/lib/ui/button';
+import { CardComponent } from '@anotoki/lib/ui/card';
+import { EmptyStateComponent } from '@anotoki/lib/ui/empty-state';
+import { SelectComponent, SelectOption, SwitchComponent, TextFieldComponent } from '@anotoki/lib/ui/forms';
+import { IconComponent } from '@anotoki/lib/ui/icon';
+import { PageHeaderComponent } from '@anotoki/lib/ui/page-header';
+import { SpinnerComponent } from '@anotoki/lib/ui/spinner';
+import { ToastService } from '@anotoki/lib/ui/toast';
 import { Api } from '../../core/api';
 import { AuthService } from '../../core/auth';
 import { GAME_LABELS, titleCase } from '../../core/format';
@@ -60,21 +58,30 @@ interface HistoryRow {
   outcome: Worded;
 }
 
+/** How an import ended, as the kit's badge says it: done, done in part, failed. */
+const STATUS_TONES: Record<string, BadgeTone> = { success: 'success', partial: 'warning', failed: 'danger' };
+
+/**
+ * One game account: its head (name, UID, level, last import; renaming it; updating it by UID or from a file), its
+ * numbers, its characters - each a tile of the site's own with its grade, gear and first thing to improve -
+ * filtered and sorted, and its import history. Drawn with the anotoki family's kit: the page header, cards,
+ * fields, a switch, badges, a disclosure, alerts.
+ */
 @Component({
   selector: 'app-account-page',
   imports: [
-    FormsModule,
     RouterLink,
-    MatButtonModule,
-    MatButtonToggleModule,
-    MatExpansionModule,
-    MatFormFieldModule,
-    MatIconModule,
-    MatInputModule,
-    MatProgressBarModule,
-    MatSelectModule,
-    MatSlideToggleModule,
-    MatTooltipModule,
+    AlertComponent,
+    BadgeComponent,
+    ButtonComponent,
+    CardComponent,
+    EmptyStateComponent,
+    IconComponent,
+    PageHeaderComponent,
+    SelectComponent,
+    SpinnerComponent,
+    SwitchComponent,
+    TextFieldComponent,
     Avatar,
     GradeBadge,
     ScoreBar,
@@ -91,7 +98,7 @@ interface HistoryRow {
 export class AccountPage {
   private readonly api = inject(Api);
   private readonly meta = inject(MetaStore);
-  private readonly snackBar = inject(MatSnackBar);
+  private readonly toasts = inject(ToastService);
   private readonly i18n = inject(TranslationService);
   protected readonly auth = inject(AuthService);
 
@@ -137,6 +144,17 @@ export class AccountPage {
     const present = new Set((this.account()?.characters ?? []).map((c) => c.element).filter((e): e is string => !!e));
     return (this.gameMeta()?.elements ?? []).filter((element) => present.has(element));
   });
+
+  /** The element filter's choices: all, then each element a character of the account has - by the game's name. */
+  protected readonly elementOptions = computed<SelectOption[]>(() => [
+    { value: 'all', label: this.i18n.t('account.allElements') },
+    ...this.elements().map((element) => ({ value: element, label: titleCase(element) })),
+  ]);
+
+  /** The orders, worded in the language on the page. */
+  protected readonly sortOptions = computed<SelectOption[]>(() =>
+    SORTS.map((option) => ({ value: option.value, label: this.i18n.t(option.label) })),
+  );
 
   protected readonly characters = computed(() => {
     const query = this.search().trim().toLowerCase();
@@ -255,7 +273,8 @@ export class AccountPage {
     this.api.accountImports(id).subscribe({ next: (runs) => this.imports.set(runs) });
   }
 
-  protected saveName(): void {
+  protected saveName(event?: Event): void {
+    event?.preventDefault();
     const account = this.account();
     const name = this.newName().trim();
     if (!account || !name) {
@@ -266,9 +285,21 @@ export class AccountPage {
         this.account.set({ ...account, nickname: updated.nickname });
         this.renaming.set(false);
       },
-      // A snack bar takes a finished sentence: worded now, in the language the page is in.
-      error: (err: unknown) => this.snackBar.open(errorText(this.i18n, err), this.i18n.t('common.close')),
+      // A message takes a finished sentence: worded now, in the language the page is in.
+      error: (err: unknown) => this.toasts.error(errorText(this.i18n, err)),
     });
+  }
+
+  /** One of the orders, as the sort select gives it. */
+  protected setSort(value: string): void {
+    if (SORTS.some((option) => option.value === value)) {
+      this.sort.set(value as SortKey);
+    }
+  }
+
+  /** An import's ending, as a badge's tone. */
+  protected statusTone(status: string): BadgeTone {
+    return STATUS_TONES[status] ?? 'neutral';
   }
 
   /** "C2" / "E2": the game's notation, with the game's own prefix where the metadata is missing. */

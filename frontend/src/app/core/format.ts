@@ -18,13 +18,13 @@ export function gradeColor(grade: Grade | string | null | undefined): string {
     case 'D':
       return 'var(--grade-d)';
     default:
-      return 'var(--app-muted)';
+      return 'var(--anotoki-muted)';
   }
 }
 
 export function scoreColor(score: number | null | undefined): string {
   if (score === null || score === undefined) {
-    return 'var(--app-muted)';
+    return 'var(--anotoki-muted)';
   }
   if (score >= 90) return 'var(--grade-s)';
   if (score >= 80) return 'var(--grade-a)';
@@ -34,7 +34,7 @@ export function scoreColor(score: number | null | undefined): string {
 }
 
 export function elementColor(element: string | null | undefined): string {
-  return element ? `var(--el-${element})` : 'var(--app-muted)';
+  return element ? `var(--el-${element})` : 'var(--anotoki-muted)';
 }
 
 export function titleCase(text: string | null | undefined): string {

@@ -1,7 +1,8 @@
 import { Component, inject } from '@angular/core';
-import { MatButtonModule } from '@angular/material/button';
-import { MatIconModule } from '@angular/material/icon';
 import { Router, RouterLink } from '@angular/router';
+import { ButtonComponent } from '@anotoki/lib/ui/button';
+import { CardComponent } from '@anotoki/lib/ui/card';
+import { IconComponent } from '@anotoki/lib/ui/icon';
 import { AuthService } from '../../core/auth';
 import { GAME_LABELS } from '../../core/format';
 import { TranslatePipe } from '../../core/i18n/translate';
@@ -19,7 +20,7 @@ import { signInOrSayWhy } from '../../core/sign-in';
  */
 @Component({
   selector: 'app-visitor-hero',
-  imports: [RouterLink, MatButtonModule, MatIconModule, TranslatePipe],
+  imports: [RouterLink, ButtonComponent, CardComponent, IconComponent, TranslatePipe],
   templateUrl: './visitor-hero.html',
   styleUrl: './visitor-hero.scss',
 })

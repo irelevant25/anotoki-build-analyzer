@@ -2,7 +2,6 @@ import { provideHttpClient } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
 import { signal } from '@angular/core';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
-import { MatDialogRef } from '@angular/material/dialog';
 import { ANOTOKI_FEEDBACK_CONFIG, feedbackWords } from '@anotoki/lib/feedback';
 import { provideTestTranslations } from '@anotoki/lib/translations/testing';
 import { AuthService } from '../../core/auth';
@@ -21,13 +20,13 @@ describe('the feedback form in a dialog (the foot of every page)', () => {
   let fixture: ComponentFixture<FeedbackDialog>;
   let host: HTMLElement;
   let requests: HttpTestingController;
-  let ref: { close: ReturnType<typeof vi.fn> };
+  let closed: ReturnType<typeof vi.fn<() => void>>;
 
   async function open(
     who: { email: string } | null = null,
     language: 'sk' | 'en' = 'sk',
   ): Promise<void> {
-    ref = { close: vi.fn() };
+    closed = vi.fn<() => void>();
     TestBed.configureTestingModule({
       providers: [
         language === 'sk'
@@ -43,11 +42,11 @@ describe('the feedback form in a dialog (the foot of every page)', () => {
             user: signal(who === null ? null : { sub: '7', ...who }),
           },
         },
-        { provide: MatDialogRef, useValue: ref },
       ],
     });
     requests = TestBed.inject(HttpTestingController);
     fixture = TestBed.createComponent(FeedbackDialog);
+    fixture.componentInstance.closed.subscribe(() => closed());
     host = fixture.nativeElement;
     await fixture.whenStable();
   }
@@ -57,18 +56,30 @@ describe('the feedback form in a dialog (the foot of every page)', () => {
   it("is titled with the form's own words in the reader's language - the form under it draws no heading of its own", async () => {
     await open();
     const words = feedbackWords('sk').words;
-    expect(host.querySelector('h2[mat-dialog-title]')?.textContent?.trim()).toBe(words.title);
-    expect(host.querySelector('h2[mat-dialog-title]')?.getAttribute('lang')).toBe('sk');
+    expect(host.querySelector('anotoki-dialog .anotoki-dialog__title')?.textContent?.trim()).toBe(
+      words.title,
+    );
+    expect(host.querySelector('anotoki-dialog')?.getAttribute('lang')).toBe('sk');
     expect(host.querySelector('anotoki-feedback-form .anotoki-feedback-form__title')).toBeNull();
     expect(host.querySelector('anotoki-feedback-form [data-message]')).not.toBeNull();
     // Nobody signed in: no "without my name".
     expect(host.querySelector('[data-anonymous]')).toBeNull();
   });
 
-  it('closes on Cancel', async () => {
+  it("closes on Cancel, and on the dialog's own close button", async () => {
     await open();
     host.querySelector<HTMLButtonElement>('[data-cancel]')!.click();
-    expect(ref.close).toHaveBeenCalledTimes(1);
+    expect(closed).toHaveBeenCalledTimes(1);
+    host.querySelector<HTMLButtonElement>('.anotoki-dialog__close')!.click();
+    expect(closed).toHaveBeenCalledTimes(2);
+  });
+
+  it("says the form's words are English where the page's language has none of them", async () => {
+    await open(null, 'en');
+    expect(host.querySelector('anotoki-dialog')?.getAttribute('lang')).toBe('en');
+    expect(host.querySelector('anotoki-dialog .anotoki-dialog__title')?.textContent?.trim()).toBe(
+      feedbackWords('en').words.title,
+    );
   });
 
   it("offers the site's four places, in the reader's words, kept by the names the server knows", async () => {
@@ -118,6 +129,6 @@ describe('the feedback form in a dialog (the foot of every page)', () => {
     });
     // Close, after the thanks, closes the dialog.
     host.querySelector<HTMLButtonElement>('[data-close]')!.click();
-    expect(ref.close).toHaveBeenCalledTimes(1);
+    expect(closed).toHaveBeenCalledTimes(1);
   });
 });

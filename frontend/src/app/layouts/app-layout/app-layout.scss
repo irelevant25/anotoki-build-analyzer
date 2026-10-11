@@ -1,11 +1,2 @@
-// The footer at the foot of the window on a short page, after the page on a long one.
-:host {
-  display: flex;
-  flex-direction: column;
-  min-height: 100vh;
-  min-height: 100dvh;
-}
-
-main {
-  flex: 1 0 auto;
-}
+// The family's frame lays the page out: the bar on top, the page, the footer at the foot of the window on a short
+// page and after the page on a long one.

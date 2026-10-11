@@ -8,8 +8,8 @@
  * StringCheck) on this site's sources and migrations.
  *
  * The library's own words (anotoki.*) are the library's: its migration set writes them, its tests hold them to
- * its words file, and its code asks for them - nothing here counts them, but where this site moved two of its
- * strings under them (006).
+ * its words file, and its code asks for them - nothing here counts them, but where this site moved its own
+ * strings under them (006: the language button's two; 010: the top bar's, when the family's bar took its place).
  *
  * Nothing here changes what the migrations left.
  */
@@ -33,6 +33,9 @@ bootTests();
 
 /** The file that moved this site's two words of the library's under the library's keys. */
 const ADOPTION = '006_strings_through_the_library.sql';
+
+/** The file that moved the top bar's words under the library's keys, when the family's bar took the site's place. */
+const BAR_WORDS = '010_top_bar_words_through_the_library.sql';
 
 /** The forms of a plural family, as Intl.PluralRules names the ones English and Slovak have. */
 const PLURAL_FORMS = ['one', 'few', 'other'];
@@ -333,15 +336,15 @@ test('a migration with strings writes each key once, in both languages; the gate
     check($tables['expected'] !== null, '003 does not say how many keys it seeds (expected_keys CONSTANT INTEGER := n)');
     same(count($tables['keys']), $tables['expected'], 'the number of keys 003\'s gate expects is the number of keys it inserts');
 
-    check(in_array(ADOPTION, stringMigrations(), true), 'the file that moved strings under the library\'s keys is one of them');
+    check(in_array(ADOPTION, stringMigrations(), true) && in_array(BAR_WORDS, stringMigrations(), true), 'the files that moved strings under the library\'s keys are among them');
     $all = [];
     $gates = [];
     foreach (stringMigrations() as $file) {
         $found = migrationKeys($file);
         $gates[$file] = $found['expected'];
-        if ($file === ADOPTION) {
-            // It inserts no key of the site's own: it copies two keys' strings under the library's names.
-            same(['keys' => [], 'strings' => []], array_intersect_key($found, ['keys' => 0, 'strings' => 0]), ADOPTION.' writes no row of its own words');
+        if ($file === ADOPTION || $file === BAR_WORDS) {
+            // They insert no key of the site's own: they copy keys' strings under the library's names.
+            same(['keys' => [], 'strings' => []], array_intersect_key($found, ['keys' => 0, 'strings' => 0]), $file.' writes no row of its own words');
             continue;
         }
         check($found['keys'] !== [], "{$file}: the keys it inserts could not be read");
@@ -359,7 +362,9 @@ test('a migration with strings writes each key once, in both languages; the gate
     // and words itself.
     $last = array_key_last($gates);
     same(count(siteKeys()), $gates[$last], "{$last}'s gate expects as many keys of the site's own as there are");
-    check(str_contains((string) file_get_contents(Migrations::directory().'/'.ADOPTION), "WHERE name NOT LIKE 'anotoki.%'"), ADOPTION.'\'s gate leaves the library\'s keys out of its count');
+    foreach ([ADOPTION, BAR_WORDS] as $file) {
+        check(str_contains((string) file_get_contents(Migrations::directory().'/'.$file), "WHERE name NOT LIKE 'anotoki.%'"), $file.'\'s gate leaves the library\'s keys out of its count');
+    }
 });
 
 // ── The rules this site adds ─────────────────────────────────────────────────────────────────────
@@ -397,7 +402,7 @@ test('the scan reads the real frontend: only the files it should, and the librar
     same($root, $scanner->root(), 'it reads the frontend\'s src/app');
     $files = $scanner->sourceFiles();
     check(in_array('app.routes.ts', $files, true) && in_array('pages/dashboard/dashboard-page.html', $files, true), 'the sources are where the scan looks');
-    check(in_array('shared/language-switcher/language-switcher.html', $files, true), 'the language switcher is read - it asks for the library\'s words');
+    check(in_array('layouts/top-bar/top-bar.ts', $files, true), 'the top bar is read - it asks for the library\'s words (anotoki.topbar.*)');
     foreach ($files as $file) {
         check((bool) preg_match('/\.(ts|html)$/', $file), $file);
         check(! preg_match('~\.spec\.ts$|^core/i18n/en\.ts$~', $file), "not read: {$file}");
@@ -408,12 +413,16 @@ test('the scan reads the real frontend: only the files it should, and the librar
     check(! isset($scan['used']['anotoki.language.button']) && ! isset($scan['missing']['anotoki.language.button']), 'never used, never missing');
     same(['topbar.home'], array_keys(array_intersect_key($scan['used'], ['topbar.home' => 0])), 'the site\'s own as ever');
 
-    // The two words 006 moved are asked for by the library's names. Their old namespace is gone from the
-    // database, so the scan would take an old literal for no key at all: it is looked for here.
+    // The words 006 and 010 moved are asked for by the library's names, where the site asks for them at all (the
+    // family's bar asks for most itself). Their old keys are gone from the database, so the scan would take an old
+    // literal for no key at all: they are looked for here.
     $sources = implode("\n", array_map(static fn (string $file): string => (string) file_get_contents("{$root}/{$file}"), $files));
-    foreach (['language.button', 'language.notLoaded'] as $old) {
-        check(preg_match('/[\'"`]'.preg_quote($old, '/').'[\'"`]/', $sources) !== 1, "nothing asks for {$old}: it is anotoki.{$old} now");
-        check(str_contains($sources, "'anotoki.{$old}'"), "anotoki.{$old} is asked for (the bar's language switcher)");
+    foreach (['language.button', 'language.notLoaded', 'topbar.phoneMenu', 'topbar.menuButton', 'topbar.menu', 'topbar.roleAdmin', 'topbar.roleEditor',
+        'topbar.account', 'topbar.admin', 'common.signOut', 'theme.label', 'theme.light', 'theme.dark', 'theme.system', 'stepper.optional', 'stepper.editable'] as $old) {
+        check(preg_match('/[\'"`]'.preg_quote($old, '/').'[\'"`]/', $sources) !== 1, "nothing asks for {$old}: it is gone (or the library's now)");
+    }
+    foreach (['anotoki.topbar.roleAdmin', 'anotoki.topbar.roleEditor', 'anotoki.topbar.account', 'anotoki.topbar.admin'] as $library) {
+        check(str_contains($sources, "'{$library}'"), "{$library} is asked for (the person's menu in the family's bar)");
     }
 });
 

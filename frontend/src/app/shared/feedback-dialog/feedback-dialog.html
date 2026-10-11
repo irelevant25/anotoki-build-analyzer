@@ -1,5 +1,10 @@
-<h2 mat-dialog-title [attr.lang]="said().lang">{{ said().words.title }}</h2>
-
-<mat-dialog-content>
-  <anotoki-feedback-form [heading]="null" closable (closed)="close()" />
-</mat-dialog-content>
+<!-- The family's dialog around the family's form: its heading is the dialog's, in the language its words are in. -->
+<anotoki-dialog
+  class="feedback-dialog"
+  size="md"
+  [heading]="said().words.title"
+  [attr.lang]="said().lang"
+  (dismiss)="closed.emit()"
+>
+  <anotoki-feedback-form [heading]="null" closable (closed)="closed.emit()" />
+</anotoki-dialog>

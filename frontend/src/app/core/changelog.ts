@@ -1,6 +1,6 @@
 import { HttpClient } from '@angular/common/http';
 import { Injectable, computed, inject, signal } from '@angular/core';
-import { MatDialog } from '@angular/material/dialog';
+import { AnotokiDialog } from '@anotoki/lib/ui/dialog';
 import { firstValueFrom } from 'rxjs';
 import { ChangelogDialog } from '../shared/changelog-dialog';
 
@@ -21,14 +21,14 @@ export interface ChangelogEntry {
 const SEEN_KEY = 'build-analyzer-version-seen';
 
 /**
- * The version and its changelog (public/changelog.json, shipped with the frontend). The version button in
- * the top bar opens the whole list; the first visit after a new release opens what changed since the version
+ * The version and its changelog (public/changelog.json, shipped with the frontend). What's new at the foot of
+ * every page opens the whole list; the first visit after a new release opens what changed since the version
  * this browser saw last. Kept per browser: the browser is what knows what it has shown.
  */
 @Injectable({ providedIn: 'root' })
 export class Changelog {
   private readonly http = inject(HttpClient);
-  private readonly dialog = inject(MatDialog);
+  private readonly dialog = inject(AnotokiDialog);
 
   readonly entries = signal<ChangelogEntry[]>([]);
   /** "0.4.0", or null until the changelog has loaded. */
@@ -44,13 +44,13 @@ export class Changelog {
     }
   }
 
-  /** Every release, newest first. */
+  /** Every release, newest first, in the kit's dialog (shared/changelog-dialog: its heading follows the language). */
   open(entries: ChangelogEntry[] = this.entries()): void {
     if (entries.length === 0) {
       return;
     }
     this.remember();
-    this.dialog.open(ChangelogDialog, { data: entries, width: '640px', maxWidth: 'calc(100vw - 32px)', autoFocus: 'dialog' });
+    this.dialog.open(ChangelogDialog, { data: entries, size: 'lg' });
   }
 
   /**

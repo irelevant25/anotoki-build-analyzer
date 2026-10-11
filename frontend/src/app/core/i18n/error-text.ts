@@ -109,7 +109,7 @@ export function errorCode(error: unknown): string | null {
 
 /**
  * The sentence for whatever a page's `error` holds: a key with its params (what the page decided itself),
- * or the failed request - worded now, in the language on the page. For a snack bar or a dialog, which
+ * or the failed request - worded now, in the language on the page. For a toast or a dialog, which
  * take a finished string when they are raised and are not worded again.
  */
 export function errorText(i18n: Pick<TranslationService, 't'>, error: unknown): string {

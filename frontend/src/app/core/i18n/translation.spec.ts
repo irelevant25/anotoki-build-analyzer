@@ -17,8 +17,8 @@ import { en } from './en';
 import { TranslationService } from './translation';
 import { LANGUAGE_STORAGE, provideTranslations } from './translations.config';
 
-const ENGLISH = { 'theme.label': 'Appearance', 'title.builds': 'Builds' };
-const SLOVAK = { 'theme.label': 'Vzhľad', 'title.builds': 'Buildy' };
+const ENGLISH = { 'footer.feedback': 'Reply', 'title.builds': 'Builds' };
+const SLOVAK = { 'footer.feedback': 'Spätná väzba', 'title.builds': 'Buildy' };
 const EN_BUNDLE: TranslationBundle = { language: 'en', languages: TEST_LANGUAGES, values: ENGLISH };
 const SK_BUNDLE: TranslationBundle = {
   language: 'sk',
@@ -143,7 +143,7 @@ describe("the site's words: the anotoki library's translations, set up for this 
     await i18n().init();
     expect(bundles()).toEqual([]);
     expect(i18n().language()).toBe('sk');
-    expect(i18n().t('theme.label')).toBe('Vzhľad');
+    expect(i18n().t('footer.feedback')).toBe('Spätná väzba');
   });
 
   it('once /api/meta has answered, asks for the bundle - marked as the bundle, for the interceptors - and keeps it for the next visit', async () => {
@@ -158,7 +158,7 @@ describe("the site's words: the anotoki library's translations, set up for this 
     asked[0].flush(EN_BUNDLE);
     await started;
 
-    expect(i18n().t('theme.label')).toBe('Appearance');
+    expect(i18n().t('footer.feedback')).toBe('Reply');
     expect(JSON.parse(localStorage.getItem('build-analyzer-language-cache') ?? 'null')).toEqual(
       EN_BUNDLE,
     );

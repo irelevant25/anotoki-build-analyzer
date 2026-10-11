@@ -1,6 +1,5 @@
-// The form draws itself with the anotoki family's kit (its --anotoki-* colours, mapped in styles.scss); the
-// dialog gives it room to the edges of its content.
+// The form and its dialog draw themselves with the anotoki family's kit (in this site's colours: the --anotoki-*
+// tokens in styles.scss).
 anotoki-feedback-form {
   display: block;
-  padding-bottom: 0.5rem;
 }

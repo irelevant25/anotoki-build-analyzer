@@ -1,239 +1,299 @@
 <div class="page">
   @if (loading()) {
-    <mat-progress-bar mode="indeterminate" class="top-progress" />
+    <anotoki-spinner class="loading" label [delay]="200" />
   }
   @if (signedOut()) {
     <app-visitor-hero />
   } @else {
     <app-visitor-notice />
     @if (error(); as problem) {
-      <div class="panel"><mat-icon>error</mat-icon> {{ problem | errorText }}</div>
+      <anotoki-alert class="failure" tone="danger" [announce]="true">{{ problem | errorText }}</anotoki-alert>
     }
   }
 
   @if (data(); as d) {
-    <a mat-button [routerLink]="['/accounts', d.account.id]" class="back"><mat-icon>arrow_back</mat-icon>{{ d.account.nickname }}</a>
+    <a anotokiButton variant="ghost" class="back" [routerLink]="['/accounts', d.account.id]"
+      ><anotoki-icon name="arrowLeft" [size]="18" />{{ d.account.nickname }}</a
+    >
 
     <!-- Header -->
-    <header class="hero panel">
-      <app-avatar [src]="d.character.icon_url" [alt]="d.character.name" [rarity]="d.character.rarity" [element]="d.character.element" size="lg" />
-      <div class="hero-text">
-        <h1>{{ d.character.name }}</h1>
-        <div class="row wrap">
-          @if (d.character.element) {
-            <span class="chip"><span class="el-dot" [style.background]="'var(--el-' + d.character.element + ')'"></span>{{ titleCase(d.character.element) }}</span>
-          }
-          @if (d.character.weapon_type) {
-            <span class="chip">{{ titleCase(d.character.weapon_type) }}</span>
-          }
-          <span class="chip">{{ level(d.character.level) }}</span>
-          <span class="chip">{{ rankPrefix() }}{{ d.character.rank }}</span>
-          @for (t of talents(); track t.label) {
-            <span class="chip" [matTooltip]="t.bonus ? ('character.talentBonus' | translate: { bonus: t.bonus, ranks: terms().ranks }) : ''">
-              {{ t.label }} {{ t.level }}@if (t.bonus) {<span class="bonus">+{{ t.bonus }}</span>}
-            </span>
-          }
-        </div>
-      </div>
-      @if (evaluation(); as e) {
-        <div class="hero-grade">
-          <app-grade-badge [grade]="e.score.grade" size="lg" />
-          <div>
-            <div class="big-score">{{ e.score.overall ?? '–' }}<span class="muted">/100</span></div>
-            <div class="muted small">{{ 'character.versus' | translate: { build: e.build.source.name + ' · ' + e.build.variant } }}</div>
+    <anotoki-card class="hero">
+      <div class="hero-row">
+        <app-avatar
+          [src]="d.character.icon_url"
+          [alt]="d.character.name"
+          [rarity]="d.character.rarity"
+          [element]="d.character.element"
+          size="lg"
+        />
+        <div class="hero-text">
+          <h1>{{ d.character.name }}</h1>
+          <div class="cluster traits">
+            @if (d.character.element) {
+              <anotoki-badge
+                ><span class="el-dot" [style.background]="'var(--el-' + d.character.element + ')'"></span
+                >{{ titleCase(d.character.element) }}</anotoki-badge
+              >
+            }
+            @if (d.character.weapon_type) {
+              <anotoki-badge>{{ titleCase(d.character.weapon_type) }}</anotoki-badge>
+            }
+            <anotoki-badge>{{ level(d.character.level) }}</anotoki-badge>
+            <anotoki-badge>{{ rankPrefix() }}{{ d.character.rank }}</anotoki-badge>
+            @for (t of talents(); track t.label) {
+              <anotoki-badge
+                [anotokiTooltip]="
+                  t.bonus ? ('character.talentBonus' | translate: { bonus: t.bonus, ranks: terms().ranks }) : null
+                "
+              >
+                <!-- "12+3": the bonus written right after the level, as the game writes it. -->
+                {{ t.label }} {{ t.level }}@if (t.bonus) {<span class="bonus">+{{ t.bonus }}</span>}
+              </anotoki-badge>
+            }
           </div>
         </div>
-      }
-    </header>
+        @if (evaluation(); as e) {
+          <div class="hero-grade">
+            <app-grade-badge [grade]="e.score.grade" size="lg" />
+            <div>
+              <div class="big-score">{{ e.score.overall ?? '–' }}<span class="muted">/100</span></div>
+              <div class="muted small">
+                {{ 'character.versus' | translate: { build: e.build.source.name + ' · ' + e.build.variant } }}
+              </div>
+            </div>
+          </div>
+        }
+      </div>
+    </anotoki-card>
 
     @if (d.evaluations.length === 0) {
-      <div class="panel empty-state">
-        <mat-icon>hourglass_empty</mat-icon>
+      <anotoki-card class="no-builds">
+        <anotoki-icon class="no-builds-icon" name="clock" [size]="28" />
         <!-- The Sources page is the admin panel's: a link for an editor or an admin, its name alone for everybody else. -->
-        <p>{{ noBuilds()[0] }}@if (noBuilds()[2]) {@if (auth.isStaff()) {<a routerLink="/admin/sources">{{ 'builds.sourcesPage' | translate }}</a>} @else {<span>{{ 'builds.sourcesPage' | translate }}</span>}}{{ noBuilds()[1] }}</p>
-      </div>
+        <p>
+          {{ noBuilds()[0] }}@if (noBuilds()[2]) {@if (auth.isStaff()) {<a routerLink="/admin/sources">{{
+                'builds.sourcesPage' | translate
+              }}</a>} @else {<span>{{ 'builds.sourcesPage' | translate }}</span>}}{{ noBuilds()[1] }}
+        </p>
+      </anotoki-card>
     } @else {
-      <!-- Build selector -->
-      <mat-tab-group class="build-tabs" [selectedIndex]="selectedIndex()" (selectedIndexChange)="selectTab($event)" mat-stretch-tabs="false" animationDuration="0ms">
-        @for (e of d.evaluations; track e.build.id) {
-          <mat-tab>
-            <ng-template mat-tab-label>
-              <span class="tab-label">
-                <app-grade-badge [grade]="e.score.grade" size="sm" />
-                <span>{{ e.build.source.name }} · {{ e.build.variant }}</span>
-                @if (e.build.id === d.best_build_id) {
-                  <mat-icon class="best-star" [matTooltip]="'character.closestMatch' | translate">star</mat-icon>
-                }
-              </span>
-            </ng-template>
-          </mat-tab>
-        }
-      </mat-tab-group>
+      <!-- Build selector: one tab a build, its score beside its name. -->
+      <anotoki-tabs
+        #tabs="anotokiTabs"
+        class="build-tabs"
+        [label]="'topbar.builds' | translate"
+        [tabs]="buildTabs()"
+        [active]="activeTab()"
+        (activeChange)="selectBuild($event)"
+      />
 
       @if (evaluation(); as e) {
-        <div class="top-grid">
-          <!-- Score breakdown -->
-          <section class="panel">
-            <h2 class="panel-title"><mat-icon>speed</mat-icon>{{ 'character.scoreBreakdown' | translate }}</h2>
-            <div class="parts">
-              <app-score-bar [label]="weaponTerm()" [value]="e.score.parts.weapon" />
-              <app-score-bar [label]="buildTerms.setBonuses" [value]="e.score.parts.sets" />
-              <app-score-bar [label]="buildTerms.mainStats" [value]="e.score.parts.main_stats" />
-              <app-score-bar [label]="buildTerms.substats" [value]="e.score.parts.substats" />
-              <app-score-bar [label]="'character.score.targets' | translate" [value]="e.score.parts.targets" />
-            </div>
-            @if (e.score.parts.targets === null && e.targets.length > 0) {
-              <p class="muted small">{{ 'character.targetsNeedTotals' | translate }}</p>
-            }
-            @if (e.weapon?.equipped; as w) {
-              <div class="weapon-line">
-                <span class="muted small">{{ 'character.yourWeapon' | translate: { weapon_label: weaponTerm() } }}</span>
-                <strong>{{ w.name }} {{ refinementPrefix() }}{{ w.refinement }}</strong>
-                <span class="muted small">
-                  {{ level(w.level) }} ·
-                  @if (e.weapon?.rank) {
-                    {{ 'character.weaponOption' | translate: { rank: e.weapon?.rank, total: e.weapon?.total } }}
-                  } @else {
-                    {{ 'character.weaponNotListed' | translate }}
-                  }
-                </span>
+        <div
+          class="build-panel"
+          role="tabpanel"
+          [id]="tabs.panelId(activeTab())"
+          [attr.aria-labelledby]="tabs.tabId(activeTab())"
+        >
+          <div class="top-grid">
+            <!-- Score breakdown -->
+            <anotoki-card [heading]="'character.scoreBreakdown' | translate">
+              <div class="parts">
+                <app-score-bar [label]="weaponTerm()" [value]="e.score.parts.weapon" />
+                <app-score-bar [label]="buildTerms.setBonuses" [value]="e.score.parts.sets" />
+                <app-score-bar [label]="buildTerms.mainStats" [value]="e.score.parts.main_stats" />
+                <app-score-bar [label]="buildTerms.substats" [value]="e.score.parts.substats" />
+                <app-score-bar [label]="'character.score.targets' | translate" [value]="e.score.parts.targets" />
               </div>
-            }
-          </section>
-
-          <!-- Recommendations -->
-          <section class="panel recs">
-            <h2 class="panel-title"><mat-icon>checklist</mat-icon>{{ 'character.improve' | translate }}</h2>
-            @for (row of recommendations(); track $index) {
-              @let rec = row.recommendation;
-              <div class="rec" [class]="rec.severity">
-                <mat-icon>{{ severityIcon(rec) }}</mat-icon>
-                <div>
-                  <div class="rec-cat small">{{ row.category }}@if (rec.slot) { · {{ rec.slot | slotLabel: game() }} }</div>
-                  <div [attr.lang]="row.text.lang">{{ row.text.text }}</div>
-                </div>
-              </div>
-            } @empty {
-              <div class="all-good"><mat-icon>celebration</mat-icon>{{ 'character.nothingToChange' | translate }}</div>
-            }
-          </section>
-        </div>
-
-        <!-- Current equipment -->
-        <section class="section">
-          <div class="row">
-            <h2 class="section-title">{{ 'character.yourItems' | translate: { items: terms().items } }}</h2>
-            <span class="spacer"></span>
-            @if (game() === 'genshin') {
-              <span
-                class="chip"
-                [matTooltip]="'character.critValueHint' | translate: { crit_rate: ('critRate_' | statLabel: game()), crit_dmg: ('critDMG_' | statLabel: game()), items: terms().items }"
-              >{{ 'character.critValue' | translate: { value: d.equipment.crit_value } }}</span>
-            }
-          </div>
-          <p class="muted small legend">{{ legend()[0] }}@if (legend()[2]) {<span class="stat-good">{{ 'character.legendColor' | translate }}</span>}{{ legend()[1] }}</p>
-          <div class="items-grid">
-            @for (entry of items(); track entry.slot.key) {
-              @if (entry.item; as item) {
-                <app-item-card [item]="item" [game]="game()" />
-              } @else {
-                <div class="panel empty-slot">
-                  <mat-icon>block</mat-icon>
-                  <span>{{ entry.slot.label }}</span>
-                  <span class="muted small">{{ 'character.nothingEquipped' | translate }}</span>
-                </div>
+              @if (e.score.parts.targets === null && e.targets.length > 0) {
+                <p class="muted small targets-note">{{ 'character.targetsNeedTotals' | translate }}</p>
               }
-            }
-          </div>
-        </section>
-
-        <!-- Inventory suggestions -->
-        @if (d.has_full_inventory) {
-          <section class="section">
-            <h2 class="section-title">{{ 'character.betterOwned' | translate }}</h2>
-            @if (suggestions().length === 0 && d.set_plans.length === 0) {
-              <p class="muted">{{ 'character.nothingBetter' | translate }}</p>
-            }
-            @for (plan of d.set_plans; track plan.kind) {
-              <div class="panel plan">
-                <div class="row wrap">
-                  <strong>{{ 'character.switchTo' | translate: { set: plan.set } }}</strong>
-                  <span class="spacer"></span>
-                  <span class="chip" [class.ok]="plan.owned >= plan.needed" [class.warn]="plan.owned < plan.needed">
-                    {{ 'character.planOwned' | translatePlural: plan.needed : { owned: plan.owned } }}
+              @if (e.weapon?.equipped; as w) {
+                <div class="weapon-line">
+                  <span class="muted small">{{
+                    'character.yourWeapon' | translate: { weapon_label: weaponTerm() }
+                  }}</span>
+                  <strong>{{ w.name }} {{ refinementPrefix() }}{{ w.refinement }}</strong>
+                  <span class="muted small">
+                    {{ level(w.level) }} ·
+                    @if (e.weapon?.rank) {
+                      {{ 'character.weaponOption' | translate: { rank: e.weapon?.rank, total: e.weapon?.total } }}
+                    } @else {
+                      {{ 'character.weaponNotListed' | translate }}
+                    }
                   </span>
                 </div>
-                <div class="items-grid">
-                  @for (piece of plan.pieces; track piece.id) {
-                    <div class="plan-piece">
-                      <app-item-card [item]="piece" [game]="game()" />
-                      <span class="muted small">
-                        @if (piece.equipped_on) {
-                          {{ 'character.currentlyOn' | translate: { character: piece.equipped_on } }}
-                        } @else {
-                          {{ 'character.notEquipped' | translate }}
+              }
+            </anotoki-card>
+
+            <!-- Recommendations -->
+            <anotoki-card class="recs" [heading]="'character.improve' | translate">
+              <div class="rec-list">
+                @for (row of recommendations(); track $index) {
+                  @let rec = row.recommendation;
+                  <div class="rec" [class]="rec.severity">
+                    <anotoki-icon [name]="severityIcon(rec)" [size]="20" />
+                    <div>
+                      <div class="rec-cat small">
+                        {{ row.category }}
+                        @if (rec.slot) {
+                          · {{ rec.slot | slotLabel: game() }}
                         }
-                      </span>
+                      </div>
+                      <div [attr.lang]="row.text.lang">{{ row.text.text }}</div>
                     </div>
-                  }
-                </div>
-                @if (plan.owned < plan.needed) {
-                  <p class="muted small">{{ 'character.planMissing' | translatePlural: plan.needed - plan.owned }}</p>
+                  </div>
+                } @empty {
+                  <div class="all-good">
+                    <anotoki-icon name="checkCircle" [size]="20" />{{ 'character.nothingToChange' | translate }}
+                  </div>
                 }
               </div>
-            }
-            <div class="suggestions">
-              @for (entry of suggestions(); track entry.suggestion.slot) {
-                @let s = entry.suggestion;
-                <div class="panel suggestion">
-                  <div class="row">
-                    <strong>{{ s.slot | slotLabel: game() }}</strong>
-                    <span class="spacer"></span>
-                    <span class="chip ok">{{ entry.reason }}</span>
+            </anotoki-card>
+          </div>
+
+          <!-- Current equipment -->
+          <section class="section">
+            <div class="section-head">
+              <h2>{{ 'character.yourItems' | translate: { items: terms().items } }}</h2>
+              @if (game() === 'genshin') {
+                <anotoki-badge
+                  class="crit-value"
+                  [anotokiTooltip]="
+                    'character.critValueHint'
+                      | translate
+                        : {
+                            crit_rate: 'critRate_' | statLabel: game(),
+                            crit_dmg: 'critDMG_' | statLabel: game(),
+                            items: terms().items,
+                          }
+                  "
+                  >{{ 'character.critValue' | translate: { value: d.equipment.crit_value } }}</anotoki-badge
+                >
+              }
+            </div>
+            <p class="muted small legend">
+              {{ legend()[0] }}@if (legend()[2]) {<span class="stat-good">{{
+                  'character.legendColor' | translate
+                }}</span>}{{ legend()[1] }}
+            </p>
+            <div class="items-grid">
+              @for (entry of items(); track entry.slot.key) {
+                @if (entry.item; as item) {
+                  <app-item-card [item]="item" [game]="game()" />
+                } @else {
+                  <div class="tile empty-slot">
+                    <anotoki-icon name="ban" [size]="22" />
+                    <span>{{ entry.slot.label }}</span>
+                    <span class="muted small">{{ 'character.nothingEquipped' | translate }}</span>
                   </div>
-                  <app-item-card [item]="entry.view" [game]="game()" />
-                  <div class="muted small">
-                    @if (s.current_percent !== null) { {{ 'character.currentPiece' | translate: { percent: s.current_percent } }} · }
-                    @if (s.item.equipped_on) {
-                      {{ 'character.currentlyOn' | translate: { character: s.item.equipped_on } }}
-                    } @else {
-                      {{ 'character.notEquipped' | translate }}
+                }
+              }
+            </div>
+          </section>
+
+          <!-- Inventory suggestions -->
+          @if (d.has_full_inventory) {
+            <section class="section">
+              <div class="section-head">
+                <h2>{{ 'character.betterOwned' | translate }}</h2>
+              </div>
+              @if (suggestions().length === 0 && d.set_plans.length === 0) {
+                <p class="muted">{{ 'character.nothingBetter' | translate }}</p>
+              }
+              @for (plan of d.set_plans; track plan.kind) {
+                <anotoki-card
+                  class="plan"
+                  [heading]="'character.switchTo' | translate: { set: plan.set }"
+                  [headingLevel]="3"
+                >
+                  <div cardActions>
+                    <anotoki-badge [tone]="plan.owned >= plan.needed ? 'success' : 'warning'">
+                      {{ 'character.planOwned' | translatePlural: plan.needed : { owned: plan.owned } }}
+                    </anotoki-badge>
+                  </div>
+                  <div class="items-grid">
+                    @for (piece of plan.pieces; track piece.id) {
+                      <div class="plan-piece">
+                        <app-item-card [item]="piece" [game]="game()" />
+                        <span class="muted small">
+                          @if (piece.equipped_on) {
+                            {{ 'character.currentlyOn' | translate: { character: piece.equipped_on } }}
+                          } @else {
+                            {{ 'character.notEquipped' | translate }}
+                          }
+                        </span>
+                      </div>
                     }
                   </div>
+                  @if (plan.owned < plan.needed) {
+                    <p class="muted small plan-missing">
+                      {{ 'character.planMissing' | translatePlural: plan.needed - plan.owned }}
+                    </p>
+                  }
+                </anotoki-card>
+              }
+              <div class="suggestions">
+                @for (entry of suggestions(); track entry.suggestion.slot) {
+                  @let s = entry.suggestion;
+                  <div class="tile suggestion">
+                    <div class="suggestion-head">
+                      <strong>{{ s.slot | slotLabel: game() }}</strong>
+                      <anotoki-badge tone="success">{{ entry.reason }}</anotoki-badge>
+                    </div>
+                    <app-item-card [item]="entry.view" [game]="game()" />
+                    <div class="muted small">
+                      @if (s.current_percent !== null) {
+                        {{ 'character.currentPiece' | translate: { percent: s.current_percent } }} ·
+                      }
+                      @if (s.item.equipped_on) {
+                        {{ 'character.currentlyOn' | translate: { character: s.item.equipped_on } }}
+                      } @else {
+                        {{ 'character.notEquipped' | translate }}
+                      }
+                    </div>
+                  </div>
+                }
+              </div>
+            </section>
+          } @else {
+            <anotoki-alert class="hint" tone="info">{{ 'character.uploadInventory' | translate }}</anotoki-alert>
+          }
+
+          <!-- Recommended build -->
+          @if (build(); as b) {
+            <anotoki-card class="build-card" [heading]="b.source.name + ' · ' + b.variant">
+              @if ((b.role && b.role !== b.variant) || e.build.id === d.best_build_id) {
+                <div cardActions class="cluster">
+                  @if (e.build.id === d.best_build_id) {
+                    <anotoki-badge tone="primary">{{ 'character.closestMatch' | translate }}</anotoki-badge>
+                  }
+                  @if (b.role && b.role !== b.variant) {
+                    <anotoki-badge>{{ b.role }}</anotoki-badge>
+                  }
                 </div>
               }
-            </div>
-          </section>
-        } @else {
-          <p class="muted small hint"><mat-icon>info</mat-icon>{{ 'character.uploadInventory' | translate }}</p>
-        }
-
-        <!-- Recommended build -->
-        @if (build(); as b) {
-          <section class="section panel">
-            <div class="row wrap">
-              <h2 class="section-title">{{ b.source.name }} · {{ b.variant }}</h2>
-              @if (b.role && b.role !== b.variant) {
-                <span class="chip">{{ b.role }}</span>
-              }
-            </div>
-            <app-build-detail [build]="b" [game]="game()" [evaluation]="e" [element]="d.character.element" />
-          </section>
-        }
+              <app-build-detail [build]="b" [game]="game()" [evaluation]="e" [element]="d.character.element" />
+            </anotoki-card>
+          }
+        </div>
       }
 
       <!-- Consensus + stats -->
       <div class="bottom-grid">
         @if (d.consensus.builds > 1) {
-          <section class="panel">
-            <h2 class="panel-title"><mat-icon>groups</mat-icon>{{ 'character.consensus.title' | translate }}</h2>
-            <p class="muted small">{{ 'character.consensus.builds' | translatePlural: d.consensus.builds : { sources: d.consensus.sources.join(', ') } }}</p>
+          <anotoki-card [heading]="'character.consensus.title' | translate">
+            <p class="muted small">
+              {{
+                'character.consensus.builds'
+                  | translatePlural: d.consensus.builds : { sources: d.consensus.sources.join(', ') }
+              }}
+            </p>
             @for (slot of consensusSlots(); track slot.label) {
               <div class="consensus-row">
                 <span class="muted">{{ slot.label }}</span>
-                <span class="row wrap">
+                <span class="cluster">
                   @for (stat of slot.stats; track stat.name) {
-                    <span class="chip">{{ stat.name | statLabel: game() }} <b>{{ stat.count }}×</b></span>
+                    <anotoki-badge>{{ stat.name | statLabel: game() }} <b>{{ stat.count }}×</b></anotoki-badge>
                   }
                 </span>
               </div>
@@ -241,26 +301,27 @@
             @for (group of consensusSets(); track group.kind) {
               <div class="consensus-row">
                 <span class="muted">{{ group.title }}</span>
-                <span class="row wrap">
+                <span class="cluster">
                   @for (set of group.list; track set.name) {
-                    <span class="chip">{{ set.text }} <b>{{ set.count }}×</b></span>
+                    <anotoki-badge>{{ set.text }} <b>{{ set.count }}×</b></anotoki-badge>
                   }
                 </span>
               </div>
             }
             <div class="consensus-row">
-              <span class="muted">{{ 'character.consensus.bestWeapon' | translate: { weapon_label: weaponTerm() } }}</span>
-              <span class="row wrap">
+              <span class="muted">{{
+                'character.consensus.bestWeapon' | translate: { weapon_label: weaponTerm() }
+              }}</span>
+              <span class="cluster">
                 @for (weapon of d.consensus.weapons; track weapon.name) {
-                  <span class="chip">{{ weapon.name }} <b>{{ weapon.count }}×</b></span>
+                  <anotoki-badge>{{ weapon.name }} <b>{{ weapon.count }}×</b></anotoki-badge>
                 }
               </span>
             </div>
-          </section>
+          </anotoki-card>
         }
 
-        <section class="panel">
-          <h2 class="panel-title"><mat-icon>bar_chart</mat-icon>{{ 'character.stats.title' | translate }}</h2>
+        <anotoki-card [heading]="'character.stats.title' | translate">
           @if (finalStats().length > 0) {
             <p class="muted small">
               @if (!d.character.synced_at) {
@@ -286,7 +347,7 @@
               }
             </div>
           }
-        </section>
+        </anotoki-card>
       </div>
     }
   }
