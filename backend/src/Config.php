@@ -18,7 +18,8 @@ use Anotoki\Lib\Auth\IamClient;
  *                        it leaves out is FETCH_DEFAULTS'.
  *   client_address.local.php  optional, written by hand: an installation's own proxies over config/app.php's
  *                        client_address (Cloudflare's ranges) - ['trusted_proxies' => []] where the site is
- *                        not behind Cloudflare. Each value it leaves out is config/app.php's.
+ *                        not behind Cloudflare. Its trusted_proxies and nothing else: the header a proxy names
+ *                        the address in is Cloudflare's CF-Connecting-IP, never one a setting names.
  *
  * There is no committed default for the required files: an installation that has not been set up says so
  * (503 "not_set_up", see api/middleware) instead of quietly running against a database or an IAM nobody
@@ -105,8 +106,10 @@ final class Config
         $values['database'] = $local['database'] ?? [];
         $values['auth'] = ($local['auth'] ?? []) + ['jwks_file' => null, 'leeway' => 60];
         $values['fetch'] = ($local['fetch'] ?? []) + self::FETCH_DEFAULTS;
-        // This installation's own proxies (or none) over the committed Cloudflare ranges.
-        $values['client_address'] = ($local['client_address'] ?? []) + (array) ($values['client_address'] ?? []);
+        // This installation's own proxies (or none) over the committed Cloudflare ranges - the proxies alone: whose
+        // header names the address is never a setting (CF-Connecting-IP, App\Web\ClientAddress).
+        $own = array_intersect_key((array) ($local['client_address'] ?? []), ['trusted_proxies' => true]);
+        $values['client_address'] = $own + (array) ($values['client_address'] ?? []);
 
         if ($testDir !== null && ! str_starts_with((string) ($values['database']['database'] ?? ''), self::TEST_DATABASE_PREFIX)) {
             // The test settings never reach a real database: not set up, rather than the wrong one.

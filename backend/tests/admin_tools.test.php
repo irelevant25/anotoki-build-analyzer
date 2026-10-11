@@ -1,13 +1,17 @@
 <?php
 
 /**
- * The anotoki family's admin tools on this site (anotoki/lib 0.4, App\Admin\AdminTools; api/routes/admin_tools.php
+ * The anotoki family's admin tools on this site (anotoki/lib 0.5, App\Admin\AdminTools; api/routes/admin_tools.php
  * and feedback.php): for the site's ADMIN alone - nobody, a person with no role, MEMBER and EDITOR are refused
  * every route, in this site's words - the error log (what failed, written without a body, a header, a query or a
- * token; a decided 503 not written), the audit log (what was done in the admin panel), feedback (the visitors'
- * form - who from the token alone, nothing of where it came from kept, a robots' field, limits - and the admin
- * side with its unread count, the panel's badge) and backups (made, listed, downloaded by a single-use ticket,
- * deleted, restored - each behind a sign-in of the last ten minutes - and the day's after an answer).
+ * token; an answer that says a state - an update or a table waiting - not written, a 503 that is a failure written;
+ * the pages' own errors from the browser, scrubbed, capped), the audit log (what
+ * was done in the admin panel), feedback (the visitors' form - who from the token alone, nothing of where it came
+ * from kept, a robots' field, limits - and the admin side with its unread count, the panel's badge), backups
+ * (made, listed with their makers' names, downloaded by a single-use ticket, deleted, restored - each behind a
+ * sign-in of the last ten minutes -, sealed: only a backup made here restored here; a restore does again what was
+ * deleted since; the day's after an answer), and where a request comes from as the tools read it (Cloudflare's
+ * CF-Connecting-IP, the site's own rule).
  */
 
 declare(strict_types=1);
@@ -184,7 +188,7 @@ test('the error log: an exception answered 500 is written - its route, who, its 
     same(1, count(admin()->get('/api/admin/errors/'.$fingerprint)->status(200)->json()), 'its occurrence');
 });
 
-test('the error log: an answer worth seeing is written as it went out (404, 405) - a 503 (an update waits) never, nor the log\'s own routes', function () {
+test('the error log: an answer worth seeing is written as it went out (404, 405) - an update waiting (a state) never, nor the log\'s own routes', function () {
     (new Client)->get('/api/nothing-here')->status(404);
     (new Client)->request('DELETE', '/api/meta')->status(405);
     admin()->get('/api/admin/errors/ffffffffffff')->status(404)->path('code', 'not_found');
@@ -193,10 +197,42 @@ test('the error log: an answer worth seeing is written as it went out (404, 405)
     });
 
     same([[404, 'not_found', 'Response', '/api/nothing-here'], [405, 'method_not_allowed', 'Response', '/api/meta']],
-        array_map(fn ($line) => [$line['status'], $line['code'], $line['type'], $line['path']], errorLines()), 'the two answers - not the log\'s own 404, not the 503');
+        array_map(fn ($line) => [$line['status'], $line['code'], $line['type'], $line['path']], errorLines()), 'the two answers - not the log\'s own 404, not the update waiting');
     $log = T::$app->get(ErrorLog::class);
-    same([true, true, true, true, true, true, false, false, false, false, false],
-        array_map(fn (int $status) => $log->logsStatus($status), [500, 502, 404, 405, 413, 429, 503, 401, 403, 409, 422]), 'every 5xx but 503, and 404, 405, 413, 415, 429');
+    same([true, true, true, true, true, true, true, false, false, false, false],
+        array_map(fn (int $status) => $log->logsStatus($status), [500, 502, 404, 405, 413, 429, 503, 401, 403, 409, 422]), 'every 5xx - a 503 too, by its code -, and 404, 405, 413, 415, 429');
+});
+
+test('the error log tells a state from a failure by the answer\'s code: a table or an update waiting is left out, a 503 that is a failure is written', function () {
+    // States, not failures (AdminTools::EXPECTED_ANSWERS): an admin tool whose table is not there - here moved aside
+    // for a moment, as between an upload and its Apply - answers 503 feature_unavailable on every visit.
+    db()->run('ALTER TABLE anotoki_feedback RENAME TO anotoki_feedback_away');
+    try {
+        admin()->get('/api/admin/feedback')->status(503)->path('code', 'feature_unavailable');
+        feedback(['kind' => 'idea', 'message' => 'While the table is away'])->status(503)->path('code', 'feature_unavailable');
+    } finally {
+        db()->run('ALTER TABLE anotoki_feedback_away RENAME TO anotoki_feedback');
+    }
+    // This site's own states of the kind (a waiting migration's table), as the log hears an answer - beside a 503
+    // that says something could not be done (the move's lock wait): written.
+    $log = T::$app->get(ErrorLog::class);
+    $request = (new Slim\Psr7\Factory\ServerRequestFactory)->createServerRequest('POST', 'http://localhost/api/visitor/move');
+    foreach (['update_pending', 'not_set_up', 'visitors_unavailable', 'translations_unavailable', 'people_unavailable', 'visitor_move_retry'] as $code) {
+        $log->recordResponse($request, App\Web\Json::message((new Slim\Psr7\Factory\ResponseFactory)->createResponse(), 503, 'Not now.', ['code' => $code]));
+    }
+    // A failure: feedback's limits cannot be counted (where their file belongs there is a folder) - 503
+    // storage_unavailable, answered to the sender and written for the admin.
+    $limits = T::$storage.'/cache/anotoki-feedback-limits.json';
+    @mkdir($limits, 0777, true);
+    try {
+        feedback(['kind' => 'idea', 'message' => 'Nowhere to count it'])->status(503)->path('code', 'storage_unavailable');
+    } finally {
+        @rmdir($limits);
+    }
+
+    same([[503, 'visitor_move_retry', '/api/visitor/move'], [503, 'storage_unavailable', '/api/feedback']],
+        array_map(fn ($line) => [$line['status'], $line['code'], $line['path']], errorLines()), 'the two failures - none of the states');
+    same('error', errorLines()[1]['level'], 'a failure: an error, as every 5xx');
 });
 
 test('the error log is cleared by an admin - everything, or the days before one - and that is in the audit log', function () {
@@ -401,12 +437,201 @@ test('a restore checks the IAM\'s deleted accounts again at once: whoever it del
     @mkdir(dirname($stamp), 0777, true);
     file_put_contents($stamp, (string) time());
     $unchecked = $restore();
-    check(str_contains((string) $unchecked->json('after_restore_error'), 'the accounts the IAM deleted were not checked again'), 'the restore says so: '.$unchecked->json('after_restore_error'));
+    check(str_contains((string) $unchecked->json('after_restore_error'), 'The accounts the IAM deleted were not checked again'), 'the restore says so: '.$unchecked->json('after_restore_error'));
     same('klee', db()->value('SELECT name FROM users WHERE id = 9'), 'named again, until the next check');
     check(! is_file($stamp), 'the hour no longer claimed: the next request checks again');
+    $said = array_values(array_filter(errorLines(), fn (array $line): bool => str_contains((string) $line['message'], 'The accounts the IAM deleted were not checked again')));
+    same(1, count($said), 'the error log has it too: '.json_encode(array_column(errorLines(), 'message')));
     T::$iam->anonymized(['9' => '2026-11-06T10:00:00Z']);
     admin()->post('/api/admin/people/sync')->status(200);
     same('deleted-9', db()->value('SELECT name FROM users WHERE id = 9'), 'and the next check takes it');
+});
+
+test('a restore on the command line that cannot check the IAM\'s deleted accounts says so - and gives the hour back when it ends, so the next request checks, as it says', function () {
+    // php backup.php as it runs on a computer with a shell - in a process of its own, on this file's throwaway database,
+    // through a settings folder of its own (BUILD_ANALYZER_TEST_CONFIG, honoured for a build_analyzer_test_ database
+    // only), whose storage holds its backups, its key and the IAM's cache; the IAM's list of deleted accounts out of
+    // reach (its file not there).
+    $settings = T::$storage.DIRECTORY_SEPARATOR.'cli-settings';
+    @mkdir($settings.'/storage', 0777, true);
+    $server = require dirname(__DIR__).'/config/database.local.php';
+    file_put_contents($settings.'/database.local.php', '<?php return '.var_export(['database' => T::$database, 'persistent' => false] + $server, true).";\n");
+    file_put_contents($settings.'/auth.local.php', '<?php return '.var_export(['issuer' => TEST_ISSUER, 'client_id' => TEST_CLIENT,
+        'anonymized_file' => $settings.'/no-such-list.json'], true).";\n");
+    $backupPhp = function (string ...$arguments) use ($settings): array {
+        $command = escapeshellarg(PHP_BINARY).' backup.php '.implode(' ', array_map('escapeshellarg', $arguments));
+        $process = proc_open($command, [1 => ['pipe', 'w'], 2 => ['pipe', 'w']], $pipes, dirname(__DIR__), [App\Config::TEST_CONFIG_ENV => $settings] + getenv());
+        $output = stream_get_contents($pipes[1]).stream_get_contents($pipes[2]);
+
+        return [proc_close($process), str_replace("\r\n", "\n", (string) $output)];
+    };
+    try {
+        seedUser(9, 'klee');
+        [$code, $made] = $backupPhp('--create');
+        check($code === 0 && preg_match('/^Made (\S+) /', $made, $id) === 1, 'a backup made: '.$made);
+
+        // The hour claimed, as an ordinary request's upkeep claims it before it checks.
+        $stamp = $settings.'/storage/cache/iam/'.Anotoki\Lib\People\Http\PeopleUpkeep::STAMP;
+        @mkdir(dirname($stamp), 0777, true);
+        file_put_contents($stamp, (string) time());
+        [$code, $output] = $backupPhp('--restore='.$id[1], '--confirm='.substr($id[1], -6));
+        same(1, $code, 'restored, and the work after it not all done: '.$output);
+        check(str_contains($output, 'Restored ') && str_contains($output, 'The accounts the IAM deleted were not checked again')
+            && str_contains($output, 'the check runs again with the next request'), 'it says so: '.$output);
+        check(! is_file($stamp), 'and it is so: the hour given back once the command ended (what it left for "after the answer" ran)');
+        same('klee', db()->value('SELECT name FROM users WHERE id = 9'), 'the database as the backup has it');
+    } finally {
+        removeTree($settings);
+    }
+});
+
+test('a restore does again what was deleted since its backup - a person\'s data on the People page, a feedback message - and completes', function () {
+    seedGenshinCatalog();
+    seedUser(7, 'mona');
+    seedAccount(7, 'genshin', ['uid' => '700000007', 'nickname' => 'Main']);
+    seedUser(8, 'albedo');
+    seedAccount(8, 'genshin', ['uid' => '700000008', 'nickname' => 'Chalk']);
+    db()->run("INSERT INTO anotoki_feedback (kind, message, contact_email, user_id, user_agent) VALUES
+        ('bug', 'From mona', 'mona@example.test', 7, 'Firefox'), ('idea', 'Spam, really', NULL, NULL, NULL), ('idea', 'Keep me', NULL, NULL, NULL)");
+    $spam = (int) db()->value("SELECT id FROM anotoki_feedback WHERE message = 'Spam, really'");
+    $made = send(admin(), 'POST', '/api/admin/backups')->status(201)->json('backup');
+
+    // After the backup: mona's data deleted on the People page, a message deleted on the Feedback page - each in the
+    // audit log, written in its delete's own transaction - and an account renamed, which a restore takes back.
+    same(['deleted' => ['Game accounts' => 1, 'Imports' => 0]], admin()->delete('/api/admin/people/7')->status(200)->json(), 'deleted');
+    admin()->delete("/api/admin/feedback/{$spam}")->status(200)->path('deleted', true);
+    db()->run('UPDATE accounts SET nickname = ? WHERE user_id = 8', ['Renamed']);
+
+    $restored = admin()->post("/api/admin/backups/{$made['id']}/restore", ['confirm' => substr($made['id'], -6)])->status(200);
+    same(null, $restored->json('after_restore_error'), 'complete, nothing left to say: '.substr($restored->body, 0, 300));
+    same([null, 0], [db()->value('SELECT id FROM users WHERE id = 7'), (int) db()->value('SELECT count(*) FROM accounts WHERE user_id = 7')],
+        'mona\'s data deleted again, inside the restore - never back for anybody to see');
+    same([['From mona', null, null], ['Keep me', null, null]],
+        array_map('array_values', db()->all('SELECT message, contact_email, user_agent FROM anotoki_feedback ORDER BY id')),
+        'the deleted message deleted again; her message without the address and browser it was sent with; the rest as the backup has it');
+    same(['Chalk'], db()->column('SELECT nickname FROM accounts WHERE user_id = 8'), 'everything else as the backup has it');
+    same(1, count(entries('backup.restored')), 'audited');
+    same([], array_values(array_filter(errorLines(), fn (array $line): bool => $line['level'] === 'error')), 'and nothing failed');
+});
+
+test('only a backup made here is restored here: each sealed under this installation\'s key, its maker named - one without the seal (made before 0.5.0, or brought from elsewhere) only offline', function () {
+    seedUser(ADMIN, 'ada');
+    $made = send(admin(), 'POST', '/api/admin/backups')->status(201)->json('backup');
+    $listed = admin()->get('/api/admin/backups')->status(200)->json('backups.0');
+    same([$made['id'], true, true, ADMIN, 'ada'], [$listed['id'], $listed['sealed'], $listed['restorable'], $listed['created_by'], $listed['created_by_name']],
+        'sealed, restorable here, made by the admin - named (AdminContext\'s names)');
+
+    // Its sidecar without the seal, as a plain backup of 0.4 has it (or one put into the folder from another host's).
+    $sidecar = T::$storage.'/backups/'.$made['id'].'.anotoki-backup.json';
+    $info = json_decode((string) file_get_contents($sidecar), true);
+    check(is_string($info['seal'] ?? null) && $info['seal'] !== '', 'the seal is in the sidecar');
+    unset($info['seal']);
+    file_put_contents($sidecar, json_encode($info));
+    $unsealed = admin()->get('/api/admin/backups')->status(200)->json('backups.0');
+    same([false, false], [$unsealed['sealed'], $unsealed['restorable']], 'listed, unsealed, not restorable here');
+    admin()->post("/api/admin/backups/{$made['id']}/restore", ['confirm' => substr($made['id'], -6)])->status(422)->path('code', 'archive_invalid');
+    // A seal of another installation's key is none either.
+    $info['seal'] = hash_hmac('sha256', $made['id']."\n".$info['sha256'], str_repeat('k', 32));
+    file_put_contents($sidecar, json_encode($info));
+    same(false, admin()->get('/api/admin/backups')->status(200)->json('backups.0.sealed'), 'another key\'s seal');
+    admin()->post("/api/admin/backups/{$made['id']}/restore", ['confirm' => substr($made['id'], -6)])->status(422)->path('code', 'archive_invalid');
+
+    // Offline it still opens: the command line's --extract checks it against its own SHA-256.
+    $folder = T::$storage.DIRECTORY_SEPARATOR.'extracted-'.bin2hex(random_bytes(4));
+    try {
+        $manifest = T::$app->get(Anotoki\Lib\Backups\Backups::class)->extractTo($made['id'], $folder);
+        same('build-analyzer', $manifest['site'] ?? null, 'read offline: '.json_encode(array_keys($manifest)));
+        check(is_file($folder.'/manifest.json'), 'its manifest written out');
+    } finally {
+        removeTree($folder);
+    }
+});
+
+// ── The pages' own errors ────────────────────────────────────────────────────────────────────────
+
+test('the errors the pages meet go into the error log as the browser\'s: scrubbed again, who from the token alone - and refused before anything is written', function () {
+    $token = iamToken(MEMBER, [], ['preferred_username' => 'mona']);
+    (new Client('198.51.100.60'))->withToken($token)->post('/api/client-errors', [
+        'type' => 'TypeError',
+        'message' => "Cannot read x of mona@example.test with {$token}",
+        'page' => '/accounts/12',
+        'stack' => ['TypeError: Cannot read x', 'at render (https://builder.example.test/main.js:3:4)'],
+        'user_id' => 99,
+    ])->status(204);
+    (new Client('198.51.100.61'))->post('/api/client-errors', ['message' => 'A visitor\'s page failed: password=hunter2'])->status(204);
+
+    $lines = errorLines();
+    same(2, count($lines), 'two lines: '.json_encode($lines));
+    [$person, $visitor] = $lines;
+    same(['client', 'error', 'TypeError', '/accounts/12', MEMBER], [$person['source'], $person['level'], $person['type'], $person['path'], $person['user_id']],
+        'the person\'s, from the token - never the body\'s id');
+    same('Cannot read x of {email} with {token}', $person['message'], 'scrubbed again on the server');
+    same(['at render (https://builder.example.test/main.js:3:4)'], $person['trace'], 'its frames, the error\'s own line once');
+    same(['client', null], [$visitor['source'], $visitor['user_id']], 'a visitor is nobody');
+    check(preg_match('/^[0-9a-f]{12}$/', (string) $visitor['client']) === 1, 'where from: a keyed hash, never the address');
+    $written = (string) json_encode($lines);
+    foreach (['mona@example.test', $token, 'hunter2', '198.51.100.6'] as $secret) {
+        check(! str_contains($written, $secret), "never written: {$secret}");
+    }
+
+    (new Client)->post('/api/client-errors', ['message' => ' '])->status(422)->path('code', 'message_required');
+    (new Client)->request('POST', '/api/client-errors', null, ['body' => 'message=x', 'type' => 'application/x-www-form-urlencoded'])->status(415);
+    (new Client)->request('POST', '/api/client-errors', null, ['body' => (string) json_encode(['message' => str_repeat('x', 9000)])])->status(413);
+    (new Client)->withToken('x')->post('/api/client-errors', ['message' => 'x'])->status(401)->path('code', 'invalid_token');
+    // While the IAM requires sign-in here, a public route is a signed-in person's alone (optionalSignIn()).
+    iamRequiresSignIn(true);
+    (new Client)->post('/api/client-errors', ['message' => 'From nobody'])->status(401)->path('code', 'sign_in_required');
+    (new Client)->asIam(MEMBER)->post('/api/client-errors', ['message' => 'From mona, signed in'])->status(204);
+    same(['Cannot read x of {email} with {token}', 'A visitor\'s page failed: password={…}', 'From mona, signed in'], array_column(errorLines(), 'message'),
+        'nothing else written - not the refusals, not the route\'s own answers');
+});
+
+test('the pages\' errors are capped: twenty an hour from one sender - a visitor by their address, a person by their account, each apart', function () {
+    foreach (range(1, 20) as $n) {
+        (new Client('198.51.100.70'))->post('/api/client-errors', ['message' => "Failure {$n}"])->status(204);
+    }
+    $refused = (new Client('198.51.100.70'))->post('/api/client-errors', ['message' => 'Failure 21'])->status(429);
+    same('too_many', $refused->json('code'), 'too many');
+    check((int) $refused->header('Retry-After') > 0 && (int) $refused->json('retry_after') > 0, 'how long to wait: '.$refused->header('Retry-After'));
+    // Another address, and a person signed in at the same one, are other senders.
+    (new Client('198.51.100.71'))->post('/api/client-errors', ['message' => 'From elsewhere'])->status(204);
+    foreach (range(1, 20) as $n) {
+        (new Client('198.51.100.70'))->asIam(MEMBER)->post('/api/client-errors', ['message' => "Mona's failure {$n}"])->status(204);
+    }
+    (new Client('198.51.100.72'))->asIam(MEMBER)->post('/api/client-errors', ['message' => 'Mona elsewhere'])->status(429)->path('code', 'too_many');
+    same(41, count(errorLines()), 'written: twenty, one from elsewhere, twenty by the person - never the ones refused');
+    $counts = (string) file_get_contents(T::$storage.'/logs/client-errors.json');
+    check(! str_contains($counts, '198.51.100') && ! str_contains($counts, '"'.MEMBER.'"'), 'counted by keyed hashes, never an address or an id: '.$counts);
+});
+
+// ── Where a request comes from ───────────────────────────────────────────────────────────────────
+
+test('the admin tools read where a request comes from by the site\'s rule: through Cloudflare the visitor\'s address, never the edge\'s', function () {
+    same(Anotoki\Lib\Support\ClientAddress::CLOUDFLARE, T::$app->get(Anotoki\Lib\Admin\AdminContext::class)->trustedProxies(), 'Cloudflare\'s ranges, as committed');
+    same('CF-Connecting-IP', T::$app->get(Anotoki\Lib\Admin\AdminContext::class)->clientHeader(), 'and its header');
+    $through = fn (string $edge, string $visitor): Client => (new Client($edge))->withHeaders(['CF-Connecting-IP' => $visitor]);
+
+    // Feedback's limits, five an hour from one sender: one visitor through two edges is one sender, two visitors
+    // through one edge are two.
+    foreach (range(1, 5) as $n) {
+        feedback(['kind' => 'idea', 'message' => "Idea {$n}"], $through('173.245.48.10', '198.51.100.90'))->status(201);
+    }
+    feedback(['kind' => 'idea', 'message' => 'Idea 6'], $through('2400:cb00::1', '198.51.100.90'))->status(429)->path('code', 'too_many');
+    feedback(['kind' => 'idea', 'message' => 'Another visitor'], $through('173.245.48.10', '198.51.100.91'))->status(201);
+    // Not Cloudflare's connection: the header is whatever the sender wrote, and the connection is counted.
+    foreach (range(1, 5) as $n) {
+        feedback(['kind' => 'idea', 'message' => "Claimed {$n}"], $through('203.0.113.50', "198.51.100.{$n}"))->status(201);
+    }
+    feedback(['kind' => 'idea', 'message' => 'Claimed 6'], $through('203.0.113.50', '198.51.100.6'))->status(429)->path('code', 'too_many');
+
+    // The error log's client hash: the visitor's, whichever edge - an IPv4 edge written as IPv6 too.
+    $through('173.245.48.10', '198.51.100.92')->get('/api/nothing-1')->status(404);
+    $through('::ffff:104.16.0.1', '198.51.100.92')->get('/api/nothing-2')->status(404);
+    $through('173.245.48.10', '198.51.100.93')->get('/api/nothing-3')->status(404);
+    $clients = array_column(array_values(array_filter(errorLines(), fn (array $line): bool => $line['status'] === 404)), 'client');
+    same(3, count($clients), 'three lines (beside the two 429s above, also worth seeing)');
+    same($clients[0], $clients[1], 'the same visitor through two of Cloudflare\'s edges: one client');
+    check($clients[0] !== $clients[2], 'another visitor through the same edge: another client');
 });
 
 test('the day\'s backup, after an answer: once a UTC day, by nobody', function () {

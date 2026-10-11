@@ -18,7 +18,9 @@
  *   sync, sources          editors (EDITOR or ADMIN): syncs, their history, a source's builds as a file;
  *                          admins: switching a source on or off
  *   admin                  admins: migrations (the Migrations page's API: anotoki/lib's routes)
- *   admin_tools            admins: the error log, the audit log, feedback, backups (anotoki/lib's admin tools)
+ *   admin_tools            admins: the error log, the audit log, feedback, backups (anotoki/lib's admin tools) -
+ *                          and, public, the errors the pages meet in the browser into the error log
+ *                          (POST /api/client-errors)
  *   translations           the site's own words: the strings of a language are public (always); the grid the
  *                          strings are reworded in is for editors; adding, renaming, switching and
  *                          deleting a language for admins

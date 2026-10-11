@@ -66,7 +66,10 @@ Correctness first:
   `no-store`; nothing outside `Visitors` / `Users` writes a visitor row; limits are checked before a visitor
   is made, and a failed first import deletes it; nobody's import is JSON or 415 (`jsonFromNobody()`: a form any
   page could send must never make a visitor); an address is never kept - the counters hold
-  `ClientAddress::countedKey()`, and `CF-Connecting-IP` is believed only from the committed Cloudflare ranges; the
+  `ClientAddress::countedKey()`, and `CF-Connecting-IP` is believed only from the committed Cloudflare ranges, by
+  the library's one rule (`Anotoki\Lib\Support\ClientAddress`), which `AdminContext` gets the same list for
+  (`trustedProxies`) - never a reading of the site's own beside it, and never another header or a setting naming
+  one (`X-Real-IP` and `True-Client-IP` pass through Cloudflare as the visitor wrote them); the
   sweep never fails a request; tests never assume a
   visitor's id; frontend calls go through `Api`, which marks each as the person's or the visitor's when it is
   issued (the library's `ISSUED_AS`, `issuedAs()`; the admin panel, the syncs, the own-data file and the move
@@ -84,7 +87,21 @@ Correctness first:
 - People (the library's people module on this site's `users`, `src/People/SitePeople.php`): the scrub of an
   account the IAM deleted keeps the data and makes it nobody's (the name the IAM's placeholder, a sync's log "a
   deleted person", feedback's and the audit log's copies blanked) - a new place that keeps a person's name or
-  address joins the scrub's hooks; a person's delete asks only its question and is audited.
+  address joins the scrub's hooks; a person's delete asks only its question and is audited. Every hook the
+  library calls - the delete (`deleteHook()` → `deleteData()`), the scrub's - does ALL its work on the `$pdo`
+  it is given and begins, commits or rolls back no transaction (a savepoint is fine): a restore runs them on
+  its own connection with every restored table locked, and one that touched the site's own connection (`db()`,
+  the container's `Db`, a repository or service of it) would wait on those locks while the restore waits on it
+  (`tests/people.test.php` runs the delete against a locked connection).
+- Backups (the library's): a restore does again what the People page and the Feedback page deleted since its
+  backup and then scrubs (`People::restoreHooks()` in `AdminTools::backups()`) - a new delete of a person's data
+  goes through the People page's hook so a restore repeats it (what people delete themselves, a game account,
+  comes back: the owner's call); only a sealed backup (made here) is restored here - one made without the
+  installation's key is unsealed, offline only. Work a command line leaves for "after the answer" runs when it
+  ends (`App\Cli::app()`).
+- The browser's errors: `POST /api/client-errors` (`ErrorLogRoutes::client()`) stays behind `optionalSignIn()`
+  and the site gate (never an open path); `provideAnotokiErrorReport()` goes through the app's `HttpClient`, so
+  the interceptors add what they add - nothing of a page's own error reporting beside it.
 - The own accounts file (`src/Services/Transfer/`): keys, never ids; no user or account id; sources
   `showcase` / `file`; meta `AccountPresenter::META_KEYS` only; times UTC to the second; the reader strict
   and the writer writing only what the reader accepts (and `export_too_big` past the size or the caps); an

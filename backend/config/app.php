@@ -118,24 +118,28 @@ return [
 
     /*
     | Which address a request comes from, for the limits counted per address (visitors, and imports by
-    | somebody who is not signed in). REMOTE_ADDR, always - unless the connection comes from one of
-    | trusted_proxies (CIDR ranges, v4 and v6: a proxy such as Cloudflare in front of the site), and then
-    | the address in client_ip_header, which only such a proxy is believed to write. A forwarding header
-    | from anybody else is whatever the sender wrote, so it is never read on its own (X-Forwarded-For
-    | included). The address is never kept: the counters keep a keyed hash of it (App\Web\ClientAddress).
+    | somebody who is not signed in) and for the anotoki library's admin tools (the feedback's limits, the
+    | error log's client hash) - one rule for both, the library's (Anotoki\Lib\Support\ClientAddress).
+    | REMOTE_ADDR, always - unless the connection comes from one of trusted_proxies (CIDR ranges, v4 and
+    | v6: Cloudflare in front of the site), and then the address in CF-Connecting-IP, which only Cloudflare
+    | is believed to write. A forwarding header from anybody else is whatever the sender wrote, so it is
+    | never read on its own (X-Forwarded-For included). The address is never kept: the counters keep a keyed
+    | hash of it (App\Web\ClientAddress), and so do the library's tools.
     |
     | The site is behind Cloudflare (the owner's decision of 2026-10-11): trusted_proxies are Cloudflare's
     | published ranges, from https://www.cloudflare.com/ips-v4 and https://www.cloudflare.com/ips-v6,
-    | fetched 2026-10-11 (15 IPv4, 7 IPv6). CF-Connecting-IP is believed only on a connection whose
-    | REMOTE_ADDR is in one of them; from anywhere else the connection's own address is counted. They change
-    | rarely - refresh them from those two addresses when Cloudflare announces a change (docs/operations.md).
-    | An installation that is not behind Cloudflare (this computer, another host) may override them in
-    | config/client_address.local.php (gitignored): return ['trusted_proxies' => []].
+    | fetched 2026-10-11 (15 IPv4, 7 IPv6 - the library's ClientAddress::CLOUDFLARE of 0.5.0 is the same
+    | list). CF-Connecting-IP is believed only on a connection whose REMOTE_ADDR is in one of them; from
+    | anywhere else the connection's own address is counted. They change rarely - refresh them from those
+    | two addresses when Cloudflare announces a change (docs/operations.md). An installation that is not
+    | behind Cloudflare (this computer, another host) may override them in config/client_address.local.php
+    | (gitignored): return ['trusted_proxies' => []] - the proxies alone, never another header.
     |
-    | client_ip_header should be a header the proxy writes whole, overwriting what the visitor sent, with
-    | one address in it (Cloudflare's CF-Connecting-IP). Set to a list a proxy appends to
-    | (X-Forwarded-For), it is read from the right: the trusted proxies' own addresses are skipped and
-    | the first other one is counted - never the leftmost, which is whatever the visitor wrote.
+    | CF-Connecting-IP and no other header, whatever a setting says (the owner's rule of 2026-10-11):
+    | Cloudflare writes it whole over whatever the visitor sent, one address, while X-Real-IP and
+    | True-Client-IP pass through it as the visitor wrote them and X-Forwarded-For starts with what they
+    | wrote. A CF-Connecting-IP that is not one address is not believed either: the proxy's own address is
+    | counted then.
     */
     'client_address' => [
         'trusted_proxies' => [
@@ -164,7 +168,6 @@ return [
             '2a06:98c0::/29',
             '2c0f:f248::/32',
         ],
-        'client_ip_header' => 'CF-Connecting-IP',
     ],
 
     /*

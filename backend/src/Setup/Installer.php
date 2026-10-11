@@ -37,6 +37,7 @@ final class Installer
         'curl' => 'downloading builds, the catalog and showcases',
         'dom' => 'reading build pages',
         'json' => 'everything the API answers',
+        'zlib' => 'the database\'s backups (each is compressed)',
     ];
 
     public function __construct(public readonly string $root, private readonly ?HttpClient $http = null) {}

@@ -10,39 +10,40 @@ use Anotoki\Lib\Backups\Copy;
 use Anotoki\Lib\ErrorLog\ErrorLog;
 use Anotoki\Lib\Feedback\Feedback;
 use Anotoki\Lib\Migrations\Migrator;
-use Anotoki\Lib\People\Http\PeopleUpkeep;
 use Anotoki\Lib\People\People;
 use Anotoki\Lib\Support\Refusal;
 use App\App;
 use App\Auth\RequestCaller;
 use App\Db\Migrations;
+use App\People\SitePeople;
 use App\Web\AfterResponse;
 use App\Web\ClientAddress;
 use App\Web\Json;
 use PDO;
 use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\ServerRequestInterface;
-use RuntimeException;
 use Slim\App as SlimApp;
 use Throwable;
 
 /**
- * The anotoki family's admin tools (anotoki/lib 0.4: Anotoki\Lib\ErrorLog, Audit, Feedback, Backups), made for
+ * The anotoki family's admin tools (anotoki/lib 0.5: Anotoki\Lib\ErrorLog, Audit, Feedback, Backups), made for
  * this site - for its ADMIN alone (the owner's decision of 2026-10-07: EDITORs see none of them). Their routes
  * are api/routes/admin_tools.php and api/routes/feedback.php, their pages the library's on /admin/errors,
  * /admin/audit, /admin/feedback and /admin/backups.
  *
  * What this site tells them once (context()): who acts (the token's person, never a body), whether that is the
  * site's ADMIN (from the token), the proof a backup's download, making, deleting or restoring asks for (a
- * sign-in of the last ten minutes, from the token's auth_time - the page offers "Sign in again"), the address
- * bucket its limits count (App\Web\ClientAddress: the trusted proxy's header, an IPv6 /64), and its error body
+ * sign-in of the last ten minutes, from the token's auth_time - the page offers "Sign in again"), the proxies whose
+ * CF-Connecting-IP names a request's address (config/app.php's client_address: Cloudflare's ranges - the library's
+ * one rule, Support\ClientAddress, which the site's own counters read by too: App\Web\ClientAddress),
+ * the people's names by id (the backups' maker, the audit log's and feedback's people) and its error body
  * {message, code}.
  *
  *   error log   storage/logs/errors-YYYY-MM-DD.jsonl (UTC days, 30 kept, 64 MB at most): what failed - an
- *               exception jsonErrors() answered 500, PHP's warnings and fatal errors, and answers worth seeing
- *               (404, 405, 413, 415, 429, a 5xx but 503: every 503 here is a decided "not now" - the site gate
- *               while an update waits, a feature whose migration waits - not a failure). storage/logs/app.log
- *               stays for the site's info lines.
+ *               exception jsonErrors() answered 500, PHP's warnings and fatal errors, the errors the pages meet
+ *               in the browser (POST /api/client-errors), and answers worth seeing (404, 405, 413, 415, 429, every
+ *               5xx) - but an answer that says a state, not a failure (EXPECTED_ANSWERS: the site gate while an
+ *               update waits, a feature whose table waits). storage/logs/app.log stays for the site's info lines.
  *   audit log   the table anotoki_audit_log (the library's anotoki_admin/001): what was done in the admin panel
  *               - sources switched, syncs started and cancelled, a source's builds imported, the strings and
  *               languages, a person's data deleted, migrations applied, and the tools' own (errors cleared,
@@ -51,7 +52,12 @@ use Throwable;
  *               every page - no mail; the admin panel counts what is new. Nothing of where a message came from
  *               is kept with it; the limits count apart, a day, in storage/cache.
  *   backups     storage/backups/*.anotoki-backup: the whole database by COPY (no pg_dump on the host), daily
- *               after an answer (14 kept), before every update (5), before a restore (5), and by hand.
+ *               after an answer (14 kept), before every update (5), before a restore (5), and by hand - each
+ *               sealed under this installation's key (storage/anotoki-lib.key): only a backup made here is
+ *               restored here. Where that key can be neither read nor made, a backup is still made, unsealed (the
+ *               error log says so), and is restored offline only (backup.php --extract). A restore does again what
+ *               the People page and the Feedback page deleted since its backup, then checks the IAM's deleted
+ *               accounts at once (People::restoreHooks()).
  */
 final class AdminTools
 {
@@ -63,7 +69,6 @@ final class AdminTools
         return new AdminContext(
             actorId: static fn (ServerRequestInterface $request): ?int => Identify::person($request)?->sub,
             proof: AdminContext::recentSignIn(static fn (ServerRequestInterface $request): ?int => Identify::person($request)?->authTime),
-            clientKey: static fn (ServerRequestInterface $request): string => ClientAddress::counted($request, $app->config),
             error: static fn (ResponseInterface $response, Refusal $refusal): ResponseInterface => Json::message(
                 $response,
                 $refusal->status,
@@ -71,10 +76,29 @@ final class AdminTools
                 ['code' => $refusal->code] + $refusal->extra,
             ),
             isAdmin: static fn (ServerRequestInterface $request): bool => Identify::person($request)?->isAdmin() ?? false,
+            names: static fn (array $ids): array => self::names($app, $ids),
+            // Where a request comes from, for the feedback's limits and the error log's client hash: the library's
+            // rule - CF-Connecting-IP (its default clientHeader, never another) believed only on a connection from
+            // these - over the same list as the site's own counters. Without it the library would read REMOTE_ADDR
+            // alone: Cloudflare's edge, for everybody.
+            trustedProxies: ClientAddress::trustedProxies($app->config),
         );
     }
 
-    /** The error log - with the Slim app that answers the requests it names, each line's route too. */
+    /**
+     * The answers that say a state the site is in, not a failure - never written into the error log, however often
+     * they come: the library's own (update_pending, the site gate's while an update waits; not_set_up;
+     * feature_unavailable, an admin tool whose table waits) and this site's of the same kind, each a waiting
+     * migration's table (visitors_unavailable, translations_unavailable, people_unavailable). Any other answer of a
+     * status worth seeing is written - a 503 that is a failure too (feedback's storage_unavailable: its limits
+     * cannot be counted; the move's visitor_move_retry).
+     */
+    public const EXPECTED_ANSWERS = [...ErrorLog::EXPECTED_CODES, 'visitors_unavailable', 'translations_unavailable', 'people_unavailable'];
+
+    /**
+     * The error log - with the Slim app that answers the requests it names, each line's route too. The family's rule
+     * (anotoki-lib 0.5.0): every 5xx and the answers worth seeing (404, 405, 413, 415, 429), but EXPECTED_ANSWERS.
+     */
     public static function errorLog(App $app, ?SlimApp $slim = null): ErrorLog
     {
         return new ErrorLog($app->config->storage('logs'), [
@@ -83,7 +107,7 @@ final class AdminTools
             // Who asked: the token's person - also for an exception jsonErrors() writes down, which has the request
             // only as it came in, before its route group identified it (App\Auth\RequestCaller).
             'actorId' => static fn (ServerRequestInterface $request): ?int => Identify::person($request)?->sub ?? $app->get(RequestCaller::class)->sub,
-            'responses' => static fn (int $status): bool => ($status >= 500 && $status !== 503) || in_array($status, ErrorLog::DEFAULT_STATUSES, true),
+            'expected' => self::EXPECTED_ANSWERS,
         ] + ($slim === null ? [] : ['app' => $slim]));
     }
 
@@ -102,7 +126,8 @@ final class AdminTools
 
     /**
      * The people's names by id, as this site keeps them (the IAM's preferred_username at their last request):
-     * who acted, on the audit log's and the feedback's pages. An id it does not know shows no name.
+     * who acted, on the audit log's and the feedback's pages, and who made a backup (the Backups page's "By"). An
+     * id it does not know shows no name.
      *
      * @param  list<int>  $ids
      * @return array<int, string>
@@ -148,52 +173,17 @@ final class AdminTools
             'onError' => static function (Throwable $e) use ($app): void {
                 $app->get(ErrorLog::class)->record($e);
             },
-            // A restore brings back the people's scrub as it stood then: it runs again at once (scrubAfterRestore()).
-            'afterRestore' => static function () use ($app): void {
-                self::scrubAfterRestore($app);
-            },
+            // What a restore must do again (the library's People, 0.5.0): inside its transaction, before anybody sees
+            // the rows, every delete of the People page made since the backup - its hook on the restore's connection
+            // (SitePeople::deleteHook()), and the feedback deleted since; once it committed, the scrub of the IAM's
+            // deleted accounts at once - one that cannot finish (the IAM out of reach) is the answer's
+            // after_restore_error, and the upkeep's hourly stamp goes after this answer, so the next request
+            // checks again.
+            ...$app->get(People::class)->restoreHooks(
+                delete: SitePeople::deleteHook(),
+                defer: static fn (callable $work) => AfterResponse::add($work),
+            ),
         ]);
-    }
-
-    /**
-     * After a restore, the scrub of the IAM's deleted accounts at once: the restored database brings back the
-     * scrub's place of its day, and with it the names of whoever the IAM deleted since. A scrub that does not
-     * finish - the IAM out of reach, its time up with more to read, a run already going - is the restore's failure
-     * to say (the library's after_restore_error: the Backups page's note; the error log), never a restore that
-     * looks complete with a deleted person named again; and the hourly upkeep's stamp goes then, so that the next
-     * request runs the scrub again instead of an hour later - after this answer: this request's own upkeep would
-     * claim the hour again at once, and meet the IAM as it is this moment (the survey's surveyScrubAfterRestore()).
-     * On the site's own connection, as every scrub: its hooks write in the scrub's transactions.
-     *
-     * What was deleted on the People page after the backup was made comes back with it: replaying those deletes is
-     * the library's 0.4.2 (docs/operations.md, "Backups").
-     */
-    public static function scrubAfterRestore(App $app): void
-    {
-        $people = $app->get(People::class);
-        $run = $people->scrubber()->run();
-        if ($run['state'] === 'done') {
-            return;
-        }
-
-        $directory = $people->iam->cacheDirectory();
-        if ($directory !== null) {
-            AfterResponse::add(static function () use ($directory): void {
-                @unlink($directory.'/'.PeopleUpkeep::STAMP);
-            });
-        }
-        $why = match ($run['state']) {
-            'unreachable', 'stopped' => lcfirst(rtrim((string) $run['error'], '.')),
-            'more' => 'its time ran out with more of the IAM\'s list to read',
-            'busy' => 'another check was running',
-            'not_ready' => 'what it needs is not there: '.implode('; ', $run['problems']),
-            default => 'it ended '.$run['state'],
-        };
-
-        throw new RuntimeException(
-            "the accounts the IAM deleted were not checked again ({$why}). Whoever it deleted since this backup was made may be named here "
-            .'until they are: the check runs again with the next request, and at once with Check now on the People page.'
-        );
     }
 
     /**

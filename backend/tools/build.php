@@ -165,7 +165,7 @@ echo "\nBuilt dist/ ({$files} files, ".round($bytes / 1048576, 1)." MB):\n\n"
     ."  dist/build-analyzer/*   upload into the site's web root (the folder its address serves).\n"
     ."  dist/setup.php          first install only: upload beside it, open https://<site>/setup.php.\n\n"
     ."Writable for the web server: config/ (setup.php writes its files there) and storage/.\n"
-    ."PHP 8.4+ with pdo_pgsql, curl, dom, mbstring and openssl. Details: DEV.md (\"Deploying\").\n";
+    ."PHP 8.4+ with pdo_pgsql, curl, dom, mbstring, openssl and zlib. Details: DEV.md (\"Deploying\").\n";
 
 // ──────────────────────────────────────────────────────────────────────────────────────────────
 

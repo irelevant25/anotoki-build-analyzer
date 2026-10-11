@@ -98,6 +98,10 @@ final class Users
      * them and their import runs; the syncs they started stay, started by nobody. Answers what went, or null
      * when there is no such person (a visitor's row is never one).
      *
+     * Inside the caller's transaction, which it neither begins nor ends: the People page's delete runs in the
+     * anotoki library's (People::delete(), App\People\SitePeople::deleteData()), on whatever connection that is
+     * - the page's, or a restore's doing the delete again.
+     *
      * @return array{accounts: int, import_runs: int}|null
      */
     public function deletePerson(int $id): ?array
@@ -106,20 +110,18 @@ final class Users
             return null;
         }
 
-        return $this->db->transaction(function () use ($id): ?array {
-            $row = $this->db->one(
-                'SELECT (SELECT count(*) FROM accounts a WHERE a.user_id = u.id) AS accounts,
-                        (SELECT count(*) FROM import_runs r WHERE r.user_id = u.id) AS import_runs
-                   FROM users u WHERE u.id = ? FOR UPDATE',
-                [$id]
-            );
-            if ($row === null) {
-                return null;
-            }
-            $this->db->run('DELETE FROM users WHERE id = ?', [$id]);
+        $row = $this->db->one(
+            'SELECT (SELECT count(*) FROM accounts a WHERE a.user_id = u.id) AS accounts,
+                    (SELECT count(*) FROM import_runs r WHERE r.user_id = u.id) AS import_runs
+               FROM users u WHERE u.id = ? FOR UPDATE',
+            [$id]
+        );
+        if ($row === null) {
+            return null;
+        }
+        $this->db->run('DELETE FROM users WHERE id = ?', [$id]);
 
-            return ['accounts' => (int) $row['accounts'], 'import_runs' => (int) $row['import_runs']];
-        });
+        return ['accounts' => (int) $row['accounts'], 'import_runs' => (int) $row['import_runs']];
     }
 
     // ── Visitors (App\Auth\Visitors is the only caller: nothing else writes a visitor's row) ─────────────

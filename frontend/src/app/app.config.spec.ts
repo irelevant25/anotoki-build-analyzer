@@ -1,6 +1,6 @@
-import { HttpClient } from '@angular/common/http';
+import { HttpClient, HttpErrorResponse } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
-import { ApplicationInitStatus } from '@angular/core';
+import { ApplicationInitStatus, ErrorHandler } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
 import { Router, TitleStrategy } from '@angular/router';
 import {
@@ -17,6 +17,7 @@ import {
   TestUser,
   testAnotokiAuth,
 } from '@anotoki/lib/auth/testing';
+import { ANOTOKI_ERROR_REPORT } from '@anotoki/lib/error-report';
 import { SiteStatus } from '@anotoki/lib/migrations';
 import { TranslationBundle } from '@anotoki/lib/translations';
 import { TEST_LANGUAGES } from '@anotoki/lib/translations/testing';
@@ -429,5 +430,68 @@ describe('the start of the app (app.config.ts)', () => {
     );
     expect(failed).toBe(503);
     expect(TestBed.inject(SiteStatus).state()).toBe('update-pending');
+  });
+
+  it("reports an error the page meets to the server's error log - scrubbed, through the app's HttpClient, with the person's token", async () => {
+    start(MONA);
+    site('ready');
+    requests.expectOne('changelog.json').flush([]);
+    requests.expectOne('/api/meta').flush(IAM_META);
+    await settle();
+    translations()[0].flush(SK_BUNDLE);
+    await started();
+    const console = vi.spyOn(globalThis.console, 'error').mockImplementation(() => undefined);
+
+    const error = new TypeError('Cannot read x of mona@example.test');
+    TestBed.inject(ErrorHandler).handleError(error);
+    TestBed.inject(ErrorHandler).handleError(error);
+    await settle();
+    await settle();
+
+    // Told to the console as Angular tells it, every time; reported once.
+    expect(console).toHaveBeenCalledTimes(2);
+    const [report] = requests.match('/api/client-errors');
+    expect(report.request.method).toBe('POST');
+    expect(report.request.context.get(ANOTOKI_ERROR_REPORT)).toBe(true);
+    // The site's interceptors at work: the person's token, never the visitor key.
+    expect(report.request.headers.get('Authorization')).toMatch(/^Bearer \S+$/);
+    expect(report.request.headers.has('X-Visitor-Key')).toBe(false);
+    expect(report.request.body).toEqual(
+      expect.objectContaining({
+        type: 'TypeError',
+        message: 'Cannot read x of {email}',
+        page: '/',
+      }),
+    );
+    report.flush(null, { status: 204, statusText: 'No Content' });
+    expect(requests.match('/api/client-errors')).toEqual([]);
+  });
+
+  it("reports a visitor's error without credentials, and an HTTP failure never", async () => {
+    start();
+    site('ready');
+    requests.expectOne('changelog.json').flush([]);
+    requests.expectOne('/api/meta').flush(IAM_META);
+    await settle();
+    translations()[0].flush(EN_BUNDLE);
+    await started();
+    vi.spyOn(globalThis.console, 'error').mockImplementation(() => undefined);
+
+    const handler = TestBed.inject(ErrorHandler);
+    handler.handleError(new HttpErrorResponse({ status: 500, url: '/api/accounts' }));
+    handler.handleError(new Error('The dashboard broke'));
+    await settle();
+    await settle();
+
+    const [report] = requests.match('/api/client-errors');
+    expect([
+      report.request.headers.has('Authorization'),
+      report.request.headers.has('X-Visitor-Key'),
+    ]).toEqual([false, false]);
+    expect(report.request.body).toEqual(
+      expect.objectContaining({ type: 'Error', message: 'The dashboard broke' }),
+    );
+    report.flush(null, { status: 204, statusText: 'No Content' });
+    expect(requests.match('/api/client-errors')).toEqual([]);
   });
 });

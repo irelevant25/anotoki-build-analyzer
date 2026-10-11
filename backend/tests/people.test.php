@@ -5,7 +5,8 @@
  * page's routes (ADMIN) - the people who have used the site with how much each has, found by a name or an id,
  * a page at a time, and deleting a person's data (their accounts with everything imported into them and their
  * import runs, while the syncs they started and the strings they saved stay, by nobody, and everybody else's
- * data stays as it is) - each person's row kept from the token (the library's RecordPerson), and the scrub of
+ * data stays as it is - all of it on the connection the library's transaction is on, as a restore does it again)
+ * - each person's row kept from the token (the library's RecordPerson), and the scrub of
  * the accounts the IAM deleted: their rows nobody's, a sync's log naming "a deleted person", the copies the
  * admin tools keep of them blanked, their data kept.
  */
@@ -14,7 +15,10 @@ declare(strict_types=1);
 
 require __DIR__.'/lib.php';
 
+use Anotoki\Lib\People\People;
 use App\Auth\Role;
+use App\Db\Db;
+use App\People\SitePeople;
 use App\Support\Clock;
 use Tests\Support\Client;
 
@@ -147,8 +151,12 @@ test('deleting a person\'s data: their accounts, rows and runs go; what they did
             db()->value("SELECT updated_by FROM translations WHERE key_name = 'test.people' AND language_code = 'sk'")], 'the string stays, saved by nobody');
         same(8, (int) db()->value("SELECT updated_by FROM translations WHERE key_name = 'test.people' AND language_code = 'en'"), 'another person\'s string as it was');
         same($before, $others(), 'another person\'s data as it was');
-        // The owner's decision of 2026-10-11: the page's question is all it asks - and every delete is recorded.
-        same([['actor' => ADMIN_ID, 'target' => ['user', '7'], 'details' => ['deleted' => ['Game accounts' => 1, 'Imports' => 2]]]], audited('person.data_deleted'), 'in the audit log');
+        // The owner's decision of 2026-10-11: the page's question is all it asks - and every delete is recorded, in the
+        // delete's own transaction, which the entry names (_txid: a restore matches it to its backup by it).
+        $entries = audited('person.data_deleted');
+        check(preg_match('/^[0-9]+$/', (string) ($entries[0]['details']['_txid'] ?? '')) === 1, 'the entry names its transaction: '.json_encode($entries));
+        unset($entries[0]['details']['_txid']);
+        same([['actor' => ADMIN_ID, 'target' => ['user', '7'], 'details' => ['deleted' => ['Game accounts' => 1, 'Imports' => 2]]]], $entries, 'in the audit log');
 
         // Gone is gone; signing in again starts afresh, with nothing.
         admin()->delete('/api/admin/people/7')->status(404)->path('code', 'not_found');
@@ -172,6 +180,48 @@ test('an admin may delete their own data, and nobody else\'s id is touched by a 
     same([8], array_map('intval', db()->column('SELECT user_id FROM accounts')), 'the other person\'s stays');
     // The next request signs them in again, an admin as before.
     admin()->get('/api/admin/people')->status(200);
+});
+
+test('the delete does all its work on the connection it is given, inside its transaction - as a restore runs it, every table locked', function () {
+    personWithData(7, 'mona', '700000007');
+    personWithData(8, 'albedo', '700000008');
+    (new Client)->get('/api/sources')->status(200);
+    $source = (int) db()->value("SELECT min(id) FROM build_sources WHERE game = 'genshin'");
+    $run = (int) db()->insert('sync_runs', ['build_source_id' => $source, 'kind' => 'builds', 'game' => 'genshin', 'status' => 'success',
+        'started_by' => 7, 'started_at' => Clock::now(), 'finished_at' => Clock::now(), 'log' => 'Started by mona.']);
+    db()->run("INSERT INTO anotoki_feedback (kind, message, contact_email, user_id, user_agent) VALUES ('bug', 'From mona', 'mona@example.test', 7, 'Firefox')");
+    db()->run("INSERT INTO translation_keys (name) VALUES ('test.people')");
+    db()->run("INSERT INTO translations (key_name, language_code, value, updated_by) VALUES ('test.people', 'sk', 'Ľudia', 7)");
+
+    // Another connection, holding every table the delete touches as a restore holds the tables it put back (ACCESS
+    // EXCLUSIVE, until it commits): a hook that wrote on the site's own connection would wait on those locks while
+    // the restore waits on it - here for two seconds, then it fails; in a restore, until PostgreSQL ends it.
+    $restore = Db::pdo((array) T::$app->config->get('database'), T::$database, false);
+    $restore->beginTransaction();
+    $restore->exec('LOCK TABLE users, accounts, account_characters, account_weapons, account_items, import_runs, sync_runs,
+        translations, anotoki_feedback IN ACCESS EXCLUSIVE MODE');
+    db()->run("SET lock_timeout = '2s'");
+    try {
+        $deleted = T::$app->get(People::class)->delete($restore, 7, SitePeople::deleteHook());
+        same(['deleted' => ['Game accounts' => 1, 'Imports' => 2]], $deleted, 'what went, all of it on the locked connection');
+        check($restore->inTransaction(), 'the transaction it was given, still open: it began, committed and rolled back none');
+        $restore->commit();
+    } finally {
+        if ($restore->inTransaction()) {
+            $restore->rollBack();
+        }
+        db()->run('SET lock_timeout = 0');
+        db()->run("DELETE FROM translation_keys WHERE name = 'test.people'");
+    }
+
+    same([null, 0, 0], [db()->value('SELECT id FROM users WHERE id = 7'), (int) db()->value('SELECT count(*) FROM accounts WHERE user_id = 7'),
+        (int) db()->value('SELECT count(*) FROM import_runs WHERE user_id = 7')], 'the person, their accounts and imports');
+    same(['Started by a deleted person.', null], [db()->value('SELECT log FROM sync_runs WHERE id = ?', [$run]), db()->value('SELECT started_by FROM sync_runs WHERE id = ?', [$run])],
+        'the sync stays, by nobody, its log no longer naming them');
+    same([null, null, 'From mona'], array_values(db()->one('SELECT contact_email, user_agent, message FROM anotoki_feedback') ?? []),
+        'their feedback forgotten in the same transaction (the library\'s), its words kept');
+    same(1, (int) db()->value('SELECT count(*) FROM accounts WHERE user_id = 8'), 'nobody else\'s');
+    same([], audited('person.data_deleted'), 'no entry: the route writes it, a replay none');
 });
 
 test('only an admin: an editor and a person with no role are refused, and signed out asks for sign-in', function () {

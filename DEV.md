@@ -11,8 +11,8 @@ these steps (configuration keys, sign-in and roles, syncs, troubleshooting) is [
 
 ## Prerequisites
 
-- **PHP 8.4 or newer** (8.5 works) with the extensions `pdo_pgsql`, `openssl`, `mbstring`, `curl`, `dom` and
-  `json`. If the `php` on your PATH is older, call the newer one directly, or from bash set
+- **PHP 8.4 or newer** (8.5 works) with the extensions `pdo_pgsql`, `openssl`, `mbstring`, `curl`, `dom`,
+  `json` and `zlib` (the backups). If the `php` on your PATH is older, call the newer one directly, or from bash set
   `BUILD_ANALYZER_PHP` to it and run `backend/tools/php.sh ...` in place of `php ...`.
 - **Composer 2**.
 - **PostgreSQL** (14 or newer; developed on 18) and a user that may create databases - setup creates the app's
@@ -129,13 +129,14 @@ longer read and can be deleted.
 
 What the anotoki sites share lives in one library, [irelevant25/anotoki-lib](https://github.com/irelevant25/anotoki-lib),
 in two halves with one version: the Composer package `anotoki/lib` (`backend/composer.json`: a `vcs` repository
-entry and `"anotoki/lib": "^0.4"`; installed into `backend/vendor/`, which the upload carries) and the npm
-package `@anotoki/lib` (`frontend/package.json`: the release's tarball). Both halves are 0.4.1 (never 0.4.0, whose
-Feedback page fails on PHP 8.2). Besides the translations module, the auth module (signing in through the anotoki
-IAM: the token check, the IAM's switch, the browser's client, interceptor, guards and the sign-in hint), the
-people module (the People page, the scrub of the accounts the IAM deleted) and the admin tools (the error log,
-the audit log, feedback, backups) - each set up for this site where it is used - they hold the migrations module,
-one behaviour for every anotoki site while its database is not ready:
+entry and `"anotoki/lib": "^0.5.0"`; installed into `backend/vendor/`, which the upload carries) and the npm
+package `@anotoki/lib` (`frontend/package.json`: the release's tarball). Both halves are 0.5.0 (a minor version:
+`^0.4.1` never took it by itself; never 0.4.0, whose Feedback page fails on PHP 8.2). Besides the translations
+module, the auth module (signing in through the anotoki IAM: the token check, the IAM's switch, the browser's
+client, interceptor, guards and the sign-in hint), the people module (the People page, the scrub of the accounts
+the IAM deleted, what a restore does again) and the admin tools (the error log - the browser's errors too -, the
+audit log, feedback, sealed backups, one reading of a request's address) - each set up for this site where it is
+used - they hold the migrations module, one behaviour for every anotoki site while its database is not ready:
 
 - the engine (`Anotoki\Lib\Migrations\Migrator`), on this site's files and bookkeeping table through
   `backend/src/Db/Migrations.php` - `migration.php`, `setup.php`, the Migrations page and the tests; it runs
@@ -231,7 +232,8 @@ key families, and every seeded string against the checks a save makes. A new str
 ## Deploying (FTP-only hosting)
 
 The host needs Apache with `.htaccess` support (`mod_rewrite`), **PHP 8.4+** with `pdo_pgsql`, `openssl`,
-`mbstring`, `curl` and `dom`, and a **PostgreSQL** database made in the hosting panel. No shell, cron job,
+`mbstring`, `curl`, `dom` and `zlib` (the backups), and a **PostgreSQL** database made in the hosting panel - the
+setup page checks each extension. No shell, cron job,
 queue worker or long-running process is needed: files go up by FTP, the database is built by `setup.php` and
 later changed on the admin panel's Migrations page.
 
@@ -300,7 +302,7 @@ one (the Backups page, "before an update"). `config/*.local.php` and `storage/` 
   Apply runs 006 (the language button's two strings move to the library's keys, every rewording kept) and the
   library's `anotoki_translations/001` (checks this site's tables, changes nothing) and `002` (its own words,
   never over a string that is there). [docs/operations.md](docs/operations.md), "Deploying".
-- **Signing in, people and the admin tools through the anotoki library** (version 0.4.0: anotoki-lib 0.4.1,
+- **Signing in, people and the admin tools through the anotoki library** (version 0.4.0: anotoki-lib 0.5.0,
   migrations 007-010 between the library's `anotoki_admin` and `anotoki_translations` 003-004 / `anotoki_people`):
   Export each language first, upload with `vendor/`, then one Apply runs them all after a backup of the database
   as it was (007: `users.anonymized_at`; 008: what the Laravel version left dropped - its login tables

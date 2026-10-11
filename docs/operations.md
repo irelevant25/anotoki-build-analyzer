@@ -78,7 +78,7 @@ database's answers in the words of every anotoki setup page:
 ## Sign-in
 
 People sign in at the anotoki IAM - on a host and on this computer alike; there is no other way in - through
-the anotoki family's auth module (anotoki-lib 0.4.1: `Anotoki\Lib\Auth` on the server, `@anotoki/lib/auth` in the
+the anotoki family's auth module (anotoki-lib 0.5.0: `Anotoki\Lib\Auth` on the server, `@anotoki/lib/auth` in the
 app). Who a request is comes only from its verified access token (the library's `Identify` with its
 `AccessTokens`, on each route group: `api/middleware/auth.php`); a request that sends an `Authorization: Bearer`
 header is that person or it is refused (401 `invalid_token`), on public routes too (another scheme - `Basic`, from
@@ -175,20 +175,26 @@ they import is kept on the server under a row of `users` with a negative id; the
   5 game accounts and 5 MB files per visitor (422 `visitor_limit`); a visitor's imports counted per address
   (showcase 10, files 20 a minute), and all visitors' showcase imports 20 a minute together. Members keep
   10 showcase and 20 file imports a minute each, and files up to 20 MB.
-- **Which address**: `REMOTE_ADDR`; an IPv6 address counts by its /64. The site is behind Cloudflare (the
-  owner's decision of 2026-10-11): `client_address.trusted_proxies` in `config/app.php` are Cloudflare's
-  published ranges, and on a connection from one of them the address in `client_address.client_ip_header`
-  (`CF-Connecting-IP`) is counted - from anywhere else the header is whatever the sender wrote, and the
-  connection's own address counts. `X-Forwarded-For` alone is never read. The header should be one the proxy
-  writes whole, overwriting what the visitor sent, with one address (`CF-Connecting-IP` is); set to a list a
-  proxy appends to (`X-Forwarded-For`), it is read from the right - past the trusted proxies' own addresses,
-  never its leftmost entry, which is whatever the visitor wrote. `config/app.php` is the same everywhere and
-  travels with the upload: change it here and build again. An installation that is not behind Cloudflare
-  overrides it in `config/client_address.local.php` (by hand, gitignored): `<?php return ['trusted_proxies' => []];`.
+- **Which address**: `REMOTE_ADDR`; an IPv6 address counts by its /64, an IPv4 address written as IPv6
+  (`::ffff:…`) as the IPv4 one. The site is behind Cloudflare (the owner's decision of 2026-10-11):
+  `client_address.trusted_proxies` in `config/app.php` are Cloudflare's published ranges, and on a connection
+  from one of them the address in `CF-Connecting-IP` is counted - from anywhere else the header is whatever the
+  sender wrote, and the connection's own address counts. `CF-Connecting-IP` and no other header, never a setting:
+  Cloudflare writes it whole over whatever the visitor sent, one address, while `X-Real-IP` and `True-Client-IP`
+  pass through it as the visitor wrote them and `X-Forwarded-For` starts with what they wrote - none of those is
+  ever read. A `CF-Connecting-IP` that is not one address is not believed either: the proxy's own address counts
+  then (stricter, never looser). The reading is the anotoki library's one rule
+  (`Anotoki\Lib\Support\ClientAddress`, anotoki-lib 0.5.0), and the admin tools read by it too, over the same
+  list (`AdminContext`'s `trustedProxies`): the feedback's limits and the error log's client hash count the
+  visitor, never Cloudflare's edge. `config/app.php` is the same everywhere and travels with the upload: change
+  it here and build again. An installation that is not behind Cloudflare overrides the proxies - and nothing
+  else - in `config/client_address.local.php` (by hand, gitignored): `<?php return ['trusted_proxies' => []];`.
 - **Cloudflare's ranges change rarely.** The committed list is the one https://www.cloudflare.com/ips-v4 and
-  https://www.cloudflare.com/ips-v6 published on 2026-10-11 (15 IPv4, 7 IPv6 ranges). When Cloudflare announces
-  a change, fetch both again, replace `client_address.trusted_proxies` with them (and the date in its comment),
-  run the tests, build and upload. A range missing from the list makes every visitor through it count as that
+  https://www.cloudflare.com/ips-v6 published on 2026-10-11 (15 IPv4, 7 IPv6 ranges) - the library's
+  `ClientAddress::CLOUDFLARE` of 0.5.0 is the same list, and `tests/visitors.test.php` holds the two to each
+  other. When Cloudflare announces a change, fetch both again, replace `client_address.trusted_proxies` with them
+  (and the date in its comment), run the tests (the library's list follows in its next release), build and
+  upload. A range missing from the list makes every visitor through it count as that
   edge's address (they share its limits); a range listed that is no longer Cloudflare's would let whoever holds
   it name any address.
 - **No address is kept.** The counters (the `cache` table: `visitors:new:...`, `rate:*:ip:...`) are keyed by an
@@ -311,18 +317,30 @@ same: `php translations.php --export=sk file` / `--import=sk file`, for the data
 
 ## The admin tools (ADMIN)
 
-The anotoki family's admin tools (anotoki-lib 0.4.1: `App\Admin\AdminTools`, `api/routes/admin_tools.php`; the
+The anotoki family's admin tools (anotoki-lib 0.5.0: `App\Admin\AdminTools`, `api/routes/admin_tools.php`; the
 pages `@anotoki/lib/admin/*` on `/admin/errors`, `/admin/audit`, `/admin/feedback`, `/admin/backups`) - for the
 site's ADMIN alone: an editor sees none of them and the server refuses them (403 `admin_only`). English, as the
 whole admin panel. No file explorer here (the owner's choice for this site).
 
 - **Error log** (`storage/logs/errors-YYYY-MM-DD.jsonl`, UTC days, 30 kept, 64 MB at most): what failed - an
-  exception the API answered 500 (its route, who asked, its trace), PHP's warnings and fatal errors - and the
-  answers worth seeing: 404, 405, 413, 415, 429 and every 5xx but 503 (every 503 here is a decided "not now": the
-  site gate while an update waits, a feature whose migration waits). Never a request's body, query, header or
-  token; an address only as a keyed hash. The page groups them, with each one's occurrences; **Clear** deletes the
-  days chosen (audited). `storage/logs/app.log` stays the site's own log of what it did (syncs, imports, the
-  visitors' clean-up). Errors the pages meet in the browser come with the library's 0.4.2 (its reporter) - not yet.
+  exception the API answered 500 (its route, who asked, its trace - and, for one thrown for another, each cause's
+  line), PHP's warnings and fatal errors - and the answers worth seeing: 404, 405, 413, 415, 429 and every 5xx, but
+  an answer whose code says a state the site is in, not a failure (`AdminTools::EXPECTED_ANSWERS`, the family's
+  rule: the site gate's `update_pending` and `not_set_up`, a table that waits for its update -
+  `feature_unavailable`, `visitors_unavailable`, `translations_unavailable`, `people_unavailable`). A 503 that is
+  a failure is written: feedback's `storage_unavailable` (its limits cannot be counted), the move's
+  `visitor_move_retry`. Never a request's body, query, header or token; an address only as a keyed hash. The page groups them,
+  with each one's occurrences; **Clear** deletes the days chosen (audited). `storage/logs/app.log` stays the
+  site's own log of what it did (syncs, imports, the visitors' clean-up).
+  **The errors the pages meet in the browser** are in it too (the owner's decision of 2026-10-11, every site):
+  the library's reporter (`@anotoki/lib/error-report`, the app's `ErrorHandler`) scrubs each - the page's path
+  alone, no address, token, secret or value the browser keeps - and sends it to `POST /api/client-errors`
+  (`ErrorLogRoutes::client()`), which redacts it again and writes it as `source: client`: at most five a page
+  load, each once, never an HTTP failure. The route is public, behind the site's rule for a public route (a
+  signed-in person known by their token; while the IAM requires sign-in here, anybody not signed in refused) and
+  closed while an update waits; it takes 20 an hour from one sender - a person by their account, anybody else by their address
+  bucket - and 500 a day from the visitors, 500 from the people signed in (429 `too_many`), counted by keyed
+  hashes in `storage/logs/client-errors.json`.
 - **Audit log** (the table `anotoki_audit_log`): what was done in the admin panel and by whom - sources switched,
   syncs started and cancelled, a source's builds imported, strings saved and languages changed, a person's data
   deleted, the IAM's deleted accounts checked, migrations applied, the error log cleared, feedback marked and
@@ -332,12 +350,14 @@ whole admin panel. No file explorer here (the owner's choice for this site).
   mailed: the bar counts what is new beside Feedback. Who sent it comes from their token alone; for somebody signed
   in the page writes their account's address into the form's address field, and the address they leave there -
   none once they cleared it - is the only one kept, unless they tick "send it without my name" (no id, no
-  address): their choice (the owner's decision of 2026-10-11). The server never fills an empty field from the
-  token. Kept with a message: the page and the language it was
+  address): their choice (the owner's decision of 2026-10-11). Nothing on the server fills an empty field: the
+  library keeps only what the form sends (0.5.0). Kept with a message: the page and the language it was
   sent from and the browser's name (its user agent, blanked by the scrub with the address of a person the IAM
-  deleted); never the network address it came from, nor a hash of it: the limits - 5 an hour and 20 a day from one address, 300 a day from everybody - count
-  apart, in `storage/cache/anotoki-feedback-limits.json`, a day. Opening a message marks it read; Mark as and
-  Delete are in the audit log.
+  deleted); never the network address it came from, nor a hash of it: the limits - 5 an hour and 20 a day from
+  one sender (a signed-in person by their account; anybody else, and a message "without my name", by their
+  address), 300 a day from the visitors together and 300 from the people signed in - count apart, in
+  `storage/cache/anotoki-feedback-limits.json`, a day. Opening a message marks it read; Mark as and Delete are in
+  the audit log (a delete's entry written in its own transaction: a restore deletes the message again by it).
 - **Backups** (`storage/backups/*.anotoki-backup`, the folder denied to the web): the whole database by COPY (no
   `pg_dump` on the host) - every day after the first answer of a UTC day (`config/app.php` `upkeep.daily_backup`;
   never while an update waits), before every Apply (the Migrations page's and `php migration.php`'s), before every
@@ -345,18 +365,35 @@ whole admin panel. No file explorer here (the owner's choice for this site).
   link of a minute), deleting and restoring ask for a sign-in of the last ten minutes - the page offers **Sign in
   again**. A restore says first what it would take away, wants the backup's last six characters typed, and puts
   every table back but the audit log and the counters (`cache`, `cache_locks`), after a backup of the database as
-  it was. What a restore brings back:
-  - **The IAM's deleted accounts** are checked again at once, in the restore itself: whoever the IAM deleted
+  it was. What it must not bring back, it does again (anotoki-lib 0.5.0, `People::restoreHooks()`):
+  - **What was deleted since the backup** is deleted again inside the restore, before anybody sees its rows: every
+    person's data deleted on the People page and every feedback message deleted, as the audit log (which a
+    restore keeps) says - each entry is written in its delete's own transaction, so no delete is made without
+    one. The People page's delete runs on the restore's own connection (`SitePeople::deleteData()` works on the
+    connection it is given), and what cannot be done again rolls the whole restore back ("nothing of it
+    stayed"); so does a check of the IAM's deleted accounts running at that moment ("restore again in a minute").
+  - **The IAM's deleted accounts** are checked again at once, once the restore committed: whoever the IAM deleted
     since the backup was made is nobody's here again before the answer. When that check cannot finish (the IAM
     out of reach, more to read than its time allows) the restore is done and says so - the Backups page's note,
     the error log - and the check runs again with the next request (Check now on the People page at once).
-  - **What was deleted on the People page** after the backup was made comes back with it: a restore does not
-    replay those deletes yet (the library's 0.4.2 will). The audit log, which a restore keeps, lists them
-    (`person.data_deleted`, whom and when): delete them again on the People page after a restore.
-  - **The ids** of the restored tables' rows are given again from where they were then (a restore sets each
-    table's sequence back to the backup's): a feedback message sent after the restore may get the id of one
-    that was there before it, so an entry of the kept audit log naming that id (feedback marked or deleted)
-    may now name another message. The library's 0.4.2 stops moving sequences backwards.
+  - **The ids**: a restore never moves a sequence back, so an id handed out since the backup - one the kept audit
+    log may name - is never handed out again.
+
+  Only those deletes are done again: a restore brings back everything else as the backup has it - also what people
+  deleted themselves since (a game account deleted on its own page), which is neither audited nor done again.
+
+  **Only a backup made here is restored here** (0.5.0): every backup is sealed - an HMAC of its id and its
+  SHA-256 under a key derived from this installation's `storage/anotoki-lib.key` - and the page and `php
+  backup.php --restore` restore a sealed one alone, hashing the very bytes they read. One brought from another
+  installation (downloaded from the host and put into this computer's `storage/backups/`, sealed under the
+  host's key), one changed since, and **every backup made before 0.5.0** (they have no seal) are listed but not
+  restored here (`422 archive_invalid`): they are read offline - `php backup.php --inspect=<id>` and
+  `--extract=<id> <folder>`, then `psql \copy`. So is one made while `storage/anotoki-lib.key` could be neither
+  read nor made (a storage folder PHP cannot write): the backup is still made, but unsealed - the error log says
+  so, and the list shows it not restorable here. Nothing is public yet, so none of those is needed: make a backup
+  right after the update. The seal keeps out a file put into `storage/backups` by whoever cannot reach the key;
+  whoever can write the whole storage folder can make the key their own. The backups' files are the site's own
+  user's alone (`0600`, folders `0700`). The list names each backup's maker (the "By" column).
 
   **Backups have no maximum age** (the owner's decision of 2026-10-11): a backup is kept until it is
   deleted - a manual one only by the owner (the page flags one older than 90 days, and deletes nothing), the
@@ -368,8 +405,8 @@ whole admin panel. No file explorer here (the owner's choice for this site).
 ## Deploying (FTP-only shared hosting)
 
 The host: Apache with `.htaccess` support (`mod_rewrite`), **PHP 8.4** (the scrapers need PHP 8.4's
-`Dom\HTMLDocument`) with `pdo_pgsql`, `openssl`, `mbstring`, `curl` and `dom`, and a PostgreSQL database made in
-the hosting panel. No shell, cron, queue worker or long-running process is needed. The steps, with the upload
+`Dom\HTMLDocument`) with `pdo_pgsql`, `openssl`, `mbstring`, `curl`, `dom` and `zlib` (the backups compress with
+it), and a PostgreSQL database made in the hosting panel. No shell, cron, queue worker or long-running process is needed. The steps, with the upload
 map, are in [DEV.md](../DEV.md) ("Deploying"); in short:
 
 1. `cd backend && php tools/build.php` assembles `dist/build-analyzer/` - the whole web root:
@@ -424,8 +461,8 @@ map, are in [DEV.md](../DEV.md) ("Deploying"); in short:
      "Jazyk: Slovenčina (SK)". The strings' answers are the library's now: the same shapes (snake_case), the
      same rights (EDITOR the strings, ADMIN the languages), a few new refusals (415 a body that is not JSON, 413
      one over 1 MiB, 422 `empty_body`, 400 `invalid_json`).
-   - **Version 0.4.0: signing in, people and the admin tools through the anotoki library (anotoki-lib 0.4.1 in
-     `vendor/` and in the app; the library's `anotoki_admin` 001-002, migrations 007-010, then `anotoki_translations`
+   - **Version 0.4.0: signing in, people and the admin tools through the anotoki library (anotoki-lib 0.5.0 in
+     `vendor/` and in the app - the host needs `mbstring` and `zlib`; the library's `anotoki_admin` 001-002, migrations 007-010, then `anotoki_translations`
      003-004 and `anotoki_people` 001)**: the IAM must already set its sign-in hint (the IAM's release of
      2026-10-07) - without it nothing breaks, the automatic sign-in only waits for it. Before uploading,
      **Export** each language on the Translations page. Upload with `vendor/`, sign in with the ADMIN and **Apply
@@ -448,8 +485,9 @@ map, are in [DEV.md](../DEV.md) ("Deploying"); in short:
      beside it (`storage/logs/errors-*.jsonl`, `storage/backups/`) - delete any old file by hand when you like.
      Then check: a private window where you are signed in at the IAM opens the site signed in, without a click;
      Feedback at the foot of a page sends, and the admin panel counts it beside Feedback; the People page lists
-     you; the Errors, Audit and Backups pages open; `https://builder.anotoki.eu/robots.txt` says
-     `Disallow: /auth/`. A token that does not verify now answers 401 `invalid_token` (it was
+     you; the Errors, Audit and Backups pages open; **Back up now** lists a backup by you that can be restored here
+     (one made on this computer, or before 0.5.0, cannot: it is read offline); `https://builder.anotoki.eu/robots.txt`
+     says `Disallow: /auth/`. A token that does not verify now answers 401 `invalid_token` (it was
      `sign_in_required`).
    - **Version 0.3: visitors and the family's bar (migration 004, IAM migration 007)**, in this
      order: (1) before uploading, make sure an account that can sign in holds **ADMIN on `build-analyzer` now**

@@ -186,9 +186,13 @@ test('the requirements name PHP 8.4, the extensions and the writable folders', f
     $installer = new Installer(installRoot());
     $checks = array_column($installer->requirements(), 'ok', 'label');
 
-    foreach (['PHP 8.4 or newer', 'PHP extension pdo_pgsql', 'PHP extension openssl', 'PHP extension curl', 'PHP extension dom', 'config/ writable', 'storage/ writable'] as $label) {
+    foreach (['PHP 8.4 or newer', 'PHP extension pdo_pgsql', 'PHP extension openssl', 'PHP extension mbstring', 'PHP extension curl', 'PHP extension dom',
+        'PHP extension zlib', 'config/ writable', 'storage/ writable'] as $label) {
         same(true, $checks[$label] ?? null, $label);
     }
+    // zlib: the backups are compressed with it (anotoki-lib's Backups) - a host without it could make none.
+    $zlib = array_values(array_filter($installer->requirements(), fn (array $check): bool => $check['label'] === 'PHP extension zlib'));
+    check(str_contains((string) ($zlib[0]['detail'] ?? ''), 'backups'), 'zlib says what it is for: '.json_encode($zlib));
     same(false, $checks['vendor/ uploaded'], 'no vendor/ in the stand-in folder');
 });
 

@@ -7,7 +7,6 @@ use Anotoki\Lib\People\People;
 use App\App;
 use App\Auth\Role;
 use App\People\SitePeople;
-use Psr\Http\Message\ServerRequestInterface as Request;
 
 /**
  * The People page's API (admins only) - the anotoki library's people module (PeopleRoutes), on this site's
@@ -24,7 +23,9 @@ use Psr\Http\Message\ServerRequestInterface as Request;
  *   DELETE /api/admin/people/{sub}      -> {deleted: {"Game accounts": n, "Imports": n}}; 404 not_found for an id
  *                                       that is no person's. An admin may delete their own data too. Asks only
  *                                       the page's question - no recent sign-in (the owner's decision of
- *                                       2026-10-11) - and is audited (person.data_deleted)
+ *                                       2026-10-11) - and is audited (person.data_deleted), the entry written in
+ *                                       the delete's own transaction: no delete without it, for a restore does
+ *                                       every delete made since its backup again by it
  *   POST   /api/admin/people/sync       the scrub of the IAM's deleted accounts, now (audited: people.synced)
  *
  * The library's group guards itself (the site's ADMIN, from the token); this site's own check answers first,
@@ -37,7 +38,8 @@ return function (Slim\App $slim, App $app): void {
         $app->get(People::class),
         columns: SitePeople::columns(),
         visitors: fn (PDO $pdo): array => SitePeople::visitors($app),
-        delete: fn (PDO $pdo, int $sub, Request $request): ?array => SitePeople::deleteData($app, $sub),
+        // The library's transaction around it, the person's feedback forgotten in it (People::delete()).
+        delete: SitePeople::deleteHook(),
         error: siteRefusal(...),
         audit: $app->get(AuditLog::class),
         context: $app->get(AdminContext::class),

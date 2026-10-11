@@ -4,6 +4,7 @@ namespace App;
 
 use Anotoki\Lib\Support\Log as LibraryLog;
 use App\Support\Log;
+use App\Web\AfterResponse;
 
 /**
  * What the command-line scripts (migration.php, sync-builds.php, sync-catalog.php, import-account.php,
@@ -29,6 +30,13 @@ final class Cli
         Log::to($config->storage('logs/app.log'));
         // The anotoki library's own lines into the same file, as the API's (api/index.php).
         LibraryLog::to(static fn (string $line) => Log::info($line));
+        // What a command leaves for "after the answer" (App\Web\AfterResponse) runs when the command ends, however
+        // it ends (exit() too): there is no answer to wait for here, and work queued for one would never run - a
+        // restore that could not check the IAM's deleted accounts gives back the upkeep's hourly claim that way,
+        // so the next request checks again, as the restore says (People::afterRestore()'s `defer`).
+        register_shutdown_function(static function (): void {
+            AfterResponse::runUnlessHeld();
+        });
 
         return new App($config, web: false);
     }

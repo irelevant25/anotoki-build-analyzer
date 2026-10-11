@@ -110,7 +110,7 @@ are the database's (`anotoki.siteStatus.*`, `anotoki.ui.*`: `TranslationService.
   still verifies until it expires, minutes); while sign-in is not required they can still use the site as a
   visitor - blocking stops signing in, not visiting; to keep somebody out entirely, require sign-in. The
   contract: `anotoki-iam/docs/integrating-an-app.md`.
-- **The anotoki family's auth module does the signing in** (anotoki-lib 0.4.1, `Anotoki\Lib\Auth`; the owner's
+- **The anotoki family's auth module does the signing in** (anotoki-lib 0.5.0, `Anotoki\Lib\Auth`; the owner's
   round of 2026-10-11): its `IamClient` (`src/Auth/Iam.php` makes it from `config/auth.local.php`), the token
   check, the IAM's switch and the request's person are the library's, the route groups' rules this site's.
 - **Whether sign-in is required here is the IAM's switch** ("Sign-in required" on the application's page in
@@ -183,9 +183,11 @@ reaches exactly what `requireOwner()` guards - its own accounts and imports, thr
   (innermost) checks the visitor limits, makes the row and the key, runs the import, and on success adds
   `X-Visitor-Key` (and `Cache-Control: no-store`) to the answer - the only time the key leaves the server.
   A failed first import deletes the visitor again and gives its counts back.
-- **Limits** (`config/app.php` `visitors`, `client_address`): per address (`App\Web\ClientAddress`:
-  `REMOTE_ADDR`, or on a connection from one of Cloudflare's ranges - the committed `trusted_proxies`, the
-  owner's decision of 2026-10-11 - its `CF-Connecting-IP`; a list read from the right; IPv6 by /64) and
+- **Limits** (`config/app.php` `visitors`, `client_address`): per address (`App\Web\ClientAddress`, by the
+  anotoki library's one rule, `Support\ClientAddress`: `REMOTE_ADDR`, or on a connection from one of
+  Cloudflare's ranges - the committed `trusted_proxies`, the owner's decision of 2026-10-11 - its
+  `CF-Connecting-IP`, one address or none believed; IPv6 by /64, `::ffff:` IPv4 as IPv4 - the admin tools read
+  by the same rule and list) and
   site-wide; a visitor's imports throttled per address; per visitor a few accounts and smaller files (422
   `visitor_limit`; the accounts counted by the route before any work, and again by `AccountImporter` under the
   owner's lock, so two imports at once cannot both add the last one). The counters never keep the address:
@@ -230,32 +232,43 @@ shared.
 
 ### People, and the admin tools
 
-The anotoki family's people module and admin tools (anotoki-lib 0.4.1; the owner's round of 2026-10-11 -
+The anotoki family's people module and admin tools (anotoki-lib 0.5.0; the owner's rounds of 2026-10-11 -
 [decisions.md](decisions.md)), wired once in `src/App.php` from `src/People/SitePeople.php` and
 `src/Admin/AdminTools.php`:
 
 - **People** read this site's own `users` through a mapping (`PeopleTable`: `name`, `created_at`,
   `last_seen_at`, `updated_at`), never a table of the library's; visitors' rows (negative ids) are never read or
   written. The People page's columns are this site's (game accounts, imports, last import), its Delete
-  `SitePeople::deleteData()` (the person's row and, by the foreign keys, their accounts and imports; the strings
-  they saved and the syncs they ran stay, by nobody - the syncs' logs no longer name them, the scrub's own hook
-  with the name the row had -, and their feedback loses its address and browser, the library's `forgetPeople()`;
-  one transaction). **The scrub** (the library's `Scrubber`, after an answer at most hourly -
-  `api/middleware/upkeep.php` - or Check now) asks the IAM for the accounts it deleted and makes each one nobody's
-  here, in one transaction per account: `deleted-{id}`, `anonymized_at`, and the hooks - a sync's log says "a
-  deleted person" where it named them (`SitePeople::syncLogHook()`), their feedback's address and browser and
-  their name in the audit log's details are blanked. Their game accounts and imports stay.
+  `SitePeople::deleteHook()` → `deleteData()` (the person's row and, by the foreign keys, their accounts and
+  imports; the strings they saved and the syncs they ran stay, by nobody - the syncs' logs no longer name them,
+  the scrub's own hook with the name the row had). It runs inside the library's transaction (`People::delete()`,
+  which also forgets the person's feedback - its address and browser - and writes the `person.data_deleted`
+  entry in the same transaction), and does all its work on the connection it is given, beginning and ending no
+  transaction of its own: a restore runs it again on its own connection, every restored table locked.
+  **The scrub** (the library's `Scrubber`, after an answer at most hourly - `api/middleware/upkeep.php` - or
+  Check now, and at once after a restore) asks the IAM for the accounts it deleted and makes each one nobody's
+  here, in one transaction per account: `deleted-{id}`, `anonymized_at`, and the hooks, on the scrub's
+  connection - a sync's log says "a deleted person" where it named them (`SitePeople::syncLogHook()`), their
+  feedback's address and browser and their name in the audit log's details are blanked. Their game accounts and
+  imports stay.
 - **The admin tools** (`AdminContext`: who acts - the token's person -, the ADMIN from the token, the proof - a
-  sign-in of the last ten minutes, from the token's `auth_time` -, the address bucket `App\Web\ClientAddress`,
+  sign-in of the last ten minutes, from the token's `auth_time` -, the proxies whose header names an address -
+  `client_address`'s, read by the library's rule as `App\Web\ClientAddress` reads -, the people's names by id,
   this site's error body): the error log is the library's `ErrorLog` around every request
-  (`ErrorLogMiddleware::outer`) and in `jsonErrors()` for an exception; the audit log is written where something
-  is done (`AuditLog::record()` in the routes of sources, syncs, translations, people, migrations, and the
-  tools' own); feedback's public form is `optionalSignIn()`'s; backups are COPY on a connection of their own
-  (`AdminTools::copyConnection()`: `Pdo\Pgsql` where PHP has it), made before every Apply (`beforeApply`, the
-  Migrations page's and `migration.php`'s), daily after an answer, before every restore, and by hand. Their
-  tables come with the library's set `anotoki_admin`, which runs before this site's files; while it waits, the
-  audit log keeps its entries in `storage/logs/audit-pending.jsonl` and writes them after the next Apply, and
-  the audit and feedback routes answer 503 `feature_unavailable`.
+  (`ErrorLogMiddleware::outer`), in `jsonErrors()` for an exception, and behind `POST /api/client-errors` for
+  the errors the pages meet in the browser (`ErrorLogRoutes::client()`, `optionalSignIn()`'s; the app's
+  `provideAnotokiErrorReport()`); the audit log is written where something is done (`AuditLog::record()` in the
+  routes of sources, syncs, translations, people, migrations, and the tools' own - a person's or a message's
+  delete inside its own transaction); feedback's public form is `optionalSignIn()`'s; backups are COPY on a
+  connection of their own (`AdminTools::copyConnection()`: `Pdo\Pgsql` where PHP has it), made before every
+  Apply (`beforeApply`, the Migrations page's and `migration.php`'s), daily after an answer, before every
+  restore, and by hand, each sealed under this installation's key - only a backup made here is restored here
+  (one made while that key could be neither read nor made is unsealed, the error log says so, and it is
+  restored offline only) - and a restore does again, inside its transaction, every People-page and feedback
+  delete made since its backup, then the scrub (`People::restoreHooks()`); what people deleted themselves since
+  comes back with it. Their tables come with the library's set `anotoki_admin`, which runs before this
+  site's files; while it waits, the audit log keeps its entries in `storage/logs/audit-pending.jsonl` and writes
+  them after the next Apply, and the audit and feedback routes answer 503 `feature_unavailable`.
 
 ### Neutral names
 
@@ -585,6 +598,11 @@ page's API answers its own: 404 `not_found` (a file that is none of the set's), 
   page, the four places `FEEDBACK_SECTIONS` with the server's names, the person's address written in):
   `layouts/footer` opens `shared/feedback-dialog` (the form in the kit's `<anotoki-dialog>`, its heading the
   form's own words, the dialog's `lang` the language they are in), loaded with the first press.
+- The errors the pages meet (`app.config.ts`: `provideBrowserGlobalErrorListeners()` and the family's
+  `provideAnotokiErrorReport()`, `@anotoki/lib/error-report`): the app's `ErrorHandler` tells the console, as
+  Angular's own does, and sends each error once - scrubbed in the page, at most five a page load, never an HTTP
+  failure - to `POST /api/client-errors`, through the app's `HttpClient`: the auth interceptor adds the person's
+  token (the server counts a person by their account), the site's status interceptor hears an update waiting.
 - The frame: `app.ts` is the router inside the site gate (`<anotoki-site-gate>`, the outlet its template: the
   gate's own page while the site is not ready, and no page made behind it - see "The site gate") plus what
   belongs to no page - the theme on `<html>`, What's new to somebody who has used the site before (signed in,

@@ -28,7 +28,11 @@ The People page and the admin tools (the error log, the audit log, feedback, bac
 (`@anotoki/lib/people/page`, `@anotoki/lib/admin/*`, lazy, routed in `app.routes.ts`, set up in `app.config.ts`);
 the bar counts the new feedback beside Feedback (`FeedbackUnread`). The visitors' feedback form
 (`@anotoki/lib/feedback/form`) opens from the footer in a dialog (`shared/feedback-dialog/`, set up in
-`core/feedback.ts`), loaded with the first press. `public/robots.txt` keeps search engines off `/auth/`.
+`core/feedback.ts`), loaded with the first press. `public/robots.txt` keeps search engines off `/auth/`. The
+errors the pages meet go to the server's error log: `provideAnotokiErrorReport()` (`@anotoki/lib/error-report`,
+in `app.config.ts` beside `provideBrowserGlobalErrorListeners()`) is the app's `ErrorHandler` - the console hears
+every error as before, and each is sent once, scrubbed, to `POST /api/client-errors` through the app's
+`HttpClient` (the auth interceptor adds the person's token).
 
 The site's words come through the family's translations module, `@anotoki/lib/translations`: its service, set
 up for this site in `core/i18n/translations.config.ts` (the storage names, the English compiled into the app as
@@ -46,7 +50,7 @@ its page runs; the interceptor that hears the server say so; and the admin panel
 (`pages/admin/migrations/`, from `@anotoki/lib/migrations/page`). `core/site-status.ts` wires them to this site
 (who is ADMIN, how to sign in, the language on the page, the account's dates).
 
-Every page is drawn with the family's kit (0.4.1): `src/styles.scss` takes `@anotoki/lib/styles` (the tokens,
+Every page is drawn with the family's kit (0.5.0): `src/styles.scss` takes `@anotoki/lib/styles` (the tokens,
 Manrope, the base, utilities and tables) and sets this site's colours over the family's `--anotoki-*` tokens,
 light and dark - never re-styling a kit piece; the pieces come each from its own entry point
 (`@anotoki/lib/ui/button`, `/ui/dialog`, `/ui/forms` ...), never the `@anotoki/lib/ui` barrel; `core/kit.ts`

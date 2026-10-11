@@ -360,26 +360,55 @@ test('behind a trusted proxy the proxy\'s header names the address - and from an
         same($i === 0 ? 201 : 429, $answer->status, "the proxy with only X-Forwarded-For {$claimed}");
     }
 
-    // A proxy configured to name the address in a list it appends to (X-Forwarded-For): the list starts with
-    // whatever the visitor wrote, so it is read from the right, past the proxies' own addresses.
+    // A setting that names another header - as config/client_address.local.php once could - changes nothing: only
+    // CF-Connecting-IP is ever read (the owner's rule of 2026-10-11). X-Forwarded-For names nobody even from a
+    // trusted proxy, a list or one address: the proxy itself is counted.
     T::$app->config->set('client_address.client_ip_header', 'X-Forwarded-For');
-    $viaList = fn (string $list): Answer => (new Client('10.5.5.5'))->withHeaders(['X-Forwarded-For' => $list])
+    $viaHeader = fn (string $proxy, string $named): Answer => (new Client($proxy))->withHeaders(['X-Forwarded-For' => $named])
         ->post('/api/imports/file', ['content' => goodFile()]);
-    $viaList('198.51.100.50, 198.51.100.60')->status(201);
-    refusedAs($viaList('198.51.100.51, 198.51.100.60'), 429, 'too_many_visitors', 'a new address written on the left by the visitor itself');
-    refusedAs($viaList('198.51.100.52, 198.51.100.60, 10.6.6.6'), 429, 'too_many_visitors', 'the same visitor behind two of the proxies');
-    $viaList('198.51.100.61, 10.6.6.6')->status(201);
+    $viaHeader('10.5.5.5', '198.51.100.50, 198.51.100.60')->status(201);
+    refusedAs($viaHeader('10.5.5.5', '198.51.100.51, 198.51.100.61'), 429, 'too_many_visitors', 'a list names nobody: the proxy itself is counted');
+    $viaHeader('10.6.6.6', '198.51.100.62')->status(201);
+    refusedAs($viaHeader('10.6.6.6', '198.51.100.63'), 429, 'too_many_visitors', 'one address in it names nobody either: the proxy itself is counted');
+});
+
+test('only CF-Connecting-IP names the address, and only from Cloudflare: X-Real-IP and True-Client-IP - which Cloudflare passes through as the visitor wrote them - name nobody, whatever a setting says', function () {
+    T::$app->config->set('visitors.new_per_hour_per_address', 1);
+    foreach (['X-Real-IP' => '173.245.48.20', 'True-Client-IP' => '173.245.48.21'] as $header => $edge) {
+        // As if config/client_address.local.php named it - the setting is not read (App\Config takes the proxies alone).
+        T::$app->config->set('client_address.client_ip_header', $header);
+        $claiming = fn (string $claimed): Answer => (new Client($edge))->withHeaders([$header => $claimed])
+            ->post('/api/imports/file', ['content' => goodFile()]);
+        $claiming('198.51.100.110')->status(201);
+        refusedAs($claiming('198.51.100.111'), 429, 'too_many_visitors', "{$header} from Cloudflare's edge names nobody: the edge itself is counted");
+    }
+    // The admin tools' reading likewise: their header is Cloudflare's, and no setting reaches it.
+    same('CF-Connecting-IP', T::$app->get(Anotoki\Lib\Admin\AdminContext::class)->clientHeader(), 'the admin tools read CF-Connecting-IP alone');
+    // And an installation's own file names its proxies, and nothing else: a header it names is left out.
+    $root = T::$storage.DIRECTORY_SEPARATOR.'client-address-root';
+    @mkdir($root.'/config', 0777, true);
+    copy(dirname(__DIR__).'/config/app.php', $root.'/config/app.php');
+    file_put_contents($root.'/config/client_address.local.php', "<?php return ['trusted_proxies' => ['10.0.0.0/8'], 'client_ip_header' => 'X-Real-IP'];\n");
+    try {
+        $loaded = App\Config::load($root);
+        same([['10.0.0.0/8'], null], [$loaded->get('client_address.trusted_proxies'), $loaded->get('client_address.client_ip_header')],
+            'the proxies taken, the header left out');
+    } finally {
+        removeTree($root);
+    }
 });
 
 test('behind Cloudflare, as committed: a connection from one of its ranges counts the address CF-Connecting-IP names, any other is counted itself - and the address is kept nowhere, nor in a backup', function () {
     T::$app->config->set('visitors.new_per_hour_per_address', 1);
-    same(['CF-Connecting-IP', 22], [T::$app->config->get('client_address.client_ip_header'), count((array) T::$app->config->get('client_address.trusted_proxies'))],
-        'the header, and Cloudflare\'s 22 published ranges');
+    same([Anotoki\Lib\Support\ClientAddress::CLOUDFLARE, null],
+        [T::$app->config->get('client_address.trusted_proxies'), T::$app->config->get('client_address.client_ip_header')],
+        'Cloudflare\'s 22 published ranges - the anotoki library\'s list of them - and no header setting: CF-Connecting-IP, always');
 
     $through = fn (string $connection, string $named): Answer => (new Client($connection))->withHeaders(['CF-Connecting-IP' => $named])
         ->post('/api/imports/file', ['content' => goodFile()]);
     $through('173.245.48.10', '198.51.100.70')->status(201);
     refusedAs($through('2400:cb00::1', '198.51.100.70'), 429, 'too_many_visitors', 'the same visitor through another of Cloudflare\'s edges (IPv6)');
+    refusedAs($through('::ffff:173.245.48.11', '198.51.100.70'), 429, 'too_many_visitors', 'and through an IPv4 edge written as IPv6 (a server on [::])');
     $through('104.16.0.1', '198.51.100.71')->status(201);
 
     // From a connection that is not Cloudflare's, the header is whatever the sender wrote: the connection is counted.

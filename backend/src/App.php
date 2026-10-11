@@ -134,7 +134,9 @@ final class App
             // Its Apply makes a backup of the database as it is first (the library's backups: before-migration).
             Migrator::class => Migrations::migrator($this->get(Db::class)->raw(), beforeApply: $this->get(Backups::class)->beforeApplyHook()),
             // The site's words (anotoki/lib's translations, with this site's own in Services\Translations\SiteTranslations):
-            // the routes of api/routes/translations.php, the People page's delete and the command line ask them.
+            // the routes of api/routes/translations.php and the command line ask them. Never the People page's delete,
+            // on the site's own connection: it makes its own on the connection it is given (SitePeople::deleteData()) -
+            // in a restore this one would wait on the restore's locks while the restore waits on it.
             Translations::class => SiteTranslations::make($this->get(Db::class)->raw()),
             HttpClient::class => new CurlHttpClient,
             Fetcher::class => new Fetcher($this->get(HttpClient::class), $this->get(Cache\Cache::class), $this->config, $this->web),

@@ -70,6 +70,22 @@ function sql(query, params = []) {
   return JSON.parse(out);
 }
 
+/** The error log's lines of the errors the pages met (source "client": the family's reporter, POST /api/client-errors). */
+function pageErrors() {
+  const folder = join(WORK, 'config', 'storage', 'logs');
+  return (existsSync(folder) ? readdirSync(folder) : [])
+    .filter((file) => /^errors-.*\.jsonl$/.test(file))
+    .flatMap((file) => readFileSync(join(folder, file), 'utf8').split('\n').filter((line) => line.trim() !== '').map((line) => JSON.parse(line)))
+    .filter((line) => line.source === 'client');
+}
+
+/**
+ * The one error a page meets on purpose (the admin tools' tour), and as the reporter scrubs it: an address the page
+ * keeps nowhere is `{email}` - ada's own, which her session keeps in localStorage, would be `{stored}`.
+ */
+const THROWN = "A check of the pages' errors, for someone@example.test";
+const THROWN_SCRUBBED = "A check of the pages' errors, for {email}";
+
 /** How the stand-in IAM behaves from now on: deny, login_required, ... (its header lists them). */
 async function iamState(changes) {
   await fetch(`${IAM}/_test/state`, { method: 'POST', body: JSON.stringify(changes) });
@@ -892,6 +908,18 @@ try {
       await ad.setViewportSize({ width: wide, height: 900 });
       await ad.emulateMedia({ colorScheme: 'light' });
       await open(ad, '/admin/sources');
+      // And an error a page meets, thrown outside Angular's own code (window's error event): the family's reporter
+      // (@anotoki/lib/error-report) sends it scrubbed, through the app's HttpClient - so with ada's token - and the
+      // error log writes it as the browser's, by her account.
+      const reported = ad.waitForResponse((answer) => answer.url() === `${SITE}/api/client-errors` && answer.request().method() === 'POST', { timeout: 15000 });
+      await ad.evaluate((message) => setTimeout(() => {
+        throw new Error(message);
+      }, 0), THROWN);
+      const report = await reported;
+      check(report.status() === 204 && /^Bearer \S+$/.test((await report.request().allHeaders()).authorization ?? ''), `the page's error reported, with ada's token (${report.status()})`);
+      const thrown = pageErrors().filter((line) => line.message === THROWN_SCRUBBED);
+      check(thrown.length === 1 && thrown[0].user_id === 1 && thrown[0].path === '/admin/sources' && !JSON.stringify(pageErrors()).includes('@example.test'),
+        `the error log has it as the browser's - scrubbed, by ada, on its page (${JSON.stringify(pageErrors().map((line) => [line.message, line.user_id, line.path]))})`);
       await ad.waitForSelector('app-top-bar a[href="/admin/feedback"] .anotoki-top-bar__badge', { timeout: 15000 });
       const count = (await ad.locator('app-top-bar a[href="/admin/feedback"] .anotoki-top-bar__badge').innerText()).trim();
       // The family's bar names a section by its words and its count ("Feedback 1"): it has no words of a count's own.
@@ -930,6 +958,7 @@ try {
       await ad.waitForSelector('anotoki-error-log-page h1');
       await ad.waitForLoadState('networkidle');
       check((await ad.locator('anotoki-error-log-page').innerText()).includes('/api/nothing-here'), 'the error log: the 404 a moment ago, by its path');
+      check((await ad.locator('anotoki-error-log-page').innerText()).includes(THROWN_SCRUBBED), "the error log: the page's error, scrubbed");
       await open(ad, '/admin/audit');
       await ad.waitForSelector('anotoki-audit-log-page h1');
       await ad.waitForLoadState('networkidle');
@@ -974,6 +1003,8 @@ try {
       await ad.waitForLoadState('networkidle');
       check(Number(made()) === before + 1, 'Back up now: a backup made by the ADMIN, in the audit log');
       check((await ad.locator('[data-backups] [data-backup]').count()) >= 1, 'listed on the page');
+      // Its maker by name (AdminContext's names: the site's copy of the IAM's), and sealed - restorable here.
+      check((await ad.locator('[data-backups] [data-backup]').first().innerText()).includes('ada'), `listed with its maker's name (${(await ad.locator('[data-backups] [data-backup]').first().innerText()).replace(/\s+/g, ' ')})`);
       await shot(ad, '19-admin-backups-made', { fullPage: true });
 
       // An editor has none of them: sent to Sources, and the server refuses them.
@@ -1327,6 +1358,11 @@ try {
     }
     const back = await (await fetch(`${SITE}/api/site-status`)).json();
     check(back.state === 'ready', `set up again: ${JSON.stringify(back)}`);
+
+    // ── The pages' own errors, over the whole check ───────────────────────────────────────────────────
+    step("The errors the pages met, over every tour (the family's reporter writes each into the error log): none but the one thrown on purpose");
+    const met = pageErrors().filter((line) => line.message !== THROWN_SCRUBBED);
+    check(met.length === 0, `no page met an error${met.length ? `: ${JSON.stringify(met.map((line) => [line.type, line.message, line.path]))}` : ''}`);
   }
 } catch (error) {
   failures.push(String(error?.stack ?? error));

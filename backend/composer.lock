@@ -4,24 +4,25 @@
         "Read more about it at https://getcomposer.org/doc/01-basic-usage.md#installing-dependencies",
         "This file is @generated automatically"
     ],
-    "content-hash": "021a6f262e78b61797ab746dc44cb18b",
+    "content-hash": "9fcab62bef859aea8eeb4266784f0976",
     "packages": [
         {
             "name": "anotoki/lib",
-            "version": "v0.4.1",
+            "version": "v0.5.0",
             "source": {
                 "type": "git",
                 "url": "https://github.com/irelevant25/anotoki-lib.git",
-                "reference": "b94b0685e568d4db5eeeb283066e5ef745beeecf"
+                "reference": "1baaa5ac1c1097fd2a81ca744b611ae87a07911e"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/irelevant25/anotoki-lib/zipball/b94b0685e568d4db5eeeb283066e5ef745beeecf",
-                "reference": "b94b0685e568d4db5eeeb283066e5ef745beeecf",
+                "url": "https://api.github.com/repos/irelevant25/anotoki-lib/zipball/1baaa5ac1c1097fd2a81ca744b611ae87a07911e",
+                "reference": "1baaa5ac1c1097fd2a81ca744b611ae87a07911e",
                 "shasum": ""
             },
             "require": {
                 "ext-json": "*",
+                "ext-mbstring": "*",
                 "ext-openssl": "*",
                 "ext-pdo": "*",
                 "php": ">=8.2",
@@ -35,7 +36,8 @@
                 "slim/psr7": "^1.6"
             },
             "suggest": {
-                "ext-curl": "asks the IAM with curl (PHP's own streams otherwise)"
+                "ext-curl": "asks the IAM with curl (PHP's own streams otherwise)",
+                "ext-zlib": "the backups compress with it (Backups needs it)"
             },
             "type": "library",
             "autoload": {
@@ -59,10 +61,10 @@
             "description": "What the anotoki sites share, the PHP half: the database migrations (the engine, the site gate and the admin routes), the translations (the schema, the words' routes and the command line), signing in (the IAM's tokens, who a request is, the boot configuration, a stand-in IAM for tests) and people (the site's record of them and the GDPR scrub). The Angular half is @anotoki/lib.",
             "homepage": "https://github.com/irelevant25/anotoki-lib",
             "support": {
-                "source": "https://github.com/irelevant25/anotoki-lib/tree/v0.4.1",
+                "source": "https://github.com/irelevant25/anotoki-lib/tree/v0.5.0",
                 "issues": "https://github.com/irelevant25/anotoki-lib/issues"
             },
-            "time": "2026-10-11T10:53:59+00:00"
+            "time": "2026-10-11T21:48:45+00:00"
         },
         {
             "name": "composer/ca-bundle",

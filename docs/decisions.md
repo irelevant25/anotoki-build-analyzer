@@ -3,6 +3,75 @@
 Short records of choices that shape the code. Add a new entry (newest first) when you make a similar call.
 Older entries describe the Laravel version as it was; where a setting has since moved, the entry says so.
 
+**2026-10-12 — anotoki-lib 0.5.0: a restore does again what was deleted since its backup, sealed backups, the pages' errors in the error log, one reading of an address (the owner's round; version 0.4.0, unreleased).**
+Both halves on 0.5.0 (`anotoki/lib ^0.5.0`, the 0.5.0 tarball in both lock files).
+- *The People page's delete runs in the library's transaction, on the connection it is given* (`People::delete()`):
+  `SitePeople::deleteData()` began a transaction of its own on the site's connection (`Db::transaction()`, the
+  container's `Users` and `Translations`), which the library now refuses - it holds one, with the audit entry
+  inside - and which in a restore would wait on the restore's own locks while the restore waited on it
+  (PostgreSQL ends such a restore after a minute). It does all its work on the `$pdo` it is handed - the person's
+  row `FOR UPDATE` and its delete (the accounts and imports go by their keys), the strings' writer, the syncs'
+  logs - and begins, commits or rolls back nothing; the person's feedback is the library's to forget in the same
+  transaction (the site's own `forgetPeople()` call went). One hook, `SitePeople::deleteHook()`, for the page and
+  for a restore (its request null there, which changes nothing here). The scrub's hooks write on the scrub's
+  connection too (`Feedback::forgetPeopleOn()`, an `AuditLog` on it): after a restore the library runs the scrub
+  on the restore's connection. `tests/people.test.php` runs the delete on a connection that holds every table it
+  touches locked, as a restore does, with a lock timeout on the site's own.
+- *A restore does again what was deleted since its backup* (`People::restoreHooks()` in the Backups' options, in
+  place of the site's `AdminTools::scrubAfterRestore()`): inside its transaction, before anybody sees the rows,
+  every `person.data_deleted` (the site's hook, on the restore's connection) and `feedback.deleted` the audit log
+  has from the backup's snapshot on - each entry written in its delete's own transaction now (`_txid`), so no
+  delete is made without one; then, committed, the scrub of the IAM's deleted accounts at once, as before - one
+  that cannot finish is the answer's `after_restore_error` (the error log has it with its cause) and the next
+  request checks again (`defer`: the site's runner). What the restore of 0.4.1 left "for the library's 0.4.2" (the
+  entry of 2026-10-11 below) is done: a delete is not brought back, and a sequence never moves back. No `then:`:
+  nothing of the site's own needs doing after a restore.
+- *Only a backup made here is restored here*: every plain backup is sealed under a key from
+  `storage/anotoki-lib.key` - but where that key can be neither read nor made, the backup is still made, unsealed
+  (the error log says so); one without this installation's seal - that one, every backup made before 0.5.0, one
+  brought from the host to this computer - is listed and read offline (`php backup.php --inspect`, `--extract`),
+  never restored by the page or `--restore` (422 `archive_invalid`). Nothing is public yet, so no backup of before
+  needs restoring. The list names each backup's maker: `AdminContext`'s `names` (`AdminTools::names()`, which the
+  audit log's and feedback's routes now take from the context too).
+- *The pages' errors in the error log* (the owner's decision of 2026-10-11, every site; the entry of 2026-10-11
+  below waited for it): `ErrorLogRoutes::client()` on `POST /api/client-errors`, behind `optionalSignIn()` - the
+  person from their token, counted by account; while the IAM requires sign-in here, anybody not signed in is
+  refused (401), as on every public route - and the site gate (not one of its open paths: closed while an update
+  waits). The library's
+  limits: 20 an hour from one sender, 500 a day from the visitors and 500 from the people signed in. In the app,
+  `provideAnotokiErrorReport()` beside `provideBrowserGlobalErrorListeners()`, through the app's `HttpClient`: the
+  site has no interceptor of its own to teach about `ANOTOKI_ERROR_REPORT`, and the library's treat a report as
+  any request (the person's token, the site's status heard).
+- *One reading of an address* (the owner's rule of 2026-10-11): `App\Web\ClientAddress` reads by the library's
+  `Support\ClientAddress` over the same proxies (`client_address.trusted_proxies`, Cloudflare's 22 ranges - the
+  library's `ClientAddress::CLOUDFLARE`, which a test holds them to), and `AdminContext` takes that list
+  (`trustedProxies`) in place of the site's `clientKey`: the feedback's limits and the error log's client hash
+  count a visitor behind Cloudflare as the site's own counters do. The site keeps its keyed counter key
+  (`countedKey()`). The header is `CF-Connecting-IP` and never a setting (the security review of 2026-10-12): the
+  site's `client_ip_header` is gone, and `config/client_address.local.php` names the proxies alone - a local
+  `X-Real-IP` or `True-Client-IP`, which Cloudflare passes through as the visitor wrote them, would have let every
+  visitor pick their own bucket. Two changes of behaviour, both stricter or equal: a header that is not one
+  address - a list a proxy appends to, such as `X-Forwarded-For` - is no longer read from the right (the entry of
+  2026-10-04) but never believed, so the proxy's own address counts: the owner's decision of 2026-10-11 - only
+  `CF-Connecting-IP`, and only on a connection from Cloudflare's ranges; and a Cloudflare edge's IPv4 address
+  written as IPv6 (`::ffff:…`) is now known as Cloudflare's.
+- *The command line runs what it leaves for after the answer* (`App\Cli::app()`: when the command ends): a
+  restore by `php backup.php` that could not check the IAM's deleted accounts gives the upkeep's hour back, so the
+  next request checks again - as the restore says.
+- *The error log tells a state from a failure by the answer's code* (the family's rule, 0.5.0's `expected`; the
+  owner's "remove every workaround 0.5.0 makes unnecessary", every site): the site's own rule of 0.4.1 - every 503
+  left out, since each was then a decided "not now" - is gone. Every 5xx is written but an answer whose code says
+  a state the site is in (`AdminTools::EXPECTED_ANSWERS`: the library's `update_pending`, `not_set_up`,
+  `feature_unavailable`, and this site's of the same kind, a waiting migration's table - `visitors_unavailable`,
+  `translations_unavailable`, `people_unavailable`), so a 503 that is a failure is seen: feedback's
+  `storage_unavailable` (its limits cannot be counted), the move's `visitor_move_retry`.
+- *zlib is a requirement*: the backups are compressed with it, so the setup page checks it
+  (`Installer::EXTENSIONS`) beside the other extensions, and the docs name it.
+- *Feedback's reply address*: the library keeps only what the form sends; the server-side default that made this
+  site hand it the sender's id alone (the entry of 2026-10-11 below) is gone, and the site still hands it the id
+  alone. The limits count a signed-in sender by their account, in a day's budget apart from the visitors'.
+- What's new: nothing - none of it is something a person using the site notices.
+
 **2026-10-11 — The site's own pages on the anotoki family's kit; Angular Material gone (the owner's round; version 0.4.0, unreleased).**
 - *The kit everywhere*: every page, piece and dialog is the family's kit (anotoki-lib 0.4.1: `@anotoki/lib/styles`
   and the `@anotoki/lib/ui/*` pieces, each from its own entry point - never the `@anotoki/lib/ui` barrel, so a

@@ -18,6 +18,7 @@ import {
   anotokiAuthInterceptor,
   provideAnotokiAuth,
 } from '@anotoki/lib/auth';
+import { provideAnotokiErrorReport } from '@anotoki/lib/error-report';
 import { SiteStatus, siteStatusInterceptor } from '@anotoki/lib/migrations';
 import { provideAnotokiPeople } from '@anotoki/lib/people';
 
@@ -61,6 +62,12 @@ export const appConfig: ApplicationConfig = {
       withFetch(),
       withInterceptors([siteStatusInterceptor, anotokiAuthInterceptor]),
     ),
+    // The errors the pages meet, into the server's error log (@anotoki/lib/error-report: POST /api/client-errors) -
+    // scrubbed before they leave the page, each once, at most five a page load, never an HTTP failure - through
+    // the app's HttpClient, so the interceptors above treat a report as any request of this site's: the person's
+    // token while somebody is signed in (the server counts a person by their account), and the site's status heard.
+    // With provideBrowserGlobalErrorListeners() above, window's errors and promises nobody caught come too.
+    provideAnotokiErrorReport(),
     // Signing in, through the anotoki IAM (@anotoki/lib/auth): the boot configuration is /api/meta's `auth`, read
     // once with the game metadata (MetaStore); this site lets visitors in, with its own visitor key store, so the
     // IAM's sign-in hint signs a person who is signed in there in here too, with one silent hop (the hint is on

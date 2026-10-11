@@ -42,7 +42,7 @@ Setting it up, running, testing, building and deploying: **[DEV.md](DEV.md)**.
 
 ## Quick start
 
-Requirements: PHP 8.4+ (`pdo_pgsql`, `openssl`, `mbstring`, `curl`, `dom`), PostgreSQL, Node.js 22.12+, Bun,
+Requirements: PHP 8.4+ (`pdo_pgsql`, `openssl`, `mbstring`, `curl`, `dom`, `zlib`), PostgreSQL, Node.js 22.12+, Bun,
 and the anotoki IAM running locally (`../anotoki-iam`) to sign in.
 
 ```bash
