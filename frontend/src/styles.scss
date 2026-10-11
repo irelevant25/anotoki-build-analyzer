@@ -134,11 +134,21 @@ a {
 
 // ---------------------------------------------------------------- layout helpers
 
-.page {
+.page,
+// The anotoki family's admin pages, routed straight into the admin panel (app.routes.ts: the People page and
+// the admin tools - each its own lazy entry point of @anotoki/lib): the panel's page frame, as a .page gives the
+// pages it wraps. Each answers to the width it is given; a long word (a file's path, a fingerprint) breaks
+// rather than push a 390 px screen sideways.
+.admin main > :is(anotoki-people-page, anotoki-error-log-page, anotoki-audit-log-page, anotoki-feedback-page, anotoki-backups-page) {
   max-width: 1280px;
   margin: 0 auto;
   padding: 24px 16px 64px;
   box-sizing: border-box;
+}
+
+.admin main > :is(anotoki-people-page, anotoki-error-log-page, anotoki-audit-log-page, anotoki-feedback-page, anotoki-backups-page) {
+  display: block;
+  overflow-wrap: break-word;
 }
 
 .page-header {

@@ -1,5 +1,6 @@
 <?php
 
+use Anotoki\Lib\Audit\AuditLog;
 use App\App;
 use App\Auth\Role;
 use App\Cache\LockTimeout;
@@ -37,7 +38,9 @@ use Slim\Routing\RouteCollectorProxy;
  *   GET   /api/sync-runs?source=&kind=&limit=   editors: history, newest first
  *   GET   /api/sync-runs/{id}                   editors: one run with its log
  *
- * Each group carries its role check, so a route added to one cannot go without it.
+ * Each group carries its role check, so a route added to one cannot go without it. A source switched on or off
+ * and a source's builds imported from a file are in the audit log (source.enabled, source.disabled,
+ * builds.imported).
  */
 return function (Slim\App $slim, App $app): void {
     /**
@@ -80,7 +83,11 @@ return function (Slim\App $slim, App $app): void {
             $input->valid();
 
             $model = $registry->model($source);
+            $was = (bool) $model->enabled;
             $app->get(BuildSources::class)->update($model, ['enabled' => $enabled]);
+            if ($was !== $enabled) {
+                $app->get(AuditLog::class)->record($request, currentUser($request)->id, $enabled ? 'source.enabled' : 'source.disabled', 'source', (string) $args['key']);
+            }
 
             return Json::send($response, $app->get(SyncRunPresenter::class)->source($model));
         });
@@ -118,6 +125,9 @@ return function (Slim\App $slim, App $app): void {
             } catch (LockTimeout) {
                 throw new HttpError(409, 'A sync step is still running. Try again in a moment.');
             }
+            $app->get(AuditLog::class)->record($request, currentUser($request)->id, 'builds.imported', 'source', (string) $args['key'], [
+                'created' => $result['created'], 'updated' => $result['updated'], 'removed' => $result['removed'], 'characters' => $result['characters'],
+            ]);
 
             return Json::send($response, $result + ['source' => $summary($source, $app->get(BuildSources::class)->counts(), true)]);
         });

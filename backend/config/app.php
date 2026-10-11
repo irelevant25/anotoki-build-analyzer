@@ -122,7 +122,15 @@ return [
     | trusted_proxies (CIDR ranges, v4 and v6: a proxy such as Cloudflare in front of the site), and then
     | the address in client_ip_header, which only such a proxy is believed to write. A forwarding header
     | from anybody else is whatever the sender wrote, so it is never read on its own (X-Forwarded-For
-    | included).
+    | included). The address is never kept: the counters keep a keyed hash of it (App\Web\ClientAddress).
+    |
+    | The site is behind Cloudflare (the owner's decision of 2026-10-11): trusted_proxies are Cloudflare's
+    | published ranges, from https://www.cloudflare.com/ips-v4 and https://www.cloudflare.com/ips-v6,
+    | fetched 2026-10-11 (15 IPv4, 7 IPv6). CF-Connecting-IP is believed only on a connection whose
+    | REMOTE_ADDR is in one of them; from anywhere else the connection's own address is counted. They change
+    | rarely - refresh them from those two addresses when Cloudflare announces a change (docs/operations.md).
+    | An installation that is not behind Cloudflare (this computer, another host) may override them in
+    | config/client_address.local.php (gitignored): return ['trusted_proxies' => []].
     |
     | client_ip_header should be a header the proxy writes whole, overwriting what the visitor sent, with
     | one address in it (Cloudflare's CF-Connecting-IP). Set to a list a proxy appends to
@@ -130,8 +138,47 @@ return [
     | the first other one is counted - never the leftmost, which is whatever the visitor wrote.
     */
     'client_address' => [
-        'trusted_proxies' => [],
+        'trusted_proxies' => [
+            // IPv4 (https://www.cloudflare.com/ips-v4, 2026-10-11)
+            '173.245.48.0/20',
+            '103.21.244.0/22',
+            '103.22.200.0/22',
+            '103.31.4.0/22',
+            '141.101.64.0/18',
+            '108.162.192.0/18',
+            '190.93.240.0/20',
+            '188.114.96.0/20',
+            '197.234.240.0/22',
+            '198.41.128.0/17',
+            '162.158.0.0/15',
+            '104.16.0.0/13',
+            '104.24.0.0/14',
+            '172.64.0.0/13',
+            '131.0.72.0/22',
+            // IPv6 (https://www.cloudflare.com/ips-v6, 2026-10-11)
+            '2400:cb00::/32',
+            '2606:4700::/32',
+            '2803:f800::/32',
+            '2405:b500::/32',
+            '2405:8100::/32',
+            '2a06:98c0::/29',
+            '2c0f:f248::/32',
+        ],
         'client_ip_header' => 'CF-Connecting-IP',
+    ],
+
+    /*
+    | What ordinary traffic does after an answer - the host has no cron (api/middleware/upkeep.php):
+    |
+    |   people        the scrub of the accounts the anotoki IAM deleted: at most once an hour, the IAM's list
+    |                 read and each account nobody's here from then on (App\People\SitePeople)
+    |   daily_backup  the day's backup of the database (anotoki-lib's backups, storage/backups: 14 kept)
+    |
+    | Both on wherever the site runs; the tests switch them off, but where they mean to try them.
+    */
+    'upkeep' => [
+        'people' => true,
+        'daily_backup' => true,
     ],
 
     /*

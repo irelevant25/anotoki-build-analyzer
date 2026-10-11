@@ -105,8 +105,8 @@ final class SiteTranslations
 
     /**
      * The scan of the frontend's keys (the library's KeyScanner, as every anotoki site's): every .ts and .html
-     * under src/app but the specs, the vendored sign-in SDK (core/iam/) and the dictionary of the compiled
-     * English (core/i18n/en.ts, whose JSON parts list every key and so say nothing of which are used); the
+     * under src/app but the specs and the dictionary of the compiled English (core/i18n/en.ts, whose JSON parts
+     * list every key and so say nothing of which are used); the
      * pipes translate and translatePlural, and the service's t / around / has and plural; the keys put together
      * at run time declared in core/i18n/dynamic-keys.ts; innerHTML never given a translated string. The
      * library's own keys (anotoki.*) are the library's to ask for, and are never looked for.
@@ -115,7 +115,7 @@ final class SiteTranslations
     {
         return new KeyScanner(
             $root ?? self::frontendRoot(),
-            exclude: ['core/iam/**', 'core/i18n/en.ts'],
+            exclude: ['core/i18n/en.ts'],
             dynamicKeys: self::DYNAMIC_KEYS,
         );
     }

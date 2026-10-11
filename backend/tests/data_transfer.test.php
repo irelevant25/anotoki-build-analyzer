@@ -420,9 +420,10 @@ test('nobody, a visitor and a token that does not verify are refused; another pe
     $file = exported(ALICE)->json();
     $aliceBefore = everything();
 
-    foreach (['nobody' => new Client, 'an expired token' => (new Client)->withToken(iamToken(ALICE, claims: ['exp' => time() - 120]))] as $who => $client) {
-        same([401, 'sign_in_required'], [$client->get('/api/me/export')->status, $client->get('/api/me/export')->json('code')], "{$who}: the export");
-        same([401, 'sign_in_required'], [importAs(ALICE, $file, client: $client)->status, importAs(ALICE, $file, client: $client)->json('code')], "{$who}: the import");
+    // Nobody is asked to sign in; a token that does not verify is told so (the page signs in again).
+    foreach (['nobody' => [new Client, 'sign_in_required'], 'an expired token' => [(new Client)->withToken(iamToken(ALICE, claims: ['exp' => time() - 120])), 'invalid_token']] as $who => [$client, $code]) {
+        same([401, $code], [$client->get('/api/me/export')->status, $client->get('/api/me/export')->json('code')], "{$who}: the export");
+        same([401, $code], [importAs(ALICE, $file, client: $client)->status, importAs(ALICE, $file, client: $client)->json('code')], "{$who}: the import");
     }
 
     // A browser's visitor (made by a game import without a sign-in) has no own-data file.

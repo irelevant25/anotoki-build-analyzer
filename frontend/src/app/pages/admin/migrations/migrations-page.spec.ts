@@ -7,7 +7,7 @@ import { provideRouter } from '@angular/router';
 import { SiteStatus, siteStatusInterceptor } from '@anotoki/lib/migrations';
 import { provideTestTranslations } from '@anotoki/lib/translations/testing';
 import { AuthService } from '../../../core/auth';
-import { AnotokiPreferences } from '../../../core/iam/anotoki-auth';
+import { AnotokiPreferences } from '@anotoki/lib/auth';
 import { TranslationService } from '../../../core/i18n/translation';
 import { appliedAt, provideSiteStatus } from '../../../core/site-status';
 import { MigrationsPage } from './migrations-page';
@@ -76,6 +76,18 @@ function words(element: Element | null | undefined): string | null {
   return parts.join(' ').replace(/\s+/g, ' ').trim();
 }
 
+/**
+ * words(), with each file's name whole: the page lets a long name break after each underscore (a <wbr> there,
+ * @anotoki/lib 0.4), which splits it into text nodes of its own.
+ */
+function named(element: Element | null | undefined): string | null {
+  return (
+    words(element)
+      ?.replace(/_ /g, '_')
+      .replace(/ ([,.])/g, '$1') ?? null
+  );
+}
+
 describe("/admin/migrations: the family's Migrations page in the admin panel (ADMIN)", () => {
   let fixture: ComponentFixture<MigrationsPage>;
   let host: HTMLElement;
@@ -100,7 +112,7 @@ describe("/admin/migrations: the family's Migrations page in the admin panel (AD
             signedIn: () => true,
             isAdmin: () => true,
             preferences,
-            lastError: signal(null),
+            failure: signal(null),
             login: vi.fn(),
           },
         },
@@ -140,11 +152,11 @@ describe("/admin/migrations: the family's Migrations page in the admin panel (AD
     expect(host.querySelector('.page > anotoki-migrations-page')).not.toBeNull();
     expect(host.querySelector('anotoki-migrations-page')?.getAttribute('lang')).toBe('en');
     expect(words(host.querySelector('h1'))).toBe('Migrations');
-    expect([...host.querySelectorAll('[data-pending] li')].map(words)).toEqual([
+    expect([...host.querySelectorAll('[data-pending] li')].map(named)).toEqual([
       '004_visitors_and_family_bar.sql pending',
       '005_retire_not_set_up_page.sql pending',
     ]);
-    expect([...host.querySelectorAll('[data-applied] li code')].map(words)).toEqual([
+    expect([...host.querySelectorAll('[data-applied] li code')].map(named)).toEqual([
       '001_adopt_laravel_database.sql',
       '002_schema.sql',
       '003_languages_and_translations.sql',
@@ -175,7 +187,7 @@ describe("/admin/migrations: the family's Migrations page in the admin panel (AD
       CURRENT,
     );
 
-    expect(words(host.querySelector('[data-result]'))).toBe(
+    expect(named(host.querySelector('[data-result]'))).toBe(
       'Up to date Applied: 004_visitors_and_family_bar.sql, 005_retire_not_set_up_page.sql.',
     );
     expect(status.state()).toBe('ready');

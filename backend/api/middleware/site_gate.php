@@ -1,5 +1,7 @@
 <?php
 
+use Anotoki\Lib\Backups\Http\BackupsRoutes;
+use Anotoki\Lib\ErrorLog\Http\ErrorLogRoutes;
 use Anotoki\Lib\Migrations\Http\SiteGate;
 use Anotoki\Lib\Migrations\Http\SiteState;
 use Anotoki\Lib\Migrations\Migrator;
@@ -31,9 +33,13 @@ use App\Support\Log;
  * The paths answered while an update waits: /api/meta (what the pages load before anything - where people
  * sign in, and whether the IAM requires it), the strings of a language (the bundle the pages read, the
  * library's route, opened by its own pattern: TranslationsRoutes::openPath(); it answers 503
- * translations_unavailable itself while the tables are not there), and the Migrations page's API (GET
- * /api/admin/migrations, GET .../file, POST .../apply - an ADMIN's, judged from the token alone). Nothing else:
- * a route that may need what a waiting migration makes stays closed until it is applied.
+ * translations_unavailable itself while the tables are not there), the Migrations page's API (GET
+ * /api/admin/migrations, GET .../file, POST .../apply), and two of the anotoki library's admin tools, which need
+ * no table: the error log (GET /api/admin/errors, GET .../{fingerprint}, DELETE - ErrorLogRoutes::openPaths())
+ * and the backups (the list, the proof asked for, one backup, making one, its download ticket and file, what a
+ * restore would take away - BackupsRoutes::openPaths(); never a restore): a backup just before Apply is the
+ * point. Each an ADMIN's, judged from the token alone (requireTokenRole()). Nothing else: a route that may need
+ * what a waiting migration makes stays closed until it is applied.
  *
  * Each is a route exactly, never a prefix. The gate reads the path decoded, as the router does, and neither
  * resolves dot segments: under a prefix, a crafted /api/admin/migrations/../x (or %2e%2e, %2F) would be let
@@ -49,6 +55,8 @@ function siteOpenPaths(): array
         '/api/meta',
         TranslationsRoutes::openPath(),
         '~^/api/admin/migrations(/file|/apply)?$~D',
+        ...ErrorLogRoutes::openPaths(),
+        ...BackupsRoutes::openPaths(),
     ];
 }
 

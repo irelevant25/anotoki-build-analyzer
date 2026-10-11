@@ -5,6 +5,7 @@ import { Observable, Subject, of, throwError } from 'rxjs';
 import { Api } from './api';
 import { AuthService } from './auth';
 import { VisitorMove } from './models';
+import { SIGN_IN_KIND_STORAGE_KEY } from './sign-in-kind';
 import { MOVE_RETRY_MS, VISITOR_STORAGE_KEY, VisitorKey } from './visitor-key';
 
 const KEY_A = 'A'.repeat(43);
@@ -14,8 +15,11 @@ const KEY_B = 'b-_'.repeat(14) + 'x';
 const settle = () => new Promise((resolve) => setTimeout(resolve, 0));
 
 function answer(moved: number, kept: number, found = true): VisitorMove {
-  return { found, moved, kept, imports: moved };
+  return { found, moved, kept, imports: moved, held: false };
 }
+
+/** The server's answer after a silent sign-in into an account with data here: nothing moved. */
+const HELD: VisitorMove = { found: true, moved: 0, kept: 0, imports: 0, held: true };
 
 function failure(status: number, code?: string, retryAfter?: string): HttpErrorResponse {
   return new HttpErrorResponse({
@@ -28,13 +32,15 @@ function failure(status: number, code?: string, retryAfter?: string): HttpErrorR
 describe('VisitorKey', () => {
   let signedIn: ReturnType<typeof signal<boolean>>;
   let loginRequired: ReturnType<typeof signal<boolean>>;
-  let moveVisitor: ReturnType<typeof vi.fn<(key: string) => Observable<VisitorMove>>>;
+  let moveVisitor: ReturnType<typeof vi.fn<(key: string, silent?: boolean) => Observable<VisitorMove>>>;
 
   beforeEach(() => {
     localStorage.clear();
     signedIn = signal(false);
     loginRequired = signal(false);
-    moveVisitor = vi.fn<(key: string) => Observable<VisitorMove>>(() => of(answer(0, 0, false)));
+    moveVisitor = vi.fn<(key: string, silent?: boolean) => Observable<VisitorMove>>(() =>
+      of(answer(0, 0, false)),
+    );
   });
 
   afterEach(() => {
@@ -177,7 +183,7 @@ describe('VisitorKey', () => {
       TestBed.tick();
       await settle();
 
-      expect(moveVisitor).toHaveBeenCalledWith(KEY_A);
+      expect(moveVisitor).toHaveBeenCalledWith(KEY_A, false);
       expect(visitor.key()).toBeNull();
       expect(visitor.moved()).toEqual(answer(1, 0));
     });
@@ -194,7 +200,7 @@ describe('VisitorKey', () => {
       await settle();
 
       expect(moveVisitor).toHaveBeenCalledTimes(1);
-      expect(moveVisitor).toHaveBeenCalledWith(KEY_A);
+      expect(moveVisitor).toHaveBeenCalledWith(KEY_A, false);
       expect(localStorage.getItem(VISITOR_STORAGE_KEY)).toBeNull();
       expect(visitor.key()).toBeNull();
       expect(visitor.moves()).toBe(1);
@@ -287,6 +293,57 @@ describe('VisitorKey', () => {
       await visitor.moveIntoAccount();
       expect(visitor.key()).toBeNull();
       expect(moveVisitor).toHaveBeenCalledTimes(2);
+    });
+  });
+
+  describe('the move after a silent sign-in (the IAM\'s hint)', () => {
+    it('says the sign-in was silent - the server then moves nothing into an account with data here', async () => {
+      localStorage.setItem(VISITOR_STORAGE_KEY, KEY_A);
+      localStorage.setItem(SIGN_IN_KIND_STORAGE_KEY, 'silent');
+      moveVisitor.mockReturnValue(of(answer(1, 0)));
+      signedIn.set(true);
+      const visitor = service();
+      TestBed.tick();
+      await settle();
+
+      // An account new here takes the visitor's data in, as after any sign-in.
+      expect(moveVisitor).toHaveBeenCalledWith(KEY_A, true);
+      expect(visitor.key()).toBeNull();
+      expect(visitor.moved()).toEqual(answer(1, 0));
+    });
+
+    it('held: the key stays this browser\'s, nothing is said or reloaded, and nothing is asked again in this page load', async () => {
+      localStorage.setItem(VISITOR_STORAGE_KEY, KEY_A);
+      localStorage.setItem(SIGN_IN_KIND_STORAGE_KEY, 'silent');
+      moveVisitor.mockReturnValue(of(HELD));
+      signedIn.set(true);
+      const visitor = service();
+      TestBed.tick();
+      await settle();
+      TestBed.tick();
+      await settle();
+
+      expect(moveVisitor).toHaveBeenCalledTimes(1);
+      expect(localStorage.getItem(VISITOR_STORAGE_KEY)).toBe(KEY_A);
+      expect(visitor.key()).toBe(KEY_A);
+      expect([visitor.moves(), visitor.moved(), visitor.lost()]).toEqual([0, null, false]);
+
+      // Signed out again: this browser's visitor, with what it imported.
+      signedIn.set(false);
+      expect(visitor.active()).toBe(true);
+    });
+
+    it('a sign-in the person clicked says so - and moves, whatever the account has', async () => {
+      localStorage.setItem(VISITOR_STORAGE_KEY, KEY_A);
+      localStorage.setItem(SIGN_IN_KIND_STORAGE_KEY, 'clicked');
+      moveVisitor.mockReturnValue(of(answer(1, 0)));
+      signedIn.set(true);
+      const visitor = service();
+      TestBed.tick();
+      await settle();
+
+      expect(moveVisitor).toHaveBeenCalledWith(KEY_A, false);
+      expect(visitor.key()).toBeNull();
     });
   });
 });

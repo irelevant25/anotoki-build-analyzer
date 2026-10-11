@@ -12,12 +12,6 @@
   "title.signIn": "Sign in",
   "title.signingIn": "Signing in",
 
-  "signIn.notCompleted": "The sign-in was not completed. If you did not go back yourself, this account may have no access to Build Analyzer.",
-  "signIn.stateMismatch": "That sign-in did not start here, or took too long. Please sign in again.",
-  "signIn.notConfigured": "Sign-in is not configured on this server.",
-  "signIn.failed": "The sign-in did not complete: {code}",
-  "signIn.storageUnavailable": "This browser will not let the site remember a sign-in while it is under way, so it could not start. Allow this site to store data (or leave private browsing) and try again.",
-
   "error.offline": "Cannot reach the server. Check your connection and try again.",
   "error.sign_in_required": "Your sign-in has ended. Sign in again to continue.",
   "error.editor_only": "Only an editor or an admin can do this.",

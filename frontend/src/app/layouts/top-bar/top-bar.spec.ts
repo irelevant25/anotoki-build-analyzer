@@ -4,16 +4,17 @@ import { MATERIAL_ANIMATIONS } from '@angular/material/core';
 import { MatDialog } from '@angular/material/dialog';
 import { MatSnackBar } from '@angular/material/snack-bar';
 import { Router, provideRouter } from '@angular/router';
+import { FeedbackUnread } from '@anotoki/lib/admin';
 import { provideAnotokiTranslations } from '@anotoki/lib/translations';
 import { LocalizationDrafts } from '@anotoki/lib/translations/admin';
 import { provideTestTranslations } from '@anotoki/lib/translations/testing';
 import { of } from 'rxjs';
 import { AuthService } from '../../core/auth';
 import { en } from '../../core/i18n/en';
-import { TranslationService, Wording } from '../../core/i18n/translation';
+import { TranslationService } from '../../core/i18n/translation';
 import { LANGUAGE_STORAGE } from '../../core/i18n/translations.config';
 import { SyncDriver } from '../../core/sync-driver';
-import { ADMIN_PHONE_BAR_MAX, PHONE_BAR_MAX, TopBar } from './top-bar';
+import { ADMIN_PHONE_BAR_MAX, EDITOR_PHONE_BAR_MAX, PHONE_BAR_MAX, TopBar } from './top-bar';
 
 const ENGLISH = {
   'brand.area': 'Build Analyzer',
@@ -125,7 +126,7 @@ describe('the top bar', () => {
     preferred_username: string | null;
   } | null>(null);
   const roles = signal<string[]>([]);
-  const lastError = signal<Wording | null>(null);
+  const failure = signal<{ code: string; returnTo: string | null } | null>(null);
   const auth = {
     user,
     available: signal(true),
@@ -135,11 +136,13 @@ describe('the top bar', () => {
     isAdmin: () => roles().includes('ADMIN'),
     isStaff: () => roles().includes('ADMIN') || roles().includes('EDITOR'),
     accountUrl: signal<string | null>('https://iam.example.test/account'),
-    lastError,
+    failure,
     login: vi.fn(async () => true),
     logout: vi.fn(async () => undefined),
   };
   const sync = { driving: signal(false) };
+  /** The feedback nobody has opened yet, as the anotoki family's FeedbackUnread holds it. */
+  const unread = { count: signal<number | null>(null), refresh: vi.fn(async () => undefined) };
   let snackBar: { open: ReturnType<typeof vi.fn> };
   let dialog: { open: ReturnType<typeof vi.fn> };
   let answer: boolean;
@@ -210,7 +213,8 @@ describe('the top bar', () => {
     sessionStorage.clear();
     user.set({ sub: '7', email: 'mona@example.test', preferred_username: 'mona' });
     roles.set(['ADMIN']);
-    lastError.set(null);
+    failure.set(null);
+    unread.count.set(null);
     sync.driving.set(false);
     auth.login.mockReset().mockResolvedValue(true);
     auth.logout.mockClear();
@@ -229,6 +233,7 @@ describe('the top bar', () => {
         provideRouter([{ path: '**', component: TestPage }]),
         { provide: AuthService, useValue: auth },
         { provide: SyncDriver, useValue: sync },
+        { provide: FeedbackUnread, useValue: unread },
         { provide: MatSnackBar, useValue: snackBar },
         { provide: MatDialog, useValue: dialog },
         { provide: MATERIAL_ANIMATIONS, useValue: { animationsDisabled: true } },
@@ -288,8 +293,10 @@ describe('the top bar', () => {
     ]);
   });
 
-  it("in the admin panel: an admin's five sections, an editor's two, and none for anybody else", async () => {
+  it("in the admin panel: an admin's nine sections, an editor's two, and none for anybody else", async () => {
     TestBed.inject(TranslationService).noteAddress('/admin/sources');
+    // Wide enough for the ADMIN's whole row.
+    windowOf(ADMIN_PHONE_BAR_MAX + 201);
     await draw('admin');
     await at('/admin/sources');
     expect(links().map(described)).toEqual([
@@ -298,6 +305,10 @@ describe('the top bar', () => {
       'Languages /admin/languages',
       'People /admin/people',
       'Migrations /admin/migrations',
+      'Errors /admin/errors',
+      'Audit /admin/audit',
+      'Feedback /admin/feedback',
+      'Backups /admin/backups',
     ]);
     roles.set(['EDITOR']);
     await fixture.whenStable();
@@ -423,6 +434,8 @@ describe('the top bar', () => {
 
   it('reads in English in the admin panel, whatever the person reads - with no case of its own, and no language chooser', async () => {
     TestBed.inject(TranslationService).noteAddress('/admin/sources');
+    // Wide enough for the ADMIN's whole row.
+    windowOf(ADMIN_PHONE_BAR_MAX + 201);
     await draw('admin');
     expect(host.querySelector('app-brand a')?.getAttribute('aria-label')).toBe(
       'anotoki Build Analyzer: the admin panel',
@@ -462,6 +475,7 @@ describe('the top bar', () => {
         provideRouter([{ path: '**', component: TestPage }]),
         { provide: AuthService, useValue: auth },
         { provide: SyncDriver, useValue: sync },
+        { provide: FeedbackUnread, useValue: unread },
         { provide: MatSnackBar, useValue: snackBar },
         { provide: MatDialog, useValue: dialog },
       ],
@@ -495,29 +509,27 @@ describe('the top bar', () => {
       roles.set([]);
     });
 
-    it("has the button to sign in, which opens the IAM in the person's language", async () => {
+    it('has the button to sign in, which opens the IAM', async () => {
       await draw();
       const button = host.querySelector<HTMLButtonElement>('.sign-in')!;
       expect(words(button)).toBe('Prihlásiť sa');
       button.click();
       await fixture.whenStable();
-      expect(auth.login).toHaveBeenCalledWith(undefined, { uiLocales: 'sk' });
-      expect(snackBar.open).not.toHaveBeenCalled();
+      expect(auth.login).toHaveBeenCalledWith(undefined);
+      expect(TestBed.inject(Router).url).not.toBe('/sign-in');
     });
 
-    it("says why when the sign-in cannot start - the browser refuses the site's storage", async () => {
+    it("says why on the failure's screen when the sign-in cannot start - the browser refuses the site's storage", async () => {
       auth.login.mockImplementation(async () => {
-        lastError.set({ key: 'signIn.storageUnavailable', params: {} });
+        failure.set({ code: 'storage_unavailable', returnTo: '/' });
         return false;
       });
       await draw();
       host.querySelector<HTMLButtonElement>('.sign-in')!.click();
       await fixture.whenStable();
-      expect(snackBar.open).toHaveBeenCalledWith(
-        'Tento prehliadač nedovolí stránke zapamätať si prihlásenie.',
-        'Zavrieť',
-        { duration: 10000 },
-      );
+      await fixture.whenStable();
+      expect(TestBed.inject(Router).url).toBe('/sign-in');
+      expect(snackBar.open).not.toHaveBeenCalled();
     });
 
     it('has no Sign in while there is no IAM to go to', async () => {
@@ -592,6 +604,10 @@ describe('the top bar', () => {
         'Languages',
         'People',
         'Migrations',
+        'Errors',
+        'Audit',
+        'Feedback',
+        'Backups',
         'Your anotoki account',
         'Back to Build Analyzer',
         'Sign out',
@@ -631,7 +647,7 @@ describe('the top bar', () => {
       expect(items().map(words)).toEqual(['Prehľad', 'Import', 'Buildy', 'Prihlásiť sa']);
       items()[3].click();
       await fixture.whenStable();
-      expect(auth.login).toHaveBeenCalledWith(undefined, { uiLocales: 'sk' });
+      expect(auth.login).toHaveBeenCalledWith(undefined);
       expect(items()).toEqual([]);
     });
 
@@ -652,13 +668,13 @@ describe('the top bar', () => {
       expect(host.querySelector('.topbar-nav')).toBeNull();
       expect(parts('app-brand .wordmark > span')).toEqual(['Analyzer']);
       await openMenu();
-      expect(items().map(words)).toEqual(['Sources', 'Translations', 'Languages', 'People', 'Migrations', 'Your anotoki account', 'Back to Build Analyzer', 'Sign out']);
+      expect(items().map(words)).toEqual(['Sources', 'Translations', 'Languages', 'People', 'Migrations', 'Errors', 'Audit', 'Feedback', 'Backups', 'Your anotoki account', 'Back to Build Analyzer', 'Sign out']);
       fixture.destroy();
 
       windowOf(ADMIN_PHONE_BAR_MAX + 1);
       await draw('admin');
       expect(host.querySelector('.menu-button')).toBeNull();
-      expect(links().map(words)).toEqual(['Sources', 'Translations', 'Languages', 'People', 'Migrations']);
+      expect(links().map(words)).toEqual(['Sources', 'Translations', 'Languages', 'People', 'Migrations', 'Errors', 'Audit', 'Feedback', 'Backups']);
       expect(host.querySelector('.topbar')?.classList.contains('is-nameless')).toBe(true);
       fixture.destroy();
 
@@ -667,24 +683,64 @@ describe('the top bar', () => {
       expect(host.querySelector('.topbar')?.classList.contains('is-nameless')).toBe(false);
     });
 
-    it("is a desktop's bar in the admin panel on a 1024 px screen (a small laptop, a tablet held sideways), with the person's name at 1280 px", async () => {
+    it(`is an editor's own row in the admin panel - two sections: a phone's bar up to ${EDITOR_PHONE_BAR_MAX} px, a desktop's from ${EDITOR_PHONE_BAR_MAX + 1} px`, async () => {
       TestBed.inject(TranslationService).noteAddress('/admin/sources');
-      windowOf(1024);
+      roles.set(['EDITOR']);
+      windowOf(EDITOR_PHONE_BAR_MAX);
       await draw('admin');
-      expect(host.querySelector('.menu-button')).toBeNull();
-      expect(links().map(words)).toEqual([
-        'Sources',
-        'Translations',
-        'Languages',
-        'People',
-        'Migrations',
-      ]);
+      expect(host.querySelector('.menu-button')).not.toBeNull();
       fixture.destroy();
 
-      windowOf(1280);
+      windowOf(EDITOR_PHONE_BAR_MAX + 1);
+      await draw('admin');
+      expect(host.querySelector('.menu-button')).toBeNull();
+      expect(links().map(words)).toEqual(['Sources', 'Translations']);
+      expect(host.querySelector('.topbar')?.classList.contains('is-nameless')).toBe(true);
+      fixture.destroy();
+
+      windowOf(EDITOR_PHONE_BAR_MAX + 201);
       await draw('admin');
       expect(host.querySelector('.topbar')?.classList.contains('is-nameless')).toBe(false);
-      expect(words(host.querySelector('.user-name'))).toBe('mona');
+      // The ADMIN's longer row keeps its own: at the editor's width, still a phone's bar.
+      fixture.destroy();
+      roles.set(['ADMIN']);
+      windowOf(EDITOR_PHONE_BAR_MAX + 1);
+      await draw('admin');
+      expect(host.querySelector('.menu-button')).not.toBeNull();
+    });
+
+    it('shows the new feedback beside Feedback - in the row, and in the menu with a dot on its button - for the ADMIN alone', async () => {
+      TestBed.inject(TranslationService).noteAddress('/admin/sources');
+      unread.count.set(4);
+      windowOf(ADMIN_PHONE_BAR_MAX + 1);
+      await draw('admin');
+      const feedback = links().find((link) => link.getAttribute('href') === '/admin/feedback')!;
+      expect([feedback.firstChild?.textContent?.trim(), feedback.querySelector('.link-badge')?.textContent?.trim()]).toEqual(['Feedback', '4']);
+      expect(feedback.getAttribute('aria-label')).toBe('Feedback, 4 new');
+      expect(host.querySelectorAll('.link-badge').length).toBe(1);
+      fixture.destroy();
+
+      windowOf(390);
+      await draw('admin');
+      expect(host.querySelector('.menu-badge')).not.toBeNull();
+      await openMenu();
+      const item = items().find((one) => one.getAttribute('href') === '/admin/feedback')!;
+      expect([item.querySelector('.link-badge')?.textContent?.trim(), item.getAttribute('aria-label')]).toEqual(['4', 'Feedback, 4 new']);
+      fixture.destroy();
+
+      // An editor has no Feedback, and no count anywhere.
+      roles.set(['EDITOR']);
+      windowOf(390);
+      await draw('admin');
+      expect(host.querySelector('.menu-badge')).toBeNull();
+      fixture.destroy();
+
+      // None new: no count.
+      roles.set(['ADMIN']);
+      unread.count.set(0);
+      windowOf(ADMIN_PHONE_BAR_MAX + 1);
+      await draw('admin');
+      expect(host.querySelector('.link-badge')).toBeNull();
     });
 
     it('closes what is open when the window crosses the breakpoint (a turned tablet)', async () => {

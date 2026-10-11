@@ -197,9 +197,16 @@ final class Visitors
      * was moved, and the same request may simply be sent again. The person's own row gone meanwhile (an
      * admin deleted their data on the People page) is ownerGone(): 401 sign_in_required, nothing moved.
      *
-     * @return array{found: bool, moved: int, kept: int, imports: int}
+     * $silent: the sign-in behind the move was nobody's click - the IAM's sign-in hint's silent hop (the owner's
+     * decision of 2026-10-11). Then the visitor's data comes in only when the person has nothing here yet - their
+     * first time, after playing as a visitor; an account with a game account or an import here never takes in a
+     * browser's visitor data without its person's click: nothing moves, the visitor stays as it is - its key
+     * still opens its data on this browser - and the answer says so (held: true). A sign-in the person clicked
+     * moves, as always.
+     *
+     * @return array{found: bool, moved: int, kept: int, imports: int, held: bool}
      */
-    public function moveInto(User $person, string $key): array
+    public function moveInto(User $person, string $key, bool $silent = false): array
     {
         if ($person->isVisitor()) {
             throw new \LogicException('Only a signed-in person takes a visitor in.');
@@ -207,7 +214,7 @@ final class Visitors
         $this->mustBeReady();
 
         try {
-            $moved = $this->users->moveVisitor(self::hash($key), $person->id, (int) $this->config->get('visitors.move_lock_timeout_ms', 5000));
+            $moved = $this->users->moveVisitor(self::hash($key), $person->id, (int) $this->config->get('visitors.move_lock_timeout_ms', 5000), onlyIntoNothing: $silent);
         } catch (PDOException $e) {
             if (in_array((string) $e->getCode(), ['23505', '40001', '40P01', '55P03'], true)) {
                 Log::info('Visitor move interrupted, to be asked again: SQLSTATE '.$e->getCode());
@@ -221,9 +228,11 @@ final class Visitors
             throw self::ownerGone($person);
         }
 
-        return $moved === null
-            ? ['found' => false, 'moved' => 0, 'kept' => 0, 'imports' => 0]
-            : ['found' => true] + $moved;
+        return match (true) {
+            $moved === null => ['found' => false, 'moved' => 0, 'kept' => 0, 'imports' => 0, 'held' => false],
+            isset($moved['held']) => ['found' => true, 'moved' => 0, 'kept' => 0, 'imports' => 0, 'held' => true],
+            default => ['found' => true] + $moved + ['held' => false],
+        };
     }
 
     public static function unknown(): HttpError
@@ -278,6 +287,7 @@ final class Visitors
 
     private function addressCounter(ServerRequestInterface $request): string
     {
-        return 'visitors:new:'.ClientAddress::counted($request, $this->config);
+        // A keyed hash of the address, never the address: the cache table and its backups keep the counter.
+        return 'visitors:new:'.ClientAddress::countedKey($request, $this->config);
     }
 }

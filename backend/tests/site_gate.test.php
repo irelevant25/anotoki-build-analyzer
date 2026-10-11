@@ -13,12 +13,15 @@ declare(strict_types=1);
 
 require __DIR__.'/lib.php';
 
+use Anotoki\Lib\Admin\Schema as AdminSchema;
+use Anotoki\Lib\Backups\Http\BackupsRoutes;
+use Anotoki\Lib\ErrorLog\Http\ErrorLogRoutes;
 use Anotoki\Lib\Migrations\Migrator;
+use Anotoki\Lib\People\Schema as PeopleSchema;
 use Anotoki\Lib\Translations\Http\TranslationsRoutes;
 use Anotoki\Lib\Translations\Schema;
 use App\App;
 use App\Auth\Role;
-use App\Auth\SignInPolicy;
 use App\Config;
 use App\Db\Db;
 use App\Db\Migrations;
@@ -99,8 +102,10 @@ const SOME_PATHS = [
     ['POST', '/api/imports/file'], ['GET', '/api/admin/migrations'], ['POST', '/api/admin/migrations/apply'], ['GET', '/api/nothing-here'],
 ];
 
-test('the paths open while an update waits are the sign-in settings, the strings and the Migrations page\'s - nothing else', function () {
-    same(['/api/meta', '~^/api/translations/[^/]+$~D', '~^/api/admin/migrations(/file|/apply)?$~D'], siteOpenPaths(), 'the open paths');
+test('the paths open while an update waits are the sign-in settings, the strings, the Migrations page\'s, the error log\'s and the backups\' - nothing else', function () {
+    same(['/api/meta', '~^/api/translations/[^/]+$~D', '~^/api/admin/migrations(/file|/apply)?$~D', '~^/api/admin/errors(/[0-9a-f]{12})?$~D',
+        '~^/api/admin/backups(/proof|/[A-Za-z0-9-]{20,80}(/(ticket|file|preview))?)?$~D'], siteOpenPaths(), 'the open paths');
+    same([...ErrorLogRoutes::openPaths(), ...BackupsRoutes::openPaths()], array_slice(siteOpenPaths(), 3), 'the admin tools\' as the library opens its own routes: never a prefix, never a restore');
     same(TranslationsRoutes::openPath(), siteOpenPaths()[1], 'the strings\' as the library opens its own route: one segment, never a prefix');
 });
 
@@ -111,7 +116,7 @@ test('ready: the status says so, and every path answers as ever', function () {
     (new Client)->get('/api/meta')->status(200)->path('auth.issuer', TEST_ISSUER);
     (new Client)->get('/api/builds/genshin')->status(200);
     (new Client)->asIam(7, [])->get('/api/accounts')->status(200);
-    (new Client)->asIam(1, [Role::ADMIN])->get('/api/admin/migrations')->status(200)->path('pending', [])->path('sets', [Migrations::SET, Schema::SET]);
+    (new Client)->asIam(1, [Role::ADMIN])->get('/api/admin/migrations')->status(200)->path('pending', [])->path('sets', [AdminSchema::SET, Migrations::SET, Schema::SET, PeopleSchema::SET]);
     (new Client)->get('/api/nothing-here')->status(404)->path('code', 'not_found');
 });
 
@@ -148,7 +153,10 @@ test('an update waits: 503 update_pending with Retry-After everywhere - but meta
         $closed = [
             ['GET', '/api/accounts'], ['GET', '/api/builds/genshin'], ['GET', '/api/builds/genshin/hutao'], ['GET', '/api/sources'],
             ['GET', '/api/sync'], ['POST', '/api/sync/step'], ['POST', '/api/imports/file'], ['GET', '/api/icons/c/1'],
-            ['GET', '/api/me/export'], ['POST', '/api/visitor/move'], ['GET', '/api/admin/people'], ['GET', '/api/admin/translations'],
+            ['GET', '/api/me/export'], ['POST', '/api/visitor/move'], ['GET', '/api/admin/people'], ['POST', '/api/admin/people/sync'], ['GET', '/api/admin/translations'],
+            ['GET', '/api/admin/audit'], ['GET', '/api/admin/feedback'], ['GET', '/api/admin/feedback/unread'], ['POST', '/api/feedback'],
+            ['POST', '/api/admin/backups/20261011-120000Z-manual-0123456789abcdef0123456789abcdef/restore'], ['GET', '/api/admin/errorsx'],
+            ['GET', '/api/admin/errors/0123456789ab/x'], ['GET', '/api/admin/backups/x'], ['GET', '/api/admin/backups/../../accounts'],
             ['PUT', '/api/admin/translations'], ['GET', '/api/admin/languages'], ['PATCH', '/api/sources/genshin-1'],
             ['GET', '/api/nothing-here'], ['GET', '/api/translations'], ['GET', '/api/translations/en/more'], ['GET', '/api/admin/migrationsx'],
             // A newline at the end of an open path's address is not that path.
@@ -182,10 +190,19 @@ test('an update waits: 503 update_pending with Retry-After everywhere - but meta
         (new Client)->get('/api/admin/migrations')->status(401)->path('code', 'sign_in_required');
         $people['a member']->get('/api/admin/migrations')->status(403)->path('code', 'admin_only');
         $people['an editor']->post('/api/admin/migrations/apply')->status(403)->path('code', 'admin_only');
-        (new Client)->withToken('x')->get('/api/admin/migrations')->status(401)->path('code', 'sign_in_required');
+        (new Client)->withToken('x')->get('/api/admin/migrations')->status(401)->path('code', 'invalid_token');
         $admin = $people['an admin'];
         same([['set' => Migrations::SET, 'name' => '900_waiting.sql', 'ready' => true, 'blocked' => false]], $admin->get('/api/admin/migrations')->status(200)->json('pending'), 'what waits');
         $admin->get('/api/admin/migrations/file?set=build_analyzer&name=900_waiting.sql')->status(200)->path('sql', 'CREATE TABLE waiting (id INT);');
+
+        // Open too, for an ADMIN alone: the error log and the backups, which need no table - a backup just before
+        // Apply is the point (a restore stays closed: above).
+        check(is_int($admin->get('/api/admin/errors')->status(200)->json('total')), 'the error log\'s report');
+        $admin->get('/api/admin/backups')->status(200)->path('backups', []);
+        $admin->get('/api/admin/backups/proof')->status(200)->path('kind', 'recent_sign_in');
+        (new Client)->get('/api/admin/errors')->status(401)->path('code', 'sign_in_required');
+        $people['a member']->get('/api/admin/backups')->status(403)->path('code', 'admin_only');
+        $people['an editor']->get('/api/admin/errors')->status(403)->path('code', 'admin_only');
         same(0, (int) db()->value('SELECT count(*) FROM users'), 'the ADMIN check made no row: it reads the token alone');
 
         $applied = $admin->post('/api/admin/migrations/apply')->status(200);
@@ -200,7 +217,7 @@ test('an update waits: 503 update_pending with Retry-After everywhere - but meta
 
 test('the status answers anybody in every state - also while the IAM requires sign-in, whatever comes with the request', function () {
     // The status reads no credentials: a 401 here would read on the pages as "not available right now".
-    T::$signIn->required = true;
+    iamRequiresSignIn(true);
     $key = rtrim(strtr(base64_encode(random_bytes(32)), '+/', '-_'), '=');
     $askers = [
         'nobody' => new Client,
@@ -268,7 +285,6 @@ test('the database out of reach: the status says unavailable, and the routes ans
     // A database that is not there: every connection fails, as when the server is down.
     $config = testConfig(['database' => ['database' => T::$database.'_nowhere', 'persistent' => false] + (require __DIR__.'/../config/database.local.php')]);
     $app = new App($config);
-    $app->set(SignInPolicy::class, T::$signIn);
     $app->set(HttpClient::class, T::$http);
     $api = buildAnalyzerApi($app);
 

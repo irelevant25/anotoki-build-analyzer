@@ -2,10 +2,10 @@ import { Component, signal } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
 import { MatSnackBar } from '@angular/material/snack-bar';
 import { Router, provideRouter } from '@angular/router';
+import { FeedbackUnread } from '@anotoki/lib/admin';
 import { provideTestTranslations } from '@anotoki/lib/translations/testing';
 import { AuthService } from '../../core/auth';
 import { SyncDriver } from '../../core/sync-driver';
-import { Wording } from '../../core/i18n/translation';
 import { AdminLayout } from './admin-layout';
 
 @Component({ selector: 'app-test-page', template: '<p class="the-page">the page</p>' })
@@ -14,19 +14,22 @@ class TestPage {}
 interface Who {
   signedIn?: boolean;
   roles?: string[];
-  lastError?: Wording | null;
+  /** How many feedback messages nobody opened yet (FeedbackUnread), as the server would say. */
+  unread?: number | null;
 }
 
-async function open(
-  who: Who,
-): Promise<{ host: HTMLElement; auth: { login: ReturnType<typeof vi.fn> } }> {
+async function open(who: Who): Promise<{
+  host: HTMLElement;
+  auth: { login: ReturnType<typeof vi.fn> };
+  unread: { count: ReturnType<typeof signal<number | null>>; refresh: ReturnType<typeof vi.fn> };
+}> {
   const roles = who.roles ?? [];
   const auth = {
     signedIn: signal(who.signedIn ?? true),
     isAdmin: signal(roles.includes('ADMIN')),
     isStaff: signal(roles.includes('ADMIN') || roles.includes('EDITOR')),
     available: signal(true),
-    lastError: signal<Wording | null>(who.lastError ?? null),
+    failure: signal(null),
     user: signal(
       (who.signedIn ?? true)
         ? { sub: '7', email: 'mona@example.test', preferred_username: 'mona' }
@@ -38,12 +41,18 @@ async function open(
     login: vi.fn(async () => true),
     logout: vi.fn(async () => undefined),
   };
+  const count = signal<number | null>(null);
+  const unread = {
+    count,
+    refresh: vi.fn(async () => count.set(who.unread ?? null)),
+  };
   TestBed.configureTestingModule({
     providers: [
       // The layout is the component under test: the route only gives its outlet a page.
       provideRouter([{ path: 'admin/sources', component: TestPage }]),
       provideTestTranslations({}, { language: 'sk', english: {} }),
       { provide: AuthService, useValue: auth },
+      { provide: FeedbackUnread, useValue: unread },
       { provide: MatSnackBar, useValue: { open: vi.fn() } },
       { provide: SyncDriver, useValue: { driving: signal(false) } },
     ],
@@ -51,7 +60,7 @@ async function open(
   const fixture = TestBed.createComponent(AdminLayout);
   await TestBed.inject(Router).navigateByUrl('/admin/sources');
   await fixture.whenStable();
-  return { host: fixture.nativeElement, auth };
+  return { host: fixture.nativeElement, auth, unread };
 }
 
 const text = (element: Element | null | undefined) => {
@@ -67,7 +76,7 @@ const links = (host: HTMLElement) =>
 
 describe("the admin panel's frame", () => {
   it("gives an editor the editors' sections in the bar, and the page - in English, whatever the reader reads", async () => {
-    const { host } = await open({ roles: ['EDITOR'] });
+    const { host, unread } = await open({ roles: ['EDITOR'] });
 
     expect(links(host)).toEqual([
       ['Sources', '/admin/sources'],
@@ -79,9 +88,11 @@ describe("the admin panel's frame", () => {
     expect(host.querySelector('app-top-bar')).not.toBeNull();
     expect(host.querySelector('app-footer')).not.toBeNull();
     expect(host.querySelector('.admin-nav')).toBeNull();
+    // The admin tools are the ADMIN's: nobody asks the server what is new for an editor.
+    expect(unread.refresh).not.toHaveBeenCalled();
   });
 
-  it('gives an admin every section, Languages, People and Migrations too', async () => {
+  it("gives an admin every section - Languages, People, Migrations and the family's admin tools too", async () => {
     const { host } = await open({ roles: ['ADMIN'] });
 
     expect(links(host)).toEqual([
@@ -90,7 +101,30 @@ describe("the admin panel's frame", () => {
       ['Languages', '/admin/languages'],
       ['People', '/admin/people'],
       ['Migrations', '/admin/migrations'],
+      ['Errors', '/admin/errors'],
+      ['Audit', '/admin/audit'],
+      ['Feedback', '/admin/feedback'],
+      ['Backups', '/admin/backups'],
     ]);
+  });
+
+  it('shows the admin how much feedback nobody has opened yet, beside Feedback - asked once, and nothing when there is none', async () => {
+    const { host, unread } = await open({ roles: ['ADMIN'], unread: 3 });
+
+    expect(unread.refresh).toHaveBeenCalledTimes(1);
+    const feedback = [...host.querySelectorAll<HTMLAnchorElement>('.topbar-nav a')].find(
+      (link) => link.getAttribute('href') === '/admin/feedback',
+    )!;
+    expect(feedback.querySelector('.link-badge')?.textContent?.trim()).toBe('3');
+    expect(feedback.querySelector('.link-badge')?.getAttribute('aria-hidden')).toBe('true');
+    expect(feedback.getAttribute('aria-label')).toBe('Feedback, 3 new');
+
+    // The Feedback page opened them all.
+    unread.count.set(0);
+    TestBed.tick();
+    expect(feedback.querySelector('.link-badge')).toBeNull();
+    expect(feedback.getAttribute('aria-label')).toBeNull();
+    expect(host.querySelectorAll('.link-badge').length).toBe(0);
   });
 
   it('tells somebody signed in without a role whose the area is, and the way back - and draws no section', async () => {
@@ -107,15 +141,6 @@ describe("the admin panel's frame", () => {
     expect(text(host.querySelector('h1'))).toBe('You are signed out');
     expect(host.querySelector('nav')).toBeNull();
     host.querySelector<HTMLButtonElement>('.no-access button')!.click();
-    expect(auth.login).toHaveBeenCalledWith(undefined, { uiLocales: 'sk' });
-  });
-
-  it('says a sign-in that came back without one is not signed in', async () => {
-    const { host } = await open({
-      signedIn: false,
-      lastError: { key: 'signIn.notCompleted', params: {} },
-    });
-
-    expect(text(host.querySelector('h1'))).toBe('You are not signed in');
+    expect(auth.login).toHaveBeenCalledWith(undefined);
   });
 });

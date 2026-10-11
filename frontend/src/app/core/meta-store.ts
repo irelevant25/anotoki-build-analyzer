@@ -3,7 +3,8 @@ import { Api } from './api';
 import { GameKey, GameMeta, Meta } from './models';
 
 /**
- * Game metadata (slot names, stat labels, talent names) and the sign-in settings, loaded once at startup.
+ * Game metadata (slot names, stat labels, talent names) and the sign-in settings, loaded once at startup - the
+ * auth module reads its boot configuration from the same answer (app.config.ts), so it is asked for once.
  *
  * /api/meta answers while a database update waits (the site gate keeps it open: it says where people sign in).
  * An installation nobody has set up yet answers it 503 not_set_up like every other path: the load gives null,
@@ -13,14 +14,16 @@ import { GameKey, GameMeta, Meta } from './models';
 export class MetaStore {
   private readonly api = inject(Api);
   private readonly meta = signal<Meta | null>(null);
+  /** The one request of this page load, answered or on its way. */
+  private loading: Promise<Meta | null> | null = null;
 
   readonly loaded = signal(false);
   /** How many days a visitor's data is kept after its last visit (the visitor notice): the server's word, else 30. */
   readonly visitorDays = computed(() => this.meta()?.visitors?.keep_days ?? 30);
 
-  /** The metadata, or null when the backend could not be reached (or is not set up). */
+  /** The metadata, or null when the backend could not be reached (or is not set up) - asked for once a page load. */
   load(): Promise<Meta | null> {
-    return new Promise((resolve) => {
+    this.loading ??= new Promise((resolve) => {
       this.api.meta().subscribe({
         next: (meta) => {
           this.meta.set(meta);
@@ -31,6 +34,7 @@ export class MetaStore {
         error: () => resolve(null),
       });
     });
+    return this.loading;
   }
 
   game(key: GameKey): GameMeta | null {

@@ -2,9 +2,12 @@
 
 namespace App\Db;
 
+use Anotoki\Lib\Admin\Schema as AdminSchema;
 use Anotoki\Lib\Migrations\MigrationSet;
 use Anotoki\Lib\Migrations\Migrator;
-use Anotoki\Lib\Translations\Schema;
+use Anotoki\Lib\People\Schema as PeopleSchema;
+use Anotoki\Lib\Translations\Schema as TranslationsSchema;
+use Closure;
 use PDO;
 
 /**
@@ -19,14 +22,18 @@ use PDO;
  * recorded as applied never runs again - so an applied file is never edited; a new one is written instead.
  * Nothing un-applies anything.
  *
- * - Two sets of files, in this order: this site's own (`build_analyzer`, backend/migrations), then the
- *   library's translations set (`anotoki_translations`, anotoki/lib's php/migrations/translations: its 001
- *   proves the shape of the three tables of the site's words, which this site's 003 made, and its 002 adds the
- *   library's own words under `anotoki.`). The library's come last because this site's early files make those
- *   tables themselves; a file of this site's never needs a file of the library's. Both are recorded in
- *   `migrations (id, filename, applied_at)` - the table this site's own engine made, which the library reads
- *   and writes as it is: this site's files by their names, the library's as
- *   `anotoki_translations/001_languages_and_strings.sql`.
+ * - Four sets of files, in this order (the anotoki library's README gives it): the library's admin tools'
+ *   (`anotoki_admin`, anotoki/lib's php/migrations/admin: the audit log's and feedback's tables, which no file
+ *   of this site's makes - first, as in every anotoki site, so a site's own file may build on them); this
+ *   site's own (`build_analyzer`, backend/migrations); the library's translations set (`anotoki_translations`:
+ *   its 001 proves the shape of the three tables of the site's words, which this site's 003 made, and its
+ *   later files add the library's own words under `anotoki.`); and its people set (`anotoki_people`: where
+ *   the scrub of the IAM's deleted accounts stands, after this site's 007 gave users their anonymized_at). The
+ *   translations' and the people's come after this site's because this site's files make the tables they
+ *   build on. All are recorded in `migrations (id, filename, applied_at)` - the table this site's own engine
+ *   made, which the library reads and writes as it is: this site's files by their names, the library's with
+ *   their set in front (`anotoki_admin/001_audit_log.sql`, `anotoki_translations/001_languages_and_strings.sql`),
+ *   wherever the set stands in the list.
  * - The first version of the app was a Laravel application, whose database has a `migrations` table of its
  *   own (columns `migration`, `batch`). The `prepare` hook moves that table aside as `laravel_migrations`
  *   before the engine makes its own, and 001_adopt_laravel_database.sql then brings such a database forward.
@@ -36,6 +43,8 @@ use PDO;
  *   belonged to nobody yet go to (IAM user 1 without it) - and nothing but its own test passes it.
  * - The advisory lock every apply takes (one apply at a time; another is told it is busy): the number this
  *   site's own engine took, so an apply by an older copy of the site and one by this one never run together.
+ * - A backup of the database as it is before an Apply (`beforeApply`: the library's backups, once for each list
+ *   of pending files) - given by the API's Migrator and the command line's, never by a test's own world.
  */
 final class Migrations
 {
@@ -57,14 +66,17 @@ final class Migrations
     }
 
     /**
-     * Every set, in the order they run: this site's own, then the library's.
+     * Every set, in the order they run: the library's admin tools', this site's own, the library's translations
+     * and people sets.
      *
      * @param  string|null  $directory  the site's migrations folder; a test gives one of its own
      * @return list<MigrationSet>
      */
     public static function sets(?string $directory = null, bool $library = true): array
     {
-        return $library ? [self::set($directory), Schema::migrationSet()] : [self::set($directory)];
+        return $library
+            ? [AdminSchema::migrationSet(), self::set($directory), TranslationsSchema::migrationSet(), PeopleSchema::migrationSet()]
+            : [self::set($directory)];
     }
 
     /**
@@ -72,14 +84,18 @@ final class Migrations
      *
      * @param  string|null  $directory  the site's migrations folder; a test gives one of its own
      * @param  array<string, scalar>  $settings  session settings for the migrations (build_analyzer.<name>)
-     * @param  bool  $library  with the library's set after the site's - always, but in a test that builds a world
+     * @param  bool  $library  with the library's sets around the site's - always, but in a test that builds a world
      *                         of its own: a database as it was before the library's files were released, or a
      *                         folder of files that are the test's alone
+     * @param  (Closure(PDO, list<array{set: string, name: string}>): ?string)|null  $beforeApply  run once before an
+     *                         Apply applies anything (the library's backup before an update); its words are the
+     *                         Apply's note, and a throw stops it with nothing applied
      */
-    public static function migrator(PDO $pdo, ?string $directory = null, array $settings = [], bool $library = true): Migrator
+    public static function migrator(PDO $pdo, ?string $directory = null, array $settings = [], bool $library = true, ?Closure $beforeApply = null): Migrator
     {
         return new Migrator($pdo, self::sets($directory, $library), [
             'lock' => self::LOCK,
+            ...($beforeApply === null ? [] : ['beforeApply' => $beforeApply]),
             'prepare' => static function (PDO $pdo): void {
                 self::moveLaravelTableAside($pdo);
             },

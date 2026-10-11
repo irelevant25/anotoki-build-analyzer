@@ -2,11 +2,12 @@
 
 namespace App;
 
+use Anotoki\Lib\Support\Log as LibraryLog;
 use App\Support\Log;
 
 /**
- * What the command-line scripts (migration.php, sync-builds.php, sync-catalog.php, import-account.php)
- * share: the app, set up or refusing to start, and a little output.
+ * What the command-line scripts (migration.php, sync-builds.php, sync-catalog.php, import-account.php,
+ * translations.php, backup.php) share: the app, set up or refusing to start, and a little output.
  */
 final class Cli
 {
@@ -26,6 +27,8 @@ final class Cli
                 ."\nRun setup.php first (composer start in backend/, then open http://localhost:8400/setup.php).");
         }
         Log::to($config->storage('logs/app.log'));
+        // The anotoki library's own lines into the same file, as the API's (api/index.php).
+        LibraryLog::to(static fn (string $line) => Log::info($line));
 
         return new App($config, web: false);
     }

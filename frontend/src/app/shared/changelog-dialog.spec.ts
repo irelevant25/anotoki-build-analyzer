@@ -3,6 +3,7 @@ import { TestBed } from '@angular/core/testing';
 import { MATERIAL_ANIMATIONS } from '@angular/material/core';
 import { MatDialog } from '@angular/material/dialog';
 import { provideTestTranslations } from '@anotoki/lib/translations/testing';
+import { AuthService } from '../core/auth';
 import type { ChangelogEntry } from '../core/changelog';
 import { en } from '../core/i18n/en';
 import { TranslationService } from '../core/i18n/translation';
@@ -41,6 +42,7 @@ describe('the What’s-new dialog: a frame in the reader’s language around ent
       providers: [
         language === 'sk' ? provideTestTranslations(SLOVAK, { language: 'sk', english: en }) : provideTestTranslations(en),
         { provide: MATERIAL_ANIMATIONS, useValue: { animationsDisabled: true } },
+        { provide: AuthService, useValue: { user: () => null, signedIn: () => false, preferences: () => null } },
       ],
     });
     TestBed.inject(MatDialog).open(ChangelogDialog, { data: ENTRIES });

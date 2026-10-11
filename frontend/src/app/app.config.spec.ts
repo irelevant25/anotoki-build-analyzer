@@ -3,68 +3,111 @@ import { HttpTestingController, provideHttpClientTesting } from '@angular/common
 import { ApplicationInitStatus } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
 import { Router, TitleStrategy } from '@angular/router';
+import {
+  ANOTOKI_AUTH_BROWSER,
+  ANOTOKI_AUTH_CLIENT_FACTORY,
+  AnotokiAuth,
+  AnotokiAuthEnvironment,
+  AnotokiAuthOptions,
+  AnotokiInitResult,
+} from '@anotoki/lib/auth';
+import {
+  FakeAuthClient,
+  TestAnotokiAuth,
+  TestUser,
+  testAnotokiAuth,
+} from '@anotoki/lib/auth/testing';
 import { SiteStatus } from '@anotoki/lib/migrations';
 import { TranslationBundle } from '@anotoki/lib/translations';
 import { TEST_LANGUAGES } from '@anotoki/lib/translations/testing';
 import { appConfig } from './app.config';
-import { AUTH_CLIENT_FACTORY, AuthService } from './core/auth';
-import { AnotokiAuth, AnotokiInitResult, AnotokiUser } from './core/iam/anotoki-auth';
+import { AuthService } from './core/auth';
 import { AppTitleStrategy } from './core/i18n/title-strategy';
 import { TranslationService } from './core/i18n/translation';
 import { Meta } from './core/models';
 import { VISITOR_STORAGE_KEY, VisitorKey } from './core/visitor-key';
 
-const META: Meta = { games: [], version: '0.1', auth: { issuer: null, client_id: null } };
-const IAM_META: Meta = { ...META, auth: { issuer: 'https://iam.example.test', client_id: 'build-analyzer' } };
+/** /api/meta of a site with no IAM yet (nothing to sign in with). */
+const META: Meta = { games: [], version: '0.1', auth: { issuer: '', client_id: '' } };
+/** /api/meta as this site answers it: its IAM, visitors welcome. */
+const IAM_META: Meta = {
+  ...META,
+  auth: {
+    issuer: 'https://iam.example.test',
+    client_id: 'build-analyzer',
+    login_required: false,
+    sign_in_available: true,
+  },
+};
 
 const ENGLISH = { 'theme.label': 'Appearance' };
-const SK_BUNDLE: TranslationBundle = { language: 'sk', languages: TEST_LANGUAGES, values: { 'theme.label': 'Vzhľad' }, english: ENGLISH };
+const SK_BUNDLE: TranslationBundle = {
+  language: 'sk',
+  languages: TEST_LANGUAGES,
+  values: { 'theme.label': 'Vzhľad' },
+  english: ENGLISH,
+};
 const EN_BUNDLE: TranslationBundle = { language: 'en', languages: TEST_LANGUAGES, values: ENGLISH };
 
-const MONA: AnotokiUser = { sub: '7', preferred_username: 'mona', email: 'mona@example.test', email_verified: true, locale: 'sk', roles: [], preferences: null };
+const MONA: TestUser = {
+  sub: '7',
+  preferred_username: 'mona',
+  email: 'mona@example.test',
+  locale: 'sk',
+};
+/** A sign-in hint as the IAM sets it: 16 random bytes in base64url. */
+const HINT = 'abcdefghijklmnopqrstuv';
 
 /** Everything already on its way has run. */
 const settle = () => new Promise((resolve) => setTimeout(resolve, 0));
 
-/** A stand-in for the IAM client whose init() ends when the test says. */
-function fakeClient(user: AnotokiUser | null) {
-  let finish!: (result: AnotokiInitResult) => void;
-  const started = new Promise<AnotokiInitResult>((resolve) => (finish = resolve));
-  const client = {
-    version: 'test',
-    init: vi.fn(() => started),
-    login: vi.fn(async () => undefined),
-    register: vi.fn(async () => undefined),
-    logout: vi.fn(async () => undefined),
-    getAccessToken: vi.fn(async () => 'token-1'),
-    refresh: vi.fn(async () => 'token-2'),
-    fetch: vi.fn(),
-    savePreferences: vi.fn(async () => ({ locale: user?.locale ?? null, preferences: user?.preferences ?? null })),
-    onChange: vi.fn(() => () => undefined),
-    isAuthenticated: () => user !== null,
-    user: () => user,
-    roles: () => user?.roles ?? [],
-    hasRole: (role: string) => user?.roles.includes(role) ?? false,
-    accountUrl: () => 'https://iam.example.test/account',
-    issuer: () => 'https://iam.example.test',
-    clientId: () => 'build-analyzer',
-  } satisfies AnotokiAuth;
-  return { client, finish: () => finish({ returnTo: null, error: null }) };
+/** The IAM's client, in memory - whose init() (a callback finished, a session restored) ends when the test says. */
+class SlowClient extends FakeAuthClient {
+  release!: () => void;
+  private readonly gate = new Promise<void>((resolve) => (this.release = resolve));
+
+  override async init(): Promise<AnotokiInitResult> {
+    await this.gate;
+    return super.init();
+  }
 }
 
 describe('the start of the app (app.config.ts)', () => {
   let requests: HttpTestingController;
+  let browser: TestAnotokiAuth['browser'];
+  let client: FakeAuthClient | null;
 
-  function start(client: AnotokiAuth = fakeClient(null).client): void {
+  /**
+   * The app's own providers - the auth module as the site sets it up - with the IAM's client in memory (signed in
+   * as `user`, or nobody) and a browser that only records where it was sent.
+   */
+  function start(
+    user: TestUser | null = null,
+    options: { slow?: boolean; cookie?: string } = {},
+  ): void {
+    browser = testAnotokiAuth(options.cookie ?? '').browser;
+    client = null;
     TestBed.configureTestingModule({
-      providers: [...appConfig.providers, provideHttpClientTesting(), { provide: AUTH_CLIENT_FACTORY, useValue: () => client }],
+      providers: [
+        ...appConfig.providers,
+        provideHttpClientTesting(),
+        { provide: ANOTOKI_AUTH_BROWSER, useValue: browser },
+        {
+          provide: ANOTOKI_AUTH_CLIENT_FACTORY,
+          useValue: (clientOptions: AnotokiAuthOptions, environment: AnotokiAuthEnvironment) =>
+            (client = options.slow
+              ? new SlowClient(clientOptions, environment, user)
+              : new FakeAuthClient(clientOptions, environment, user)),
+        },
+      ],
     });
     // Asking for anything builds the app's injector, which runs the initializer.
     requests = TestBed.inject(HttpTestingController);
   }
 
   const started = () => TestBed.inject(ApplicationInitStatus).donePromise;
-  const translations = () => requests.match((request) => request.url.startsWith('/api/translations/'));
+  const translations = () =>
+    requests.match((request) => request.url.startsWith('/api/translations/'));
   /** The site's status, asked at the start beside /api/meta: what the server says of it. */
   const site = (state: 'ready' | 'update_pending' | 'not_set_up', installed = false) =>
     requests.expectOne('/api/site-status').flush({ state, installed });
@@ -101,27 +144,59 @@ describe('the start of the app (app.config.ts)', () => {
     expect(TestBed.inject(Router)).toBeTruthy();
     expect(TestBed.inject(TitleStrategy)).toBeInstanceOf(AppTitleStrategy);
     expect(TestBed.inject(SiteStatus).state()).toBe('ready');
+    // No IAM named: nothing to sign in with, and no client made.
+    expect(TestBed.inject(AnotokiAuth).state()).toBe('unavailable');
+    expect(client).toBeNull();
+  });
+
+  it('reads the boot configuration from /api/meta - asked once, with no credentials - and lets visitors in as the server says', async () => {
+    start();
+    site('ready');
+    requests.expectOne('changelog.json').flush([]);
+    const meta = requests.expectOne('/api/meta');
+    expect(meta.request.headers.has('Authorization')).toBe(false);
+    expect(meta.request.headers.has('X-Visitor-Key')).toBe(false);
+    meta.flush(IAM_META);
+    await settle();
+    translations()[0].flush(EN_BUNDLE);
+    await started();
+
+    const auth = TestBed.inject(AnotokiAuth);
+    expect([auth.state(), auth.loginRequired(), auth.signInAvailable()]).toEqual([
+      'visitor',
+      false,
+      true,
+    ]);
+    expect(client?.options).toEqual(
+      expect.objectContaining({
+        issuer: 'https://iam.example.test',
+        clientId: 'build-analyzer',
+        redirectUri: `${location.origin}/auth/callback`,
+        postLogoutRedirectUri: `${location.origin}/`,
+      }),
+    );
+    // Nobody signed in at the IAM in this browser (no hint): no hop.
+    expect(client?.logins).toEqual([]);
   });
 
   it('asks for the words only once the sign-in has finished - in the language the token names', async () => {
-    const { client, finish } = fakeClient(MONA);
-    start(client);
+    start(MONA, { slow: true });
     site('ready');
     requests.expectOne('changelog.json').flush([]);
     requests.expectOne('/api/meta').flush(IAM_META);
     await settle();
 
-    // The IAM client is still finishing the sign-in: who the reader is - and so their language - is not known yet.
-    expect(client.init).toHaveBeenCalledTimes(1);
+    // The IAM's client is still finishing the sign-in: who the reader is - and so their language - is not known yet.
+    expect(client).not.toBeNull();
     expect(translations()).toEqual([]);
 
-    finish();
+    (client as SlowClient).release();
+    await settle();
     await settle();
     const asked = translations();
     expect(asked.map((request) => request.request.url)).toEqual(['/api/translations/sk']);
     // Public: sent without the token, though somebody is signed in.
     expect(asked[0].request.headers.has('Authorization')).toBe(false);
-    expect(client.getAccessToken).not.toHaveBeenCalled();
     asked[0].flush(SK_BUNDLE);
     await started();
 
@@ -132,15 +207,65 @@ describe('the start of the app (app.config.ts)', () => {
     expect(document.documentElement.lang).toBe('sk');
   });
 
-  it('moves what this browser imported as a visitor into the account once somebody is signed in - outside the sign-in, with no circle', async () => {
-    const key = 'K'.repeat(43);
-    localStorage.setItem(VISITOR_STORAGE_KEY, key);
-    const { client, finish } = fakeClient(MONA);
-    start(client);
+  it('signs a visitor who is signed in at the IAM in here too, with one silent hop before the first page (the sign-in hint)', async () => {
+    start(null, { cookie: `anotoki_signed_in=${HINT}` });
     site('ready');
     requests.expectOne('changelog.json').flush([]);
     requests.expectOne('/api/meta').flush(IAM_META);
-    finish();
+    await settle();
+    await settle();
+
+    // To the IAM without a prompt, back to the page the visitor opened, the silent way - whatever comes back, nothing is said.
+    expect(client?.logins).toEqual([
+      expect.objectContaining({ prompt: 'none', silent: true, returnTo: '/' }),
+    ]);
+    // The marker that keeps a hint from going round: this value tried once.
+    expect(JSON.parse(localStorage.getItem('anotoki-auth:build-analyzer:hint') ?? 'null')).toEqual(
+      expect.objectContaining({ value: HINT }),
+    );
+    // The page is leaving: no words are asked for, and the start never ends.
+    expect(translations()).toEqual([]);
+  });
+
+  it('makes no hop for the same hint twice, nor while the site requires a sign-in, nor without the IAM knowing the site', async () => {
+    localStorage.setItem(
+      'anotoki-auth:build-analyzer:hint',
+      JSON.stringify({ value: HINT, at: Date.now() - 3_600_000 }),
+    );
+    start(null, { cookie: `anotoki_signed_in=${HINT}` });
+    site('ready');
+    requests.expectOne('changelog.json').flush([]);
+    requests.expectOne('/api/meta').flush(IAM_META);
+    await settle();
+    translations()[0].flush(EN_BUNDLE);
+    await started();
+    expect(client?.logins).toEqual([]);
+    expect(TestBed.inject(AnotokiAuth).state()).toBe('visitor');
+
+    for (const auth of [
+      { ...IAM_META.auth, login_required: true },
+      { ...IAM_META.auth, sign_in_available: false },
+    ]) {
+      TestBed.resetTestingModule();
+      localStorage.clear();
+      start(null, { cookie: `anotoki_signed_in=${HINT}` });
+      site('ready');
+      requests.expectOne('changelog.json').flush([]);
+      requests.expectOne('/api/meta').flush({ ...IAM_META, auth });
+      await settle();
+      translations()[0].flush(EN_BUNDLE);
+      await started();
+      expect(client?.logins).toEqual([]);
+    }
+  });
+
+  it('moves what this browser imported as a visitor into the account once somebody is signed in - outside the sign-in, with no circle', async () => {
+    const key = 'K'.repeat(43);
+    localStorage.setItem(VISITOR_STORAGE_KEY, key);
+    start(MONA);
+    site('ready');
+    requests.expectOne('changelog.json').flush([]);
+    requests.expectOne('/api/meta').flush(IAM_META);
     await settle();
     translations()[0].flush(SK_BUNDLE);
     await started();
@@ -149,34 +274,78 @@ describe('the start of the app (app.config.ts)', () => {
 
     const move = requests.expectOne('/api/visitor/move');
     expect(move.request.method).toBe('POST');
-    expect(move.request.headers.get('Authorization')).toBe('Bearer token-1');
+    expect(move.request.headers.get('Authorization')).toMatch(/^Bearer \S+$/);
     expect(move.request.headers.get('X-Visitor-Key')).toBe(key);
-    move.flush({ found: true, moved: 1, kept: 0, imports: 1 });
+    // A session begun by a sign-in somebody clicked (no note of a silent one): the move as ever.
+    expect(move.request.body).toEqual({ silent: false });
+    move.flush({ found: true, moved: 1, kept: 0, imports: 1, held: false });
     await settle();
 
     expect(localStorage.getItem(VISITOR_STORAGE_KEY)).toBeNull();
-    expect(TestBed.inject(VisitorKey).moved()).toEqual({ found: true, moved: 1, kept: 0, imports: 1 });
+    expect(TestBed.inject(VisitorKey).moved()).toEqual({
+      found: true,
+      moved: 1,
+      kept: 0,
+      imports: 1,
+      held: false,
+    });
+  });
+
+  it("sends a visitor's key on the visitor's own requests, and keeps the one an import brings", async () => {
+    start();
+    site('ready');
+    requests.expectOne('changelog.json').flush([]);
+    requests.expectOne('/api/meta').flush(IAM_META);
+    await settle();
+    translations()[0].flush(EN_BUNDLE);
+    await started();
+
+    const http = TestBed.inject(HttpClient);
+    http.post('/api/imports/showcase', { game: 'genshin', uid: '700000001' }).subscribe();
+    await settle();
+    const first = requests.expectOne('/api/imports/showcase');
+    expect([
+      first.request.headers.has('Authorization'),
+      first.request.headers.has('X-Visitor-Key'),
+    ]).toEqual([false, false]);
+    const key = 'V'.repeat(43);
+    first.flush({ id: 1 }, { headers: { 'X-Visitor-Key': key } });
+    await settle();
+    expect(localStorage.getItem(VISITOR_STORAGE_KEY)).toBe(key);
+
+    http.get('/api/accounts').subscribe();
+    await settle();
+    const next = requests.expectOne('/api/accounts');
+    expect([
+      next.request.headers.has('Authorization'),
+      next.request.headers.get('X-Visitor-Key'),
+    ]).toEqual([false, key]);
+    next.flush([]);
   });
 
   it('asks for no words while the server is not set up - the site gate says so, with the setup page while never installed', async () => {
     start();
     site('not_set_up');
     requests.expectOne('changelog.json').flush([]);
-    requests
-      .expectOne('/api/meta')
-      .flush(
-        { code: 'not_set_up', installed: false, message: 'This site is not set up yet. Its setup page connects it to its database.', setup: '/setup.php' },
-        { status: 503, statusText: 'Service Unavailable' },
-      );
+    requests.expectOne('/api/meta').flush(
+      {
+        code: 'not_set_up',
+        installed: false,
+        message: 'This site is not set up yet. Its setup page connects it to its database.',
+        setup: '/setup.php',
+      },
+      { status: 503, statusText: 'Service Unavailable' },
+    );
     await started();
 
     expect(translations()).toEqual([]);
     const i18n = TestBed.inject(TranslationService);
     expect(i18n.ready()).toBe(false);
     expect(i18n.t('theme.label')).toBe('Theme');
-    expect(i18n.t('signIn.notConfigured')).toBe('Sign-in is not configured on this server.');
+    expect(i18n.t('footer.feedback')).toBe('Feedback');
     const status = TestBed.inject(SiteStatus);
     expect([status.state(), status.installed()]).toEqual(['not-set-up', false]);
+    expect(TestBed.inject(AnotokiAuth).state()).toBe('unavailable');
   });
 
   it('asks for no words while the server cannot be reached - and reads the ones kept from the last visit', async () => {
@@ -194,13 +363,11 @@ describe('the start of the app (app.config.ts)', () => {
   });
 
   it('an update waits: the start does not stop - the sign-in completes and the words are asked for, then the gate shows its page', async () => {
-    const { client, finish } = fakeClient(MONA);
-    start(client);
+    start(MONA);
     site('update_pending');
     requests.expectOne('changelog.json').flush([]);
     // /api/meta is one of the paths the server keeps open while an update waits: it says where to sign in.
     requests.expectOne('/api/meta').flush(IAM_META);
-    finish();
     await settle();
     translations()[0].flush(SK_BUNDLE);
     await started();
@@ -249,11 +416,17 @@ describe('the start of the app (app.config.ts)', () => {
 
     // Uploaded meanwhile: the next request is closed, and the site gate takes over.
     let failed = 0;
-    TestBed.inject(HttpClient).get('/api/builds/genshin').subscribe({ error: (error) => (failed = error.status) });
+    TestBed.inject(HttpClient)
+      .get('/api/builds/genshin')
+      .subscribe({ error: (error) => (failed = error.status) });
     await settle();
-    requests
-      .expectOne('/api/builds/genshin')
-      .flush({ code: 'update_pending', message: 'The site is being updated. Try again in a few minutes.' }, { status: 503, statusText: 'Service Unavailable' });
+    requests.expectOne('/api/builds/genshin').flush(
+      {
+        code: 'update_pending',
+        message: 'The site is being updated. Try again in a few minutes.',
+      },
+      { status: 503, statusText: 'Service Unavailable' },
+    );
     expect(failed).toBe(503);
     expect(TestBed.inject(SiteStatus).state()).toBe('update-pending');
   });

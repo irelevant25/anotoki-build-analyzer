@@ -8,10 +8,13 @@
  *   php migration.php --dry-run    say what would be applied, and apply nothing
  *
  * The migrations are the schema: there is no separate schema file, and a database is what you get by
- * applying migrations/001 and everything after it in order - and then the anotoki library's own files
- * (anotoki/lib's translations set, named here as anotoki_translations/001_...: they check the tables of the
- * site's words and add the library's words). A file already recorded as applied is never run again, so
- * editing one that has been applied changes nothing where it ran - write another instead.
+ * applying the anotoki library's admin tools' files first (anotoki_admin/001_...: the audit log's and
+ * feedback's tables), then migrations/001 and everything after it in order, then the library's other files
+ * (anotoki_translations/001_...: they check the tables of the site's words and add the library's words;
+ * anotoki_people/001_...: where the scrub of the IAM's deleted accounts stands). A file already recorded as
+ * applied is never run again, so editing one that has been applied changes nothing where it ran - write
+ * another instead. Before it applies anything to a database that has seen a migration, it makes a backup of
+ * it as it is (the library's backups, storage/backups: before-migration, 5 kept).
  *
  * A database made by the first (Laravel) version of the app is recognised and brought forward by
  * 001_adopt_laravel_database.sql, with every row it holds (accounts that belonged to nobody yet go to IAM
@@ -24,6 +27,7 @@
 
 require __DIR__.'/vendor/autoload.php';
 
+use Anotoki\Lib\Backups\Backups;
 use App\Cli;
 use App\Db\Db;
 use App\Db\Migrations;
@@ -47,7 +51,7 @@ try {
         Cli::info('  Database created.');
     }
     $pdo = Db::pdo($config, $name, false);
-    $migrator = Migrations::migrator($pdo);
+    $migrator = Migrations::migrator($pdo, beforeApply: $app->get(Backups::class)->beforeApplyHook());
     $laravel = Migrations::isLaravelDatabase($pdo);
     // Reads only: nothing is created by looking.
     $status = $migrator->status();

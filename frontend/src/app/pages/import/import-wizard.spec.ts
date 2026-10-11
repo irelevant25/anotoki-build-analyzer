@@ -124,7 +124,7 @@ describe('the import wizard', () => {
         options.language === 'en' ? provideTestTranslations(en) : provideTestTranslations(options.strings ?? SLOVAK, { language: 'sk', english: en }),
         { provide: Api, useValue: api },
         { provide: MATERIAL_ANIMATIONS, useValue: { animationsDisabled: true } },
-        { provide: AuthService, useValue: { signedIn: signal(who === 'person'), available: signal(true), user: signal(null), lastError: signal(null) } },
+        { provide: AuthService, useValue: { signedIn: signal(who === 'person'), available: signal(true), user: signal(null), failure: signal(null) } },
         { provide: VisitorKey, useValue: { current: () => (who === 'visitor' ? 'K'.repeat(43) : null) } },
       ],
     });

@@ -14,7 +14,8 @@ use RuntimeException;
  * too_many_visitors (429), visitor_limit (422, params {limit: accounts | file_size, max}),
  * visitors_unavailable (503, migration 004 pending), visitor_move_retry (503, ask again) - and those of a
  * person's own accounts file (App\Services\Transfer\AccountsFileException, 422): no_file, file_too_big,
- * not_a_data_file, newer_version, bad_entry, too_many_accounts, export_too_big. The errors of the admin
+ * not_a_data_file, newer_version, bad_entry, too_many_accounts, export_too_big. An import of nobody's sent as
+ * anything but JSON is 415 unsupported_media_type (the site's pages never send one). The errors of the admin
  * area's routes carry their sentence alone -
  * but for the routes of the site's own strings (anotoki/lib's, api/routes/translations.php), which answer in
  * the same shape without an HttpError: their refusals say which key and language they are about beside a code

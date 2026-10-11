@@ -1,3 +1,5 @@
+import type { AuthBootConfig } from '@anotoki/lib/auth';
+
 export type GameKey = 'genshin' | 'hsr';
 export type Severity = 'high' | 'medium' | 'low';
 export type Grade = 'S' | 'A' | 'B' | 'C' | 'D' | '-';
@@ -12,6 +14,7 @@ export type Grade = 'S' | 'A' | 'B' | 'C' | 'D' | '-';
  */
 export type ApiErrorCode =
   | 'sign_in_required'
+  | 'invalid_token'
   | 'editor_only'
   | 'admin_only'
   | 'visitor_unknown'
@@ -76,21 +79,16 @@ export interface GameMeta {
   talents: Record<string, string>;
 }
 
-/** Where people sign in (GET /api/meta): the anotoki IAM's address and this site's client id there - the only way in. */
-export interface AuthConfig {
-  issuer: string | null;
-  client_id: string | null;
-  /**
-   * The IAM's "Sign-in required" switch for this site, as the server read it (it fails closed: true when it
-   * could never ask). Missing counts as required, as does no answer at all (AuthService.loginRequired).
-   */
-  login_required?: boolean;
-}
-
 export interface Meta {
   games: GameMeta[];
   version: string;
-  auth: AuthConfig;
+  /**
+   * Where people sign in - the anotoki library's boot configuration (the server's AuthRoutes::configBody()): the
+   * IAM's address and this site's client id there, the IAM's "Sign-in required" switch for this site as the
+   * server read it (it fails closed: true when it could never ask), and whether the IAM knows the site at all.
+   * The auth module reads it at the start (app.config.ts).
+   */
+  auth: AuthBootConfig;
   /** How many days a visitor's data is kept after its last visit (the visitor notice says it). */
   visitors?: { keep_days: number };
 }
@@ -615,12 +613,17 @@ export interface BuildImportResult {
 
 // ------------------------------------------------------------------ visitors and a person's own data
 
-/** What POST /api/visitor/move did: the visitor's accounts moved into the person's, and the ones they both had (kept, the person's copy). */
+/**
+ * What POST /api/visitor/move did: the visitor's accounts moved into the person's, and the ones they both had
+ * (kept, the person's copy) - or, after a silent sign-in into an account that has data here, nothing (held:
+ * the visitor stays as it is, its key this browser's).
+ */
 export interface VisitorMove {
   found: boolean;
   moved: number;
   kept: number;
   imports: number;
+  held: boolean;
 }
 
 /** What importing the own-data file does (dry run) or did, to each game account in it. */
@@ -634,29 +637,4 @@ export interface DataImportResult {
   kept: number;
   skipped: number;
   accounts: { game: GameKey; uid: string | null; nickname: string | null; outcome: DataOutcome; skipped: number }[];
-}
-
-// ------------------------------------------------------------------ admin: people
-
-/** A person who signed in here, as GET /api/admin/people lists them (ADMIN). */
-export interface Person {
-  /** The IAM's id. */
-  id: number;
-  name: string;
-  accounts: number;
-  import_runs: number;
-  created_at: string | null;
-  last_import_at: string | null;
-}
-
-export interface PeopleList {
-  people: Person[];
-  /** Visitors are counted, never listed: each goes by itself, keep_days after its last visit. */
-  visitors: { count: number; accounts: number };
-}
-
-/** What DELETE /api/admin/people/{id} deleted. */
-export interface PersonDeleted {
-  accounts: number;
-  import_runs: number;
 }

@@ -5,6 +5,7 @@ import { MatTooltip } from '@angular/material/tooltip';
 import { of } from 'rxjs';
 import { provideTestTranslations } from '@anotoki/lib/translations/testing';
 import { Api } from '../core/api';
+import { AuthService } from '../core/auth';
 import { en } from '../core/i18n/en';
 import { TranslationService } from '../core/i18n/translation';
 import { MetaStore } from '../core/meta-store';
@@ -64,7 +65,7 @@ function gameMeta(key: GameKey): GameMeta {
   };
 }
 
-const META: Meta = { games: [gameMeta('genshin'), gameMeta('hsr')], version: '1.0.0', auth: { issuer: null, client_id: null } };
+const META: Meta = { games: [gameMeta('genshin'), gameMeta('hsr')], version: '1.0.0', auth: { issuer: '', client_id: '' } };
 
 const hoursAgo = (hours: number) => new Date(Date.now() - hours * 3600 * 1000 - 5000).toISOString();
 
@@ -160,6 +161,7 @@ describe('BuildDetail: a recommended build in the reader’s words, the game’s
       providers: [
         language === 'en' ? provideTestTranslations(en) : provideTestTranslations(SLOVAK, { language: 'sk', english: en }),
         { provide: Api, useValue: { meta: () => of(META) } },
+        { provide: AuthService, useValue: { user: () => null, signedIn: () => false, preferences: () => null } },
         { provide: MATERIAL_ANIMATIONS, useValue: { animationsDisabled: true } },
       ],
     });

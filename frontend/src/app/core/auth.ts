@@ -1,243 +1,100 @@
-import { Injectable, InjectionToken, computed, inject, signal } from '@angular/core';
+import { Injectable, computed, inject } from '@angular/core';
 import {
   AnotokiAuth,
-  AnotokiAuthOptions,
   AnotokiPreferenceChanges,
   AnotokiPreferences,
   AnotokiSavedPreferences,
-  AnotokiUser,
-  createAuth,
-} from './iam/anotoki-auth';
+} from '@anotoki/lib/auth';
 // The shape only: this service never injects the translation service (which reads this one).
 import type { Wording } from './i18n/translation';
-import { AuthConfig } from './models';
-import { SavesInFlight } from './saves-in-flight';
-
-/** Makes the IAM client (the vendored anotoki-auth SDK); tests provide a fake. */
-export const AUTH_CLIENT_FACTORY = new InjectionToken<(options: AnotokiAuthOptions) => AnotokiAuth>('AUTH_CLIENT_FACTORY', {
-  providedIn: 'root',
-  factory: () => createAuth,
-});
-
-/** This site's roles, from the IAM: EDITOR runs the syncs and rewords the site's strings; ADMIN does that and more. */
-export const ROLE_ADMIN = 'ADMIN';
-export const ROLE_EDITOR = 'EDITOR';
 
 /**
- * Who is signed in, as signals, around the anotoki IAM's browser SDK (core/iam/anotoki-auth.mjs, vendored).
- * The IAM is the only way to sign in. The SDK keeps the tokens in localStorage (shared by every tab) and
- * refreshes them; this service only mirrors its state for the UI, the guards and the HTTP interceptor. The
- * server checks every token itself.
+ * Who is signed in, as this site's pages ask it - the anotoki family's auth module (@anotoki/lib/auth:
+ * AnotokiAuth, set up in app.config.ts) seen through the names the pages have always used. The module is the
+ * sign-in: the IAM's client, the tokens (in localStorage under the same keys as the IAM's SDK kept them, so
+ * nobody was signed out by the move), the callback, following the IAM, the sign-in hint's automatic sign-in of
+ * a visitor, the interceptor and the guards. This adds nothing of its own but the site's wording of a refused
+ * preference (preferencesProblem()).
  *
- * Somebody who is not signed in uses the site all the same, as a visitor (core/visitor-key.ts) - a service
- * this one never injects: it reads this one, and the move after a sign-in is started there - unless the IAM
- * says this site requires a sign-in (`loginRequired`): then every page asks for one (siteSignInGuard).
+ * Somebody who is not signed in uses the site all the same, as a visitor (core/visitor-key.ts) - unless the IAM
+ * says this site requires a sign-in (`loginRequired`): then every page asks for one (core/auth.guards.ts).
  */
 @Injectable({ providedIn: 'root' })
 export class AuthService {
-  private readonly createClient = inject(AUTH_CLIENT_FACTORY);
-  private readonly saves = inject(SavesInFlight);
-  private client: AnotokiAuth | null = null;
-  /** The sign-in this page load came back from did not complete, and no page has said so yet. */
-  private refusedOnReturn = false;
+  private readonly auth = inject(AnotokiAuth);
 
-  /** Whether people can sign in: the server said where its IAM is (false before that, or when it could not be asked). */
-  readonly available = signal(false);
+  /** Whether a sign-in can be offered: the server named an IAM, and the IAM knows this site. */
+  readonly available = computed(() => this.auth.signInAvailable());
   /**
-   * Whether the IAM's "Sign-in required" switch is on for this site, as the server relays it in /api/meta
-   * (`auth.login_required`), read once a page load. True until the server has said otherwise - and when it
-   * could not be asked, or said nothing: the pages then ask for a sign-in, and the sign-in page says why
-   * it cannot happen. While it is true nobody uses the site as a visitor: the visitor key is kept but not
-   * sent (core/visitor-key.ts), and the next sign-in moves what it holds into the account.
+   * Whether the IAM's "Sign-in required" switch is on for this site, as the server relays it in /api/meta - true
+   * until the server has said otherwise, and when it could not be asked (it fails closed). While it is true
+   * nobody uses the site as a visitor: the visitor key is kept but not sent, and the next sign-in moves what it
+   * holds into the account.
    */
-  readonly loginRequired = signal(true);
-  readonly user = signal<AnotokiUser | null>(null);
+  readonly loginRequired = this.auth.loginRequired;
+  /** The person the page is shown to, with this site's roles - null for nobody and for a visitor. */
+  readonly user = this.auth.user;
+  readonly signedIn = this.auth.signedIn;
   /**
-   * Why the last sign-in did not complete (refused at the IAM, or the answer could not be used): a key
-   * with its params, for the page to word - `error.key | translate: error.params`. It comes from the
-   * SDK's error code alone; the IAM's and the SDK's own sentences are never shown.
+   * The token's roles for this site, upper case: EDITOR runs the syncs and rewords the site's strings; ADMIN does
+   * that and more. MEMBER, which every account holds, changes nothing (an ordinary person).
    */
-  readonly lastError = signal<Wording | null>(null);
-  /** The IAM's account page (profile, password, sessions), once the IAM client exists. */
-  readonly accountUrl = signal<string | null>(null);
-
-  readonly signedIn = computed(() => this.user() !== null);
-  /** The token's roles for this site, upper case; MEMBER, which every account holds, changes nothing (an ordinary person). */
-  readonly roles = computed(() => (this.user()?.roles ?? []).map((role) => String(role).toUpperCase()));
-  readonly isAdmin = computed(() => this.roles().includes(ROLE_ADMIN));
+  readonly roles = this.auth.roles;
+  readonly isAdmin = this.auth.isAdmin;
   /** May use the admin panel: an editor or an admin. The server decides for itself; this only hides. */
-  readonly isStaff = computed(() => this.isAdmin() || this.roles().includes(ROLE_EDITOR));
+  readonly isStaff = this.auth.isStaff;
   /**
-   * The signed-in person's name: the user name, else the email address - or null (nobody is signed in, or
-   * the account has neither), and the template words what it shows then from `user().sub`.
+   * The signed-in person's name: the user name, else the email address - or null (nobody is signed in, or the
+   * account has neither), and the template words what it shows then from `user().sub`.
    */
-  readonly displayName = computed(() => {
-    const user = this.user();
-    return user ? (user.preferred_username ?? user.email ?? null) : null;
-  });
+  readonly displayName = computed(() => this.auth.displayName() || null);
   /**
-   * The account's theme, date order and clock (the token's `preferences`, SDK 1.2.0): one choice every anotoki
-   * site follows - this one on every page, the admin panel included - while somebody is signed in. Null while
-   * nobody is, and while the IAM sends none (an IAM before its migration 015, a sign-in without `profile`):
-   * the site then keeps its own settings, as it always did, and saves nothing to the account. The account's
-   * language is `user().locale`, beside it.
+   * The account's theme, date order and clock: one choice every anotoki site follows - this one on every page,
+   * the admin panel included - while somebody is signed in. Null while nobody is, and while the IAM keeps none:
+   * the site then keeps its own settings, and saves nothing to the account. The account's language is
+   * `user().locale`, beside it.
    */
-  readonly preferences = computed<AnotokiPreferences | null>(() => this.user()?.preferences ?? null);
+  readonly preferences = computed<AnotokiPreferences | null>(() => this.auth.preferences());
+  /**
+   * A sign-in that came back without one, or could not start (its code, never the IAM's sentence): the
+   * failure's screen says it (/sign-in, the library's <anotoki-sign-in-failure>).
+   */
+  readonly failure = this.auth.signInFailure;
+  /** The IAM's account page (profile, password, sessions), once the sign-in is set up. */
+  readonly accountUrl = computed(() =>
+    this.auth.state() === 'starting' || this.auth.state() === 'unavailable'
+      ? null
+      : this.auth.accountUrl() || null,
+  );
 
   /**
-   * Once, from the app initializer, before the first navigation: finishes a sign-in callback (the SDK
-   * then puts the address the person started from back into the address bar) or restores the session.
+   * Off to the IAM's sign-in, back to `returnTo` (this page by default) - the IAM's pages in the language read
+   * here, once the saves on their way have their answers (a visitor's first import brings the key the move
+   * after the sign-in needs). True when the browser is on its way; false when it could not start (`failure`
+   * says why).
    */
-  async init(config: AuthConfig | null): Promise<void> {
-    this.loginRequired.set(config?.login_required !== false);
-    if (!config) {
-      this.available.set(false);
-      return;
-    }
-    if (!config.issuer || !config.client_id) {
-      this.available.set(false);
-      this.lastError.set({ key: 'signIn.notConfigured', params: {} });
-      return;
-    }
-
-    const origin = window.location.origin;
-    const client = this.createClient({
-      issuer: config.issuer,
-      clientId: config.client_id,
-      redirectUri: `${origin}/auth/callback`,
-      postLogoutRedirectUri: `${origin}/`,
-    });
-    this.client = client;
-    this.available.set(true);
-    this.accountUrl.set(client.accountUrl());
-    // Signed in, out or refreshed - here or in another tab.
-    client.onChange(() => this.user.set(client.isAuthenticated() ? client.user() : null));
-
-    try {
-      const { error } = await client.init();
-      if (error) {
-        this.lastError.set(signInProblem(error.code));
-        this.refusedOnReturn = true;
-      }
-    } catch {
-      // The IAM could not be reached; a stored session stays usable until its tokens run out.
-    }
-    this.user.set(client.isAuthenticated() ? client.user() : null);
-  }
-
-  /**
-   * Goes to the IAM's sign-in page; the callback brings the person back to returnTo.
-   *
-   * `uiLocales` is the language the IAM's pages should open in. The caller says it - this service knows
-   * nothing of the site's words - and only when the language is known (TranslationService.signInLanguage():
-   * a bundle is in memory); left out, the IAM chooses for itself.
-   *
-   * Answers true when the browser is on its way to the IAM. False when the sign-in could not even start:
-   * there is no IAM to go to, or the browser refuses the site's storage, where the SDK keeps the sign-in in
-   * progress (`storage_unavailable`) - then `lastError` says why, and a Sign in button says it in a snack
-   * bar (signInOrSayWhy(), core/sign-in.ts) instead of doing nothing at all.
-   *
-   * It leaves only once the saves still on their way have their answers (SavesInFlight, SAVES_WAIT_MS at
-   * most): a visitor's first import brings the visitor key, which the move after the sign-in needs.
-   */
-  async login(returnTo?: string, options: { anotherAccount?: boolean; uiLocales?: string | null } = {}): Promise<boolean> {
-    this.lastError.set(null);
-    if (!this.client) {
-      return false;
-    }
-    await this.saves.settled();
-    try {
-      await this.client.login({
-        returnTo: returnTo ?? currentPath(),
-        prompt: options.anotherAccount ? 'login' : undefined,
-        ...(options.uiLocales ? { uiLocales: options.uiLocales } : {}),
-      });
-      return true;
-    } catch (error) {
-      this.lastError.set(signInProblem((error as { code?: unknown } | null)?.code));
-      return false;
-    }
-  }
-
-  /**
-   * Once a page load: whether the sign-in it came back from was refused or failed (`lastError` says why -
-   * an `access_denied` is also how the IAM turns away a person whose MEMBER role was taken) and no page has
-   * said so yet. siteSignInGuard then shows the sign-in page, visiting or not, so it is never swallowed.
-   */
-  takeRefusalOnReturn(): boolean {
-    const refused = this.refusedOnReturn && !this.signedIn();
-    this.refusedOnReturn = false;
-    return refused;
+  login(returnTo?: string): Promise<boolean> {
+    return this.auth.signIn(returnTo ? { returnTo } : {});
   }
 
   /** Signs out everywhere (the IAM ends its session) and comes back to the start page. */
-  logout(): Promise<void> {
-    return this.client?.logout() ?? Promise.resolve();
-  }
-
-  /** A valid access token for the API, refreshed when it is about to expire; null when signed out. */
-  accessToken(): Promise<string | null> {
-    return this.client ? this.client.getAccessToken() : Promise.resolve(null);
-  }
-
-  /** After the API refused the current token: a different, fresh one, or null (signed out). */
-  refreshedToken(): Promise<string | null> {
-    return this.client ? this.client.refresh() : Promise.resolve(null);
+  async logout(): Promise<void> {
+    await this.auth.signOut();
   }
 
   /**
-   * Saves what the person chose with this site's own controls - the theme, the language - to their account,
-   * for every anotoki site (`POST {issuer}/api/oidc/preferences` with their token, through the SDK). `user()`
-   * follows the answer at once, in every tab (the SDK's onChange). Only while `preferences()` is not null: an
-   * IAM before its migration 015 has nowhere to keep it.
-   *
-   * Rejects with the SDK's error, whose `code` says why: the IAM's (`invalid_request` - a value it does not
-   * take, such as a language it does not offer; `invalid_token`, `access_denied` - the site no longer lets the
-   * person in -, `insufficient_scope`, `temporarily_unavailable`) or the SDK's own (`network`, `login_required` -
-   * nobody is signed in, or somebody else signed in meanwhile).
+   * Saves what the person chose with this site's own controls - the theme, the language - to their account, for
+   * every anotoki site. Only while `preferences()` is not null. Rejects with an error whose `code` says why
+   * (preferencesProblem() words it).
    */
   savePreferences(changes: AnotokiPreferenceChanges): Promise<AnotokiSavedPreferences> {
-    if (!this.client) {
-      return Promise.reject(Object.assign(new Error('Nobody is signed in'), { code: 'login_required' }));
-    }
-    return this.client.savePreferences(changes);
-  }
-}
-
-function currentPath(): string {
-  return window.location.pathname + window.location.search + window.location.hash;
-}
-
-/** An OAuth error code, or one of the SDK's own: a short word, nothing a sentence could hide in. */
-const FAILURE_CODE = /^[A-Za-z0-9_.-]{1,40}$/;
-
-/**
- * What to say of a sign-in that came back without one - from the error's code alone, never from its
- * message (the IAM's or the SDK's English sentence):
- *
- *   access_denied    the IAM turned the account away, or the person went back from its page: one
- *                    sentence that is true either way
- *   state_mismatch   the sign-in did not start here, or took too long
- *   storage_unavailable  the SDK's own: the browser refuses the site's storage, so the sign-in never started
- *   anything else    `signIn.failed` with the code itself as {code} - when it looks like a code; it came
- *                    through the address, so anything else is "unknown"
- */
-export function signInProblem(code: unknown): Wording {
-  switch (code) {
-    case 'access_denied':
-      return { key: 'signIn.notCompleted', params: {} };
-    case 'state_mismatch':
-      return { key: 'signIn.stateMismatch', params: {} };
-    case 'storage_unavailable':
-      return { key: 'signIn.storageUnavailable', params: {} };
-    default:
-      return { key: 'signIn.failed', params: { code: typeof code === 'string' && FAILURE_CODE.test(code) ? code : 'unknown' } };
+    return this.auth.savePreferences(changes);
   }
 }
 
 /**
- * What to say of a choice the account did not take (AuthService.savePreferences() rejected) - from the
- * error's code alone, as signInProblem() does, in the words of a failed request:
+ * What to say of a choice the account did not take (AuthService.savePreferences() rejected) - from the error's
+ * code alone, never from its message, in the words of a failed request:
  *
  *   network                         the IAM could not be reached: error.offline
  *   invalid_token, login_required   the sign-in has ended: error.sign_in_required

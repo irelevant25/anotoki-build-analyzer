@@ -2,6 +2,7 @@
 
 namespace App\Setup;
 
+use Anotoki\Lib\Auth\IamClient;
 use App\Config;
 use App\Db\Db;
 use App\Db\Migrations;
@@ -200,6 +201,9 @@ final class Installer
         $clientId = $value('client_id');
         if (! filter_var($issuer, FILTER_VALIDATE_URL) || ! in_array(parse_url($issuer, PHP_URL_SCHEME), ['http', 'https'], true)) {
             $errors[] = 'The IAM address must be a URL, like https://iam.anotoki.eu.';
+        } elseif (! IamClient::secureAddress($issuer)) {
+            // The keys every sign-in is checked with come from there: never over plain http across a network.
+            $errors[] = 'The IAM address must be https (http only on this computer: localhost, 127.0.0.1).';
         }
         if (! preg_match('/^[a-z0-9-]{2,64}$/', $clientId)) {
             $errors[] = 'The client id is lowercase letters, digits and dashes (build-analyzer).';
@@ -420,6 +424,9 @@ final class Installer
         $issuer = rtrim(trim($issuer), '/');
         if (! filter_var($issuer, FILTER_VALIDATE_URL) || ! in_array(parse_url($issuer, PHP_URL_SCHEME), ['http', 'https'], true)) {
             return ['ok' => false, 'message' => 'The IAM address must be a URL, like https://iam.anotoki.eu.'];
+        }
+        if (! IamClient::secureAddress($issuer)) {
+            return ['ok' => false, 'message' => 'The IAM address must be https (http only on this computer: localhost, 127.0.0.1).'];
         }
 
         try {

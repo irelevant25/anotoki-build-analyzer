@@ -400,7 +400,7 @@ test('the scan reads the real frontend: only the files it should, and the librar
     check(in_array('shared/language-switcher/language-switcher.html', $files, true), 'the language switcher is read - it asks for the library\'s words');
     foreach ($files as $file) {
         check((bool) preg_match('/\.(ts|html)$/', $file), $file);
-        check(! preg_match('~\.spec\.ts$|^core/iam/|^core/i18n/en\.ts$~', $file), "not read: {$file}");
+        check(! preg_match('~\.spec\.ts$|^core/i18n/en\.ts$~', $file), "not read: {$file}");
     }
 
     // The library's words are asked for by their keys, and are never a key this site must have.

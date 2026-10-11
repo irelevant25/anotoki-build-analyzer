@@ -17,8 +17,11 @@ declare(strict_types=1);
 
 require __DIR__.'/lib.php';
 
+use Anotoki\Lib\Admin\Schema as AdminSchema;
+use Anotoki\Lib\Migrations\MigrationSet;
 use Anotoki\Lib\Migrations\Migrator;
 use Anotoki\Lib\Migrations\Splitter;
+use Anotoki\Lib\People\Schema as PeopleSchema;
 use Anotoki\Lib\Translations\Schema;
 use App\Auth\Role;
 use App\Config;
@@ -130,7 +133,16 @@ function laravelDatabase(array $server, int $level): PDO
     }
 
     $pdo->exec("INSERT INTO cache (key, value, expiration) VALUES ('laravel_cache_x', 's:1:\"1\";', 1758866460)");
+    // Laravel's queue was not empty: a failed job, one still queued, a batch of them.
     $pdo->exec("INSERT INTO failed_jobs (uuid, connection, queue, payload, exception, failed_at) VALUES ('u-1', 'database', 'default', '{}', 'RuntimeException', '{$t}')");
+    $pdo->exec("INSERT INTO jobs (queue, payload, attempts, available_at, created_at) VALUES ('default', '{\"job\":\"sync\"}', 0, 1758530000, 1758530000)");
+    $pdo->exec("INSERT INTO job_batches (id, name, total_jobs, pending_jobs, failed_jobs, failed_job_ids, created_at) VALUES ('b-1', 'sync', 1, 1, 0, '[]', 1758530000)");
+    // Nor were its login tables: a session (its browser's network address) and, where the version still had the
+    // table, a password reset asked for (an email address).
+    $pdo->exec("INSERT INTO sessions (id, user_id, ip_address, user_agent, payload, last_activity) VALUES ('s3ss10n', NULL, '203.0.113.7', 'Mozilla/5.0', 'YTowOnt9', 1758530000)");
+    if ($level === 6) {
+        $pdo->exec("INSERT INTO password_reset_tokens (email, token, created_at) VALUES ('test@example.test', 'x', '{$t}')");
+    }
     $pdo->exec("SET TIME ZONE 'UTC'");
 
     return $pdo;
@@ -152,23 +164,41 @@ function siteFile(string $name): array
 }
 
 /**
- * The anotoki library's own files (its translations set), in the order they apply - after every one of the
- * site's - as the engine names them in its answers.
+ * The files of one of the anotoki library's own sets, in the order they apply, as the engine names them in its
+ * answers.
  *
  * @return list<array{set: string, name: string}>
  */
-function libraryFiles(): array
+function setFiles(string $set, string $directory): array
 {
-    $files = array_map('basename', glob(Schema::directory().'/*.sql') ?: []);
+    $files = array_map('basename', glob($directory.'/*.sql') ?: []);
     sort($files);
 
-    return array_map(static fn (string $name): array => ['set' => Schema::SET, 'name' => $name], $files);
+    return array_map(static fn (string $name): array => ['set' => $set, 'name' => $name], $files);
 }
 
-/** Every file a database is built from, as the engine names them: the site's, then the library's. */
+/** The library's admin tools' files: they apply first, before any of the site's. */
+function adminFiles(): array
+{
+    return setFiles(AdminSchema::SET, AdminSchema::directory());
+}
+
+/** The library's translations files: after every one of the site's. */
+function libraryFiles(): array
+{
+    return setFiles(Schema::SET, Schema::directory());
+}
+
+/** The library's people files: last. */
+function peopleFiles(): array
+{
+    return setFiles(PeopleSchema::SET, PeopleSchema::directory());
+}
+
+/** Every file a database is built from, as the engine names them: the admin tools', the site's, the translations', the people's. */
 function everyFile(): array
 {
-    return [...array_map('siteFile', allMigrations()), ...libraryFiles()];
+    return [...adminFiles(), ...array_map('siteFile', allMigrations()), ...libraryFiles(), ...peopleFiles()];
 }
 
 /** A file as the bookkeeping table and the command line name it: the site's by its name, the library's with its set in front. */
@@ -212,9 +242,9 @@ function migrationsFolder(string $name, array $copies, array $own = []): string
 test('a new database is built by the migrations, in the bookkeeping table this site always had', function () {
     $migrator = Migrations::migrator(db()->raw());
     $status = $migrator->status();
-    same([Migrations::SET, Schema::SET], $status['sets'], 'the site\'s set of files, then the library\'s');
+    same([AdminSchema::SET, Migrations::SET, Schema::SET, PeopleSchema::SET], $status['sets'], 'the library\'s admin tools\' set, the site\'s, then the library\'s translations and people');
     same([[], [], everyFile()], [$status['pending'], $status['missing'], filesOf($status['applied'])],
-        'status: nothing pending or missing, every file applied in order - the library\'s after the site\'s');
+        'status: nothing pending or missing, every file applied in order - the admin tools\' first, the translations\' and the people\'s after the site\'s');
     same(array_map('recorded', everyFile()), db()->column('SELECT filename FROM migrations ORDER BY id'), 'recorded: the site\'s by their names, the library\'s with their set');
     same([], $migrator->applicable(), 'nothing to apply');
     foreach ($status['applied'] as $file) {
@@ -421,7 +451,8 @@ test('004 applies over a 003 whose strings were reworded and whose Slovak was cl
 
     $result = Migrations::migrator($pdo)->apply();
     same(null, $result['error'], 'no error');
-    same([...array_map('siteFile', array_values(array_filter(allMigrations(), fn (string $f): bool => strcmp($f, '004') >= 0))), ...libraryFiles()], $result['applied'], 'applied from 004 on, and the library\'s');
+    same([...adminFiles(), ...array_map('siteFile', array_values(array_filter(allMigrations(), fn (string $f): bool => strcmp($f, '004') >= 0))), ...libraryFiles(), ...peopleFiles()],
+        $result['applied'], 'applied from 004 on, and the library\'s - its admin tools\' first');
 
     $value = fn (string $key, string $code): mixed => $pdo->query("SELECT value FROM translations WHERE key_name = '{$key}' AND language_code = '{$code}'")->fetchColumn();
     same(false, $value('common.signIn', 'sk'), 'the cleared Slovak string stays cleared');
@@ -457,10 +488,11 @@ test('006 moves the two words of the library\'s under its keys with every reword
     ];
     $keys = (int) $pdo->query('SELECT count(*) FROM translation_keys')->fetchColumn();
 
-    // The upload: 006, then the library's two files - one Apply.
+    // The upload: 006 (and the files after it), the library's files around them - one Apply.
     $result = Migrations::migrator($pdo)->apply();
     same(null, $result['error'], 'no error');
-    same([siteFile(ADOPTION_FILE), ...libraryFiles()], $result['applied'], '006, then the library\'s');
+    same([...adminFiles(), ...array_map('siteFile', array_values(array_filter(allMigrations(), fn (string $f): bool => strcmp($f, '006') >= 0))), ...libraryFiles(), ...peopleFiles()],
+        $result['applied'], '006 and the site\'s after it, then the library\'s');
 
     // Every string moved as it was - its words, its writer, its time - and the cleared one stayed cleared:
     // the library writes strings only for a key of its own that has none.
@@ -476,7 +508,8 @@ test('006 moves the two words of the library\'s under its keys with every reword
     // The library's own words came with its 002: its descriptions on the moved keys, its words on its other keys.
     check(str_starts_with((string) $pdo->query("SELECT description FROM translation_keys WHERE name = 'anotoki.language.button'")->fetchColumn(), 'The anotoki library\'s language switcher'), 'the library\'s description');
     same('Jazyk sa nepodarilo uložiť do tvojho anotoki účtu - platí len počas tejto návštevy.', $row('anotoki.language.notSaved', 'sk')['value'] ?? null, 'a word of the library\'s this site did not have, in Slovak');
-    same(['the site\'s' => $keys - 2, 'the library\'s' => 54], [
+    // 006 moved two of the site's keys; 009 moved five more, retired three and added five.
+    same(['the site\'s' => $keys - 2 - 8 + 5, 'the library\'s' => 94], [
         'the site\'s' => (int) $pdo->query("SELECT count(*) FROM translation_keys WHERE name NOT LIKE 'anotoki.%'")->fetchColumn(),
         'the library\'s' => (int) $pdo->query("SELECT count(*) FROM translation_keys WHERE name LIKE 'anotoki.%'")->fetchColumn(),
     ], 'the site\'s keys less the two that moved, and the library\'s');
@@ -492,11 +525,259 @@ test('006\'s gate refuses a database whose keys are not the ones it expects - an
     $pdo->exec("INSERT INTO translations (key_name, language_code, value) VALUES ('zz.stray', 'en', 'Stray')");
 
     $result = Migrations::migrator($pdo)->apply();
-    same([[], siteFile(ADOPTION_FILE)], [$result['applied'], $result['failed']], 'stopped at 006');
+    same([adminFiles(), siteFile(ADOPTION_FILE)], [$result['applied'], $result['failed']], 'stopped at 006 - the library\'s admin tools\' files, which come first, applied');
     check(str_contains((string) $result['error'], 'There are 451 keys of the site\'s own, and 005 with this file leave 450'), 'the gate says why: '.$result['error']);
     same(2, (int) $pdo->query("SELECT count(*) FROM translation_keys WHERE name IN ('language.button', 'language.notLoaded')")->fetchColumn(), 'the keys did not move');
     same(0, (int) $pdo->query("SELECT count(*) FROM translation_keys WHERE name LIKE 'anotoki.%'")->fetchColumn(), 'and the library\'s files did not run');
-    same([ADOPTION_FILE, ...array_column(libraryFiles(), 'name')], array_column(Migrations::migrator($pdo)->status()['pending'], 'name'), 'all three still wait');
+    same([ADOPTION_FILE, '007_people.sql', '008_drop_laravel_leftovers.sql', '009_sign_in_and_feedback_words.sql', ...array_column(libraryFiles(), 'name'), ...array_column(peopleFiles(), 'name')],
+        array_column(Migrations::migrator($pdo)->status()['pending'], 'name'), 'they all still wait');
+});
+
+/** Version 0.4's files of this site's: the people's column, what Laravel left behind gone, the sign-in's and feedback's words. */
+const VERSION_04_FILES = ['007_people.sql', '008_drop_laravel_leftovers.sql', '009_sign_in_and_feedback_words.sql'];
+
+/** The Laravel version's login and queue tables, as 001 kept them where they had rows - 008 takes them. */
+const LARAVEL_LEFTOVERS = ['laravel_failed_jobs', 'laravel_job_batches', 'laravel_jobs', 'laravel_password_reset_tokens', 'laravel_sessions', 'laravel_users'];
+
+/** Their sequences, as 001 renamed them: 008 takes them too. */
+const LARAVEL_LEFTOVER_SEQUENCES = ['laravel_failed_jobs_id_seq', 'laravel_jobs_id_seq', 'laravel_users_id_seq'];
+
+/** Which of these are tables (or sequences) of the database now. */
+function relationsThere(PDO $pdo, array $names): array
+{
+    return array_values(array_filter($names, fn (string $name): bool => (bool) $pdo->query('SELECT to_regclass('.$pdo->quote($name).') IS NOT NULL')->fetchColumn()));
+}
+
+/** Every table of the database with its rows, but the six that go. */
+function rowsOfEveryTable(PDO $pdo): array
+{
+    $rows = [];
+    foreach ($pdo->query("SELECT tablename FROM pg_tables WHERE schemaname = 'public' ORDER BY tablename")->fetchAll(PDO::FETCH_COLUMN) as $table) {
+        if (! in_array($table, LARAVEL_LEFTOVERS, true)) {
+            $rows[$table] = (int) $pdo->query('SELECT count(*) FROM "'.$table.'"')->fetchColumn();
+        }
+    }
+
+    return $rows;
+}
+
+/** The five keys 009 moves under the library's: the site's old key => the library's. */
+const MOVED_SIGN_IN_KEYS = [
+    'signIn.notCompleted' => 'anotoki.signIn.notCompleted',
+    'signIn.stateMismatch' => 'anotoki.signIn.expired',
+    'signIn.storageUnavailable' => 'anotoki.signIn.storageUnavailable',
+    'signIn.failed' => 'anotoki.signIn.failed',
+    'signIn.signingIn' => 'anotoki.signIn.signingIn',
+];
+
+/**
+ * A database as the owner's is before version 0.4 goes on (anotoki-lib 0.3): this site's 001-006 and the first
+ * $libraryFiles of the library's translations set applied (2: as released with 0.3; 4: its 0.4 files ran before
+ * this site's 009 - a copy updated in two steps), with people, a visitor and a game account in it - and the
+ * Laravel version's tables 001 kept aside on a database adopted from it, each with a row and named as 001 left
+ * it: its record (laravel_migrations); its login tables - laravel_users (the addresses and password hashes, and
+ * its sequence), laravel_password_reset_tokens (addresses and reset tokens) and laravel_sessions (the network
+ * addresses and browsers sessions came from; its indexes keep Laravel's names, as 001 renamed only the
+ * constraints); and its queue's - laravel_jobs and laravel_failed_jobs (each with its sequence) and
+ * laravel_job_batches.
+ */
+function installedDatabase(array $server, string $name, int $libraryFiles = 2): PDO
+{
+    $pdo = scratchDatabase($server, $name);
+    $site = migrationsFolder("migrations-{$name}", array_values(array_filter(allMigrations(), fn (string $file): bool => strcmp($file, '007') < 0)));
+    $library = T::$storage.DIRECTORY_SEPARATOR."library-{$name}";
+    @mkdir($library, 0777, true);
+    foreach (array_slice(array_column(libraryFiles(), 'name'), 0, $libraryFiles) as $file) {
+        copy(Schema::directory().'/'.$file, $library.'/'.$file);
+    }
+    $result = (new Migrator($pdo, [Migrations::set($site), new MigrationSet(Schema::SET, $library, library: true)], ['lock' => Migrations::LOCK]))->apply();
+    same(null, $result['error'], "{$name}: the installed version's files");
+
+    $pdo->exec("INSERT INTO users (id, name, created_at, updated_at) VALUES
+        (1, 'owner', '2026-09-20 10:15:30+00', '2026-09-20 10:15:30+00'), (42, 'mona', '2026-09-27 08:00:00+00', '2026-10-01 09:30:00+00')");
+    $pdo->exec("INSERT INTO users (id, name, visitor_key_hash, last_seen_at, created_at, updated_at) VALUES
+        (-3, 'visitor', '".str_repeat('a', 64)."', '2026-10-10 20:00:00+00', '2026-10-10 19:00:00+00', '2026-10-10 19:00:00+00')");
+    $pdo->exec("INSERT INTO accounts (user_id, game, uid, nickname, created_at, updated_at) VALUES (42, 'genshin', '700000042', 'Mona main', '2026-09-27 08:05:00+00', '2026-09-27 08:05:00+00')");
+
+    $pdo->exec('CREATE TABLE laravel_migrations (id SERIAL PRIMARY KEY, migration VARCHAR(255) NOT NULL, batch INTEGER NOT NULL)');
+    $pdo->exec("INSERT INTO laravel_migrations (migration, batch) VALUES ('0001_01_01_000000_create_users_table', 1)");
+    $pdo->exec('CREATE TABLE laravel_users (id BIGSERIAL, name VARCHAR(255) NOT NULL, email VARCHAR(255) NOT NULL, password VARCHAR(255) NOT NULL,
+        CONSTRAINT laravel_users_pkey PRIMARY KEY (id), CONSTRAINT laravel_users_email_unique UNIQUE (email))');
+    $pdo->exec("INSERT INTO laravel_users (name, email, password) VALUES ('Test User', 'test@example.test', '\$2y\$12\$abcdefghijklmnopqrstuv')");
+    $pdo->exec('CREATE TABLE laravel_password_reset_tokens (email VARCHAR(255) NOT NULL, token VARCHAR(255) NOT NULL, created_at TIMESTAMP(0) WITHOUT TIME ZONE,
+        CONSTRAINT laravel_password_reset_tokens_pkey PRIMARY KEY (email))');
+    $pdo->exec("INSERT INTO laravel_password_reset_tokens (email, token, created_at) VALUES ('test@example.test', '\$2y\$12\$resettokenhash', '2026-09-22 08:00:00')");
+    // A session pointing at its user, as a copy of Laravel's schema may have it: 008 drops the two in one statement.
+    $pdo->exec('CREATE TABLE laravel_sessions (id VARCHAR(255) NOT NULL, user_id BIGINT, ip_address VARCHAR(45), user_agent TEXT, payload TEXT NOT NULL,
+        last_activity INTEGER NOT NULL, CONSTRAINT laravel_sessions_pkey PRIMARY KEY (id),
+        CONSTRAINT laravel_sessions_user_id_foreign FOREIGN KEY (user_id) REFERENCES laravel_users (id))');
+    $pdo->exec('CREATE INDEX sessions_user_id_index ON laravel_sessions (user_id)');
+    $pdo->exec('CREATE INDEX sessions_last_activity_index ON laravel_sessions (last_activity)');
+    $pdo->exec("INSERT INTO laravel_sessions (id, user_id, ip_address, user_agent, payload, last_activity)
+        VALUES ('s3ss10n', 1, '203.0.113.7', 'Mozilla/5.0 (Windows NT 10.0)', 'YTowOnt9', 1758530000)");
+    $pdo->exec("CREATE TABLE laravel_failed_jobs (id BIGSERIAL, uuid VARCHAR(255) NOT NULL, connection TEXT NOT NULL, queue TEXT NOT NULL, payload TEXT NOT NULL,
+        exception TEXT NOT NULL, failed_at TIMESTAMP(0) WITHOUT TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP, CONSTRAINT laravel_failed_jobs_pkey PRIMARY KEY (id))");
+    $pdo->exec("INSERT INTO laravel_failed_jobs (uuid, connection, queue, payload, exception) VALUES ('u-1', 'database', 'default', '{\"email\":\"test@example.test\"}', 'RuntimeException')");
+    $pdo->exec('CREATE TABLE laravel_jobs (id BIGSERIAL, queue VARCHAR(255) NOT NULL, payload TEXT NOT NULL, attempts SMALLINT NOT NULL, reserved_at INTEGER,
+        available_at INTEGER NOT NULL, created_at INTEGER NOT NULL, CONSTRAINT laravel_jobs_pkey PRIMARY KEY (id))');
+    $pdo->exec('CREATE INDEX jobs_queue_index ON laravel_jobs (queue)');
+    $pdo->exec("INSERT INTO laravel_jobs (queue, payload, attempts, available_at, created_at) VALUES ('default', '{\"job\":\"sync\"}', 0, 1758530000, 1758530000)");
+    $pdo->exec('CREATE TABLE laravel_job_batches (id VARCHAR(255) NOT NULL, name VARCHAR(255) NOT NULL, total_jobs INTEGER NOT NULL, pending_jobs INTEGER NOT NULL,
+        failed_jobs INTEGER NOT NULL, failed_job_ids TEXT NOT NULL, options TEXT, cancelled_at INTEGER, created_at INTEGER NOT NULL, finished_at INTEGER,
+        CONSTRAINT laravel_job_batches_pkey PRIMARY KEY (id))');
+    $pdo->exec("INSERT INTO laravel_job_batches (id, name, total_jobs, pending_jobs, failed_jobs, failed_job_ids, created_at) VALUES ('b-1', 'sync', 1, 1, 0, '[]', 1758530000)");
+
+    return $pdo;
+}
+
+/** A key's strings in every language: its words, who saved them and when. */
+function stringsOf(PDO $pdo, string $key): array
+{
+    $statement = $pdo->prepare('SELECT language_code, value, updated_by, updated_at FROM translations WHERE key_name = ? ORDER BY language_code');
+    $statement->execute([$key]);
+
+    return $statement->fetchAll(PDO::FETCH_ASSOC);
+}
+
+test('version 0.4 on a database as its owner left it: 007 adds the scrub\'s column and touches no row, 008 takes what Laravel left but its record, 009 moves the sign-in\'s words with every rewording, writer and time', function () use ($server) {
+    $pdo = installedDatabase($server, 'to006');
+    // The Translations grid used: an editor (IAM user 7) reworded an English string, a Slovak one was cleared on
+    // purpose (the page reads the English), and German came with a string of its own.
+    $pdo->exec("UPDATE translations SET value = 'That sign-in was not started in this tab.', updated_by = 7, updated_at = '2026-10-09 08:15:00+00' WHERE key_name = 'signIn.stateMismatch' AND language_code = 'en'");
+    $pdo->exec("DELETE FROM translations WHERE key_name = 'signIn.failed' AND language_code = 'sk'");
+    $pdo->exec("INSERT INTO languages (code, name, native_name, enabled, sort_order) VALUES ('de', 'German', 'Deutsch', FALSE, 3)");
+    $pdo->exec("INSERT INTO translations (key_name, language_code, value, updated_by, updated_at) VALUES ('signIn.signingIn', 'de', 'Anmeldung…', 8, '2026-10-10 18:30:00+00')");
+    $before = array_map(fn (string $key): array => stringsOf($pdo, $key), array_combine(array_keys(MOVED_SIGN_IN_KEYS), array_keys(MOVED_SIGN_IN_KEYS)));
+    $people = fn (): array => $pdo->query('SELECT id, name, created_at, updated_at, visitor_key_hash, last_seen_at FROM users ORDER BY id')->fetchAll(PDO::FETCH_ASSOC);
+    $peopleBefore = $people();
+    $keys = (int) $pdo->query("SELECT count(*) FROM translation_keys WHERE name NOT LIKE 'anotoki.%'")->fetchColumn();
+
+    // The upload: one Apply - the library's admin tools' files, this site's three, the library's translations 003-004, its people's.
+    $result = Migrations::migrator($pdo)->apply();
+    same(null, $result['error'], 'no error');
+    same([...adminFiles(), ...array_map('siteFile', VERSION_04_FILES), ...array_slice(libraryFiles(), 2), ...peopleFiles()], $result['applied'], 'in the README\'s order');
+
+    // 007: a column, NULL everywhere; every row as it was.
+    same($peopleBefore, $people(), 'the people and the visitor, as they were');
+    same(0, (int) $pdo->query('SELECT count(*) FROM users WHERE anonymized_at IS NOT NULL')->fetchColumn(), 'nobody anonymized');
+    same([['Mona main', 42]], array_map(fn ($row) => [$row['nickname'], (int) $row['user_id']], $pdo->query('SELECT nickname, user_id FROM accounts')->fetchAll(PDO::FETCH_ASSOC)), 'their account');
+
+    // 008: Laravel's login and queue tables and their sequences gone; its record stays, with its row.
+    same([], relationsThere($pdo, [...LARAVEL_LEFTOVERS, ...LARAVEL_LEFTOVER_SEQUENCES]), 'the six tables and their sequences gone');
+    same(1, (int) $pdo->query('SELECT count(*) FROM laravel_migrations')->fetchColumn(), 'laravel_migrations kept, with its row');
+    same(0, (int) $pdo->query("SELECT count(*) FROM pg_indexes WHERE schemaname = 'public' AND (indexname LIKE 'sessions\\_%' OR indexname LIKE 'jobs\\_%')")->fetchColumn(), 'the indexes that kept Laravel\'s names went with them');
+
+    // 009: every string under the library's key as it was - words, writer, time; the cleared Slovak stays cleared.
+    foreach (MOVED_SIGN_IN_KEYS as $old => $new) {
+        same($before[$old], stringsOf($pdo, $new), "{$old} -> {$new}");
+    }
+    same(['en'], array_column(stringsOf($pdo, 'anotoki.signIn.failed'), 'language_code'), 'the cleared Slovak: the library did not write its own there');
+    check(str_starts_with((string) $pdo->query("SELECT description FROM translation_keys WHERE name = 'anotoki.signIn.expired'")->fetchColumn(), 'The anotoki library\'s sign-in page'), 'the library\'s description');
+    same(['Signing in did not work', 'Prihlásenie sa nepodarilo'], array_column(stringsOf($pdo, 'anotoki.signIn.failedTitle'), 'value'), 'the library\'s own words on its other keys');
+    same(0, (int) $pdo->query("SELECT count(*) FROM translation_keys WHERE name LIKE 'signIn.%'")->fetchColumn(), 'the old sign-in page\'s keys are gone');
+    same(0, (int) $pdo->query("SELECT count(*) FROM translations WHERE key_name LIKE 'signIn.%'")->fetchColumn(), 'with their strings');
+    same([['en', 'Feedback'], ['sk', 'Spätná väzba']], array_map(fn ($row) => [$row['language_code'], $row['value']], stringsOf($pdo, 'footer.feedback')), 'the feedback button\'s words');
+    same($keys - 8 + 5, (int) $pdo->query("SELECT count(*) FROM translation_keys WHERE name NOT LIKE 'anotoki.%'")->fetchColumn(), 'the site\'s keys: eight gone, five new');
+    same([], Migrations::migrator($pdo)->applicable(), 'nothing left to apply');
+});
+
+test('009 where the library\'s sign-in words went in first: the site\'s words take their place - never over an owner\'s rewording of the library\'s key', function () use ($server) {
+    $pdo = installedDatabase($server, 'to006lib', libraryFiles: 4);
+    // The library's 003 found its keys without strings and wrote its own; then the owner reworded one of them.
+    same('The sign-in failed ({code}).', $pdo->query("SELECT value FROM translations WHERE key_name = 'anotoki.signIn.failed' AND language_code = 'en'")->fetchColumn(), 'the library\'s words');
+    $pdo->exec("UPDATE translations SET value = 'Signing in failed: {code}', updated_by = 9, updated_at = '2026-10-10 12:00:00+00' WHERE key_name = 'anotoki.signIn.failed' AND language_code = 'en'");
+    $site = stringsOf($pdo, 'signIn.stateMismatch');
+
+    $result = Migrations::migrator($pdo)->apply();
+    same(null, $result['error'], 'no error');
+    same([...adminFiles(), ...array_map('siteFile', VERSION_04_FILES), ...peopleFiles()], $result['applied'], 'the rest');
+
+    same($site, stringsOf($pdo, 'anotoki.signIn.expired'), 'the site\'s words, by whom and when, in place of the library\'s');
+    same([['en', 'Signing in failed: {code}', 9], ['sk', 'Prihlásenie sa nedokončilo: {code}', null]],
+        array_map(fn ($row) => [$row['language_code'], $row['value'], $row['updated_by'] === null ? null : (int) $row['updated_by']], stringsOf($pdo, 'anotoki.signIn.failed')),
+        'the owner\'s English rewording kept; the Slovak the site\'s');
+});
+
+test('009\'s gate refuses a database whose keys are not the ones it expects - nothing of it, nor the library\'s files after it, is applied', function () use ($server) {
+    $pdo = installedDatabase($server, 'to006gate');
+    $pdo->exec("INSERT INTO translation_keys (name, description) VALUES ('zz.stray', 'Not a migration''s')");
+
+    $result = Migrations::migrator($pdo)->apply();
+    same([[...adminFiles(), siteFile('007_people.sql'), siteFile('008_drop_laravel_leftovers.sql')], siteFile('009_sign_in_and_feedback_words.sql')],
+        [$result['applied'], $result['failed']], 'stopped at 009');
+    check(str_contains((string) $result['error'], 'There are 448 keys of the site\'s own, and 006 with this file leave 447'), 'the gate says why: '.$result['error']);
+    same(8, (int) $pdo->query("SELECT count(*) FROM translation_keys WHERE name LIKE 'signIn.%'")->fetchColumn(), 'the old keys stay');
+    same(0, (int) $pdo->query("SELECT count(*) FROM translation_keys WHERE name LIKE 'anotoki.signIn.%' OR name LIKE 'feedback.%'")->fetchColumn(), 'nothing of 009, nor the library\'s 003');
+    same(['009_sign_in_and_feedback_words.sql', ...array_column(array_slice(libraryFiles(), 2), 'name'), ...array_column(peopleFiles(), 'name')],
+        array_column(Migrations::migrator($pdo)->status()['pending'], 'name'), 'they still wait');
+});
+
+/**
+ * This site's files up to 008 (or, in $own, files of a test's own in their place) and the library's translations
+ * files of the installed version, on a database installedDatabase() made under $name: what an Apply of 007 and
+ * 008 alone sees.
+ */
+function upTo008(PDO $pdo, string $name, array $own = []): Migrator
+{
+    $site = migrationsFolder("migrations-{$name}-to-008", array_values(array_filter(allMigrations(), fn (string $file): bool => strcmp($file, '009') < 0)), $own);
+
+    return new Migrator($pdo, [Migrations::set($site), new MigrationSet(Schema::SET, T::$storage.DIRECTORY_SEPARATOR."library-{$name}", library: true)], ['lock' => Migrations::LOCK]);
+}
+
+test('008 on a database as its owner left it: Laravel\'s login and queue tables go with their rows and sequences - every other table stays, with as many rows', function () use ($server) {
+    $pdo = installedDatabase($server, 'to007');
+    same([LARAVEL_LEFTOVERS, LARAVEL_LEFTOVER_SEQUENCES], [relationsThere($pdo, LARAVEL_LEFTOVERS), relationsThere($pdo, LARAVEL_LEFTOVER_SEQUENCES)],
+        'the six are there, as 001 kept them, each with a row - and their sequences');
+    $before = rowsOfEveryTable($pdo);
+
+    $result = upTo008($pdo, 'to007')->apply();
+    same([null, [siteFile('007_people.sql'), siteFile('008_drop_laravel_leftovers.sql')]], [$result['error'], $result['applied']], '007 and 008 applied');
+
+    same([], relationsThere($pdo, [...LARAVEL_LEFTOVERS, ...LARAVEL_LEFTOVER_SEQUENCES]), 'the six gone, and their sequences');
+    $after = rowsOfEveryTable($pdo);
+    same($before['migrations'] + 2, $after['migrations'], 'the bookkeeping table: 007 and 008 recorded');
+    unset($before['migrations'], $after['migrations']);
+    same($before, $after, 'every other table still here, with as many rows - laravel_migrations too');
+});
+
+test('008 never takes anything along: a view on Laravel\'s sessions stops it - and nothing of it is applied', function () use ($server) {
+    $pdo = installedDatabase($server, 'to007view');
+    $pdo->exec('CREATE VIEW old_sessions AS SELECT id, ip_address FROM laravel_sessions');
+
+    $result = upTo008($pdo, 'to007view')->apply();
+    same([[siteFile('007_people.sql')], siteFile('008_drop_laravel_leftovers.sql')], [$result['applied'], $result['failed']], 'stopped at 008');
+    // 2BP01: dependent objects still exist - DROP TABLE without CASCADE.
+    check(str_contains((string) $result['error'], '2BP01'), 'the database says why: '.$result['error']);
+    same(LARAVEL_LEFTOVERS, relationsThere($pdo, LARAVEL_LEFTOVERS), 'all six still here: one statement, refused as a whole');
+    same(['008_drop_laravel_leftovers.sql'], array_column(upTo008($pdo, 'to007view')->status()['pending'], 'name'), 'it still waits');
+});
+
+test('008 never takes a site table\'s reference along: a table of the site\'s pointing at laravel_users stops it - and nothing of it is applied', function () use ($server) {
+    $pdo = installedDatabase($server, 'to007ref');
+    // A column of the site's own, pointing at Laravel's login table (no file of this site makes one).
+    $pdo->exec('ALTER TABLE accounts ADD COLUMN laravel_user_id BIGINT REFERENCES laravel_users (id)');
+
+    $result = upTo008($pdo, 'to007ref')->apply();
+    same([[siteFile('007_people.sql')], siteFile('008_drop_laravel_leftovers.sql')], [$result['applied'], $result['failed']], 'stopped at 008');
+    check(str_contains((string) $result['error'], '2BP01'), 'the database says why: '.$result['error']);
+    same([LARAVEL_LEFTOVERS, LARAVEL_LEFTOVER_SEQUENCES], [relationsThere($pdo, LARAVEL_LEFTOVERS), relationsThere($pdo, LARAVEL_LEFTOVER_SEQUENCES)],
+        'all six still here, with their sequences - the sessions\' own reference to laravel_users was no obstacle, the site\'s is');
+    same(1, (int) $pdo->query("SELECT count(*) FROM information_schema.columns WHERE table_name = 'accounts' AND column_name = 'laravel_user_id'")->fetchColumn(), 'the site\'s column, untouched');
+});
+
+test('008\'s gate refuses a file that took more than the six - and nothing of it is applied', function () use ($server) {
+    $pdo = installedDatabase($server, 'to007gate');
+    // The same file with one statement more before its gate: somebody's game account gone as well.
+    $sql = (string) file_get_contents(Migrations::directory().'/008_drop_laravel_leftovers.sql');
+    $sequences = 'DROP SEQUENCE IF EXISTS laravel_users_id_seq, laravel_jobs_id_seq, laravel_failed_jobs_id_seq;';
+    $more = str_replace($sequences, "{$sequences}\nDELETE FROM accounts;", $sql);
+    check($more !== $sql, 'the statement more is in');
+
+    $result = upTo008($pdo, 'to007gate', ['008_drop_laravel_leftovers.sql' => $more])->apply();
+    same([[siteFile('007_people.sql')], siteFile('008_drop_laravel_leftovers.sql')], [$result['applied'], $result['failed']], 'stopped at 008');
+    check(str_contains((string) $result['error'], 'Tables whose rows changed: accounts (1 before, 0 now)'), 'the gate says why: '.$result['error']);
+    same([LARAVEL_LEFTOVERS, 1], [relationsThere($pdo, LARAVEL_LEFTOVERS), (int) $pdo->query('SELECT count(*) FROM accounts')->fetchColumn()],
+        'nothing of the file stays: the six tables, and the account');
 });
 
 foreach ([6 => 'the version first committed', 7 => 'with sign-in through the IAM', 8 => 'with resumable syncs'] as $level => $what) {
@@ -526,8 +807,12 @@ foreach ([6 => 'the version first committed', 7 => 'with sign-in through the IAM
             same($count, (int) $pdo->query("SELECT count(*) FROM {$table}")->fetchColumn(), "rows of {$table}");
         }
         same($level, (int) $pdo->query('SELECT count(*) FROM laravel_migrations')->fetchColumn(), 'Laravel\'s record, kept aside');
-        same(1, (int) $pdo->query('SELECT count(*) FROM laravel_failed_jobs')->fetchColumn(), 'a framework table with rows is kept aside');
         same(0, (int) $pdo->query('SELECT count(*) FROM cache')->fetchColumn(), 'the cache is emptied');
+        // Laravel's login and queue tables with rows - an old session, a reset asked for, jobs - kept aside by 001,
+        // and gone with 008 (the owner's decisions: no email address, no session's network address, no old job's
+        // payload here), with their sequences.
+        same([], relationsThere($pdo, [...LARAVEL_LEFTOVERS, ...LARAVEL_LEFTOVER_SEQUENCES, 'sessions', 'password_reset_tokens', 'jobs', 'job_batches', 'failed_jobs']),
+            'Laravel\'s login and queue tables, gone');
 
         // The times are the same instants, now with their zone.
         same('2026-09-21 12:00:00+00', $pdo->query('SELECT last_import_at FROM accounts ORDER BY id LIMIT 1')->fetchColumn(), 'a time');
@@ -537,7 +822,6 @@ foreach ([6 => 'the version first committed', 7 => 'with sign-in through the IAM
         same(0, (int) $pdo->query('SELECT count(*) FROM accounts WHERE user_id IS NULL')->fetchColumn(), 'every account has an owner');
         if ($level === 6) {
             same([1], array_map('intval', $pdo->query('SELECT id FROM users')->fetchAll(PDO::FETCH_COLUMN)), 'the owner was made');
-            same(1, (int) $pdo->query('SELECT count(*) FROM laravel_users')->fetchColumn(), 'Laravel\'s login table, kept aside');
             same('failed', $pdo->query('SELECT status FROM sync_runs ORDER BY id DESC LIMIT 1')->fetchColumn(), 'a queue run left running is closed');
         } else {
             same([1, 42], array_map('intval', $pdo->query('SELECT id FROM users ORDER BY id')->fetchAll(PDO::FETCH_COLUMN)), 'the IAM users');

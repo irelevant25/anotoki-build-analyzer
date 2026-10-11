@@ -3,7 +3,7 @@ import { TranslationParams, TranslationService, WordKey } from './translation';
 
 /**
  * `{{ 'title.builds' | translate }}`, and with placeholders filled in:
- * `{{ 'signIn.failed' | translate: { code: c } }}`.
+ * `{{ 'footer.version' | translate: { version: v } }}`.
  *
  * This site's own pipe over the anotoki library's service (the library's own `translate` pipe takes any
  * string): the key is typed - the site's keys (en.ts) and the library's words (`anotoki.*`) - so a key that

@@ -24,8 +24,12 @@
             [routerLink]="link.path"
             [class.is-active]="inSection(link)"
             [attr.aria-current]="isPage(link) ? 'page' : null"
-            >{{ link.key ? (link.key | translate) : link.label }}</a
-          >
+            [attr.aria-label]="badgeOf(link) ? link.label + ', ' + badgeOf(link) + ' new' : null"
+            >{{ link.key ? (link.key | translate) : link.label }}
+            @if (badgeOf(link); as count) {
+              <span class="link-badge" aria-hidden="true">{{ count }}</span>
+            }
+          </a>
         }
       </nav>
     }
@@ -59,7 +63,7 @@
             (click)="toggleMenu('phone')"
           >
             <mat-icon aria-hidden="true">{{ openMenu() === 'phone' ? 'close' : 'menu' }}</mat-icon>
-            @if (syncing()) {
+            @if (syncing() || newFeedback()) {
               <span class="menu-badge" aria-hidden="true"></span>
             }
           </button>
@@ -80,9 +84,15 @@
                   [routerLink]="link.path"
                   [class.is-active]="inSection(link)"
                   [attr.aria-current]="isPage(link) ? 'page' : null"
+                  [attr.aria-label]="
+                    badgeOf(link) ? link.label + ', ' + badgeOf(link) + ' new' : null
+                  "
                   (click)="closeMenu(false)"
-                  >{{ link.key ? (link.key | translate) : link.label }}</a
-                >
+                  >{{ link.key ? (link.key | translate) : link.label }}
+                  @if (badgeOf(link); as count) {
+                    <span class="link-badge" aria-hidden="true">{{ count }}</span>
+                  }
+                </a>
               }
               @if (syncing()) {
                 <a

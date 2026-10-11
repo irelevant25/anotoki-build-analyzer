@@ -3,6 +3,104 @@
 Short records of choices that shape the code. Add a new entry (newest first) when you make a similar call.
 Older entries describe the Laravel version as it was; where a setting has since moved, the entry says so.
 
+**2026-10-11 — Visitors' addresses through Cloudflare, the move after an automatic sign-in, and the security review's fixes (the owner's decisions; version 0.4.0, unreleased).**
+- *The real visitor address, through Cloudflare - and never kept* (the owner's decision): the site is behind
+  Cloudflare, so `client_address.trusted_proxies` in `config/app.php` are Cloudflare's published ranges
+  (cloudflare.com/ips-v4 and /ips-v6, fetched 2026-10-11) and `CF-Connecting-IP` is believed only on a
+  connection from one of them; anywhere else the connection's own address counts. The per-address limits stay as
+  they were. The address itself is never kept: the counters in the `cache` table are keyed by an HMAC of
+  `ClientAddress::counted()` under the installation's key (the library's `Keys`, `address-counters`), so neither
+  the table nor a backup holds an address (the security review found them there by address). An installation not
+  behind Cloudflare overrides the list in `config/client_address.local.php`. Considered, and not chosen: reading
+  no address at all, with one limit for all visitors together.
+- *The move after an automatic sign-in* (the owner's decision): after the IAM's sign-in hint's silent hop, a
+  browser's visitor data moves into the account only when the account has nothing here yet - no game account, no
+  import run: its first time, after playing as a visitor. An account with data here never takes in a browser's
+  visitor data without its person's click: nothing moves (`held`), the visitor and its key stay as they are on
+  this browser, and the next sign-in the person clicks moves them. A sign-in the person clicks moves, as before.
+  Decided on the server (`POST /api/visitor/move` `{silent}`; `Users::moveVisitor()` asks under both rows'
+  locks); the page knows how the present sign-in began from the auth module's client - its callback's `silent` -
+  noted at that page load and kept with the session (`core/sign-in-kind.ts`).
+- *The security review of 2026-10-11*: a cleared reply address keeps none (the entry below); the People page's
+  Delete also blanks the person's feedback address and browser and the syncs' logs' "Started by <name>" (the
+  scrub's own hooks, in its transaction); a restore runs the scrub of the IAM's deleted accounts at once and says
+  when it could not finish (the survey's way); an import by nobody is JSON or a 415 (a form any page could send
+  would make a visitor and run an import from the reader's address); 008 drops Laravel's six tables in one
+  statement, so one of them pointing at another is no obstacle while a site table pointing at one still stops it.
+  Two things a restore does wait for the library's 0.4.2, and the docs say so: it brings back what was deleted on
+  the People page since the backup (it does not replay those deletes), and it moves the restored tables' sequences
+  back (an id given again, which the kept audit log may name).
+
+**2026-10-11 — Signing in, people and the admin tools through anotoki-lib 0.4.1 (the owner's round; version 0.4.0, unreleased).**
+Every anotoki site signs in, keeps its people and runs its admin tools one way now - the library's modules
+(`Anotoki\Lib\Auth`, `People`, `ErrorLog`, `Audit`, `Feedback`, `Backups`; `@anotoki/lib/auth`, `/people`,
+`/admin`, `/feedback`). 0.4.1, never 0.4.0 (whose Feedback page search fails on PHP 8.2).
+- *What moved to the library*: the IAM's SDKs (`src/Support/Iam/*`, `core/iam/*` - gone), the token check
+  (`IamGuard` - gone: the library's `Identify`, `AccessTokens`, `RequirePerson`, `RequireRole`, `RequireCaller`),
+  the IAM's sign-in switch (`SignInPolicy`, `IamSignInPolicy` - gone: `SignInRule`, the same file in
+  `storage/cache/iam/`), the person's row (`UserProvisioner` - gone: `PeopleRecorder` through `RecordPerson`), the
+  browser's client, interceptor, guards and the saves a sign-in waits for (`core/auth.interceptor.ts`,
+  `core/saves-in-flight.ts` - gone), the sign-in page and the callback page (`pages/sign-in/*` - gone: the
+  library's `<anotoki-sign-in-failure>` on `/sign-in` in the site's frame, `<anotoki-auth-callback>` on
+  `/auth/callback`), the People page (`pages/admin/people/*`, `routes/people.php`'s own code - gone:
+  `PeopleRoutes::admin()` and `@anotoki/lib/people/page`), the tests' stand-in IAM (`tests/tools/fake-iam.php`,
+  `tests/support/FixedSignInPolicy.php` - gone: the library's `TestIam` and `stand-in-iam.php`).
+- *What stayed this site's*: the visitors (`App\Auth\Visitors`, the key store `core/visitor-key.ts`, handed to the
+  library as its `visitors`), the route groups' checks in this site's words (`api/middleware/auth.php`: the same
+  six functions, now the library's pieces in order - `App\Web\Pipeline`), `throttle()`, `AuthService` as a facade
+  over `AnotokiAuth` under the names the pages always used, `sitePagesGuard` (the family's
+  `personOrVisitorGuard`, and a visitor's failed sign-in said once on `/sign-in`), the People page's columns
+  (game accounts, imports, last import), its delete and its scrub hooks (`App\People\SitePeople`).
+- *A bad token answers `invalid_token`* (the library's `Identify`), no longer `sign_in_required`; the pages word
+  every 401 alike.
+- *Automatic sign-in by the IAM's hint* (the owner's decision for the sites that let visitors in): a visitor
+  signed in at the IAM is signed in here before the first page is drawn, with one silent hop (the library's
+  `AnotokiAuth.init()`; loop protection in localStorage); signed out there is signed out here at the next page
+  load. `robots.txt` says `Disallow: /auth/`; the callback and the failure screen say `noindex`.
+- *People*: the library reads this site's own `users` through a mapping (`name`, `created_at`, `last_seen_at` -
+  a person's too now, at most every five minutes - `updated_at`, `nameFallback: "user {sub}"`); 007 adds
+  `anonymized_at`. The scrub (after an answer, at most hourly) makes an account the IAM deleted nobody's here:
+  `deleted-{id}`, a sync's log says "a deleted person", the feedback and audit copies are blanked; the game
+  accounts and imports stay (the owner's rule). The People page's Delete asks only its question - no proof of
+  a recent sign-in - and every delete is in the audit log (`person.data_deleted`).
+- *What the Laravel version left goes* (the owner's decisions of 2026-10-11 - "the email would be bad": no
+  anotoki site holds an email address, nor the address an old session came from, nor an old job's payload,
+  which can hold personal data): 008 drops, where 001 kept them, Laravel's login tables - `laravel_users` (old
+  addresses and password hashes), `laravel_password_reset_tokens` (addresses, reset tokens), `laravel_sessions`
+  (network addresses, browsers) - and its queue's, which nothing here reads - `laravel_jobs`,
+  `laravel_job_batches`, `laravel_failed_jobs` - with their sequences. Only `laravel_migrations` stays, the record
+  of what that version ran (nobody's data). The backup made before that Apply still holds them: the owner deletes
+  that backup once the update is known to be good.
+- *The admin tools are the ADMIN's alone* (the owner's decision): the error log (`storage/logs/errors-*.jsonl`;
+  every 5xx but 503 - every 503 here is a decided "not now", the gate's or a feature's -, 404, 405, 413, 415,
+  429; never a body, a query, a header or a token; who asked from the token, also for an exception
+  `jsonErrors()` answers - `App\Auth\RequestCaller`), the audit log (no address kept), feedback (the visitors'
+  form at the foot of every page; no mail - the admin panel counts what is new beside Feedback), backups (COPY,
+  daily after an answer, before every update and every restore, by hand; making, downloading, deleting and
+  restoring ask for a sign-in of the last ten minutes, "Sign in again"). No file explorer here.
+- *Backups have no maximum age* (the owner's decision of 2026-10-11, for every site): a backup is kept until it is
+  deleted - a manual one only by the owner, on the Backups page (the page flags one older than 90 days, and
+  deletes nothing); the automatic ones by the library's rotation by count (the newest 14 daily, 5 made before an
+  update, 5 before a restore), never by age. A person the IAM deleted stays in the backups made before the scrub
+  until those backups go.
+- *Feedback's reply address is the sender's choice* (the owner's decision of 2026-10-11, for every site): for
+  somebody signed in the page writes their account's address into the form's address field, and what they leave
+  there is the only address kept with the message - that one, another they typed, or none once they cleared the
+  field; "send it without my name" keeps neither their id nor an address. The server never fills an empty field
+  from the token: it hands the library the sender's id alone (the security review of 2026-10-11 - the library
+  fills an empty address from what it is given). Nothing of where a message came from is kept (no network address,
+  no hash); the limits count apart, a day, in `storage/cache`.
+- *Errors the pages meet* go to the error log with the library's 0.4.2 (its Angular reporter): this site does not
+  mount `ErrorLogRoutes::client()` before then.
+- *Migrations*: the library's `anotoki_admin` set first (the audit log's and feedback's tables), this site's
+  007-009, then `anotoki_translations` (its 003-004: the sign-in screen's and the form's words) and
+  `anotoki_people`. 009 moves the five sign-in words this site had under the library's `anotoki.signIn.*` keys
+  with every rewording, writer and time (the site keeps saying what it said), retires three, and adds the
+  feedback button's and the form's four places.
+- *The admin panel's bar*: the ADMIN has nine sections now, so the ADMIN's row folds at `ADMIN_PHONE_BAR_MAX`
+  and an editor's two at `EDITOR_PHONE_BAR_MAX` (`layouts/top-bar`), each measured.
+- What's new (0.4.0, unreleased): the automatic sign-in, the feedback form, and the sign-in failure's screen.
+
 **2026-10-11 — The site's words through anotoki-lib 0.3.0's translations module; Translations and Languages are the family's pages (the owner's decision; version 0.4.0).**
 Every anotoki site keeps its words one way now, and this site's service is the one the library's grew from.
 - *What moved to the library*: the strings' routes (`TranslationsRoutes::bundle`, `strings`, `languages`), every

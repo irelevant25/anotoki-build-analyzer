@@ -111,6 +111,11 @@ final class Client
         return $this->request('PATCH', $url, $json);
     }
 
+    public function put(string $url, array $json = []): Answer
+    {
+        return $this->request('PUT', $url, $json);
+    }
+
     public function delete(string $url): Answer
     {
         return $this->request('DELETE', $url);

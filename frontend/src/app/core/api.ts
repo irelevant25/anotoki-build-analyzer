@@ -1,7 +1,7 @@
-import { HttpClient, HttpContext, HttpContextToken, HttpErrorResponse, HttpParams, HttpResponse } from '@angular/common/http';
+import { HttpClient, HttpContext, HttpErrorResponse, HttpParams, HttpResponse } from '@angular/common/http';
 import { Injectable, inject } from '@angular/core';
+import { CARRIES_VISITOR_KEY, VISITOR_KEY_HEADER, issuedAs } from '@anotoki/lib/auth';
 import { Observable } from 'rxjs';
-import { AuthService } from './auth';
 import {
   AccountDetail,
   AccountSummary,
@@ -13,8 +13,6 @@ import {
   GameKey,
   ImportRun,
   Meta,
-  PeopleList,
-  PersonDeleted,
   SourceStatus,
   SyncRunSummary,
   SyncStartResult,
@@ -26,49 +24,22 @@ import {
 /** The API's path on this site; the app and the API share one origin (proxied during development). */
 export const API_BASE = '/api';
 
-/** The header a visitor's key travels in, both ways (core/visitor-key.ts). */
-export const VISITOR_KEY_HEADER = 'X-Visitor-Key';
-
 /**
- * Marks the one request that carries the person's token and the visitor's key together - the move after a
- * sign-in: authInterceptor then adds the token and leaves the key the request set itself.
- */
-export const CARRIES_VISITOR_KEY = new HttpContextToken<boolean>(() => false);
-
-/** Who a request is for: the signed-in person, or the visitor this browser is (or will be, after a first import). */
-export type Caller = 'person' | 'visitor';
-
-/**
- * Who a request of the site's own API is for, decided when it is ISSUED - from the app's state then, never
- * from whether a token happens to be there when it leaves (authInterceptor reads it):
- *
- *   'person'   the token, or the request is never sent (it fails at once as a 401 sign_in_required): a
- *              person's import, rename or delete never goes out as a visitor's, and never makes one
- *   'visitor'  the visitor key, while the site does not require a sign-in; never a token
- *   null       a request Api did not issue: decided by the interceptor as it is handed the request
- */
-export const ISSUED_AS = new HttpContextToken<Caller | null>(() => null);
-
-/** A request's context saying who it is for. */
-export function issuedAs(caller: Caller): HttpContext {
-  return new HttpContext().set(ISSUED_AS, caller);
-}
-
-/**
- * Typed client for the backend API (backend/api/routes). Each request says who it is for (ISSUED_AS) as it
- * is made: the admin panel's, the syncs', the own-data file's and the move's are always the person's; the
- * rest are the person's while somebody is signed in and the visitor's otherwise. authInterceptor adds the
- * bearer token or the visitor key accordingly.
+ * Typed client for the backend API (backend/api/routes). Each request says whom it is for as it is made - the
+ * anotoki family's ISSUED_AS (@anotoki/lib/auth), which its interceptor reads: the admin panel's, the syncs',
+ * the own-data file's and the move's are always the person's (the token, or the request is never sent - it
+ * fails at once as a 401 sign_in_required: a person's save never goes out as a visitor's, and never makes one);
+ * the rest are whoever the page is shown to as the request is issued - the person signed in, else the visitor
+ * (the visitor key, while the IAM lets visitors in; never a token).
  */
 @Injectable({ providedIn: 'root' })
 export class Api {
   private readonly http = inject(HttpClient);
-  private readonly auth = inject(AuthService);
   private readonly base = API_BASE;
 
   /** For whoever uses the site now: the person signed in, or else the visitor. */
   private asCaller(): HttpContext {
-    return issuedAs(this.auth.signedIn() ? 'person' : 'visitor');
+    return issuedAs('caller');
   }
 
   /** For a signed-in person only, whatever the state: what a visitor may never do. */
@@ -76,8 +47,9 @@ export class Api {
     return issuedAs('person');
   }
 
+  /** Public, and read with no credentials at all: the interceptor passes it by (app.config.ts, `api.skip`). */
   meta(): Observable<Meta> {
-    return this.http.get<Meta>(`${this.base}/meta`, { context: this.asCaller() });
+    return this.http.get<Meta>(`${this.base}/meta`);
   }
 
   accounts(): Observable<AccountSummary[]> {
@@ -190,26 +162,20 @@ export class Api {
     return this.http.get<SyncRunSummary>(`${this.base}/sync-runs/${id}`, { context: this.asPerson() });
   }
 
-  // ---------------------------------------------------------------- admin: people (ADMIN)
-
-  people(): Observable<PeopleList> {
-    return this.http.get<PeopleList>(`${this.base}/admin/people`, { context: this.asPerson() });
-  }
-
-  /** Deletes what a person has here (their game accounts and imports); their anotoki account stays. */
-  deletePerson(id: number): Observable<PersonDeleted> {
-    return this.http.delete<PersonDeleted>(`${this.base}/admin/people/${id}`, { context: this.asPerson() });
-  }
+  // The People page, the error log, the audit log, feedback and backups (/api/admin/people, /errors, /audit,
+  // /feedback, /backups) are the anotoki family's pages, which make their own requests (@anotoki/lib/people/page,
+  // @anotoki/lib/admin/*); the interceptor makes them the person's as it makes every request of this site's.
 
   // ---------------------------------------------------------------- a visitor's data, and a person's own
 
   /**
    * After a sign-in: what this browser imported as a visitor becomes the person's. The only request with the
-   * token and the key together - the key is set here, and the interceptor adds the token. A person's
-   * request: with no token it is never sent.
+   * token and the key together (CARRIES_VISITOR_KEY) - the key is set here, and the interceptor adds the token.
+   * A person's request: with no token it is never sent. `silent`: the sign-in was the IAM's hint's silent hop -
+   * then the server moves nothing into an account that already has data here (held: true).
    */
-  moveVisitor(key: string): Observable<VisitorMove> {
-    return this.http.post<VisitorMove>(`${this.base}/visitor/move`, {}, {
+  moveVisitor(key: string, silent = false): Observable<VisitorMove> {
+    return this.http.post<VisitorMove>(`${this.base}/visitor/move`, { silent }, {
       headers: { [VISITOR_KEY_HEADER]: key },
       context: this.asPerson().set(CARRIES_VISITOR_KEY, true),
     });

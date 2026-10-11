@@ -4,7 +4,7 @@ import { MatSnackBar } from '@angular/material/snack-bar';
 import { ANOTOKI_MIGRATIONS_CONFIG, AnotokiMigrationsConfig } from '@anotoki/lib/migrations';
 import { provideTestTranslations } from '@anotoki/lib/translations/testing';
 import { AuthService } from './auth';
-import { AnotokiPreferences, AnotokiUser } from './iam/anotoki-auth';
+import { AnotokiPreferences, AnotokiUser } from '@anotoki/lib/auth';
 import { TranslationService } from './i18n/translation';
 import { appliedAt, provideSiteStatus } from './site-status';
 
@@ -49,7 +49,7 @@ describe('the site status, wired to this site (provideSiteStatus)', () => {
     signedIn: () => boolean;
     isAdmin: () => boolean;
     preferences: ReturnType<typeof signal<AnotokiPreferences | null>>;
-    lastError: ReturnType<typeof signal<null>>;
+    failure: ReturnType<typeof signal<null>>;
     login: ReturnType<typeof vi.fn>;
   };
   let i18n: TranslationService;
@@ -73,7 +73,7 @@ describe('the site status, wired to this site (provideSiteStatus)', () => {
       signedIn: () => user() !== null,
       isAdmin: computed(() => (user()?.roles ?? []).includes('ADMIN')),
       preferences: signal<AnotokiPreferences | null>(null),
-      lastError: signal(null),
+      failure: signal(null),
       login: vi.fn(async () => true),
     };
     TestBed.configureTestingModule({
@@ -122,7 +122,7 @@ describe('the site status, wired to this site (provideSiteStatus)', () => {
     setup(null);
     await config.signIn();
     // No address given: the sign-in comes back to the page it was started on (AuthService.login()).
-    expect(auth.login).toHaveBeenCalledWith(undefined, { uiLocales: 'sk' });
+    expect(auth.login).toHaveBeenCalledWith(undefined);
   });
 
   it("gives the language on the page: the reader's, and English in the admin panel", () => {

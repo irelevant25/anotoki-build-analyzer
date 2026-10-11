@@ -18,6 +18,8 @@ if (! in_array(PHP_SAPI, ['cli', 'cli-server'], true)) {
 require_once __DIR__.'/../vendor/autoload.php';
 require_once __DIR__.'/app.php';
 
+use Anotoki\Lib\ErrorLog\ErrorLog;
+use Anotoki\Lib\Support\Log as LibraryLog;
 use App\App;
 use App\Config;
 use App\Support\Log;
@@ -27,11 +29,19 @@ use App\Web\AfterResponse;
 if (! defined('BUILD_ANALYZER_NO_RUN')) {
     $config = Config::load();
     Log::to($config->storage('logs/app.log'));
+    // The anotoki library's own lines (a token refused - once a minute of a kind -, the IAM not answering whether
+    // sign-in is required, the scrub's and the backups' failures) into the same file.
+    LibraryLog::to(static fn (string $line) => Log::info($line));
 
-    // What a request leaves for after its answer (the visitors' clean-up) runs once the answer is out, and
-    // is not cut short when the browser goes.
+    // What a request leaves for after its answer (the visitors' clean-up, the scrub of the IAM's deleted
+    // accounts, the day's backup) runs once the answer is out, and is not cut short when the browser goes.
     AfterResponse::hold();
     ignore_user_abort(true);
-    buildAnalyzerApi(new App($config, web: true))->run();
+    $app = new App($config, web: true);
+    $api = buildAnalyzerApi($app);
+    // PHP's own errors - a warning, a fatal error such as a timeout - into the error log too (the admin panel's
+    // Error log page), with the request they happened in.
+    $app->get(ErrorLog::class)->installPhpHandlers();
+    $api->run();
     AfterResponse::runHeld();
 }

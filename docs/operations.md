@@ -16,6 +16,8 @@ page is the reference behind it.
 | Catalog | Sources page "Refresh catalog" (EDITOR) | `cd backend && php sync-catalog.php [genshin\|hsr] [--force]` |
 | Import from the command line | – | `cd backend && php import-account.php genshin 700123456 --user=ID` or `… hsr path/to/file.json --user=ID --account=3` (`--user` required) |
 | The site's words | the Translations page (EDITOR) and the Languages page (adding, renaming, switching, deleting: ADMIN) | `cd backend && php translations.php --status` (the frontend's keys against the database's), `--export=sk [file]`, `--import=sk file` |
+| Backups | the admin panel's Backups page (ADMIN) | `cd backend && php backup.php --list \| --create ["why"] \| --inspect=<id> \| --extract=<id> <folder> \| --restore=<id> --confirm=<last 6>` |
+| What failed, what was done, what visitors wrote | the admin panel's Errors, Audit and Feedback pages (ADMIN) | `storage/logs/errors-*.jsonl` (one JSON line each); the tables `anotoki_audit_log` and `anotoki_feedback` |
 | Tests | – | `cd backend && php tests/run.php` and `cd frontend && npx ng test --watch=false` |
 | The browser check | – | `node .claude/skills/verify-ui/scripts/run.mjs [--no-build] [--keep] [--measure]` (the `verify-ui` skill: a throwaway database, the stand-in IAM on 8597, the site on 8590) |
 | Frontend build | – | `cd frontend && npx ng build` (then the API server alone serves everything on :8400) |
@@ -28,6 +30,8 @@ commands with `cd <repo root> &&`.
 
 There is **no queue worker and no scheduler**: nothing runs unless someone starts it. Syncs run in steps (see
 below), and the page cache (`storage/http-cache/`) is pruned (files older than 3 days) when a build run ends.
+Ordinary traffic carries the rest, after its answer (`api/middleware/upkeep.php`; `config/app.php` `upkeep`
+switches each off): the scrub of the accounts the IAM deleted (at most hourly) and the day's backup.
 
 ## Configuration
 
@@ -73,14 +77,27 @@ database's answers in the words of every anotoki setup page:
 
 ## Sign-in
 
-People sign in at the anotoki IAM - on a host and on this computer alike; there is no other way in. Who a
-request is comes only from its verified access token (`src/Auth/IamGuard.php`); a request that sends an
-`Authorization: Bearer` header is that person or it is refused (401 `sign_in_required`), on public routes too
-(another scheme - `Basic`, from a host behind a password file - counts as no header).
+People sign in at the anotoki IAM - on a host and on this computer alike; there is no other way in - through
+the anotoki family's auth module (anotoki-lib 0.4.1: `Anotoki\Lib\Auth` on the server, `@anotoki/lib/auth` in the
+app). Who a request is comes only from its verified access token (the library's `Identify` with its
+`AccessTokens`, on each route group: `api/middleware/auth.php`); a request that sends an `Authorization: Bearer`
+header is that person or it is refused (401 `invalid_token`), on public routes too (another scheme - `Basic`, from
+a host behind a password file - counts as no header).
+
+**Signed in at the IAM is signed in here** (the IAM's sign-in hint, the owner's decision for the sites that let
+visitors in): the IAM sets `anotoki_signed_in` - a random value per session, readable by script, for every host
+under its parent domain - and a visitor's page load makes one silent sign-in with it before the first page is
+drawn (`prompt=none`; whatever comes back, nothing is said; each hint tried once, at most one try a minute -
+the marker `anotoki-auth:build-analyzer:hint` in localStorage). Signed out at the IAM is signed out here at the
+next page load. It needs nothing here but the IAM's hint (the IAM's own release) and the site under the IAM's
+parent domain; in development the IAM's hint is host-only `localhost`, so open the site as `localhost`, never
+`127.0.0.1`. Search engines never get the cookie; `robots.txt` keeps them off `/auth/`, and the callback and the
+failure screen say `noindex`. A sign-in that came back without one is said on `/sign-in` (the library's screen,
+in the site's frame: why, from the failure's code alone - Try again, Back).
 
 **Whether sign-in is required is the IAM's switch**, not a setting here: the IAM's admin panel, Applications ->
 Build Analyzer -> Settings -> "Sign-in required". The server reads it from the IAM (`GET
-{issuer}/api/public/applications/build-analyzer`, through the vendored SDK) and keeps the answer a minute in
+{issuer}/api/public/applications/build-analyzer`, through the library's `SignInRule`) and keeps the answer a minute in
 `storage/cache/iam/`, so a switch reaches the site within a minute; while the IAM is out of reach it uses the
 last answer, and with none ever read - or a 404, an application the IAM does not know or switched off - sign-in
 is **required** (fail closed). `/api/meta` relays it to the page (`auth.login_required`), which then sends
@@ -99,7 +116,7 @@ https://iam.anotoki.eu/api/public/applications/build-analyzer` (200, `"login_req
 | a visitor (no token, this browser's `X-Visitor-Key`; only while sign-in is not required) | its own accounts and imports, as a person's - nothing else (no accounts file: sign in first) |
 | a signed-in person (anybody the IAM lets sign in here; `MEMBER`, which every account holds, or no role) | their own accounts and imports, and their accounts as a file (`/api/me/export`, `/api/me/import`) |
 | `EDITOR` | also: syncs and the catalog, the sync history, a source's builds file (export / import), the strings (the Translations page, a language's file), the languages' list |
-| `ADMIN` | also: switching a source on or off, applying database updates, adding, renaming, switching and deleting a language, the People routes (list people, delete a person's data) |
+| `ADMIN` | also: switching a source on or off, applying database updates, adding, renaming, switching and deleting a language, the People routes (list people, delete a person's data, check the IAM's deleted accounts now), and the admin tools - the error log, the audit log, feedback, backups (an editor sees none of them) |
 
 - The IAM in development runs at `http://localhost:4300` (its API on :8100); hosted it is
   `https://iam.anotoki.eu`. The frontend reads the issuer and client id from `/api/meta`.
@@ -115,15 +132,26 @@ https://iam.anotoki.eu/api/public/applications/build-analyzer` (200, `"login_req
   somebody out entirely, require sign-in.
 - The API sends no CORS headers at all (the app is same-origin, and the dev server proxies), so other sites
   can neither read its answers nor send it a bearer token.
-- **People** (ADMIN): `GET /api/admin/people` lists everybody the IAM has signed in here, with their accounts
-  and imports; `DELETE /api/admin/people/{id}` deletes a person's data - their accounts with everything
-  imported into them and their import runs. The syncs they started and the strings they saved stay, by nobody;
-  their anotoki account is not touched, and signing in again starts them afresh.
+- **People** (ADMIN; the anotoki family's People page, `/admin/people`): everybody the IAM has signed in here -
+  the newest seen first, a search by name or IAM id, 50 a page - with their game accounts, imports and last
+  import; the visitors counted apart. **Delete their data** asks only its question, then deletes their accounts
+  with everything imported into them and their import runs (`DELETE /api/admin/people/{id}`, in the audit log as
+  `person.data_deleted`). The syncs they started and the strings they saved stay, by nobody - the syncs' logs say
+  "a deleted person" where they named them -, and what they sent through the feedback form stays without the
+  address and browser it was sent with; their anotoki account is not touched, and signing in again starts them
+  afresh.
+- **The IAM's deleted accounts are scrubbed here** (the library's people module): after an answer, at most once an
+  hour (`config/app.php` `upkeep.people`), the site reads the accounts the IAM deleted (thirty days after their
+  owners asked) and makes each one nobody's here - its row `deleted-{id}` with `anonymized_at` set, a sync's log
+  "a deleted person", their feedback's address and their name in the audit log's details blanked; their game
+  accounts and imports stay, nobody's now. The People page says when the IAM was last asked; Check now asks at
+  once (`POST /api/admin/people/sync`). A scrubbed row stays nobody's: no request ever writes a name back into
+  it, nor makes a new row for an id the IAM deleted.
 - The verifier caches the IAM's keys in `storage/cache/iam/`, and the reader the IAM's sign-in answer
   (`anotoki-iam-application-<sha1>.json`). The folder must be the site's own - a kept "not required" is what
   opens the site to visitors; the upload denies `storage/` to the web (`tools/build.php`), and setup checks it. Deleting the file makes the
   next request ask the IAM again.
-- **The account's theme, dates and language** (an IAM with its migration 015; the browser SDK 1.2.0): for a
+- **The account's theme, dates and language** (an IAM with its migration 015; the library's auth module): for a
   signed-in person the theme (on every page, the admin panel's too), the date order and clock and the
   language are the account's, which every anotoki site shares - set on the IAM's account page, on another
   site, or here: the theme toggle and the language menu save a signed-in person's choice to the account
@@ -147,14 +175,26 @@ they import is kept on the server under a row of `users` with a negative id; the
   5 game accounts and 5 MB files per visitor (422 `visitor_limit`); a visitor's imports counted per address
   (showcase 10, files 20 a minute), and all visitors' showcase imports 20 a minute together. Members keep
   10 showcase and 20 file imports a minute each, and files up to 20 MB.
-- **Which address**: `REMOTE_ADDR`; an IPv6 address counts by its /64. Behind a proxy such as Cloudflare
-  every visitor would share the proxy's few addresses: list its ranges in `client_address.trusted_proxies`
-  (CIDR, v4 and v6) and its header in `client_address.client_ip_header` (`CF-Connecting-IP`) - believed only on
-  connections from those ranges. `X-Forwarded-For` alone is never read. The header should be one the proxy
+- **Which address**: `REMOTE_ADDR`; an IPv6 address counts by its /64. The site is behind Cloudflare (the
+  owner's decision of 2026-10-11): `client_address.trusted_proxies` in `config/app.php` are Cloudflare's
+  published ranges, and on a connection from one of them the address in `client_address.client_ip_header`
+  (`CF-Connecting-IP`) is counted - from anywhere else the header is whatever the sender wrote, and the
+  connection's own address counts. `X-Forwarded-For` alone is never read. The header should be one the proxy
   writes whole, overwriting what the visitor sent, with one address (`CF-Connecting-IP` is); set to a list a
   proxy appends to (`X-Forwarded-For`), it is read from the right - past the trusted proxies' own addresses,
-  never its leftmost entry, which is whatever the visitor wrote. `config/app.php` is the same
-  everywhere and travels with the upload: change it here and build again.
+  never its leftmost entry, which is whatever the visitor wrote. `config/app.php` is the same everywhere and
+  travels with the upload: change it here and build again. An installation that is not behind Cloudflare
+  overrides it in `config/client_address.local.php` (by hand, gitignored): `<?php return ['trusted_proxies' => []];`.
+- **Cloudflare's ranges change rarely.** The committed list is the one https://www.cloudflare.com/ips-v4 and
+  https://www.cloudflare.com/ips-v6 published on 2026-10-11 (15 IPv4, 7 IPv6 ranges). When Cloudflare announces
+  a change, fetch both again, replace `client_address.trusted_proxies` with them (and the date in its comment),
+  run the tests, build and upload. A range missing from the list makes every visitor through it count as that
+  edge's address (they share its limits); a range listed that is no longer Cloudflare's would let whoever holds
+  it name any address.
+- **No address is kept.** The counters (the `cache` table: `visitors:new:...`, `rate:*:ip:...`) are keyed by an
+  HMAC of the counted address under the installation's key (`storage/anotoki-lib.key`, the library's) - never
+  the address itself, so neither the table nor a backup of the database holds one. The feedback limits and the
+  error log keep a keyed hash too, and nothing else reads an address.
 - **Watch the count** after a launch: the People page (ADMIN) shows the visitors and their accounts apart, or
   `SELECT count(*) FROM users WHERE id < 0`; and `storage/logs/app.log` ("Visitors unseen for 30 days
   deleted: N"). Lower the limits in `config/app.php` if the database grows faster than it should.
@@ -163,6 +203,13 @@ they import is kept on the server under a row of `users` with a negative id; the
   snack bar says how many moved and how many were kept. When the move cannot be made just then (no network, a
   503) the browser keeps the key and asks again a few seconds later, then at the next page load - the
   visitor's accounts are out of sight meanwhile, never lost.
+- **After an automatic sign-in** (the IAM's sign-in hint's silent hop, nobody's click - the owner's decision of
+  2026-10-11) the move says so (`silent`), and the server moves the visitor's data only into an account that has
+  nothing here yet (no game account, no import run: its first time here, after playing as a visitor). An account
+  with data here never takes in a browser's visitor data without its person's click: nothing moves (`held`), the
+  key stays this browser's, and signed out again the visitor's data is there; the next sign-in the person
+  clicks moves it. How the present sign-in began, the browser notes at its callback (localStorage
+  `build-analyzer-sign-in`: `silent` or `clicked`).
 - **In the browser** the key is localStorage `build-analyzer-visitor`: every tab of the site shares it, and a
   second tab's first import never replaces it (its one import is left to the clean-up). A private window that
   refuses storage keeps the key for the tab only. A lost key (site data cleared, another browser) loses the
@@ -240,7 +287,7 @@ a file over 8 MB is refused before it is sent). The format and every rule:
 
 The member pages read in English or Slovak; the words are rows of the database (migration 003,
 [architecture.md](architecture.md), "The site's words"), kept since version 0.4.0 by the anotoki family's
-translations module (anotoki-lib 0.3.0) - the same two pages as on every anotoki site, with the library's own
+translations module (anotoki-lib, since its 0.3.0) - the same two pages as on every anotoki site, with the library's own
 words (the language button's, the status page's, its kit's) among the keys as `anotoki.*`. An editor or an
 admin opens them in the admin panel -
 the "Admin panel" item of the person's menu in the top bar, then Translations (`/admin/translations`); the Languages page
@@ -261,6 +308,62 @@ owner's computer and the host each have their own, and no upload carries them. E
 database is replaced, and import it on the other installation to carry edits across (the command line does the
 same: `php translations.php --export=sk file` / `--import=sk file`, for the database of
 `config/database.local.php`).
+
+## The admin tools (ADMIN)
+
+The anotoki family's admin tools (anotoki-lib 0.4.1: `App\Admin\AdminTools`, `api/routes/admin_tools.php`; the
+pages `@anotoki/lib/admin/*` on `/admin/errors`, `/admin/audit`, `/admin/feedback`, `/admin/backups`) - for the
+site's ADMIN alone: an editor sees none of them and the server refuses them (403 `admin_only`). English, as the
+whole admin panel. No file explorer here (the owner's choice for this site).
+
+- **Error log** (`storage/logs/errors-YYYY-MM-DD.jsonl`, UTC days, 30 kept, 64 MB at most): what failed - an
+  exception the API answered 500 (its route, who asked, its trace), PHP's warnings and fatal errors - and the
+  answers worth seeing: 404, 405, 413, 415, 429 and every 5xx but 503 (every 503 here is a decided "not now": the
+  site gate while an update waits, a feature whose migration waits). Never a request's body, query, header or
+  token; an address only as a keyed hash. The page groups them, with each one's occurrences; **Clear** deletes the
+  days chosen (audited). `storage/logs/app.log` stays the site's own log of what it did (syncs, imports, the
+  visitors' clean-up). Errors the pages meet in the browser come with the library's 0.4.2 (its reporter) - not yet.
+- **Audit log** (the table `anotoki_audit_log`): what was done in the admin panel and by whom - sources switched,
+  syncs started and cancelled, a source's builds imported, strings saved and languages changed, a person's data
+  deleted, the IAM's deleted accounts checked, migrations applied, the error log cleared, feedback marked and
+  deleted, backups made, downloaded, deleted and restored. No address is kept. A restore keeps it as it is.
+- **Feedback** (the table `anotoki_feedback`): what visitors send from **Feedback** at the foot of every page - a
+  bug, an idea or anything else, about one of the site's places (Dashboard, Import, Accounts, Builds). Nobody is
+  mailed: the bar counts what is new beside Feedback. Who sent it comes from their token alone; for somebody signed
+  in the page writes their account's address into the form's address field, and the address they leave there -
+  none once they cleared it - is the only one kept, unless they tick "send it without my name" (no id, no
+  address): their choice (the owner's decision of 2026-10-11). The server never fills an empty field from the
+  token. Kept with a message: the page and the language it was
+  sent from and the browser's name (its user agent, blanked by the scrub with the address of a person the IAM
+  deleted); never the network address it came from, nor a hash of it: the limits - 5 an hour and 20 a day from one address, 300 a day from everybody - count
+  apart, in `storage/cache/anotoki-feedback-limits.json`, a day. Opening a message marks it read; Mark as and
+  Delete are in the audit log.
+- **Backups** (`storage/backups/*.anotoki-backup`, the folder denied to the web): the whole database by COPY (no
+  `pg_dump` on the host) - every day after the first answer of a UTC day (`config/app.php` `upkeep.daily_backup`;
+  never while an update waits), before every Apply (the Migrations page's and `php migration.php`'s), before every
+  restore, and by hand (**Back up now**, or `php backup.php` on this computer). Making, downloading (a single-use
+  link of a minute), deleting and restoring ask for a sign-in of the last ten minutes - the page offers **Sign in
+  again**. A restore says first what it would take away, wants the backup's last six characters typed, and puts
+  every table back but the audit log and the counters (`cache`, `cache_locks`), after a backup of the database as
+  it was. What a restore brings back:
+  - **The IAM's deleted accounts** are checked again at once, in the restore itself: whoever the IAM deleted
+    since the backup was made is nobody's here again before the answer. When that check cannot finish (the IAM
+    out of reach, more to read than its time allows) the restore is done and says so - the Backups page's note,
+    the error log - and the check runs again with the next request (Check now on the People page at once).
+  - **What was deleted on the People page** after the backup was made comes back with it: a restore does not
+    replay those deletes yet (the library's 0.4.2 will). The audit log, which a restore keeps, lists them
+    (`person.data_deleted`, whom and when): delete them again on the People page after a restore.
+  - **The ids** of the restored tables' rows are given again from where they were then (a restore sets each
+    table's sequence back to the backup's): a feedback message sent after the restore may get the id of one
+    that was there before it, so an entry of the kept audit log naming that id (feedback marked or deleted)
+    may now name another message. The library's 0.4.2 stops moving sequences backwards.
+
+  **Backups have no maximum age** (the owner's decision of 2026-10-11): a backup is kept until it is
+  deleted - a manual one only by the owner (the page flags one older than 90 days, and deletes nothing), the
+  automatic ones by the rotation by count (the newest 14 daily, 5 before an update, 5 before a restore). So a
+  person the IAM deleted, and the data of a person deleted on the People page, stay in the backups made before
+  until those backups go - delete them by hand when that matters. Download one now and then, and keep it off the
+  host.
 
 ## Deploying (FTP-only shared hosting)
 
@@ -290,8 +393,9 @@ map, are in [DEV.md](../DEV.md) ("Deploying"); in short:
    (signed out: that page's quiet **Sign in** goes to the IAM and back; it asks again by itself too, so it
    opens once another administrator has applied the update). The Migrations page (`/admin/migrations`,
    ADMIN only, the one page that works then) lists the waiting files in the order they will run beside the
-   applied ones with their dates and SQL. Back the database up first where the panel allows, then **Apply
-   pending** (`POST /api/admin/migrations/apply`) at once: the files run in order, each in its own transaction,
+   applied ones with their dates and SQL. Then **Apply pending** (`POST /api/admin/migrations/apply`) at once - it
+   makes a backup of the database as it is first (the Backups page lists it, kind "before-migration"; the error
+   log and the backups stay open while an update waits, restoring does not): the files run in order, each in its own transaction,
    and the run stops at the first that fails - that file rolled back whole, the page naming it with the
    database's error (the log too). One apply at a time, whoever runs it - the page, `php migration.php`, setup:
    each takes the same advisory lock, and another is told it is busy (409 `busy`) and does nothing. Once nothing
@@ -320,6 +424,31 @@ map, are in [DEV.md](../DEV.md) ("Deploying"); in short:
      "Jazyk: Slovenčina (SK)". The strings' answers are the library's now: the same shapes (snake_case), the
      same rights (EDITOR the strings, ADMIN the languages), a few new refusals (415 a body that is not JSON, 413
      one over 1 MiB, 422 `empty_body`, 400 `invalid_json`).
+   - **Version 0.4.0: signing in, people and the admin tools through the anotoki library (anotoki-lib 0.4.1 in
+     `vendor/` and in the app; the library's `anotoki_admin` 001-002, migrations 007-009, then `anotoki_translations`
+     003-004 and `anotoki_people` 001)**: the IAM must already set its sign-in hint (the IAM's release of
+     2026-10-07) - without it nothing breaks, the automatic sign-in only waits for it. Before uploading,
+     **Export** each language on the Translations page. Upload with `vendor/`, sign in with the ADMIN and **Apply
+     pending** at once - one Apply runs them all, in the README's order, after a backup of the database as it was:
+     `anotoki_admin` makes the audit log's and feedback's tables; 007 gives `users` its `anonymized_at` and touches
+     no row; 008 drops what the first (Laravel) version left, where it is - its login tables `laravel_users` (old
+     addresses and password hashes), `laravel_password_reset_tokens` (addresses, reset tokens) and
+     `laravel_sessions` (network addresses, browsers), and its queue's `laravel_jobs`, `laravel_job_batches` and
+     `laravel_failed_jobs` (old payloads), with their sequences, in one statement - keeping only
+     `laravel_migrations` (the owner's decisions); 009 moves the five
+     sign-in words this site had to the library's `anotoki.signIn.*` keys with every rewording, its writer and its
+     time, retires three, and adds Feedback's words; the library's 003-004 add the sign-in screen's and the form's
+     own words, never over a string that is there; `anotoki_people` makes where the scrub stands. Each refuses
+     (rolled back whole) when what it proves does not hold. **A step of this release, not an option: delete the
+     "before-migration" backup this Apply made** on the Backups page, once the site works - it still holds those
+     six tables (and the cache table's counters as version 0.3 kept them, by address). Nothing on disk is deleted
+     by the update: `storage/logs/app.log` stays the site's log; the error log and the backups are new files
+     beside it (`storage/logs/errors-*.jsonl`, `storage/backups/`) - delete any old file by hand when you like.
+     Then check: a private window where you are signed in at the IAM opens the site signed in, without a click;
+     Feedback at the foot of a page sends, and the admin panel counts it beside Feedback; the People page lists
+     you; the Errors, Audit and Backups pages open; `https://builder.anotoki.eu/robots.txt` says
+     `Disallow: /auth/`. A token that does not verify now answers 401 `invalid_token` (it was
+     `sign_in_required`).
    - **Version 0.3: visitors and the family's bar (migration 004, IAM migration 007)**, in this
      order: (1) before uploading, make sure an account that can sign in holds **ADMIN on `build-analyzer` now**
      (the IAM's admin panel; IAM 007 is what later gives every IAM administrator ADMIN here); (2) upload;
@@ -421,15 +550,18 @@ accounts again and sync (cached pages make it quick).
 | 403 `admin_only` "Only an admin can do this." | an EDITOR asked for an admin's route (sources on / off, migrations, adding / deleting a language, People): grant ADMIN |
 | 401 `visitor_unknown` | the browser's visitor key opens nothing: swept after 30 days unseen, moved into an account at sign-in, or not a key at all; the page forgets it and starts afresh. Also an import whose visitor was moved or swept while it ran: nothing was written |
 | 401 `sign_in_required` "Your data here was deleted while this was being saved" | an admin deleted the person's data on the People page while their import ran: nothing was written, and the page's retry (with a fresh token) starts them afresh |
-| 429 `too_many_visitors` | the visitor limits (`config/app.php` `visitors`): too many new visitors from one address or in all this hour, or too many at once; behind a proxy, check `client_address.trusted_proxies` (otherwise everybody shares the proxy's address) |
+| 429 `too_many_visitors` | the visitor limits (`config/app.php` `visitors`): too many new visitors from one address or in all this hour, or too many at once. Many visitors refused together: Cloudflare may serve from a range missing from `client_address.trusted_proxies` (everybody through it then shares its address) - compare the list with https://www.cloudflare.com/ips-v4 and /ips-v6 |
+| 415 `unsupported_media_type` "Without signing in, an import is sent as JSON." | an import by somebody with neither a token nor a visitor key that is not `application/json` - a form another page sent, never the site's own pages |
 | 422 `visitor_limit` | a visitor reached its accounts or file size limit: signing in lifts it |
 | 503 `visitors_unavailable` | migration 004 is not applied: Apply pending on the Migrations page (members are unaffected meanwhile) |
 | 503 `visitor_move_retry` | the move at sign-in met an import still writing; the page asks again (`visitors.move_lock_timeout_ms`) |
 | The dashboard says what this browser imported "is not kept here any more" | 401 `visitor_unknown`: the browser's visitor key opens nothing - another tab signed in and moved it, or it was unvisited for 30 days and swept. The page forgets the key and starts over |
-| An editor sees no Languages, People or Migrations link, no source switch, no database updates | by design: those are an admin's (`adminOnlyGuard` sends an editor to `/admin/sources`; the server refuses with 403 `admin_only`) |
+| An editor sees no Languages, People, Migrations, Errors, Audit, Feedback or Backups link, no source switch, no database updates | by design: those are an admin's (the family's `adminGuard` sends an editor to `/admin/sources`; the server refuses with 403 `admin_only`) |
 | "This part is for editors and admins" in the admin panel | the account has no EDITOR or ADMIN role here: grant one in the IAM's admin panel |
-| 401 although the person is signed in | the token the page sent was refused (expired, another IAM): the page refreshes it once; `storage/logs/app.log` says why |
-| The sign-in page says "This account cannot use Build Analyzer." (or another IAM sentence) | the IAM refused the sign-in and the page shows its words as they are: grant a role in the IAM admin panel, or see what the sentence asks. "The sign-in was cancelled." only means the person went back from the IAM's page |
+| 401 although the person is signed in | the token the page sent was refused (`invalid_token`: expired, another IAM): the page refreshes it once, for the same person; the error log keeps no 401 - `storage/logs/app.log` says why (`[anotoki auth] token refused`) |
+| "Signing in did not work" on `/sign-in` | the sign-in came back without one, or could not start; the screen says why from the failure's code alone ("not completed": the person went back from the IAM's page, or the IAM turned the account away - grant MEMBER there; "took too long or did not start here": an old tab; "the browser does not let the site remember a sign-in": site data blocked). Try again, or Back to where it started |
+| Signed in at the IAM, but not signed in here at once | the hint's one silent try came back without a sign-in, and is not tried again for that hint (a minute at least between tries): sign in with the button. The IAM's hint must be set for the site's domain (the IAM's `hint_cookie_domain`), and in development the site opened as `localhost` |
+| "Back up now" says "Sign in again first" | the sign-in is older than ten minutes: Sign in again (back to the Backups page), then once more |
 | "Cannot reach the server" in the UI | API not running on localhost:8400 (the Angular dev server proxies `/api`) |
 | Icons missing | `/api/icons/…` could not fetch the image: `storage/icons/` writable? the provider reachable? |
 | Headless screenshots blank | timing only; see the `verify-ui` skill |

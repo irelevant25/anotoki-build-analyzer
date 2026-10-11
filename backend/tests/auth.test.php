@@ -1,12 +1,12 @@
 <?php
 
 /**
- * Signing in through the anotoki IAM - the only way in: which tokens are accepted, who a request is, what
- * a signed-in person, an EDITOR and an ADMIN may do (route by route), what the IAM's "sign-in required" closes
- * (and its reader, App\Auth\IamSignInPolicy, from the SDK's file seam), that a leftover sign-in "mode" opens
- * nothing, which settings make an installation set up (the site gate's every state: site_gate.test.php), the
- * version meta says, and the development router. Tokens are signed with a test key published as a JWKS file
- * (tests/stand_in_iam.test.php signs in through the stand-in IAM itself).
+ * Signing in through the anotoki IAM - the only way in, through the anotoki library's auth module: which tokens
+ * are accepted, who a request is, what a signed-in person, an EDITOR and an ADMIN may do (route by route), what
+ * the IAM's "sign-in required" closes (the library's SignInRule, from the test IAM's file of its answer), that a
+ * leftover sign-in "mode" opens nothing, which settings make an installation set up (the site gate's every
+ * state: site_gate.test.php), the version meta says, and the development router. Tokens are signed by the
+ * library's test IAM, its key set a file (tests/stand_in_iam.test.php signs in through the stand-in IAM itself).
  */
 
 declare(strict_types=1);
@@ -14,7 +14,6 @@ declare(strict_types=1);
 require __DIR__.'/lib.php';
 
 use App\Auth\Role;
-use App\Auth\SignInPolicy;
 use App\Config;
 use App\Db\Db;
 use App\Db\Migrations;
@@ -47,7 +46,10 @@ const STAFF_ROUTES = [
     ['PUT', '/api/admin/translations/sk/import', []],
 ];
 
-/** The admins' own: sources on / off, database updates, the languages themselves, people's data. */
+/**
+ * The admins' own: sources on / off, database updates, the languages themselves, people's data, and the anotoki
+ * library's admin tools - the error log, the audit log, feedback, backups (admin_tools.test.php: what each does).
+ */
 const ADMIN_ROUTES = [
     ['PATCH', '/api/sources/genshin-1', ['enabled' => false]],
     ['GET', '/api/admin/migrations', null],
@@ -57,6 +59,18 @@ const ADMIN_ROUTES = [
     ['DELETE', '/api/admin/languages/sk', null],
     ['GET', '/api/admin/people', null],
     ['DELETE', '/api/admin/people/5', null],
+    ['POST', '/api/admin/people/sync', []],
+    ['GET', '/api/admin/errors', null],
+    ['DELETE', '/api/admin/errors', null],
+    ['GET', '/api/admin/audit', null],
+    ['GET', '/api/admin/audit/facets', null],
+    ['GET', '/api/admin/feedback', null],
+    ['GET', '/api/admin/feedback/unread', null],
+    ['PUT', '/api/admin/feedback/1/status', ['status' => 'read']],
+    ['DELETE', '/api/admin/feedback/1', null],
+    ['GET', '/api/admin/backups', null],
+    ['GET', '/api/admin/backups/proof', null],
+    ['POST', '/api/admin/backups', []],
 ];
 
 $refusedAs = function (Answer $answer, int $status, string $code, string $message, string $what): void {
@@ -68,9 +82,13 @@ test('meta is public and says where to sign in and whether the IAM requires it -
         ->path('auth.issuer', TEST_ISSUER)
         ->path('auth.client_id', TEST_CLIENT)
         ->path('auth.login_required', false)
+        ->path('auth.sign_in_available', true)
         ->path('games.0.key', 'genshin');
-    same(['issuer', 'client_id', 'login_required'], array_keys($meta->json('auth')), 'the sign-in part of meta');
+    // The library's boot configuration (AuthRoutes::configBody()), snake_case.
+    same(['issuer', 'client_id', 'login_required', 'sign_in_available'], array_keys($meta->json('auth')), 'the sign-in part of meta');
     same(['keep_days' => 30], $meta->json('visitors'), 'how long a visitor\'s imports are kept');
+    // Read with no token: a bad one is not even looked at, nor a visitor key.
+    same($meta->body, (new Client)->withToken('x')->withHeaders(['X-Visitor-Key' => 'x'])->get('/api/meta')->status(200)->body, 'credentials are not read');
 });
 
 test('meta says the version people see: MAJOR.MINOR.PATCH, the changelog\'s newest entry and the frontend package\'s', function () {
@@ -120,22 +138,28 @@ test('the builds and the sources are public: the same for everybody, and nobody 
 test('requests without a valid access token are refused', function () use ($users) {
     $client = new Client;
     $answer = $client->get('/api/accounts')->status(401)->path('message', 'Sign in to continue.')->path('code', 'sign_in_required');
-    same('Bearer', $answer->header('WWW-Authenticate'), 'WWW-Authenticate');
+    same('Bearer realm="'.TEST_CLIENT.'"', $answer->header('WWW-Authenticate'), 'WWW-Authenticate');
     same(['message' => 'Sign in to continue.', 'code' => 'sign_in_required'], $answer->json(), 'the whole answer');
 
-    $otherKey = anotoki_iam_test_keypair('test-key'); // the same kid, but not the IAM's key
+    $stranger = strangerIam(); // the same kid, but not the IAM's key
     $refused = [
         'expired' => iamToken(5, claims: ['exp' => time() - 120]),
         'for another application' => iamToken(5, claims: ['aud' => 'genshin']),
+        'for another application\'s client' => iamToken(5, claims: ['client_id' => 'genshin']),
         'from another issuer' => iamToken(5, claims: ['iss' => 'https://iam.evil.example']),
         'an ID token' => iamToken(5, typ: 'JWT'),
-        'signed by another key' => iamToken(5, key: $otherKey),
+        'signed by another key' => iamToken(5, iam: $stranger),
         'not valid yet' => iamToken(5, claims: ['nbf' => time() + 600]),
         'without a user id' => iamToken(5, claims: ['sub' => 'admin']),
+        'with a header it must understand' => T::$iam->sign(T::$iam->claims(5), header: ['crit' => ['exp']]),
+        'unsigned' => T::$iam->sign(T::$iam->claims(5), alg: 'none'),
         'not a JWT' => 'definitely-not-a-token',
     ];
     foreach ($refused as $case => $token) {
-        same(401, (new Client)->withToken($token)->get('/api/accounts')->status, $case);
+        // A token that does not verify is told apart from no token at all: the page signs in again.
+        $answer = (new Client)->withToken($token)->get('/api/accounts');
+        same([401, 'invalid_token'], [$answer->status, $answer->json('code')], $case);
+        same('Bearer realm="'.TEST_CLIENT.'", error="invalid_token"', $answer->header('WWW-Authenticate'), "{$case}: WWW-Authenticate");
     }
 
     // Nothing in a request makes anybody somebody: no parameter, no header of the site's own, no address.
@@ -149,16 +173,16 @@ test('credentials that are sent must verify: never answered as if none were sent
     seedGenshinCatalog();
     $bad = [
         'expired' => ['Authorization' => 'Bearer '.iamToken(5, claims: ['exp' => time() - 120])],
-        'a bad signature' => ['Authorization' => 'Bearer '.iamToken(5, key: anotoki_iam_test_keypair('test-key'))],
+        'a bad signature' => ['Authorization' => 'Bearer '.iamToken(5, iam: strangerIam())],
         'garbage' => ['Authorization' => 'Bearer x'],
         'no token after Bearer' => ['Authorization' => 'Bearer '],
         'the word Bearer alone' => ['Authorization' => 'Bearer'],
         'bearer in small letters' => ['Authorization' => 'bearer x'],
     ];
     foreach ($bad as $case => $headers) {
-        foreach (['/api/accounts', '/api/builds/genshin', '/api/sources', '/api/sync'] as $url) {
+        foreach (['/api/accounts', '/api/builds/genshin', '/api/sources', '/api/sync', '/api/admin/errors', '/api/admin/people'] as $url) {
             $answer = (new Client)->withHeaders($headers)->get($url);
-            same([401, 'sign_in_required'], [$answer->status, $answer->json('code')], "{$case}: {$url}");
+            same([401, 'invalid_token'], [$answer->status, $answer->json('code')], "{$case}: {$url}");
         }
     }
 
@@ -286,14 +310,16 @@ test('an admin may do everything an editor may, and the admins\' own', function 
 
 test('when the IAM requires sign-in, nobody gets anything but meta, the strings, the icons and the site\'s status - and any token is let in', function () use ($users) {
     seedGenshinCatalog();
-    T::$signIn->required = true;
+    iamRequiresSignIn(true);
 
     foreach (['/api/builds/genshin', '/api/builds/genshin/hutao', '/api/sources', '/api/accounts', '/api/me/export', '/api/sync'] as $url) {
         $answer = (new Client)->get($url);
-        same([401, ['message' => 'Sign in to continue.', 'code' => 'sign_in_required'], 'Bearer'], [$answer->status, $answer->json(), $answer->header('WWW-Authenticate')], "nobody: {$url}");
+        same([401, ['message' => 'Sign in to continue.', 'code' => 'sign_in_required'], 'Bearer realm="'.TEST_CLIENT.'"'], [$answer->status, $answer->json(), $answer->header('WWW-Authenticate')], "nobody: {$url}");
     }
     $import = (new Client)->post('/api/imports/file', ['content' => '{}']);
     same([401, 'sign_in_required', ''], [$import->status, $import->json('code'), $import->header('X-Visitor-Key')], 'nobody\'s import: refused before its input, and no visitor');
+    $feedback = (new Client)->post('/api/feedback', ['kind' => 'idea', 'message' => 'More sources']);
+    same([401, 'sign_in_required'], [$feedback->status, $feedback->json('code')], 'nobody\'s feedback too');
 
     (new Client)->get('/api/meta')->status(200)->path('auth.login_required', true);
     (new Client)->get('/api/translations/en')->status(200)->path('language', 'en');
@@ -305,30 +331,31 @@ test('when the IAM requires sign-in, nobody gets anything but meta, the strings,
     }
     same(0, $users(), 'nobody was recorded');
 
-    // The IAM decided who may sign in: any token that verifies is let in, MEMBER alone or no role at all.
-    T::$signIn->asked = 0;
-    foreach (['MEMBER' => ['MEMBER'], 'no role' => []] as $case => $roles) {
-        $person = (new Client)->asIam(7, $roles);
-        $person->get('/api/builds/genshin')->status(200);
-        $person->get('/api/sources')->status(200);
-        $person->get('/api/accounts')->status(200);
-        $person->get('/api/admin/migrations')->status(403)->path('code', 'admin_only');
+    // The IAM decided who may sign in: any token that verifies is let in, MEMBER alone or no role at all - also
+    // while the IAM does not answer at all (fail closed: required for everybody else).
+    foreach ([true, null] as $required) {
+        iamRequiresSignIn($required);
+        foreach (['MEMBER' => ['MEMBER'], 'no role' => []] as $case => $roles) {
+            $person = (new Client)->asIam(7, $roles);
+            $person->get('/api/builds/genshin')->status(200);
+            $person->get('/api/sources')->status(200);
+            $person->get('/api/accounts')->status(200);
+            $person->get('/api/admin/migrations')->status(403)->path('code', 'admin_only');
+        }
+        (new Client)->get('/api/builds/genshin')->status(401)->path('code', 'sign_in_required');
     }
-    same(0, T::$signIn->asked, 'a signed-in person\'s requests never ask whether sign-in is required');
     // A token that does not verify is refused as ever, never answered as nobody.
     (new Client)->withToken('x')->get('/api/translations/en')->status(200);
-    (new Client)->withToken('x')->get('/api/builds/genshin')->status(401)->path('code', 'sign_in_required');
+    (new Client)->withToken('x')->get('/api/builds/genshin')->status(401)->path('code', 'invalid_token');
 
-    T::$signIn->required = false;
+    iamRequiresSignIn(false);
     (new Client)->get('/api/builds/genshin')->status(200);
     (new Client)->get('/api/meta')->status(200)->path('auth.login_required', false);
 });
 
-test('the IAM\'s answer through the SDK (its file seam): false opens the site, anything else - no answer, another client, not a boolean - requires sign-in', function () {
+test('the IAM\'s answer (the library\'s SignInRule, from the test IAM\'s file of it): false opens the site, anything else - no answer, another client, not a boolean - requires sign-in', function () {
     seedGenshinCatalog();
-    $file = T::$storage.DIRECTORY_SEPARATOR.'application.json';
-    @unlink($file);
-    T::$app->config->set('auth.application_file', $file);
+    $file = T::$iam->dir.'/'.Anotoki\Lib\Auth\Testing\TestIam::APPLICATION_FILE;
     $answers = [
         'no answer ever (fail closed)' => [null, true],
         'the IAM says sign-in is not required' => [['client_id' => TEST_CLIENT, 'name' => 'Build Analyzer', 'login_required' => false], false],
@@ -338,7 +365,6 @@ test('the IAM\'s answer through the SDK (its file seam): false opens the site, a
     ];
     foreach ($answers as $case => [$answer, $required]) {
         $answer === null ? @unlink($file) : file_put_contents($file, json_encode($answer));
-        realSignInPolicy();
         (new Client)->get('/api/meta')->status(200)->path('auth.login_required', $required);
         same($required ? 401 : 200, (new Client)->get('/api/builds/genshin')->status, "{$case}: the builds for nobody");
     }
@@ -357,7 +383,7 @@ test('a settings file that still says sign-in mode "none" opens nothing', functi
     $import = (new Client)->post('/api/imports/file', ['content' => '{}'])->status(422)->path('code', 'file_unknown_format');
     same('', $import->header('X-Visitor-Key'), 'no visitor made');
     same(0, (int) db()->value('SELECT count(*) FROM users'), 'nobody recorded');
-    same(['issuer', 'client_id', 'login_required'], array_keys((new Client)->get('/api/meta')->json('auth')), 'meta says nothing of it');
+    same(['issuer', 'client_id', 'login_required', 'sign_in_available'], array_keys((new Client)->get('/api/meta')->json('auth')), 'meta says nothing of it');
     same(null, $userName(9), 'no row for the old owner');
 
     // A token is needed as anywhere, and is enough.
@@ -373,18 +399,16 @@ test('a settings file that still says sign-in mode "none" opens nothing', functi
     file_put_contents($old.'/config/auth.local.php', "<?php return ['mode' => 'none', 'local_user_id' => 1, 'issuer' => 'http://localhost:4300', 'client_id' => 'build-analyzer'];");
     $config = Config::load($old);
     same([], $config->problems(), 'set up');
-    // The fixed answer (sign-in not required) here too: this App is not T::$app, and its own reader would ask
-    // the issuer above - the owner's dev IAM - which no test may do.
+    // The test IAM's answer (sign-in not required) here too: this App is not T::$app, and its own reader would
+    // ask the issuer above - the owner's dev IAM - which no test may do.
     $app = new App\App($config, web: true);
-    $app->set(SignInPolicy::class, T::$signIn);
+    $app->set(Anotoki\Lib\Auth\SignInRule::class, new Anotoki\Lib\Auth\SignInRule(T::$iam->client()));
     $api = buildAnalyzerApi($app);
-    $asked = T::$signIn->asked;
     foreach (['/api/accounts', '/api/sync', '/api/admin/translations'] as $url) {
         $request = (new Slim\Psr7\Factory\ServerRequestFactory)->createServerRequest('GET', 'http://localhost'.$url, ['REMOTE_ADDR' => '127.0.0.1'])->withHeader('Host', 'localhost');
         same(401, $api->handle($request)->getStatusCode(), "{$url} from this computer");
     }
-    check(T::$signIn->asked > $asked, 'the fixed answer was the one asked');
-    same([], glob($config->storage('cache/iam').'/anotoki-iam-application-*') ?: [], 'and no IAM was');
+    same([], glob($config->storage('cache/iam').'/anotoki-iam-application-*') ?: [], 'and no IAM was asked');
 });
 
 test('no other site may read or call the API', function () {

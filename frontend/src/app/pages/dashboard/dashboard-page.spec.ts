@@ -149,7 +149,7 @@ describe('the dashboard', () => {
         provideRouter([]),
         (options.language ?? 'sk') === 'sk' ? provideTestTranslations({ ...SLOVAK, ...options.strings }, { language: 'sk', english: en }) : provideTestTranslations(en),
         { provide: Api, useValue: api },
-        { provide: AuthService, useValue: { ...auth, isAdmin: auth.isStaff, available: signal(true), lastError: signal(null), user: signal(null) } },
+        { provide: AuthService, useValue: { ...auth, isAdmin: auth.isStaff, available: signal(true), failure: signal(null), user: signal(null) } },
         { provide: VisitorKey, useValue: visitor },
         { provide: MatSnackBar, useValue: snackBar },
         { provide: MATERIAL_ANIMATIONS, useValue: { animationsDisabled: true } },

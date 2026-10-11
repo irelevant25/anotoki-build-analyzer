@@ -33,7 +33,7 @@ describe("everybody's pages' frame", () => {
             isAdmin: () => false,
             isStaff: () => false,
             accountUrl: signal(null),
-            lastError: signal(null),
+            failure: signal(null),
           },
         },
         { provide: SyncDriver, useValue: { driving: signal(false) } },

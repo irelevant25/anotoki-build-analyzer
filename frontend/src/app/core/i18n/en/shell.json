@@ -36,6 +36,12 @@
   "toolbar.syncingLabel": "Syncing builds",
 
   "footer.version": "Version {version}",
+  "footer.feedback": "Feedback",
+
+  "feedback.section.dashboard": "Dashboard",
+  "feedback.section.import": "Importing an account",
+  "feedback.section.accounts": "Your accounts and characters",
+  "feedback.section.builds": "Builds",
 
   "whatsNew.title": "What's new",
   "whatsNew.version": "Version {version}",
@@ -149,9 +155,5 @@
   "account.sourceFile": "Inventory file",
   "account.runSummary.one": "{count} character, {items}: {itemCount}",
   "account.runSummary.few": "{count} characters, {items}: {itemCount}",
-  "account.runSummary.other": "{count} characters, {items}: {itemCount}",
-
-  "signIn.intro": "Import your Genshin Impact and Honkai: Star Rail accounts and see, per character, what to improve. Sign in with your anotoki account to continue.",
-  "signIn.unreachable": "The server could not be reached, so signing in is not possible right now. Reload the page to try again.",
-  "signIn.signingIn": "Signing in…"
+  "account.runSummary.other": "{count} characters, {items}: {itemCount}"
 }

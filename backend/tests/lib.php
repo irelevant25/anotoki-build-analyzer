@@ -9,29 +9,29 @@
  * made from the migrations and dropped at the end - no other database is touched. The server's address and
  * credentials come from config/database.local.php (setup.php writes it); only the database name is the
  * test's own. Nothing reaches the network: every outgoing request goes to a FakeHttpClient, which fails the
- * test on any request it was not told to answer, and whether the IAM requires sign-in is a fixed answer
- * (T::$signIn, false unless a test sets it) - realSignInPolicy() puts the SDK's reader back for a test that
- * means to try it.
+ * test on any request it was not told to answer, and the IAM is the anotoki library's test IAM (T::$iam,
+ * Anotoki\Lib\Auth\Testing\TestIam) - a key pair of its own, the tokens it signs, and the files the site's
+ * IamClient reads in place of asking an IAM: its key set, its answer about whether this site requires
+ * signing in (false at the start of each test: iamRequiresSignIn() changes it) and the accounts it deleted.
+ * tests/stand_in_iam.test.php signs in through the library's stand-in IAM itself.
  */
 
 declare(strict_types=1);
 
 define('BUILD_ANALYZER_NO_RUN', true);
 require __DIR__.'/../api/index.php';
-require_once __DIR__.'/../src/Support/Iam/anotoki_iam.php';
 foreach (glob(__DIR__.'/support/*.php') ?: [] as $support) {
     require_once $support;
 }
 
+use Anotoki\Lib\Auth\Testing\TestIam;
 use App\App;
-use App\Auth\SignInPolicy;
 use App\Config;
 use App\Db\Db;
 use App\Db\Migrations;
 use App\Http\HttpClient;
 use App\Support\Clock;
 use Tests\Support\FakeHttpClient;
-use Tests\Support\FixedSignInPolicy;
 
 const TEST_ISSUER = 'https://iam.example.test';
 const TEST_CLIENT = 'build-analyzer';
@@ -42,15 +42,10 @@ final class T
 
     public static FakeHttpClient $http;
 
-    /** Whether the IAM requires sign-in here, as the tests set it (false at the start of each test). */
-    public static FixedSignInPolicy $signIn;
+    /** The IAM of the tests: its key, its tokens, its answers (Anotoki\Lib\Auth\Testing\TestIam). */
+    public static TestIam $iam;
 
     public static Slim\App $api;
-
-    /** @var array{kid: string, private_pem: string, jwks: array<string, mixed>} */
-    public static array $key;
-
-    public static string $jwks;
 
     public static string $database;
 
@@ -101,33 +96,42 @@ function bootTests(): void
         exit(1);
     }
 
-    T::$key = anotoki_iam_test_keypair('test-key');
-    T::$jwks = T::$storage.DIRECTORY_SEPARATOR.'jwks.json';
-    file_put_contents(T::$jwks, json_encode(T::$key['jwks']));
+    T::$iam = TestIam::create(T::$storage.DIRECTORY_SEPARATOR.'iam', TEST_ISSUER, TEST_CLIENT, 'test-key');
+    // The anotoki library's own lines go where the site's go, as api/index.php sends them: nowhere, unless a test
+    // points App\Support\Log at a file of its own.
+    \Anotoki\Lib\Support\Log::to(static fn (string $line) => \App\Support\Log::info($line));
 
     $config = testConfig(['database' => ['database' => T::$database, 'persistent' => false] + $server]);
     T::$app = new App($config, web: true);
     T::$app->set(Db::class, new Db($pdo));
     T::$http = new FakeHttpClient;
     T::$app->set(HttpClient::class, T::$http);
-    T::$signIn = new FixedSignInPolicy;
-    T::$app->set(SignInPolicy::class, T::$signIn);
     T::$api = buildAnalyzerApi(T::$app);
 
-    // Every test starts from empty tables, this configuration, no faked answers, nothing cached, and a site
-    // the IAM does not require sign-in for.
+    // Every test starts from empty tables, this configuration, no faked answers, nothing cached, a site the IAM
+    // does not require sign-in for, and an IAM that deleted nobody.
     $snapshot = $config->snapshot();
     beforeEach(function () use ($snapshot): void {
         resetDatabase();
         T::$app->config->restore($snapshot);
         T::$http->reset();
-        T::$signIn->required = false;
-        T::$signIn->asked = 0;
-        T::$app->set(SignInPolicy::class, T::$signIn);
+        iamRequiresSignIn(false);
+        T::$iam->anonymized([]);
         T::$app->resetScope();
         Tests\Support\FakeBuildSource::reset();
         removeTree(T::$storage.DIRECTORY_SEPARATOR.'http-cache');
+        removeTree(T::$storage.DIRECTORY_SEPARATOR.'cache');
     });
+}
+
+/**
+ * What the IAM says about this site from now on (its public answer about the application, read through the
+ * file the test IAM keeps - every time, nothing remembered): whether everybody must sign in here; null is an
+ * IAM that does not answer at all (the site then fails closed: required).
+ */
+function iamRequiresSignIn(?bool $required): void
+{
+    T::$iam->signInRule($required);
 }
 
 /**
@@ -137,10 +141,20 @@ function bootTests(): void
  */
 function testConfig(array $values = []): Config
 {
+    $iam = T::$iam->dir;
+
     return Config::fromArray($values + [
         'database' => [],
-        'auth' => ['issuer' => TEST_ISSUER, 'client_id' => TEST_CLIENT, 'jwks_file' => T::$jwks],
+        'auth' => [
+            'issuer' => TEST_ISSUER,
+            'client_id' => TEST_CLIENT,
+            'jwks_file' => $iam.'/'.TestIam::JWKS_FILE,
+            'application_file' => $iam.'/'.TestIam::APPLICATION_FILE,
+            'anonymized_file' => $iam.'/'.TestIam::ANONYMIZED_FILE,
+        ],
         'fetch' => ['user_agent' => 'build-analyzer-tests', 'delay_ms' => 0],
+        // The upkeep after an answer (the people's scrub, the day's backup): the tests that mean to try it switch it on.
+        'upkeep' => ['people' => false, 'daily_backup' => false],
     ], (string) realpath(__DIR__.'/..'), T::$storage);
 }
 
@@ -223,13 +237,21 @@ function db(): Db
 }
 
 /**
- * Every table empty again (what a test wrote goes; the schema stays). The languages and the site's strings
- * are not among them: they are what the migrations left, and no table here points at them.
+ * Every table empty again (what a test wrote goes; the schema stays) - the anotoki library's too: the audit
+ * log, feedback, and where the people's scrub stands. The languages and the site's strings are not among
+ * them: they are what the migrations left, and no table here points at them.
  */
 function resetDatabase(): void
 {
+    // The library's tables where they are there: a test's world of its own may be a database before their files.
+    $there = static fn (string $table): bool => (bool) db()->value('SELECT to_regclass(?) IS NOT NULL', [$table]);
+    $library = array_values(array_filter(['anotoki_audit_log', 'anotoki_feedback', 'anotoki_people_anonymized'], $there));
     db()->run('TRUNCATE users, game_characters, game_weapons, game_sets, accounts, import_runs, account_characters,
-        account_weapons, account_items, build_sources, builds, sync_runs, cache, cache_locks RESTART IDENTITY CASCADE');
+        account_weapons, account_items, build_sources, builds, sync_runs, cache, cache_locks'.($library === [] ? '' : ', '.implode(', ', $library)).' RESTART IDENTITY CASCADE');
+    // Where the people's scrub stands is one row its migration made: back to never run.
+    if ($there('anotoki_people_sync')) {
+        db()->run('UPDATE anotoki_people_sync SET since = NULL, checked_at = NULL, ok_at = NULL, error = NULL, scrubbed = 0');
+    }
 }
 
 /**
@@ -265,30 +287,25 @@ function removeTree(string $path): void
     @rmdir($path);
 }
 
-/**
- * From here on in this test, the app's own App\Auth\IamSignInPolicy - the IAM SDK's reader, its answer kept
- * in the test's storage/cache/iam - instead of the fixed answer; and a new request's worth of it each call
- * (the SDK remembers its answer for the rest of a request, and the tests hand one process many).
- */
-function realSignInPolicy(): void
-{
-    T::$app->forget(SignInPolicy::class);
-    anotoki_iam_login_required_reset();
-}
-
 // ── Tokens ───────────────────────────────────────────────────────────────────────────────────────
 
 /**
- * A signed access token; $claims override the defaults (exp, aud, iss ...), $key signs with another key.
+ * A signed access token of the test IAM's (the IAM's claims: this issuer, this client, ten minutes, a session,
+ * signed in now, the profile - preferred_username "user{id}"); $claims override them (exp, aud, iss ... null
+ * takes one out), $typ is the header's, and $iam signs with another key.
  *
  * @param  list<string>  $roles
  * @param  array<string, mixed>  $claims
- * @param  array{kid: string, private_pem: string}|null  $key
  */
-function iamToken(int $userId, array $roles = [], array $claims = [], string $typ = 'at+jwt', ?array $key = null): string
+function iamToken(int $userId, array $roles = [], array $claims = [], string $typ = 'at+jwt', ?TestIam $iam = null): string
 {
-    $key ??= T::$key;
-    $config = ['issuer' => TEST_ISSUER, 'client_id' => TEST_CLIENT];
+    $iam ??= T::$iam;
 
-    return anotoki_iam_test_sign(anotoki_iam_test_claims($config, $userId, $roles, $claims), $key['private_pem'], $key['kid'], $typ);
+    return $iam->sign($iam->claims($userId, $roles, $claims), $typ);
+}
+
+/** Another IAM's key under the same kid as the tests' IAM's: a token it signs is nobody's here. */
+function strangerIam(): TestIam
+{
+    return TestIam::create(T::$storage.DIRECTORY_SEPARATOR.'stranger-iam', TEST_ISSUER, TEST_CLIENT, 'test-key');
 }

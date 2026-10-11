@@ -2,17 +2,23 @@
 
 namespace App;
 
+use Anotoki\Lib\Auth\IamClient;
+
 /**
  * The configuration: the application's own settings (config/app.php, committed) and the files that
  * describe one installation (config/*.local.php, gitignored, written by setup.php):
  *
  *   database.local.php   required: the PostgreSQL connection
- *   auth.local.php       required: where people sign in - the anotoki IAM's address (issuer) and this
- *                        app's client id there. Sign-in through the IAM is the only way in; a "mode" or
- *                        "local_user_id" left in an older file means nothing and opens nothing.
+ *   auth.local.php       required: where people sign in - the anotoki IAM's address (issuer: https, http only
+ *                        on this computer) and this app's client id there. Sign-in through the IAM is the
+ *                        only way in; a "mode" or "local_user_id" left in an older file means nothing and opens
+ *                        nothing.
  *   fetch.local.php      optional: outgoing requests - how the app identifies itself, the delay between two
  *                        requests to one site, the page cache, and how long one sync step may run. Each value
  *                        it leaves out is FETCH_DEFAULTS'.
+ *   client_address.local.php  optional, written by hand: an installation's own proxies over config/app.php's
+ *                        client_address (Cloudflare's ranges) - ['trusted_proxies' => []] where the site is
+ *                        not behind Cloudflare. Each value it leaves out is config/app.php's.
  *
  * There is no committed default for the required files: an installation that has not been set up says so
  * (503 "not_set_up", see api/middleware) instead of quietly running against a database or an IAM nobody
@@ -26,8 +32,8 @@ final class Config
     /** The files setup.php writes and the app cannot run without. */
     public const LOCAL_FILES = ['database.local.php', 'auth.local.php'];
 
-    /** The file that may be there: its values over FETCH_DEFAULTS. */
-    public const OPTIONAL_FILES = ['fetch.local.php'];
+    /** The files that may be there: fetch's values over FETCH_DEFAULTS, client_address's over config/app.php's. */
+    public const OPTIONAL_FILES = ['fetch.local.php', 'client_address.local.php'];
 
     /** The browser check's settings folder (see the class comment). */
     public const TEST_CONFIG_ENV = 'BUILD_ANALYZER_TEST_CONFIG';
@@ -99,6 +105,8 @@ final class Config
         $values['database'] = $local['database'] ?? [];
         $values['auth'] = ($local['auth'] ?? []) + ['jwks_file' => null, 'leeway' => 60];
         $values['fetch'] = ($local['fetch'] ?? []) + self::FETCH_DEFAULTS;
+        // This installation's own proxies (or none) over the committed Cloudflare ranges.
+        $values['client_address'] = ($local['client_address'] ?? []) + (array) ($values['client_address'] ?? []);
 
         if ($testDir !== null && ! str_starts_with((string) ($values['database']['database'] ?? ''), self::TEST_DATABASE_PREFIX)) {
             // The test settings never reach a real database: not set up, rather than the wrong one.
@@ -164,6 +172,9 @@ final class Config
         $auth = $values['auth'] ?? [];
         if (! is_string($auth['issuer'] ?? null) || ! preg_match('#^https?://[^/\s]+#', $auth['issuer'])) {
             $problems[] = 'config/auth.local.php has no issuer (the IAM\'s address)';
+        } elseif (! IamClient::secureAddress(trim($auth['issuer']))) {
+            // The keys tokens are checked with come from the issuer: never over plain http across a network.
+            $problems[] = 'config/auth.local.php has an issuer that is not https (http only on this computer)';
         }
         if (! is_string($auth['client_id'] ?? null) || trim($auth['client_id']) === '') {
             $problems[] = 'config/auth.local.php has no client_id';

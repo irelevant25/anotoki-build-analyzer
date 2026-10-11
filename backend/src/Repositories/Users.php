@@ -203,14 +203,16 @@ final class Users
      * with its import runs; every other account and import run becomes the person's; the visitor's row goes.
      * Null when no visitor has this hash (moved already, swept, never there); false, with nothing moved,
      * when the person's row is not there (an admin deleted their data on the People page while the move
-     * waited for its lock). A lock not had within $lockTimeoutMs fails the statement (PDOException 55P03)
-     * and rolls everything back.
+     * waited for its lock). With $onlyIntoNothing (the move after a sign-in nobody clicked), nothing moves
+     * when the person already has data here - a game account or an import run, asked under both locks -
+     * and the answer is ['held' => true]: the visitor stays as it is. A lock not had within $lockTimeoutMs
+     * fails the statement (PDOException 55P03) and rolls everything back.
      *
-     * @return array{moved: int, kept: int, imports: int}|null|false
+     * @return array{moved: int, kept: int, imports: int}|array{held: true}|null|false
      */
-    public function moveVisitor(string $hash, int $personId, int $lockTimeoutMs): array|null|false
+    public function moveVisitor(string $hash, int $personId, int $lockTimeoutMs, bool $onlyIntoNothing = false): array|null|false
     {
-        return $this->db->transaction(function () use ($hash, $personId, $lockTimeoutMs): array|null|false {
+        return $this->db->transaction(function () use ($hash, $personId, $lockTimeoutMs, $onlyIntoNothing): array|null|false {
             $this->db->value("SELECT set_config('lock_timeout', ?, true)", [max(1, $lockTimeoutMs).'ms']);
 
             $visitor = $this->db->value('SELECT id FROM users WHERE visitor_key_hash = ? AND id < 0 FOR UPDATE', [$hash]);
@@ -220,6 +222,12 @@ final class Users
             $visitor = (int) $visitor;
             if ($this->db->value('SELECT id FROM users WHERE id = ? AND id > 0 FOR UPDATE', [$personId]) === null) {
                 return false;
+            }
+            if ($onlyIntoNothing && (bool) $this->db->value(
+                'SELECT EXISTS (SELECT 1 FROM accounts WHERE user_id = ?) OR EXISTS (SELECT 1 FROM import_runs WHERE user_id = ?)',
+                [$personId, $personId],
+            )) {
+                return ['held' => true];
             }
 
             $kept = $this->db->run(

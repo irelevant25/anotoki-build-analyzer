@@ -1,0 +1,5 @@
+<h2 mat-dialog-title [attr.lang]="said().lang">{{ said().words.title }}</h2>
+
+<mat-dialog-content>
+  <anotoki-feedback-form [heading]="null" closable (closed)="close()" />
+</mat-dialog-content>

@@ -18,9 +18,9 @@ import { toSignal } from '@angular/core/rxjs-interop';
 import { MatButtonModule } from '@angular/material/button';
 import { MatDialog } from '@angular/material/dialog';
 import { MatIconModule } from '@angular/material/icon';
-import { MatSnackBar } from '@angular/material/snack-bar';
 import { MatTooltipModule } from '@angular/material/tooltip';
 import { NavigationEnd, Router, RouterLink } from '@angular/router';
+import { FeedbackUnread } from '@anotoki/lib/admin';
 import { filter, map } from 'rxjs';
 import { AuthService } from '../../core/auth';
 import { TranslationKey } from '../../core/i18n/en';
@@ -46,6 +46,8 @@ export interface BarLink {
   under: readonly string[];
   /** For ADMIN alone (the server refuses EDITOR there anyway). */
   admin?: boolean;
+  /** A count beside it: the feedback nobody has opened yet (the anotoki family's FeedbackUnread). */
+  badge?: 'feedback';
 }
 
 /** Everybody's sections - the same for somebody not signed in, a visitor and a person. */
@@ -55,13 +57,20 @@ export const APP_LINKS: readonly BarLink[] = [
   { key: 'topbar.builds', path: '/builds', under: ['/builds/'] },
 ];
 
-/** The admin panel's sections (English). Languages, People and Migrations are ADMIN's. */
+/**
+ * The admin panel's sections (English). Languages, People, Migrations and the anotoki family's admin tools -
+ * the error log, the audit log, feedback (with the count of new messages) and backups - are ADMIN's.
+ */
 export const ADMIN_LINKS: readonly BarLink[] = [
   { label: 'Sources', path: '/admin/sources', under: [] },
   { label: 'Translations', path: '/admin/translations', under: [] },
   { label: 'Languages', path: '/admin/languages', under: [], admin: true },
   { label: 'People', path: '/admin/people', under: [], admin: true },
   { label: 'Migrations', path: '/admin/migrations', under: [], admin: true },
+  { label: 'Errors', path: '/admin/errors', under: [], admin: true },
+  { label: 'Audit', path: '/admin/audit', under: [], admin: true },
+  { label: 'Feedback', path: '/admin/feedback', under: [], admin: true, badge: 'feedback' },
+  { label: 'Backups', path: '/admin/backups', under: [], admin: true },
 ];
 
 /**
@@ -74,13 +83,22 @@ export const ADMIN_LINKS: readonly BarLink[] = [
 export const PHONE_BAR_MAX = 880;
 
 /**
- * The same for the admin panel, whose row is longer: an admin has five sections. Its brand is short for it,
- * as the IAM's - "anotoki admin panel" (`brand.admin`), the app's name in the brand link's accessible name
- * (`topbar.homeAdmin`). Measured as above (the panel reads English whichever language is chosen): 904 px
- * for an admin, 954 px with a sync running - so a 1024 px screen has the whole row. The person's name
- * shows from 1161 px (ADMIN_PHONE_BAR_MAX + 200).
+ * The same for the admin panel, whose row is longer: the ADMIN has nine sections - the anotoki family's admin
+ * tools among them, the count of new feedback beside Feedback. Its brand is short for it, as the IAM's -
+ * "anotoki admin panel" (`brand.admin`), the app's name in the brand link's accessible name
+ * (`topbar.homeAdmin`). Measured as above (the panel reads English whichever language is chosen): 1244 px
+ * for the ADMIN with a count beside Feedback, 1294 px with a sync running - and room for a scrollbar: a 1366 px
+ * screen has the whole row, a 1280 px one the menu button. The person's name shows from 1521 px
+ * (ADMIN_PHONE_BAR_MAX + 200).
  */
-export const ADMIN_PHONE_BAR_MAX = 960;
+export const ADMIN_PHONE_BAR_MAX = 1320;
+
+/**
+ * The admin panel's row for an editor, who has two sections (Sources, Translations): measured as above, 635 px,
+ * 685 px with a sync running - and room for a scrollbar. The person's name shows from 921 px
+ * (EDITOR_PHONE_BAR_MAX + 200).
+ */
+export const EDITOR_PHONE_BAR_MAX = 720;
 
 /** Which of the bar's two menus is open: the person's (account) or the phone's (links and account). */
 type OpenMenu = 'account' | 'phone' | null;
@@ -138,7 +156,7 @@ export class TopBar {
   protected readonly sync = inject(SyncDriver);
   private readonly router = inject(Router);
   private readonly dialog = inject(MatDialog);
-  private readonly snackBar = inject(MatSnackBar);
+  private readonly unread = inject(FeedbackUnread);
   private readonly host = inject<ElementRef<HTMLElement>>(ElementRef);
   private readonly injector = inject(Injector);
 
@@ -146,15 +164,28 @@ export class TopBar {
   protected readonly signingOut = signal(false);
   private readonly appPhone = this.matches(`(max-width: ${PHONE_BAR_MAX}px)`);
   private readonly adminPhone = this.matches(`(max-width: ${ADMIN_PHONE_BAR_MAX}px)`);
+  private readonly editorPhone = this.matches(`(max-width: ${EDITOR_PHONE_BAR_MAX}px)`);
   private readonly appNameless = this.matches(`(max-width: ${PHONE_BAR_MAX + 200}px)`);
   private readonly adminNameless = this.matches(`(max-width: ${ADMIN_PHONE_BAR_MAX + 200}px)`);
-  /** The bar of a phone: the links and the person's menu inside the menu button. Each area has its own width. */
+  private readonly editorNameless = this.matches(`(max-width: ${EDITOR_PHONE_BAR_MAX + 200}px)`);
+  /**
+   * The bar of a phone: the links and the person's menu inside the menu button. Each row has its own width: the
+   * member pages', and the admin panel's - the ADMIN's nine sections, or an editor's two.
+   */
   protected readonly phone = computed(() =>
-    this.area() === 'admin' ? this.adminPhone() : this.appPhone(),
+    this.area() === 'admin'
+      ? this.auth.isAdmin()
+        ? this.adminPhone()
+        : this.editorPhone()
+      : this.appPhone(),
   );
   /** A row wide enough for the links but not for the person's name as well: the round button alone. */
   protected readonly nameless = computed(() =>
-    this.area() === 'admin' ? this.adminNameless() : this.appNameless(),
+    this.area() === 'admin'
+      ? this.auth.isAdmin()
+        ? this.adminNameless()
+        : this.editorNameless()
+      : this.appNameless(),
   );
 
   /** The area's sections: everybody's in the app; in the admin panel the ones this editor or admin may open, none for anybody else. */
@@ -171,6 +202,10 @@ export class TopBar {
   );
   /** The sync this tab drives, for the people who may run one. */
   protected readonly syncing = computed(() => this.auth.isStaff() && this.sync.driving());
+  /** The feedback nobody has opened yet - beside Feedback, for the site's ADMIN; none when there is none (or no answer). */
+  protected readonly newFeedback = computed(() =>
+    this.auth.isAdmin() ? this.unread.count() || null : null,
+  );
   /** The person's email address, when it is not already their name. */
   protected readonly email = computed(() => {
     const user = this.auth.user();
@@ -207,16 +242,21 @@ export class TopBar {
     return this.here() === link.path;
   }
 
+  /** The count beside a link: the new feedback beside Feedback; null for none. */
+  protected badgeOf(link: BarLink): number | null {
+    return link.badge === 'feedback' ? this.newFeedback() : null;
+  }
+
   /** The page is in this link's section: its own address or one under it. */
   protected inSection(link: BarLink): boolean {
     const here = this.here();
     return here === link.path || link.under.some((start) => here.startsWith(start));
   }
 
-  /** To the IAM and back to this page, its pages in the language read here; a snack bar when it cannot start. */
+  /** To the IAM and back to this page, its pages in the language read here; the failure's screen when it cannot start. */
   protected signIn(): void {
     this.closeMenu(false);
-    void signInOrSayWhy(this.auth, this.i18n, this.snackBar);
+    void signInOrSayWhy(this.auth, this.router);
   }
 
   protected toggleMenu(which: 'account' | 'phone'): void {

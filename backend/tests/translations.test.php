@@ -301,7 +301,7 @@ test('a code that is not one is 404, and the database never hears of it', functi
     // With a database that fails on any use: a wrong address is answered without one.
     withDatabase(brokenDatabase(new LogicException('the database was asked')), function () use ($codes) {
         foreach ($codes as $code) {
-            same(['message' => 'There is no such language', 'code' => 'not_found'], (new Client)->get("/api/translations/{$code}")->status(404)->json(), $code);
+            same(['message' => 'There is no such language.', 'code' => 'not_found'], (new Client)->get("/api/translations/{$code}")->status(404)->json(), $code);
         }
     });
 
@@ -413,7 +413,7 @@ test('the strings are for editors, the languages themselves for admins; the toke
         refused((new Client)->request($method, $url, $body), 401, 'sign_in_required', "{$method} {$url}, signed out");
         refused(mona()->request($method, $url, $body), 403, $notAllowed, "{$method} {$url}, a person with no role");
         refused((new Client)->asIam(7, ['MEMBER'])->request($method, $url, $body), 403, $notAllowed, "{$method} {$url}, MEMBER - every account's");
-        refused((new Client)->withToken(iamToken(OWNER, [Role::ADMIN], ['exp' => time() - 120]))->request($method, $url, $body), 401, 'sign_in_required', "{$method} {$url}, a token that ran out");
+        refused((new Client)->withToken(iamToken(OWNER, [Role::ADMIN], ['exp' => time() - 120]))->request($method, $url, $body), 401, 'invalid_token', "{$method} {$url}, a token that ran out");
         // A role in the address or a header of the request is nobody's role.
         refused(mona()->withHeaders(['X-Roles' => 'ADMIN'])->request($method, $url.'?role=ADMIN', $body), 403, $notAllowed, "{$method} {$url}, a role in the request");
         // Refused for who it is, before anything of the request is looked at: a body that would be refused too.
@@ -590,7 +590,7 @@ test('languages: added after the others, offered at once or hidden as the body s
     same(true, owner()->request('PUT', '/api/admin/languages/sk', ['enabled' => true])->status(200)->json('language.enabled'), 'and on again');
 
     $english = refused(owner()->request('PUT', '/api/admin/languages/en', ['enabled' => false, 'name' => 'Changed']), 409, 'fallback_language');
-    same('English cannot be switched off: every other language falls back to it', $english->json('message'), 'the sentence');
+    same('English cannot be switched off: every other language falls back to it.', $english->json('message'), 'the sentence');
     same('English', db()->value("SELECT name FROM languages WHERE code = 'en'"), 'and nothing of that change was kept');
     same($admin(ENGLISH, true, 5, true, 3), owner()->request('PUT', '/api/admin/languages/en', ['enabled' => true, 'sort_order' => 5])->status(200)->json('language'), 'on is what it is; its place is anybody\'s to choose');
 
@@ -655,7 +655,7 @@ test('deleting a language: never English, never one the site is released in - an
     db()->run("INSERT INTO translations (key_name, language_code, value) VALUES ('test.hello', 'de', 'Hallo, {name}!'), ('test.bye', 'de', 'Tschüss')");
 
     $english = refused(owner()->delete('/api/admin/languages/en'), 409, 'fallback_language');
-    same('English cannot be deleted: every other language falls back to it', $english->json('message'), 'the sentence');
+    same('English cannot be deleted: every other language falls back to it.', $english->json('message'), 'the sentence');
     $slovak = refused(owner()->delete('/api/admin/languages/sk'), 409, 'seeded_language', 'a later migration with strings would fail without it');
     same('This language is one the site is released in: every update brings strings for it, and would fail without it. Switch it off instead.', $slovak->json('message'), 'the sentence');
     refused(owner()->delete('/api/admin/languages/fr'), 404, 'not_found');
@@ -797,9 +797,9 @@ test('saving strings: all of it is checked before any of it is written, and each
     }
     $added = refused(save(['test.hello' => ['en' => 'Hi, {name} - {title}!']]), 422, 'placeholder_changed', 'a placeholder the code does not fill');
     same('title', $added->json('placeholder'), 'which one');
-    same('The English string of "test.hello" cannot use {title}: the page has no value for it', $added->json('message'), 'the sentence names the key and the placeholder');
-    same('The English string of "test.hello" must keep {name}: the page puts a value there', save(['test.hello' => ['en' => 'Hi!']])->json('message'), 'and the one it must keep');
-    same('The Slovak string of "test.hello" uses {meno}, which its English string does not have', save(['test.hello' => ['sk' => '{meno}']])->json('message'), 'in another language');
+    same('The English string of "test.hello" cannot use {title}: the page has no value for it.', $added->json('message'), 'the sentence names the key and the placeholder');
+    same('The English string of "test.hello" must keep {name}: the page puts a value there.', save(['test.hello' => ['en' => 'Hi!']])->json('message'), 'and the one it must keep');
+    same('The Slovak string of "test.hello" uses {meno}, which its English string does not have.', save(['test.hello' => ['sk' => '{meno}']])->json('message'), 'in another language');
     $braces = refused(save(['test.hello' => ['en' => 'Hi, {{name}}!']]), 422, 'invalid_placeholder', 'in English too');
     same('The English string of "test.hello" has a { or } that is not part of a placeholder. A placeholder is written exactly as the English string has it, like {name}: no spaces, and its name is not translated.',
         $braces->json('message'), 'it says how a placeholder is written, with the key\'s own');
@@ -927,7 +927,7 @@ test('a language out as a file and back in: its own strings only; unknown keys r
     refused(import('de', ['test.bye' => 'Tschüss', 'test.hello' => 'Hallo, {dich}!']), 422, 'unknown_placeholder');
     refused(import('en', ['test.hello' => 'Hi!']), 422, 'placeholder_changed');
     refused(import('de', ['test.hello' => ['de' => 'Hallo']]), 422, 'invalid_value', 'a string given by language');
-    refused(owner()->request('PUT', '/api/admin/translations/de/import', ['Hallo', 'Tschüss']), 422, 'invalid_value', 'a list');
+    refused(owner()->request('PUT', '/api/admin/translations/de/import', ['Hallo', 'Tschüss']), 422, 'unknown_key', 'a list: its keys are numbers, which the site has none of');
     refused(owner()->request('PUT', '/api/admin/translations/de/import', null, ['body' => '"Hallo"']), 422, 'invalid_value', 'a text');
     refused(import('fr', ['test.bye' => 'Au revoir']), 404, 'not_found', 'a language there is not');
     same($before, everyString(), 'nothing refused was kept');

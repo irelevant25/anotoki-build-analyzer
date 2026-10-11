@@ -1,7 +1,7 @@
 <?php
 
+use Anotoki\Lib\ErrorLog\ErrorLog;
 use App\App;
-use App\Support\Log;
 use App\Web\HttpError;
 use App\Web\Json;
 use Psr\Http\Message\ResponseInterface;
@@ -15,12 +15,15 @@ use Slim\Exception\HttpNotFoundException;
  *
  * An HttpError carries its own status, its English message and - for what a member can meet - a "code" a
  * page can word in the reader's language (App\Web\HttpError lists them). Anything else is a 500
- * "server_error" that says nothing about the server; the details go to storage/logs/app.log, the only place
- * an FTP-only host lets anybody read them.
+ * "server_error" that says nothing about the server; what it was goes into the error log (the anotoki
+ * library's: storage/logs/errors-*.jsonl, redacted, with its trace and the route - the admin panel's Error log
+ * page, the place an FTP-only host lets anybody read it). A decided answer (an HttpError, a 404 for a path
+ * nobody has) is written there by the error log's watch on every answer instead, when its status is one worth
+ * seeing (App\Admin\AdminTools::errorLog()).
  */
 function jsonErrors(App $app, Slim\App $slim): Closure
 {
-    return function (ServerRequestInterface $request, RequestHandlerInterface $handler) use ($slim): ResponseInterface {
+    return function (ServerRequestInterface $request, RequestHandlerInterface $handler) use ($app, $slim): ResponseInterface {
         try {
             return $handler->handle($request);
         } catch (HttpError $e) {
@@ -35,7 +38,7 @@ function jsonErrors(App $app, Slim\App $slim): Closure
         } catch (HttpMethodNotAllowedException) {
             return Json::message($slim->getResponseFactory()->createResponse(), 405, 'Method not allowed.', ['code' => 'method_not_allowed']);
         } catch (Throwable $e) {
-            Log::exception($e, $request->getMethod().' '.$request->getUri()->getPath());
+            $app->get(ErrorLog::class)->record($e, $request, 500, 'server_error');
 
             return Json::message($slim->getResponseFactory()->createResponse(), 500, 'Something went wrong on the server. Try again, and if it keeps happening, tell the admin.', ['code' => 'server_error']);
         }

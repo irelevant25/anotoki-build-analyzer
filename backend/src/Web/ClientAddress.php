@@ -2,6 +2,7 @@
 
 namespace App\Web;
 
+use Anotoki\Lib\Support\Keys;
 use App\Config;
 use Psr\Http\Message\ServerRequestInterface;
 
@@ -66,6 +67,28 @@ final class ClientAddress
     public static function counted(ServerRequestInterface $request, Config $config): string
     {
         return self::bucket(self::of($request, $config));
+    }
+
+    /**
+     * What the limits count, as the counters keep it (the cache table's keys - the throttles', the new visitors'
+     * limit): an HMAC of counted() under this installation's key (the anotoki library's Keys: made once in
+     * storage/anotoki-lib.key, derived for this one purpose), never the address. The counters' rows live until
+     * something prunes them, and every backup of the database carries the table: no address anybody could read
+     * back is in either.
+     */
+    public static function countedKey(ServerRequestInterface $request, Config $config): string
+    {
+        return substr(hash_hmac('sha256', self::counted($request, $config), self::key($config)), 0, 32);
+    }
+
+    /** @var array<string, string> the counters' key, by the storage folder it is kept in */
+    private static array $keys = [];
+
+    private static function key(Config $config): string
+    {
+        $storage = $config->storage();
+
+        return self::$keys[$storage] ??= Keys::derive(Keys::installation($storage), 'address-counters');
     }
 
     public static function bucket(string $ip): string

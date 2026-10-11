@@ -195,7 +195,7 @@ describe('the account page', () => {
         { provide: MatSnackBar, useValue: snackBar },
         { provide: MATERIAL_ANIMATIONS, useValue: { animationsDisabled: true } },
         // Somebody signed in: no visitor notice; one who is not is a case of its own.
-        { provide: AuthService, useValue: { signedIn: signal(options.signedIn ?? true), available: signal(true), user: signal(null), lastError: signal(null) } },
+        { provide: AuthService, useValue: { signedIn: signal(options.signedIn ?? true), available: signal(true), user: signal(null), failure: signal(null) } },
       ],
     });
     fixture = TestBed.createComponent(AccountPage);

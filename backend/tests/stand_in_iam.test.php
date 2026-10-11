@@ -1,12 +1,14 @@
 <?php
 
 /**
- * Signing in through the stand-in IAM (tests/tools/fake-iam.php), the way a browser does: discovery, the
- * authorize redirect with PKCE, the code for tokens, a refresh - and the access token it hands out is let
- * into this API by the same verifier that checks the real IAM's, its keys downloaded from the stand-in -
- * and its public answer about the application, which the site reads through the IAM's SDK to know whether
- * sign-in is required (App\Auth\IamSignInPolicy, kept for a minute, failing closed). This is what the browser
- * check signs in with; the other test files sign their own tokens and give a fixed answer.
+ * Signing in through the anotoki family's stand-in IAM (the anotoki library's php/testing/stand-in-iam.php, in
+ * vendor/), the way a browser does: discovery, the authorize redirect with PKCE, the code for tokens, a refresh -
+ * and the access token it hands out is let into this API by the same checker that checks the real IAM's (the
+ * library's AccessTokens), its keys downloaded from the stand-in - its public answer about the application,
+ * which the site reads to know whether sign-in is required (the library's SignInRule, kept for a minute, failing
+ * closed), the sign-in hint it sets and clears as the IAM does (which this API never reads: the pages' silent
+ * sign-in is the library's Angular half), and its list of the accounts it deleted, which the scrub reads. This is
+ * what the browser check signs in with; the other test files sign their own tokens and give a fixed answer.
  *
  * The stand-in runs as `php -S 127.0.0.1:<port>` on a throwaway port (8590-8599) and is stopped at the end.
  */
@@ -15,7 +17,8 @@ declare(strict_types=1);
 
 require __DIR__.'/lib.php';
 
-use App\Support\Iam\IamTokenVerifier;
+use Anotoki\Lib\Auth\Testing\StandInIam;
+use Anotoki\Lib\Auth\Testing\TestIam;
 use Tests\Support\Client;
 
 bootTests();
@@ -33,20 +36,25 @@ function throwawayPort(): int
     throw new RuntimeException('No free port in 8590-8599.');
 }
 
-/** @return array{status: int, headers: array<string, string>, body: string} */
-function http(string $method, string $url, ?array $form = null): array
+/** @return array{status: int, headers: array<string, string>, cookies: list<string>, body: string} */
+function http(string $method, string $url, ?array $form = null, ?string $cookie = null): array
 {
     $headers = [];
+    $cookies = [];
     $curl = curl_init($url);
     curl_setopt_array($curl, [
         CURLOPT_CUSTOMREQUEST => $method,
         CURLOPT_RETURNTRANSFER => true,
         CURLOPT_FOLLOWLOCATION => false,
         CURLOPT_TIMEOUT => 5,
-        CURLOPT_HEADERFUNCTION => function ($curl, string $line) use (&$headers): int {
+        CURLOPT_HTTPHEADER => $cookie === null ? [] : ["Cookie: {$cookie}"],
+        CURLOPT_HEADERFUNCTION => function ($curl, string $line) use (&$headers, &$cookies): int {
             if (str_contains($line, ':')) {
                 [$name, $value] = explode(':', $line, 2);
                 $headers[strtolower(trim($name))] = trim($value);
+                if (strtolower(trim($name)) === 'set-cookie') {
+                    $cookies[] = trim($value);
+                }
             }
 
             return strlen($line);
@@ -54,18 +62,18 @@ function http(string $method, string $url, ?array $form = null): array
     ] + ($form === null ? [] : [CURLOPT_POSTFIELDS => http_build_query($form)]));
     $body = (string) curl_exec($curl);
 
-    return ['status' => (int) curl_getinfo($curl, CURLINFO_RESPONSE_CODE), 'headers' => $headers, 'body' => $body];
+    return ['status' => (int) curl_getinfo($curl, CURLINFO_RESPONSE_CODE), 'headers' => $headers, 'cookies' => $cookies, 'body' => $body];
 }
 
 $dir = T::$storage.DIRECTORY_SEPARATOR.'stand-in-iam';
-@mkdir($dir, 0777, true);
-file_put_contents($dir.'/key.json', json_encode(T::$key));
 $port = throwawayPort();
 $issuer = "http://127.0.0.1:{$port}";
+// Its key pair and files: the library's test IAM under that issuer (the stand-in signs with its key.json).
+$standIn = TestIam::create($dir, $issuer, TEST_CLIENT);
 $null = PHP_OS_FAMILY === 'Windows' ? 'NUL' : '/dev/null';
-$process = proc_open([PHP_BINARY, '-S', "127.0.0.1:{$port}", __DIR__.'/tools/fake-iam.php'],
+$process = proc_open([PHP_BINARY, '-S', "127.0.0.1:{$port}", StandInIam::script()],
     [0 => ['file', $null, 'r'], 1 => ['file', $null, 'w'], 2 => ['file', $dir.'/server.log', 'a']],
-    $pipes, __DIR__.'/..', ['FAKE_IAM_DIR' => $dir, 'FAKE_IAM_ISSUER' => $issuer] + getenv());
+    $pipes, $dir, ['STAND_IN_DIR' => $standIn->dir, 'STAND_IN_ISSUER' => $issuer] + getenv());
 if (! is_resource($process)) {
     fwrite(STDERR, "The stand-in IAM did not start.\n");
     exit(1);
@@ -78,12 +86,6 @@ for ($i = 0; $i < 100 && http('GET', "{$issuer}/.well-known/openid-configuration
     usleep(50000);
 }
 
-/** The stand-in's person for the next sign-in. */
-function standInUser(string $issuer, array $user, array $more = []): void
-{
-    standInState($issuer, ['user' => $user] + $more);
-}
-
 /** $changes merged into the stand-in's state; the state that results (its request log among it). */
 function standInState(string $issuer, array $changes = []): array
 {
@@ -93,12 +95,19 @@ function standInState(string $issuer, array $changes = []): array
     return (array) json_decode((string) curl_exec($curl), true);
 }
 
+/** The stand-in's person for the next sign-in. */
+function standInUser(string $issuer, array $user, array $more = []): void
+{
+    standInState($issuer, ['user' => $user] + $more);
+}
+
 /**
- * Signs in as a browser does - authorize with PKCE, then the code for tokens.
+ * Signs in as a browser does - authorize with PKCE, then the code for tokens; $prompt 'none' as the sign-in hint's
+ * silent hop asks, with the browser's cookies.
  *
- * @return array<string, mixed> the token answer, or ['error' => ...] from the redirect
+ * @return array<string, mixed> the token answer, or ['error' => ...] from the redirect - with the cookies authorize set
  */
-function signIn(string $issuer): array
+function signIn(string $issuer, ?string $prompt = null, ?string $cookie = null): array
 {
     $verifier = rtrim(strtr(base64_encode(random_bytes(32)), '+/', '-_'), '=');
     $challenge = rtrim(strtr(base64_encode(hash('sha256', $verifier, true)), '+/', '-_'), '=');
@@ -106,11 +115,11 @@ function signIn(string $issuer): array
     $authorize = http('GET', "{$issuer}/api/oidc/authorize?".http_build_query([
         'response_type' => 'code', 'client_id' => TEST_CLIENT, 'redirect_uri' => $redirect, 'scope' => 'openid profile email',
         'state' => 'st', 'nonce' => 'no', 'code_challenge' => $challenge, 'code_challenge_method' => 'S256',
-    ]));
+    ] + ($prompt === null ? [] : ['prompt' => $prompt])), cookie: $cookie);
     same(302, $authorize['status'], 'authorize redirects back');
     parse_str((string) parse_url($authorize['headers']['location'] ?? '', PHP_URL_QUERY), $query);
     if (isset($query['error'])) {
-        return ['error' => $query['error']];
+        return ['error' => $query['error'], 'cookies' => $authorize['cookies']];
     }
     same('st', $query['state'] ?? null, 'the state comes back');
 
@@ -119,20 +128,46 @@ function signIn(string $issuer): array
     ]);
     same(200, $token['status'], 'the code for tokens: '.$token['body']);
 
-    return (array) json_decode($token['body'], true);
+    return (array) json_decode($token['body'], true) + ['cookies' => $authorize['cookies']];
 }
 
-// The API checks tokens against the stand-in, its keys downloaded from it as from the real IAM.
-beforeEach(function () use ($issuer): void {
+/** The hint a Set-Cookie header sets: [name, value] - the value '' when it clears it; null when it says nothing of it. */
+function hintOf(array $cookies): ?array
+{
+    foreach ($cookies as $cookie) {
+        if (preg_match('/^anotoki_signed_in=([^;]*)/', $cookie, $m)) {
+            return ['anotoki_signed_in', $m[1]];
+        }
+    }
+
+    return null;
+}
+
+// The API checks tokens against the stand-in, its keys downloaded from it as from the real IAM, and asks it
+// whether sign-in is required and whom it deleted. The stand-in starts as this site is set: visitors welcome.
+$asksTheStandIn = static function () use ($issuer): void {
     T::$app->config->set('auth.issuer', $issuer);
     T::$app->config->set('auth.jwks_file', null);
-    T::$app->forget(IamTokenVerifier::class);
+    T::$app->config->set('auth.application_file', null);
+    T::$app->config->set('auth.anonymized_file', null);
+};
+// The people module is made once with the API, as on the host, with the IAM the configuration names then: the
+// API made again, so that the scrub asks the stand-in too.
+$asksTheStandIn();
+T::$app->resetScope();
+T::$app->forget(Anotoki\Lib\People\People::class);
+T::$api = buildAnalyzerApi(T::$app);
+
+beforeEach(function () use ($issuer, $asksTheStandIn): void {
+    $asksTheStandIn();
+    standInState($issuer, ['login_required' => false, 'application_missing' => false, 'down' => false, 'deny' => false, 'refuse' => false,
+        'session' => true, 'interaction' => false, 'anonymized' => []]);
 });
 
-test('the stand-in answers as an IAM: discovery, its keys, and the authorize redirect', function () use ($issuer) {
+test('the stand-in answers as an IAM: discovery, its keys, and the authorize redirect', function () use ($issuer, $standIn) {
     $discovery = json_decode(http('GET', "{$issuer}/.well-known/openid-configuration")['body'], true);
     same([$issuer, "{$issuer}/.well-known/jwks.json", "{$issuer}/api/oidc/token"], [$discovery['issuer'] ?? null, $discovery['jwks_uri'] ?? null, $discovery['token_endpoint'] ?? null], 'discovery');
-    same(T::$key['jwks'], json_decode(http('GET', "{$issuer}/.well-known/jwks.json")['body'], true), 'the key set');
+    same($standIn->jwks(), json_decode(http('GET', "{$issuer}/.well-known/jwks.json")['body'], true), 'the key set');
 });
 
 test('an ADMIN signed in at the stand-in is an admin here; a MEMBER is an ordinary person', function () use ($issuer) {
@@ -142,18 +177,22 @@ test('an ADMIN signed in at the stand-in is an admin here; a MEMBER is an ordina
     $owner = (new Client)->withToken($tokens['access_token']);
     $owner->get('/api/admin/migrations')->status(200);
     $owner->get('/api/admin/people')->status(200)->path('people.0.name', 'owner');
+    $owner->get('/api/admin/errors')->status(200);
 
     standInUser($issuer, ['id' => 7, 'username' => 'mona', 'roles' => ['MEMBER']]);
     $mona = (new Client)->withToken(signIn($issuer)['access_token'] ?? '');
     $mona->get('/api/accounts')->status(200);
     $mona->get('/api/sync')->status(403)->path('code', 'editor_only');
+    $mona->get('/api/admin/backups')->status(403)->path('code', 'admin_only');
 
     standInUser($issuer, ['id' => 4, 'username' => 'eda', 'roles' => ['MEMBER', 'EDITOR']]);
     $editor = (new Client)->withToken(signIn($issuer)['access_token'] ?? '');
     $editor->get('/api/sync')->status(200);
     $editor->get('/api/admin/migrations')->status(403)->path('code', 'admin_only');
+    $editor->get('/api/admin/feedback')->status(403)->path('code', 'admin_only');
 
     same(['eda', 'mona', 'owner'], db()->column('SELECT name FROM users ORDER BY name'), 'each named from the token');
+    same(3, (int) db()->value('SELECT count(*) FROM users WHERE id > 0 AND last_seen_at IS NOT NULL'), 'and seen now (the library\'s RecordPerson)');
 });
 
 test('a refreshed token is let in; a token of another IAM is not', function () use ($issuer) {
@@ -163,8 +202,8 @@ test('a refreshed token is let in; a token of another IAM is not', function () u
     check(($refreshed['access_token'] ?? $tokens['access_token']) !== $tokens['access_token'], 'a new access token');
     (new Client)->withToken($refreshed['access_token'])->get('/api/accounts')->status(200);
 
-    // Signed by the same key, but naming the IAM the tests otherwise use: not this IAM's.
-    (new Client)->withToken(iamToken(5))->get('/api/accounts')->status(401)->path('code', 'sign_in_required');
+    // Signed by another key, naming the IAM the tests otherwise use: not this IAM's.
+    (new Client)->withToken(iamToken(5))->get('/api/accounts')->status(401)->path('code', 'invalid_token');
 });
 
 /** A token's claims, read without verifying - the stand-in's own. @return array<string, mixed> */
@@ -174,7 +213,7 @@ function claimsOf(string $jwt): array
 }
 
 /**
- * POST /api/oidc/preferences as a site's page sends it (the SDK's savePreferences()): JSON, the bearer token,
+ * POST /api/oidc/preferences as a site's page sends it (the library's savePreferences()): JSON, the bearer token,
  * from the site's origin.
  *
  * @return array{status: int, headers: array<string, string>, body: string}
@@ -232,9 +271,53 @@ test("the account's theme, dates and clock as an IAM with its migration 015 keep
 
 test('a person the stand-in refuses comes back with access_denied, and nothing here is recorded', function () use ($issuer) {
     standInUser($issuer, ['id' => 6, 'username' => 'nobody', 'roles' => ['MEMBER']], ['deny' => true]);
-    same(['error' => 'access_denied'], signIn($issuer), 'refused at the IAM');
-    standInUser($issuer, ['id' => 6, 'username' => 'nobody', 'roles' => ['MEMBER']], ['deny' => false]);
+    same('access_denied', signIn($issuer)['error'] ?? null, 'refused at the IAM');
     same(0, (int) db()->value('SELECT count(*) FROM users'), 'nobody recorded');
+});
+
+// ── The sign-in hint: what the pages' silent sign-in rides on (the IAM's side, as the stand-in plays it) ──
+
+test('the sign-in hint: set where a session opens, a silent sign-in answered from it - and gone with the session', function () use ($issuer) {
+    standInUser($issuer, ['id' => 7, 'username' => 'mona', 'roles' => ['MEMBER']]);
+    // A sign-in at the IAM (on another anotoki site, say) opens a session there, and sets the hint: a random
+    // value, readable by script, saying somebody signed in - never who.
+    $atIam = http('GET', "{$issuer}/_test/sign-in?return=".rawurlencode('http://localhost:4600/'));
+    $hint = hintOf($atIam['cookies']);
+    check($hint !== null && preg_match('/^[A-Za-z0-9_-]{16,64}$/D', $hint[1]) === 1, 'the hint, in its shape: '.json_encode($atIam['cookies']));
+    check(! str_contains(strtolower(implode(' ', $atIam['cookies'])), 'httponly'), 'readable by the pages\' script');
+
+    // The pages' silent hop (prompt=none): the session at the IAM answers with a code, and the tokens are mona's.
+    $silent = signIn($issuer, prompt: 'none', cookie: "{$hint[0]}={$hint[1]}");
+    check(is_string($silent['access_token'] ?? null), 'signed in without a click: '.json_encode(array_keys($silent)));
+    (new Client)->withToken($silent['access_token'])->get('/api/accounts')->status(200);
+    same('mona', db()->value('SELECT name FROM users WHERE id = 7'), 'and recorded as anybody signed in');
+
+    // The hint opens nothing here: sent as a cookie, it is nobody - this API reads no cookie at all.
+    $withHint = (new Client)->withHeaders(['Cookie' => "{$hint[0]}={$hint[1]}"]);
+    $withHint->get('/api/accounts')->status(401)->path('code', 'sign_in_required');
+    $withHint->get('/api/me/export')->status(401)->path('code', 'sign_in_required');
+    $withHint->get('/api/admin/people')->status(401)->path('code', 'sign_in_required');
+
+    // Signed out at the IAM: the hint is cleared, and a silent hop now comes back without a sign-in (the pages
+    // then stay a visitor's, and say nothing).
+    $out = http('GET', "{$issuer}/_test/sign-out?return=".rawurlencode('http://localhost:4600/'), cookie: "{$hint[0]}={$hint[1]}");
+    same(['anotoki_signed_in', ''], hintOf($out['cookies']), 'the hint cleared');
+    same('login_required', signIn($issuer, prompt: 'none', cookie: "{$hint[0]}={$hint[1]}")['error'] ?? null, 'a stale hint: no session behind it');
+});
+
+test('the boot configuration tells the pages whether the hint may act: visitors welcome and a site the IAM knows', function () use ($issuer) {
+    $auth = fn (): array => (array) (new Client)->get('/api/meta')->status(200)->json('auth');
+    $kept = T::$storage.'/cache/iam/anotoki-iam-application-'.sha1($issuer.' '.TEST_CLIENT).'.json';
+    @unlink($kept);
+    same(['issuer' => $issuer, 'client_id' => TEST_CLIENT, 'login_required' => false, 'sign_in_available' => true], $auth(), 'visitors welcome: the hint may act');
+
+    @unlink($kept);
+    standInState($issuer, ['login_required' => true]);
+    same([true, true], [$auth()['login_required'], $auth()['sign_in_available']], 'sign-in required: the pages send people to the IAM as ever');
+
+    @unlink($kept);
+    standInState($issuer, ['login_required' => false, 'application_missing' => true]);
+    same([true, false], [$auth()['login_required'], $auth()['sign_in_available']], 'an application the IAM does not know: no sign-in offered, the hint sends nobody there');
 });
 
 // ── Whether the site requires sign-in: the IAM's public answer ─────────────────────────────────────
@@ -243,18 +326,14 @@ test('the stand-in answers the public application route: the switch, missing, do
     $url = "{$issuer}/api/public/applications/".TEST_CLIENT;
     $answer = http('GET', $url);
     same(200, $answer['status'], 'answered');
-    same(['client_id' => TEST_CLIENT, 'name' => 'Test site', 'login_required' => false], json_decode($answer['body'], true), 'the default here: visitors welcome');
+    same(['client_id' => TEST_CLIENT, 'name' => 'Test site', 'login_required' => false], json_decode($answer['body'], true), 'visitors welcome, as this site is set');
     same('public, max-age=60', $answer['headers']['cache-control'] ?? null, 'cacheable for a minute');
-    try {
-        standInState($issuer, ['login_required' => true]);
-        same(true, json_decode(http('GET', $url)['body'], true)['login_required'], 'switched on');
-        standInState($issuer, ['application_missing' => true]);
-        same(404, http('GET', $url)['status'], 'an unknown application');
-        standInState($issuer, ['application_missing' => false, 'down' => true]);
-        same(503, http('GET', $url)['status'], 'the IAM out of reach');
-    } finally {
-        standInState($issuer, ['login_required' => false, 'application_missing' => false, 'down' => false]);
-    }
+    standInState($issuer, ['login_required' => true]);
+    same(true, json_decode(http('GET', $url)['body'], true)['login_required'], 'switched on');
+    standInState($issuer, ['application_missing' => true]);
+    same(404, http('GET', $url)['status'], 'an unknown application');
+    standInState($issuer, ['application_missing' => false, 'down' => true]);
+    same(503, http('GET', $url)['status'], 'the IAM out of reach');
 });
 
 test('the site reads the switch from the IAM: kept a minute (one fetch), 404 = required, out of reach = the last value, never read = required', function () use ($issuer) {
@@ -271,14 +350,12 @@ test('the site reads the switch from the IAM: kept a minute (one fetch), 404 = r
         file_put_contents($kept, json_encode($record));
     };
     // A request from nobody: what meta says, and whether the builds are theirs to see.
-    $nobody = function (): array {
-        realSignInPolicy();
-
-        return [(new Client)->get('/api/meta')->status(200)->json('auth.login_required'), (new Client)->get('/api/builds/genshin')->status];
-    };
+    $nobody = fn (): array => [(new Client)->get('/api/meta')->status(200)->json('auth.login_required'), (new Client)->get('/api/builds/genshin')->status];
+    // The library's own lines (why it answered as it did) go to the site's log, as api/index.php sends them.
     $log = T::$storage.DIRECTORY_SEPARATOR.'sign-in-answer.log';
     @unlink($log);
     App\Support\Log::to($log);
+    Anotoki\Lib\Support\Log::to(static fn (string $line) => App\Support\Log::info($line));
 
     try {
         $before = $fetches();
@@ -292,6 +369,7 @@ test('the site reads the switch from the IAM: kept a minute (one fetch), 404 = r
         $age();
         same([true, 401], $nobody(), 'a minute later: sign-in required');
         same(2, $fetches() - $before, 'asked again');
+        standInUser($issuer, ['id' => 9, 'username' => 'lisa', 'roles' => ['MEMBER']]);
         $person = (new Client)->withToken(signIn($issuer)['access_token'] ?? '');
         $person->get('/api/builds/genshin')->status(200);
 
@@ -314,13 +392,35 @@ test('the site reads the switch from the IAM: kept a minute (one fetch), 404 = r
         same([true, 401], $nobody(), 'never read, and the IAM out of reach: sign-in required (fail closed)');
 
         $logged = (string) @file_get_contents($log);
-        foreach (['stale', 'unknown_application', 'never_read'] as $reason) {
-            check(str_contains($logged, "IAM sign-in answer: {$reason}"), "logged: {$reason} ({$logged})");
+        foreach (['(stale): not required, as it said last', '(never_read): required'] as $reason) {
+            check(str_contains($logged, $reason), "logged: {$reason} ({$logged})");
         }
     } finally {
         App\Support\Log::to(null);
-        standInState($issuer, ['login_required' => false, 'application_missing' => false, 'down' => false]);
+        Anotoki\Lib\Support\Log::to(null);
     }
+});
+
+// ── The accounts the IAM deleted: the scrub reads its list ─────────────────────────────────────────
+
+test('the scrub reads the stand-in\'s deleted accounts: each one nobody\'s here, its data kept', function () use ($issuer) {
+    seedGenshinCatalog();
+    seedUser(21, 'gone');
+    $account = seedAccount(21, 'genshin', ['uid' => '700000021', 'nickname' => 'Gone main']);
+    seedUser(22, 'stays');
+    standInState($issuer, ['anonymized' => [['sub' => '21', 'anonymized_at' => '2026-11-06T10:00:00Z'], ['sub' => '99', 'anonymized_at' => '2026-11-06T11:00:00Z']]]);
+
+    standInUser($issuer, ['id' => 1, 'username' => 'owner', 'roles' => ['MEMBER', 'ADMIN']]);
+    $admin = (new Client)->withToken(signIn($issuer)['access_token'] ?? '');
+    $synced = $admin->post('/api/admin/people/sync')->status(200);
+    same(['done', 2, 1], [$synced->json('run.state'), $synced->json('run.handled'), $synced->json('run.scrubbed')], 'every account handled, the one known here scrubbed');
+
+    same(['deleted-21', '2026-11-06 10:00:00+00'], array_values(db()->one('SELECT name, anonymized_at FROM users WHERE id = 21') ?? []), 'its row nobody\'s');
+    same('stays', db()->value('SELECT name FROM users WHERE id = 22'), 'nobody else touched');
+    same([$account, 'Gone main'], array_values(db()->one('SELECT id, nickname FROM accounts WHERE user_id = 21') ?? []), 'its data kept');
+    same(['21', '99'], db()->column('SELECT sub::text FROM anotoki_people_anonymized ORDER BY sub'), 'both ids listed, known here or not');
+    $people = $admin->get('/api/admin/people?q=21')->status(200);
+    same(['deleted-21', '2026-11-06T10:00:00Z'], [$people->json('people.0.name'), $people->json('people.0.anonymized_at')], 'the People page says so');
 });
 
 finishTests();

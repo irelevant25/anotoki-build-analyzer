@@ -2,7 +2,7 @@ import { Provider, signal } from '@angular/core';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { provideTestTranslations } from '@anotoki/lib/translations/testing';
 import { AuthService } from '../../core/auth';
-import { AnotokiPreferences } from '../../core/iam/anotoki-auth';
+import { AnotokiPreferences } from '@anotoki/lib/auth';
 import { ThemeToggle } from './theme-toggle';
 
 const SLOVAK = {
@@ -20,7 +20,15 @@ describe('the theme switch in the top bar', () => {
 
   async function draw(...providers: Provider[]): Promise<void> {
     TestBed.configureTestingModule({
-      providers: [provideTestTranslations(SLOVAK, { language: 'sk', english: {} }), ...providers],
+      // Nobody signed in unless the test says otherwise (its providers come after, and win).
+      providers: [
+        provideTestTranslations(SLOVAK, { language: 'sk', english: {} }),
+        {
+          provide: AuthService,
+          useValue: { user: () => null, signedIn: () => false, preferences: () => null },
+        },
+        ...providers,
+      ],
     });
     fixture = TestBed.createComponent(ThemeToggle);
     host = fixture.nativeElement;

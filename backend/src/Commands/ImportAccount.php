@@ -3,10 +3,10 @@
 namespace App\Commands;
 
 use App\App;
-use App\Auth\UserProvisioner;
 use App\Cli;
 use App\Enums\Game;
 use App\Repositories\Accounts;
+use App\Repositories\Users;
 use App\Services\Import\ImportException;
 use App\Services\Import\ImportService;
 
@@ -43,7 +43,7 @@ final class ImportAccount
             return 1;
         }
         // Someone who has not signed in yet gets their row now; the name follows on their first sign-in.
-        $owner = $app->get(UserProvisioner::class)->ensure($userId);
+        $owner = $app->get(Users::class)->ensure($userId, "user {$userId}");
 
         $target = null;
         if (isset($options['account'])) {

@@ -1,5 +1,6 @@
 import { provideHttpClient } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
+import { computed, signal } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
 import {
   ANOTOKI_TRANSLATIONS_CONFIG,
@@ -10,7 +11,7 @@ import {
 } from '@anotoki/lib/translations';
 import { TEST_LANGUAGES } from '@anotoki/lib/translations/testing';
 import { AuthService } from '../auth';
-import { AnotokiUser } from '../iam/anotoki-auth';
+import { AnotokiPreferenceChanges, AnotokiUser } from '@anotoki/lib/auth';
 import { MetaStore } from '../meta-store';
 import { en } from './en';
 import { TranslationService } from './translation';
@@ -58,12 +59,36 @@ export function typedKeys(i18n: TranslationService): string[] {
   ];
 }
 
+/** Who is signed in, as the site asks AuthService (the auth module's view) - set by the test. */
+function fakeAuth() {
+  const user = signal<AnotokiUser | null>(null);
+  const roles = computed(() => user()?.roles ?? []);
+  return {
+    user,
+    preferences: computed(() => user()?.preferences ?? null),
+    isAdmin: computed(() => roles().includes('ADMIN')),
+    isStaff: computed(() => roles().includes('ADMIN') || roles().includes('EDITOR')),
+    savePreferences: (changes: AnotokiPreferenceChanges) =>
+      Promise.resolve({
+        locale: changes.language ?? null,
+        preferences: user()?.preferences ?? null,
+      }),
+  };
+}
+
 describe("the site's words: the anotoki library's translations, set up for this site", () => {
   let requests: HttpTestingController;
+  let auth: ReturnType<typeof fakeAuth>;
 
   function start(): void {
+    auth = fakeAuth();
     TestBed.configureTestingModule({
-      providers: [provideTranslations(), provideHttpClient(), provideHttpClientTesting()],
+      providers: [
+        provideTranslations(),
+        provideHttpClient(),
+        provideHttpClientTesting(),
+        { provide: AuthService, useValue: auth },
+      ],
     });
     requests = TestBed.inject(HttpTestingController);
   }
@@ -141,7 +166,6 @@ describe("the site's words: the anotoki library's translations, set up for this 
 
   it("follows the account: its language (the token's locale), its say while the IAM keeps the person's choices, a choice saved to it", async () => {
     start();
-    const auth = TestBed.inject(AuthService);
     const save = vi
       .spyOn(auth, 'savePreferences')
       .mockResolvedValue({ locale: 'en', preferences: MONA.preferences });
@@ -180,7 +204,6 @@ describe("the site's words: the anotoki library's translations, set up for this 
 
   it('lets editors reword the strings and admins keep the languages - the server checks it again', () => {
     start();
-    const auth = TestBed.inject(AuthService);
     const allows = config().admin!.allows!;
     const who = () => [allows.strings!(), allows.languages!()];
 

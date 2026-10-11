@@ -1,10 +1,9 @@
 import { Component, inject } from '@angular/core';
 import { MatButtonModule } from '@angular/material/button';
 import { MatIconModule } from '@angular/material/icon';
-import { MatSnackBar } from '@angular/material/snack-bar';
+import { Router } from '@angular/router';
 import { AuthService } from '../../core/auth';
 import { TranslatePipe } from '../../core/i18n/translate';
-import { TranslationService } from '../../core/i18n/translation';
 import { MetaStore } from '../../core/meta-store';
 import { signInOrSayWhy } from '../../core/sign-in';
 
@@ -25,11 +24,10 @@ import { signInOrSayWhy } from '../../core/sign-in';
 export class VisitorNotice {
   protected readonly auth = inject(AuthService);
   protected readonly meta = inject(MetaStore);
-  private readonly i18n = inject(TranslationService);
-  private readonly snackBar = inject(MatSnackBar);
+  private readonly router = inject(Router);
 
-  /** To the IAM and back to this page; a snack bar says why when the sign-in cannot start. */
+  /** To the IAM and back to this page; the failure's screen says why when the sign-in cannot start. */
   protected signIn(): void {
-    void signInOrSayWhy(this.auth, this.i18n, this.snackBar);
+    void signInOrSayWhy(this.auth, this.router);
   }
 }

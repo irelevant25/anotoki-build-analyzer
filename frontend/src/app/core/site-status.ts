@@ -1,6 +1,6 @@
 import { formatDate } from '@angular/common';
 import { EnvironmentProviders, inject } from '@angular/core';
-import { MatSnackBar } from '@angular/material/snack-bar';
+import { Router } from '@angular/router';
 import { provideAnotokiMigrations } from '@anotoki/lib/migrations';
 import {
   TranslationService as LibraryTranslations,
@@ -56,14 +56,14 @@ export function provideSiteStatus(): EnvironmentProviders {
     const i18n = inject(TranslationService);
     // The same service, as the library's own function takes it (this site's view of it types the keys).
     const words = inject(LibraryTranslations);
-    const snackBar = inject(MatSnackBar);
+    const router = inject(Router);
     return {
       statusUrl: SITE_STATUS_URL,
       apiBase: MIGRATIONS_API,
       migrationsRoute: MIGRATIONS_ROUTE,
       isAdmin: () => auth.isAdmin(),
       isSignedIn: () => auth.signedIn(),
-      signIn: () => signInOrSayWhy(auth, i18n, snackBar),
+      signIn: () => signInOrSayWhy(auth, router),
       // The language actually on the page: English in the admin panel, the reader's everywhere else.
       language: () => i18n.effectiveLanguage(),
       formatDate: (iso: string) => appliedAt(iso, auth.preferences(), i18n.locale()),

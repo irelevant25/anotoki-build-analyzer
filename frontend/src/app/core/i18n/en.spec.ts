@@ -12,7 +12,7 @@ const NAMESPACES = [
   'theme',
   'title',
   'error',
-  'signIn',
+  'feedback',
   'dashboard',
   'importWizard',
   'importGuide',

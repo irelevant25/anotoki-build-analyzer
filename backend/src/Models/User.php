@@ -2,12 +2,15 @@
 
 namespace App\Models;
 
+use Anotoki\Lib\Auth\Person;
+use Anotoki\Lib\People\PeopleRecorder;
 use App\Auth\Role;
 
 /**
  * A person as the anotoki IAM knows them. The IAM owns identity: the row is only the IAM user id (the
- * token's "sub") and a copy of the preferred_username for display. Roles are never stored; they come with
- * each token and live on this object only.
+ * token's "sub") and a copy of the preferred_username for display (kept by the anotoki library's
+ * RecordPerson, api/middleware/auth.php). Roles are never stored; they come with each token and live on this
+ * object only.
  *
  * Or a visitor: somebody using the site without signing in, whose imports are kept under a row with a
  * negative id (App\Auth\Visitors) - an IAM id is always positive. A visitor never has a role.
@@ -26,6 +29,16 @@ final class User
     public static function fromRow(array $row): self
     {
         return new self((int) $row['id'], (string) $row['name']);
+    }
+
+    /**
+     * The person a verified access token names (the library's Identify), with this application's roles: the
+     * name as their row keeps it - the token's preferred_username clipped to the column, or "user {id}" for a
+     * token without one.
+     */
+    public static function fromPerson(Person $person): self
+    {
+        return (new self($person->sub, PeopleRecorder::clip($person->name, 100) ?? "user {$person->sub}"))->withRoles($person->roles);
     }
 
     /**

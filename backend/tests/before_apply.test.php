@@ -14,14 +14,17 @@
  * tests of it open the gate with a Migrator that sees only 001 and 002 (behindTheGate()).
  *
  * The app of this file runs on a database of its own built from the first two migrations only - from before the
- * anotoki library's own files (its translations set) were released, too: they wait as well, after this site's.
+ * anotoki library's own files were released, too: they wait as well - its admin tools' set before this site's,
+ * its translations and people sets after it.
  */
 
 declare(strict_types=1);
 
 require __DIR__.'/lib.php';
 
+use Anotoki\Lib\Admin\Schema as AdminSchema;
 use Anotoki\Lib\Migrations\Migrator;
+use Anotoki\Lib\People\Schema as PeopleSchema;
 use Anotoki\Lib\Translations\Schema;
 use Anotoki\Lib\Translations\Translations;
 use App\App;
@@ -62,21 +65,22 @@ beforeEach(function () use ($database): void {
 });
 
 /**
- * The files that wait, in the order they run: every one of the site's but 001 and 002, then the library's.
+ * The files that wait, in the order they run: the library's admin tools' first, every one of the site's but 001
+ * and 002, then the library's translations and people.
  *
  * @return list<array{set: string, name: string}>
  */
 function waiting(): array
 {
-    $own = array_values(array_diff(array_map('basename', glob(Migrations::directory().'/*.sql') ?: []), ['001_adopt_laravel_database.sql', '002_schema.sql']));
-    $library = array_map('basename', glob(Schema::directory().'/*.sql') ?: []);
-    sort($own);
-    sort($library);
+    $set = static function (string $set, string $directory): array {
+        $names = array_map('basename', glob($directory.'/*.sql') ?: []);
+        sort($names);
 
-    return [
-        ...array_map(static fn (string $name): array => ['set' => Migrations::SET, 'name' => $name], $own),
-        ...array_map(static fn (string $name): array => ['set' => Schema::SET, 'name' => $name], $library),
-    ];
+        return array_map(static fn (string $name): array => ['set' => $set, 'name' => $name], $names);
+    };
+    $own = array_values(array_filter($set(Migrations::SET, Migrations::directory()), static fn (array $file): bool => ! in_array($file['name'], ['001_adopt_laravel_database.sql', '002_schema.sql'], true)));
+
+    return [...$set(AdminSchema::SET, AdminSchema::directory()), ...$own, ...$set(Schema::SET, Schema::directory()), ...$set(PeopleSchema::SET, PeopleSchema::directory())];
 }
 
 /**
@@ -158,8 +162,8 @@ test('the database has seen the first two migrations, and the rest wait for an a
     check(in_array(['set' => Migrations::SET, 'name' => '003_languages_and_translations.sql'], waiting(), true), 'the migration with the languages and the strings is on disk');
     same(['state' => 'update_pending', 'installed' => false], (new Client)->get('/api/site-status')->status(200)->json(), 'the site says an update waits');
     $status = (new Client)->asIam(1, [Role::ADMIN])->get('/api/admin/migrations')->status(200);
-    same([Migrations::SET, Schema::SET], $status->json('sets'), 'the site\'s set, then the library\'s');
-    same(array_map(fn (array $file): array => $file + ['ready' => true, 'blocked' => false], waiting()), $status->json('pending'), 'pending, in the order they will run: the library\'s last');
+    same([AdminSchema::SET, Migrations::SET, Schema::SET, PeopleSchema::SET], $status->json('sets'), 'the library\'s admin tools\' set, the site\'s, then the library\'s translations and people');
+    same(array_map(fn (array $file): array => $file + ['ready' => true, 'blocked' => false], waiting()), $status->json('pending'), 'pending, in the order they will run');
     same(['001_adopt_laravel_database.sql', '002_schema.sql'], array_column($status->json('applied'), 'name'), 'applied, in the order they were');
     same([], $status->json('missing'), 'nothing missing');
     foreach ($status->json('applied') as $file) {
@@ -386,12 +390,15 @@ test('behind the gate, before 004: every visitor path answers 503 visitors_unava
 test('"Apply" brings the tables - and the strings with them - and opens the site again', function () {
     $admin = (new Client)->asIam(1, [Role::ADMIN]);
     $pending = array_map(static fn (array $file): array => ['set' => $file['set'], 'name' => $file['name']], $admin->get('/api/admin/migrations')->status(200)->json('pending'));
-    same(waiting(), $pending, 'what waits: the site\'s files, then the library\'s');
+    same(waiting(), $pending, 'what waits: the library\'s admin tools\', the site\'s files, then the library\'s translations and people');
 
     $applied = $admin->post('/api/admin/migrations/apply')->status(200);
     same([$pending, null, null], [$applied->json('applied'), $applied->json('failed'), $applied->json('error')], 'applied, in that order: '.$applied->json('error'));
-    same(['anotoki_translations/001_languages_and_strings.sql', 'anotoki_translations/002_library_words.sql'],
+    same(array_map(static fn (array $file): string => $file['set'].'/'.$file['name'], array_values(array_filter(waiting(), static fn (array $file): bool => $file['set'] !== Migrations::SET))),
         db()->column("SELECT filename FROM migrations WHERE filename LIKE 'anotoki\\_%' ORDER BY id"), 'the library\'s files recorded in this site\'s table, with their set');
+    // A backup of the database as it was, before anything was applied (the library's backups: before-migration).
+    check(str_starts_with((string) $applied->json('note'), 'A backup of the database as it was is '), 'the Apply\'s note: '.$applied->json('note'));
+    same(1, count(glob(T::$storage.'/backups/*-before-migration-*.anotoki-backup') ?: []), 'one before-migration backup');
     same([], $admin->get('/api/admin/migrations')->status(200)->json('pending'), 'nothing pending after');
     same(['state' => 'ready', 'installed' => false], (new Client)->get('/api/site-status')->status(200)->json(), 'the site is open again');
     same(true, (bool) db()->value("SELECT to_regclass('public.translations') IS NOT NULL"), 'the tables are there');

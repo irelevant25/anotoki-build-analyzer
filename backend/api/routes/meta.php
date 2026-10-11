@@ -1,7 +1,9 @@
 <?php
 
+use Anotoki\Lib\Auth\Http\AuthRoutes;
+use Anotoki\Lib\Auth\IamClient;
+use Anotoki\Lib\Auth\SignInRule;
 use App\App;
-use App\Auth\SignInPolicy;
 use App\Auth\Visitors;
 use App\Enums\Game;
 use App\Support\Stats;
@@ -12,12 +14,14 @@ use Psr\Http\Message\ResponseInterface as Response;
 use Psr\Http\Message\ServerRequestInterface as Request;
 
 /**
- * GET /api/meta - what the frontend loads before it draws anything: where people sign in (the anotoki
- * IAM's address and this site's client id there) and whether the IAM requires everybody to sign in here
- * (auth.login_required, App\Auth\SignInPolicy - read from the IAM by the server, so the page never asks it;
- * true when the IAM has never answered), how many days what a visitor imports is kept after
- * their last visit (visitors.keep_days, for the notice), and the game metadata for labels (slots, stats,
- * talents). Public, whether or not sign-in is required: it is read before anyone has signed in.
+ * GET /api/meta - what the frontend loads before it draws anything: the anotoki library's boot configuration
+ * for signing in (`auth`, AuthRoutes::configBody(): the IAM's address and this site's client id there; whether
+ * the IAM requires everybody to sign in here - login_required, read from the IAM by the server, so the page
+ * never asks it; true when the IAM has never answered - and whether a sign-in can be offered at all -
+ * sign_in_available: false once the IAM answered that it does not know this site, and then the pages offer no
+ * sign-in and its hint never sends anybody there), how many days what a visitor imports is kept after their
+ * last visit (visitors.keep_days, for the notice), and the game metadata for labels (slots, stats, talents).
+ * Public, whether or not sign-in is required: it is read before anyone has signed in, with no token.
  */
 return function (Slim\App $slim, App $app): void {
     $slim->get('/api/meta', function (Request $request, Response $response) use ($app): Response {
@@ -60,11 +64,7 @@ return function (Slim\App $slim, App $app): void {
         return Json::send($response, [
             'games' => array_map($game, Game::cases()),
             'version' => Version::CURRENT,
-            'auth' => [
-                'issuer' => rtrim((string) $app->config->get('auth.issuer'), '/'),
-                'client_id' => (string) $app->config->get('auth.client_id'),
-                'login_required' => $app->get(SignInPolicy::class)->required(),
-            ],
+            'auth' => AuthRoutes::configBody($app->get(SignInRule::class), $app->get(IamClient::class)),
             'visitors' => [
                 'keep_days' => $app->get(Visitors::class)->keepDays(),
             ],

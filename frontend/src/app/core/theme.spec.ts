@@ -8,7 +8,7 @@ import {
   AnotokiPreferences,
   AnotokiSavedPreferences,
   AnotokiTheme,
-} from './iam/anotoki-auth';
+} from '@anotoki/lib/auth';
 import { THEME_KEY, ThemeService } from './theme';
 
 const ENGLISH = {

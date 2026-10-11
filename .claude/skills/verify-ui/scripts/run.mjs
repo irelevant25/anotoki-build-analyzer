@@ -5,13 +5,15 @@
 //
 // It builds the frontend (unless --no-build), makes a throwaway database (build_analyzer_test_browser, from
 // the migrations, with a small catalog and one build - backend/tests/tools/browser-db.php), starts the
-// stand-in IAM (backend/tests/tools/fake-iam.php) on 8597 and the site on 8590 - or on IAM_PORT and
+// anotoki family's stand-in IAM (anotoki-lib's php/testing/stand-in-iam.php, in backend/vendor, with a test key
+// of its own - Anotoki\Lib\Auth\Testing\TestIam) on 8597 and the site on 8590 - or on IAM_PORT and
 // SITE_PORT, each in 8590-8599, when another check holds those (router.php: the built app
 // and the API on one origin, as on the hosting, with BUILD_ANALYZER_TEST_CONFIG pointing at the throwaway
 // settings), drives headless Edge through playwright-core (flow.mjs), and then stops all of it and drops the
 // database - also when the check fails. --keep leaves the work folder (settings, logs, screenshots, the
 // downloaded export) behind to look at; the screenshots are there while it runs. --measure only prints
-// what the top bar's row needs, in English and in Slovak (how PHONE_BAR_MAX was chosen).
+// what the top bar's row needs, in English and in Slovak (how PHONE_BAR_MAX, ADMIN_PHONE_BAR_MAX and
+// EDITOR_PHONE_BAR_MAX were chosen).
 //
 // playwright-core is installed once into <temp>/pw (never into the repository): `npx -y npm@11 install
 // --prefix "<temp>/pw" playwright-core` - this script does it when it is missing. Nothing here touches the
@@ -122,13 +124,17 @@ try {
 
   // The throwaway database and the settings that point at it and at the stand-in IAM.
   run(php, ['tests/tools/browser-db.php', 'make', config, `http://127.0.0.1:${IAM}`], { cwd: backend });
-  const iamDir = join(work, 'fake-iam');
+  // The stand-in's key pair and files, under its issuer (TestIam::create writes key.json, which it signs with).
+  const iamDir = join(work, 'stand-in-iam');
   mkdirSync(iamDir, { recursive: true });
-  run(php, ['-r', 'require "src/Support/Iam/anotoki_iam.php"; file_put_contents($argv[1] . "/key.json", json_encode(anotoki_iam_test_keypair("browser-check")));', iamDir], { cwd: backend });
+  run(php, ['-r', 'require "vendor/autoload.php"; Anotoki\\Lib\\Auth\\Testing\\TestIam::create($argv[1], $argv[2], "build-analyzer", "browser-check");', iamDir, `http://127.0.0.1:${IAM}`], { cwd: backend });
 
-  start(php, ['-S', `127.0.0.1:${IAM}`, 'tests/tools/fake-iam.php'], { name: 'fake-iam', cwd: backend, env: { ...process.env, FAKE_IAM_DIR: iamDir, FAKE_IAM_ISSUER: `http://127.0.0.1:${IAM}` } });
+  start(php, ['-S', `127.0.0.1:${IAM}`, 'vendor/anotoki/lib/php/testing/stand-in-iam.php'], { name: 'stand-in-iam', cwd: backend, env: { ...process.env, STAND_IN_DIR: iamDir, STAND_IN_ISSUER: `http://127.0.0.1:${IAM}` } });
   start(php, ['-S', `127.0.0.1:${SITE}`, 'router.php'], { name: 'site', cwd: backend, env: { ...process.env, BUILD_ANALYZER_TEST_CONFIG: config } });
   await waitForUrl(`http://127.0.0.1:${IAM}/.well-known/openid-configuration`, 'The stand-in IAM');
+  // The stand-in says by default that a site requires signing in; this site lets visitors in - as the check
+  // starts. (Its other defaults: a session at the IAM - authorize answers at once - and the sign-in hint.)
+  await fetch(`http://127.0.0.1:${IAM}/_test/state`, { method: 'POST', body: JSON.stringify({ login_required: false }) });
   await waitForUrl(`http://127.0.0.1:${SITE}/api/meta`, 'The site');
 
   const shots = join(work, 'shots');

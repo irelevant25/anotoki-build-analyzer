@@ -127,18 +127,22 @@ another copy: an account the file has newer data for is replaced, one only the f
 import never deletes an account. **EDITOR** also syncs builds and
 the catalog, reads the sync history, moves a source's builds through a file and rewords the site's strings;
 **ADMIN** does all of that and also switches sources on and off, applies database updates, adds, renames,
-switches and deletes languages and deletes a person's data (the People routes). Roles are granted in the IAM's
-admin panel. The backend checks every access token itself (signature against the IAM's published keys,
-issuer, audience, expiry), and checks the roles on every route. See [docs/operations.md](docs/operations.md).
+switches and deletes languages, deletes a person's data (the People page) and has the admin tools - the error
+log, the audit log, the visitors' feedback and the database's backups. Roles are granted in the IAM's admin panel.
+Somebody already signed in to their anotoki account (on another anotoki site) is signed in here without a click.
+The backend checks every access token itself (signature against the IAM's published keys, issuer, audience,
+expiry), and checks the roles on every route. Signing in, the People page and the admin tools are the anotoki
+family's, from its shared library. See [docs/operations.md](docs/operations.md).
 
 **Current state**: backend and frontend are as described here - sign-in through the IAM only, visitors
 (somebody not signed in imports and uses their accounts; the dashboard shows nobody the ways in, a visitor their
 accounts under a notice of how long they are kept; at sign-in they move into the account - unless the IAM says
 this site requires a sign-in: then every page asks for one first), the admin panel under
-`/admin/` (editors: Sources and Translations; admins also Languages, People and Migrations - the database's
-updates seen and applied, as on the IAM), and the "Your data" card for
-every signed-in person (export, import with a preview), under the anotoki top bar with the version in the
-footer - version 0.4.0. Migration 004 (the visitors' schema and every word of 0.3.0) is complete; it is applied
+`/admin/` (editors: Sources and Translations; admins also Languages, People, Migrations - the database's
+updates seen and applied, as on the IAM - and the error log, the audit log, feedback and backups), the "Your
+data" card for every signed-in person (export, import with a preview), and Feedback at the foot of every page,
+under the anotoki top bar with the version in the footer - version 0.4.0 (unreleased). Migration 004 (the
+visitors' schema and every word of 0.3.0) is complete; it is applied
 when 0.3.0 is handed over and deployed: on the host Apply pending on the Migrations page, by an ADMIN, at once
 after the upload - and only then the IAM's migration 007 (DEV.md, docs/operations.md). The browser check
 (`node .claude/skills/verify-ui/scripts/run.mjs`) goes through all of it on a throwaway database.
@@ -167,7 +171,8 @@ backend/
   api/                  the front controller (index.php), app.php, middleware/, routes/
   src/                  App (container), Config, Db/ (PDO; the site's migrations on anotoki-lib's engine), Auth/, Http/ (fetcher),
                         Cache/, Models/, Repositories/, Presenters/, Commands/, Setup/, Support/ (stats,
-                        talents, keys, neutral text; Iam/ = the IAM's token verifier, vendored)
+                        talents, keys, neutral text), People/ (the people module on this site's users),
+                        Admin/ (the admin tools), Web/ (the pipeline, the address, after the answer)
   src/Services/         Catalog/ (game catalog, name resolution), Import/ (showcase + file parsers,
                         AccountImporter, ImportKinds), Builds/ (BuildSync, the scrapers, page-data parsers), Sync/
                         (SyncRunner: runs worked through in steps), Analysis/ (scores, recommendations),
@@ -175,22 +180,23 @@ backend/
                         languages, its check that nothing names another site)
   config/               app.php (committed) and *.local.php (per installation, written by setup.php)
   migrations/           the schema and the site's words, as SQL files applied in order
-  tests/                php tests/run.php: throwaway PostgreSQL databases, fixtures, a fake network;
-                        tools/fake-iam.php (the stand-in IAM)
+  tests/                php tests/run.php: throwaway PostgreSQL databases, fixtures, a fake network, the
+                        library's test IAM (and its stand-in IAM, in vendor/)
   tools/                build.php (the upload), php.sh (PHP 8.4+ for bash)
-  setup.php, router.php, migration.php, sync-builds.php, sync-catalog.php, import-account.php, translations.php
+  setup.php, router.php, migration.php, sync-builds.php, sync-catalog.php, import-account.php, translations.php,
+  backup.php
 frontend/src/app/
-  core/                 API client, models, metadata store, changelog, sign-in (iam/ = the IAM's browser SDK), the
+  core/                 API client, models, metadata store, changelog, sign-in (on anotoki-lib's auth module), the
                         visitor key, sync driver, i18n/ (the site's words on anotoki-lib's service: typed keys,
                         pipes, the compiled English), game
                         terms, site-status (anotoki-lib's site gate and Migrations page, wired to this site)
-  layouts/              admin-layout (the admin panel's frame)
+  layouts/              top-bar, footer (version, What's new, Feedback), app-layout, admin-layout (the admin panel's frame)
   shared/               build detail, item card, grade badge, changelog dialog, confirm dialog, the visitor notice,
-                        the ways in for somebody new, the "Your data" card, ...
-  pages/                dashboard, import wizard, account, character analysis, builds, sign-in;
-                        admin/ (sources, translations, languages, people, migrations - translations,
-                        languages and migrations are anotoki-lib's pages)
-frontend/public/        changelog.json, favicon
+                        the ways in for somebody new, the "Your data" card, the feedback form's dialog, ...
+  pages/                dashboard, import wizard, account, character analysis, builds;
+                        admin/ (sources, translations, languages, migrations - translations, languages and
+                        migrations are anotoki-lib's pages, and so are People and the admin tools, routed straight)
+frontend/public/        changelog.json, favicon, robots.txt (keeps search engines off /auth/)
 docs/                   knowledge base (start at docs/README.md)
 .claude/                project skills and agents for AI-assisted work
 ```

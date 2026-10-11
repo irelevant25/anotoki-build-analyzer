@@ -2,7 +2,7 @@ import { DOCUMENT, Injectable, computed, effect, inject, signal, untracked } fro
 import { MatSnackBar } from '@angular/material/snack-bar';
 import { AuthService, preferencesProblem } from './auth';
 import { TranslationService } from './i18n/translation';
-import { AnotokiTheme } from './iam/anotoki-auth';
+import { AnotokiTheme } from '@anotoki/lib/auth';
 import { readStorage, writeStorage } from './storage';
 
 /** Light, dark, or as the device is set. */

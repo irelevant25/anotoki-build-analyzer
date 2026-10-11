@@ -1,5 +1,6 @@
 <?php
 
+use Anotoki\Lib\Audit\AuditLog;
 use App\App;
 use App\Auth\Role;
 use App\Cache\LockTimeout;
@@ -28,12 +29,19 @@ use Slim\Routing\RouteCollectorProxy;
  *   POST /api/sources/{key}/sync         "Sync now" on one source, however recent its last sync
  *   POST /api/sync/catalog {games?}      refresh the game catalog
  *   POST /api/sync-runs/{id}/cancel      stop a run where it is (409 while a step holds it)
+ *
+ * A run started and a run cancelled are in the audit log (sync.started, sync.cancelled: the run, its kind and
+ * game), by whoever pressed it; the steps are not.
  */
 return function (Slim\App $slim, App $app): void {
-    $started = function (array $result) use ($app): array {
+    $started = function (Request $request, array $result) use ($app): array {
         $runner = $app->get(SyncRunner::class);
         $presenter = $app->get(SyncRunPresenter::class);
         $runs = $app->get(SyncRuns::class);
+        foreach ($result['started'] as $run) {
+            $app->get(AuditLog::class)->record($request, currentUser($request)->id, 'sync.started', 'sync_run', (int) $run->id,
+                ['kind' => $run->kind, 'game' => $run->game?->value]);
+        }
         $active = $runner->active();
 
         return [
@@ -66,13 +74,13 @@ return function (Slim\App $slim, App $app): void {
 
             $sources = array_values($app->get(BuildSourceRegistry::class)->all());
 
-            return Json::send($response, $started($app->get(SyncRunner::class)->startBuilds($sources, ['force' => $force], currentUser($request))));
+            return Json::send($response, $started($request, $app->get(SyncRunner::class)->startBuilds($sources, ['force' => $force], currentUser($request))));
         });
 
         $group->post('/api/sources/{key}/sync', function (Request $request, Response $response, array $args) use ($app, $started): Response {
             $source = $app->get(BuildSourceRegistry::class)->find((string) $args['key']) ?? throw HttpError::notFound();
 
-            return Json::send($response, $started($app->get(SyncRunner::class)->startBuilds([$source], ['force' => true], currentUser($request))));
+            return Json::send($response, $started($request, $app->get(SyncRunner::class)->startBuilds([$source], ['force' => true], currentUser($request))));
         });
 
         $group->post('/api/sync/catalog', function (Request $request, Response $response) use ($app, $started): Response {
@@ -80,16 +88,21 @@ return function (Slim\App $slim, App $app): void {
             $games = $input->games('games') ?? Game::cases();
             $input->valid();
 
-            return Json::send($response, $started($app->get(SyncRunner::class)->startCatalog(array_values(array_unique($games, SORT_REGULAR)), true, currentUser($request))));
+            return Json::send($response, $started($request, $app->get(SyncRunner::class)->startCatalog(array_values(array_unique($games, SORT_REGULAR)), true, currentUser($request))));
         });
 
         $group->post('/api/sync-runs/{run:[0-9]+}/cancel', function (Request $request, Response $response, array $args) use ($app): Response {
             $run = $app->get(SyncRuns::class)->find((int) $args['run']) ?? throw HttpError::notFound();
+            $wasActive = $run->isActive();
 
             try {
                 $run = $app->get(SyncRunner::class)->cancel($run, currentUser($request));
             } catch (LockTimeout) {
                 throw new HttpError(409, 'A sync step is still running. Try again in a moment.');
+            }
+            if ($wasActive && ! $run->isActive()) {
+                $app->get(AuditLog::class)->record($request, currentUser($request)->id, 'sync.cancelled', 'sync_run', (int) $run->id,
+                    ['kind' => $run->kind, 'game' => $run->game?->value]);
             }
 
             return Json::send($response, $app->get(SyncRunPresenter::class)->summary($app->get(SyncRuns::class)->find((int) $run->id) ?? $run));

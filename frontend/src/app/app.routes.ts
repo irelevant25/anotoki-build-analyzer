@@ -1,18 +1,26 @@
 import { Routes } from '@angular/router';
+import {
+  AuthCallbackComponent,
+  SignInFailureComponent,
+  adminGuard,
+  personGuard,
+} from '@anotoki/lib/auth';
 import { anotokiUnsavedChangesGuard } from '@anotoki/lib/translations';
-import { adminOnlyGuard, signInGuard, siteSignInGuard } from './core/auth.guards';
+import { CALLBACK_PATH, SIGN_IN_FAILED_PATH, sitePagesGuard } from './core/auth.guards';
 import { AppLayout } from './layouts/app-layout/app-layout';
 
 /**
  * A `title` here is a translation key on the pages members read: the title strategy words it in the
  * language on the page and adds the brand (core/i18n/title-strategy.ts). The admin panel - /admin/sources,
- * /admin/translations, /admin/languages, /admin/people, /admin/migrations - keeps a plain English title
- * ("Migrations · Admin panel · Build Analyzer"). A route without one (the dashboard) is the brand alone.
+ * /admin/translations, /admin/languages, /admin/people, /admin/migrations, /admin/errors, /admin/audit,
+ * /admin/feedback, /admin/backups - keeps a plain English title ("Migrations · Admin panel · Build Analyzer").
+ * A route without one (the dashboard) is the brand alone.
  *
  * Every page outside /admin is open to everybody: somebody not signed in uses the site as a visitor
  * (core/visitor-key.ts), and the pages say what is kept for them - unless the IAM says this site requires a
- * sign-in: then they ask for one first (siteSignInGuard, on every child of the AppLayout). The admin panel
- * always asks for a sign-in (signInGuard); its layout tells editors and admins from the rest, and the
+ * sign-in: then they ask for one first (sitePagesGuard, on every child of the AppLayout - the anotoki family's
+ * personOrVisitorGuard). The admin panel always asks for a sign-in (personGuard); its layout tells editors and
+ * admins from the rest, the ADMIN pages are ADMIN's (adminGuard: an editor goes to the Sources page), and the
  * server decides.
  */
 export const routes: Routes = [
@@ -20,7 +28,7 @@ export const routes: Routes = [
     // Everybody's pages: the top bar with the app's sections, the page, the footer.
     path: '',
     component: AppLayout,
-    canActivateChild: [siteSignInGuard],
+    canActivateChild: [sitePagesGuard],
     children: [
       {
         path: '',
@@ -57,24 +65,28 @@ export const routes: Routes = [
           import('./pages/builds/build-character-page').then((m) => m.BuildCharacterPage),
       },
       {
-        path: 'sign-in',
+        // The screen of a sign-in that came back without one, could not start, or cannot be set up (the anotoki
+        // family's <anotoki-sign-in-failure>: why, from the failure's code alone - Try again and Back), in the
+        // site's frame. The guards send the browser here (the auth module's failureRoute); opened by hand, with
+        // nothing to say, it goes on to the dashboard.
+        path: SIGN_IN_FAILED_PATH,
         title: 'title.signIn',
-        loadComponent: () => import('./pages/sign-in/sign-in-page').then((m) => m.SignInPage),
+        component: SignInFailureComponent,
       },
       {
-        // Where the IAM sends the browser back after signing in. The IAM client finishes the sign-in in the
-        // app initializer and replaces this address with the page the person started from; the page itself
-        // only shows while that happens (or if someone opens the address by hand).
-        path: 'auth/callback',
+        // Where the IAM sends the browser back after signing in. The auth module finishes the sign-in before the
+        // router starts and replaces this address with the page the person started from; the page itself
+        // ("Signing you in…", <anotoki-auth-callback>) shows only while that happens, or when the address is
+        // opened by hand. Search engines are asked not to index it, and robots.txt keeps them off /auth/.
+        path: CALLBACK_PATH,
         title: 'title.signingIn',
-        loadComponent: () =>
-          import('./pages/sign-in/auth-callback-page').then((m) => m.AuthCallbackPage),
+        component: AuthCallbackComponent,
       },
     ],
   },
   {
     path: 'admin',
-    canActivate: [signInGuard],
+    canActivate: [personGuard],
     loadComponent: () => import('./layouts/admin-layout/admin-layout').then((m) => m.AdminLayout),
     children: [
       { path: '', pathMatch: 'full', redirectTo: 'sources' },
@@ -94,23 +106,54 @@ export const routes: Routes = [
       {
         path: 'languages',
         title: 'Languages',
-        canActivate: [adminOnlyGuard],
+        canActivate: [adminGuard],
         canDeactivate: [anotokiUnsavedChangesGuard],
         loadComponent: () =>
           import('./pages/admin/languages/languages-page').then((m) => m.LanguagesPage),
       },
       {
+        // The anotoki family's People page, from its own entry point (a lazy chunk; app.config.ts sets it up).
         path: 'people',
         title: 'People',
-        canActivate: [adminOnlyGuard],
-        loadComponent: () => import('./pages/admin/people/people-page').then((m) => m.PeoplePage),
+        canActivate: [adminGuard],
+        loadComponent: () => import('@anotoki/lib/people/page').then((m) => m.PeoplePageComponent),
       },
       {
         path: 'migrations',
         title: 'Migrations',
-        canActivate: [adminOnlyGuard],
+        canActivate: [adminGuard],
         loadComponent: () =>
           import('./pages/admin/migrations/migrations-page').then((m) => m.MigrationsPage),
+      },
+      // The anotoki family's admin tools, each from its own entry point (lazy chunks; app.config.ts sets them up),
+      // for the site's ADMIN alone - the server refuses anybody else (403 admin_only).
+      {
+        path: 'errors',
+        title: 'Error log',
+        canActivate: [adminGuard],
+        loadComponent: () =>
+          import('@anotoki/lib/admin/errors').then((m) => m.ErrorLogPageComponent),
+      },
+      {
+        path: 'audit',
+        title: 'Audit log',
+        canActivate: [adminGuard],
+        loadComponent: () =>
+          import('@anotoki/lib/admin/audit').then((m) => m.AuditLogPageComponent),
+      },
+      {
+        path: 'feedback',
+        title: 'Feedback',
+        canActivate: [adminGuard],
+        loadComponent: () =>
+          import('@anotoki/lib/admin/feedback').then((m) => m.FeedbackPageComponent),
+      },
+      {
+        path: 'backups',
+        title: 'Backups',
+        canActivate: [adminGuard],
+        loadComponent: () =>
+          import('@anotoki/lib/admin/backups').then((m) => m.BackupsPageComponent),
       },
     ],
   },

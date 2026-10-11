@@ -129,14 +129,19 @@ longer read and can be deleted.
 
 What the anotoki sites share lives in one library, [irelevant25/anotoki-lib](https://github.com/irelevant25/anotoki-lib),
 in two halves with one version: the Composer package `anotoki/lib` (`backend/composer.json`: a `vcs` repository
-entry and `"anotoki/lib": "^0.3"`; installed into `backend/vendor/`, which the upload carries) and the npm
-package `@anotoki/lib` (`frontend/package.json`: the release's tarball). Both halves are 0.3.0. They hold the
-migrations module, one behaviour for every anotoki site while its database is not ready:
+entry and `"anotoki/lib": "^0.4"`; installed into `backend/vendor/`, which the upload carries) and the npm
+package `@anotoki/lib` (`frontend/package.json`: the release's tarball). Both halves are 0.4.1 (never 0.4.0, whose
+Feedback page fails on PHP 8.2). Besides the translations module, the auth module (signing in through the anotoki
+IAM: the token check, the IAM's switch, the browser's client, interceptor, guards and the sign-in hint), the
+people module (the People page, the scrub of the accounts the IAM deleted) and the admin tools (the error log,
+the audit log, feedback, backups) - each set up for this site where it is used - they hold the migrations module,
+one behaviour for every anotoki site while its database is not ready:
 
 - the engine (`Anotoki\Lib\Migrations\Migrator`), on this site's files and bookkeeping table through
   `backend/src/Db/Migrations.php` - `migration.php`, `setup.php`, the Migrations page and the tests; it runs
-  this site's set (`build_analyzer`) and then the library's own (`anotoki_translations`: its tables' check and
-  its words), each file named with its set;
+  the library's `anotoki_admin` (the audit log's and feedback's tables), this site's set (`build_analyzer`), then
+  the library's `anotoki_translations` (its tables' check and its words) and `anotoki_people` (where the scrub
+  stands), each library file named with its set;
 - the site gate in front of every API route (`SiteState`, `SiteGate`: `backend/api/middleware/site_gate.php`),
   `GET /api/site-status`, and the Migrations page's API (`MigrationsRoutes`: `backend/api/routes/admin.php`);
 - in the frontend, the gate with its page - the router outlet given to it as a marked template,
@@ -156,9 +161,10 @@ and the translations module (since this site's 0.4.0), the strings every anotoki
   into the app as the fallback (`translations.config.ts`); the admin Translations and Languages pages from
   `@anotoki/lib/translations/admin`.
 
-The status page, the Migrations page and the Translations and Languages pages are drawn with the library's
-kit (each piece from its own entry point, never the `@anotoki/lib/ui` barrel), in this site's colours
-(`styles.scss`); the rest of the site stays on Angular Material.
+The status page, the Migrations page, the Translations and Languages pages, the People page, the admin tools,
+the feedback form and the screen of a sign-in that failed are drawn with the library's kit (each piece from its
+own entry point, never the `@anotoki/lib/ui` barrel), in this site's colours (`styles.scss`); the rest of the
+site stays on Angular Material.
 
 To update it, both halves together (while its version is 0.x a minor version may break: read its
 `CHANGELOG.md` first):
@@ -183,11 +189,14 @@ cd frontend && npx ng build                # the production build must pass too
 The backend tests need `config/database.local.php` (run setup first): each test file creates its own
 throwaway database on that server (`build_analyzer_test_…`), builds it from the migrations and drops it when
 it ends. Nothing reaches the network - build pages and API answers are small fixtures, and a fake HTTP client
-fails a test on any request it was not told about. IAM tokens are signed by the tests' own key;
-`tests/stand_in_iam.test.php` signs in through the stand-in IAM (`tests/tools/fake-iam.php`, the survey's,
-run as `php -S` on a throwaway port 8590-8599 and stopped at the end) as a browser would, and reads whether
-sign-in is required from it (the real `IamSignInPolicy`: kept a minute, 404 = required, out of reach = the last
-answer); every other test gives a fixed answer instead (`T::$signIn`, false unless a test sets it). `setup.test.php`
+fails a test on any request it was not told about. IAM tokens are signed by the library's test IAM
+(`Anotoki\Lib\Auth\Testing\TestIam`: its key, its tokens - `iamToken()` - and its answers as files - whether
+sign-in is required, `iamRequiresSignIn()`, false unless a test says otherwise; the accounts it deleted);
+`tests/stand_in_iam.test.php` signs in through the library's stand-in IAM
+(`vendor/anotoki/lib/php/testing/stand-in-iam.php`, run as `php -S` on a throwaway port 8590-8599 and stopped
+at the end) as a browser would, reads whether sign-in is required from it (the library's `SignInRule`: kept a
+minute, 404 = required, out of reach = the last answer), its sign-in hint, and the accounts it deleted (the
+scrub). `setup.test.php`
 checks "Test connection" with a throwaway login (`build_analyzer_test_…_nocreate`) when the test login may make
 one, and drops it at the end.
 
@@ -195,11 +204,13 @@ The browser check (the `verify-ui` skill) runs the site end to end in headless E
 stand-in IAM, on a throwaway database - nobody, a visitor's import and the move at sign-in, a member's own
 data, an editor and an admin, the top bar at 360-1280 px in light and dark with a real Tab press, Slovak at
 390 px with no key on the page, the account's theme, dates and language saved from the bar to the
-stand-in IAM, and the site while an update waits and while it is not set up (the site gate's pages with no
-page made behind them, the Migrations page, Sign in from the waiting page):
+stand-in IAM, the automatic sign-in by the IAM's hint, the screen of a sign-in that failed, the feedback form,
+the People page and the admin tools (light and dark, 1280 and 390 px), and the site while an update waits and
+while it is not set up (the site gate's pages with no page made behind them, the Migrations page, Sign in from
+the waiting page):
 
 ```bash
-node .claude/skills/verify-ui/scripts/run.mjs [--no-build] [--keep]   # from the root; ports 8590 and 8597
+node .claude/skills/verify-ui/scripts/run.mjs [--no-build] [--keep] [--measure]   # from the root; ports 8590 and 8597
 ```
 
 It makes `build_analyzer_test_browser` (`backend/tests/tools/browser-db.php`), points the site at it with
@@ -265,7 +276,8 @@ site is being updated" in their language, and their page comes back by itself on
 signed in as the site's ADMIN you read "A database update is waiting" with **Open Migrations** - the one page
 that works then (not signed in: that page's **Sign in** brings you back to it); it too asks again by itself,
 and opens the site once another administrator has applied the update. Back the database up (hosting panel)
-and press **Apply pending** there at once. `config/*.local.php` and `storage/` stay as they are.
+and press **Apply pending** there at once - the site also backs its database up itself just before it applies
+one (the Backups page, "before an update"). `config/*.local.php` and `storage/` stay as they are.
 
 - **The release that brings the site's words** (migration 003): upload, then press **Apply pending** on the
   Migrations page. Until then the site reads the English compiled into the app - Slovak readers too - and afterwards its
@@ -288,10 +300,21 @@ and press **Apply pending** there at once. `config/*.local.php` and `storage/` s
   Apply runs 006 (the language button's two strings move to the library's keys, every rewording kept) and the
   library's `anotoki_translations/001` (checks this site's tables, changes nothing) and `002` (its own words,
   never over a string that is there). [docs/operations.md](docs/operations.md), "Deploying".
-- **The IAM's sign-in switch** (IAM SDK 1.1.0): upload only once the IAM answers
+- **Signing in, people and the admin tools through the anotoki library** (version 0.4.0: anotoki-lib 0.4.1,
+  migrations 007-009 between the library's `anotoki_admin` and `anotoki_translations` 003-004 / `anotoki_people`):
+  Export each language first, upload with `vendor/`, then one Apply runs them all after a backup of the database
+  as it was (007: `users.anonymized_at`; 008: what the Laravel version left dropped - its login tables
+  `laravel_users`, `laravel_password_reset_tokens`, `laravel_sessions` and its queue's `laravel_jobs`,
+  `laravel_job_batches`, `laravel_failed_jobs`, only `laravel_migrations` kept; 009: the sign-in screen's words
+  under the library's keys, every rewording kept, and the feedback button's and its sections'). Then delete that
+  "before-migration" backup on the Backups page once the site works: it still holds those tables. Nothing on disk
+  is deleted by the update (`storage/logs/app.log` stays; the error log and the backups are new beside it).
+  [docs/operations.md](docs/operations.md), "Deploying".
+- **The IAM's sign-in switch** (now the library's `SignInRule`): upload only once the IAM answers
   `https://iam.anotoki.eu/api/public/applications/build-analyzer` with 200 - before that the site requires
   sign-in (fail closed) and turns visitors away. [docs/operations.md](docs/operations.md), "Deploying".
-- **The account's theme, dates and language** (version 0.4.0: the browser SDK 1.2.0; no migration here):
+- **The account's theme, dates and language** (version 0.4.0: the IAM's browser client, now the library's; no
+  migration here):
   upload in either order with the IAM's migration 015 - before it the site keeps its own settings, as it did.
   Then, signed in, the bar's theme and language are saved to the anotoki account and What's new writes dates in
   the account's order. [docs/operations.md](docs/operations.md), "Deploying".

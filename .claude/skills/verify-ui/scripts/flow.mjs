@@ -29,6 +29,7 @@ const php = process.env.PHP ?? 'php';
 const TOP_BAR_TS = readFileSync(join(repo, 'frontend/src/app/layouts/top-bar/top-bar.ts'), 'utf8');
 const PHONE_BAR_MAX = Number(/export const PHONE_BAR_MAX = (\d+);/.exec(TOP_BAR_TS)[1]);
 const ADMIN_PHONE_BAR_MAX = Number(/export const ADMIN_PHONE_BAR_MAX = (\d+);/.exec(TOP_BAR_TS)[1]);
+const EDITOR_PHONE_BAR_MAX = Number(/export const EDITOR_PHONE_BAR_MAX = (\d+);/.exec(TOP_BAR_TS)[1]);
 /** Every key of the site's words: none of them may show where a word should be. */
 const KEYS = readdirSync(join(repo, 'frontend/src/app/core/i18n/en')).flatMap((file) => Object.keys(JSON.parse(readFileSync(join(repo, 'frontend/src/app/core/i18n/en', file), 'utf8'))));
 
@@ -79,6 +80,8 @@ const SAM = { id: 10, username: 'sam', roles: ['MEMBER'] };
 const RITA = { id: 11, username: 'rita', roles: ['MEMBER'] };
 /** An account at an IAM that keeps its theme, dates and clock (its migration 015): the others' IAM keeps none. */
 const PIA = { id: 12, username: 'pia', roles: ['MEMBER'], locale: 'en', preferences: { theme: 'dark', date_format: 'ymd_dash', time_format: '24' } };
+/** Signed in at the IAM (on another anotoki site), never here: the sign-in hint signs her in. */
+const HANA = { id: 13, username: 'hana', roles: ['MEMBER'] };
 
 /** A GOOD file (the tests' own sample): one Genshin account, no UID. */
 const GOOD = JSON.stringify({
@@ -283,8 +286,10 @@ async function rowNeeds(page) {
 try {
   if (MEASURE) {
     step('What the row needs (the person\'s name aside), at 1600 px');
+    // Feedback nobody has opened: the ADMIN's row as it is with the count beside Feedback.
+    await fetch(`${SITE}/api/feedback`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ kind: 'idea', message: 'Measuring the bar.' }) });
     for (const language of ['en', 'sk']) {
-      const context = await newContext({ width: 1600 });
+      const context = await newContext({ width: 1800 });
       const page = await context.newPage();
       await open(page, `/?lang=${language}`);
       console.log(`  ${language}, signed out: ${await rowNeeds(page)} px`);
@@ -293,9 +298,19 @@ try {
       console.log(`  ${language}, an admin: ${staff} px; with the sync spinner (40 px and a gap): ${staff + 40 + 9.6} px`);
       // The admin panel reads English whichever language was chosen: measured from both.
       await open(page, '/admin/sources');
+      await page.waitForSelector('app-top-bar .link-badge', { timeout: 5000 }).catch(() => null);
       const area = await rowNeeds(page);
-      console.log(`  the admin panel (English, every section), an admin who chose ${language}: ${area} px; with the sync spinner: ${area + 40 + 9.6} px`);
+      console.log(`  the admin panel (English, every section, the count beside Feedback), an admin who chose ${language}: ${area} px; with the sync spinner: ${area + 40 + 9.6} px`);
       await context.close();
+
+      const editing = await newContext({ width: 1800 });
+      const editor = await editing.newPage();
+      await open(editor, `/?lang=${language}`);
+      await signIn(editor, EDDIE);
+      await open(editor, '/admin/sources');
+      const own = await rowNeeds(editor);
+      console.log(`  the admin panel, an editor (two sections) who chose ${language}: ${own} px; with the sync spinner: ${own + 40 + 9.6} px`);
+      await editing.close();
     }
   } else {
     // ── Nobody ─────────────────────────────────────────────────────────────────────────────────────────
@@ -315,6 +330,51 @@ try {
     await shot(page, '01-nobody-whats-new');
     await page.keyboard.press('Escape');
     await shot(page, '02-nobody-dashboard-1280-light', { fullPage: true });
+
+    // ── The sign-in hint ───────────────────────────────────────────────────────────────────────────────
+    step('The sign-in hint: somebody signed in at the IAM is signed in here without a click - and signed out here once signed out there');
+    {
+      const authorizes = async () => (await (await fetch(`${IAM}/_test/state`)).json()).log.filter((line) => line.startsWith('GET /api/oidc/authorize')).length;
+      const hinted = await newContext();
+      const page = await hinted.newPage();
+      await iamAs(HANA);
+      const hopsBefore = await authorizes();
+      // Signed in at the IAM itself (another anotoki site's sign-in): a session there, and the hint it sets.
+      await page.goto(`${IAM}/_test/sign-in?return=${encodeURIComponent(`${SITE}/builds/genshin?lang=en`)}`);
+      await page.waitForSelector('app-top-bar .user-button', { timeout: 20000 });
+      await page.waitForLoadState('networkidle');
+      check(new URL(page.url()).pathname === '/builds/genshin', `signed in without a click, on the page opened (${new URL(page.url()).pathname})`);
+      check((await page.locator('app-top-bar .user-name').innerText()).trim() === 'hana', 'the bar names hana');
+      check((await authorizes()) - hopsBefore === 1, 'one silent hop to the IAM (prompt=none), nothing to press');
+      check(sql('SELECT name FROM users WHERE id = 13')[0]?.name === 'hana', 'the site knows hana now');
+      check(JSON.parse((await page.evaluate(() => localStorage.getItem('anotoki-auth:build-analyzer:hint'))) ?? 'null')?.value?.length >= 16, 'the hint marked tried in this browser');
+      await shot(page, '02b-hint-signed-in');
+      // Signed out at the IAM (on another site): the next page load here follows it.
+      await page.goto(`${IAM}/_test/sign-out?return=${encodeURIComponent(`${SITE}/?lang=en`)}`);
+      await page.waitForSelector('app-top-bar .sign-in', { timeout: 20000 });
+      await page.waitForLoadState('networkidle');
+      check((await page.locator('app-visitor-hero').count()) === 1, 'signed out there: a visitor here again at the next page load');
+      await hinted.close();
+
+      // A hint with no session behind it this site may use (interaction_required): one quiet try, never again for it.
+      const quiet = await newContext();
+      const visitor = await quiet.newPage();
+      await iamState({ interaction: true });
+      const quietBefore = await authorizes();
+      await visitor.goto(`${IAM}/_test/sign-in?return=${encodeURIComponent(`${SITE}/?lang=en`)}`);
+      await visitor.waitForSelector('app-top-bar .sign-in', { timeout: 20000 });
+      await visitor.waitForLoadState('networkidle');
+      check((await authorizes()) - quietBefore === 1 && new URL(visitor.url()).pathname === '/', 'the hop came back without a sign-in: a visitor on the page opened');
+      check((await visitor.locator('anotoki-sign-in-failure').count()) === 0, 'and nothing said of it - no failure screen');
+      await open(visitor, '/import?lang=en');
+      check((await authorizes()) - quietBefore === 1, 'the next page load makes no second try for the same hint');
+      await iamState({ interaction: false });
+      await quiet.close();
+
+      // Search engines never get the cookie - and robots.txt keeps them off the callback.
+      const robots = await (await fetch(`${SITE}/robots.txt`)).text();
+      check(/User-agent: \*/.test(robots) && robots.includes('Disallow: /auth/'), `robots.txt: ${robots.replace(/\s+/g, ' ').trim()}`);
+    }
 
     // ── A visitor's first import ───────────────────────────────────────────────────────────────────────
     step("A visitor: the first import, its key, its notice");
@@ -482,6 +542,52 @@ try {
       await shot(tab, `sk-390${path.replace(/[/]/g, '-') || '-home'}`, { fullPage: true });
     }
 
+    // ── Feedback ───────────────────────────────────────────────────────────────────────────────────────
+    step("Feedback from the foot of every page: a visitor writes in Slovak at 390 px - the family's form in a dialog, light and dark - and it is kept, with nothing of where it came from");
+    {
+      const writer = await newContext({ width: 390, height: 860 });
+      const page = await writer.newPage();
+      await open(page, '/import?lang=sk');
+      check((await page.locator('app-footer .feedback').innerText()).trim() === 'Spätná väzba', 'the foot of the page: Spätná väzba');
+      await page.click('app-footer .feedback');
+      await page.waitForSelector('mat-dialog-container anotoki-feedback-form [data-message] textarea', { timeout: 15000 });
+      const heading = page.locator('mat-dialog-container h2');
+      check((await heading.innerText()).trim().length > 0 && (await heading.getAttribute('lang')) === 'sk', `the dialog's title, in Slovak: ${(await heading.innerText()).trim()}`);
+      check((await page.locator('mat-dialog-container [data-anonymous]').count()) === 0, 'nobody signed in: no "without my name"');
+      const shown = await keysShown(page);
+      check(shown.length === 0, `no key where a word should be${shown.length ? ` - ${shown.join(', ')}` : ''}`);
+      const scroll = await page.evaluate(() => document.documentElement.scrollWidth);
+      check(scroll <= 390, `390 px: no sideways scroll (${scroll})`);
+      await shot(page, '22-feedback-form-390-light');
+      await page.emulateMedia({ colorScheme: 'dark' });
+      await shot(page, '22-feedback-form-390-dark');
+      await page.fill('anotoki-feedback-form [data-message] textarea', 'Import sa zastaví pri druhom kroku.');
+      await page.click('anotoki-feedback-form [data-send]');
+      await page.waitForSelector('anotoki-feedback-form [data-thanks]', { timeout: 15000 });
+      await shot(page, '22-feedback-sent-390-dark');
+      const kept = sql('SELECT kind, message, language, user_id, contact_email, page FROM anotoki_feedback ORDER BY id DESC LIMIT 1')[0];
+      check(kept?.message === 'Import sa zastaví pri druhom kroku.' && kept?.language === 'sk' && kept?.user_id === null && kept?.contact_email === null && kept?.page === '/import', `kept: ${JSON.stringify(kept)}`);
+      await page.click('anotoki-feedback-form [data-close]');
+      await page.waitForSelector('mat-dialog-container', { state: 'detached' });
+      await page.setViewportSize({ width: 1280, height: 900 });
+      for (const scheme of ['light', 'dark']) {
+        await page.emulateMedia({ colorScheme: scheme });
+        await page.click('app-footer .feedback');
+        await page.waitForSelector('mat-dialog-container anotoki-feedback-form [data-message] textarea');
+        await shot(page, `22-feedback-form-1280-${scheme}`);
+        await page.keyboard.press('Escape');
+        await page.waitForSelector('mat-dialog-container', { state: 'detached' });
+      }
+      // Signed in: their account's address written in for an answer, and "send it without my name" offered.
+      await open(tab, '/?lang=en');
+      await tab.click('app-footer .feedback');
+      await tab.waitForSelector('mat-dialog-container anotoki-feedback-form [data-anonymous]', { timeout: 15000 });
+      check((await tab.locator('mat-dialog-container [data-email] input').inputValue()) === 'mona@example.test', "mona: her account's address written in, and Send without my name offered");
+      await tab.keyboard.press('Escape');
+      await tab.waitForSelector('mat-dialog-container', { state: 'detached' });
+      await writer.close();
+    }
+
     // ── The account's preferences ──────────────────────────────────────────────────────────────────────
     step("The account's theme, dates and language (an IAM with its migration 015): the account's once signed in, the toggle and the menu save to it");
     {
@@ -586,31 +692,55 @@ try {
     const adminItems = (await ad.locator('#user-menu [role=menuitem]').allInnerTexts()).map((item) => item.replace(/\s+/g, ' ').trim());
     check(adminItems.some((item) => item.endsWith('Admin panel')), `the person's menu leads into the "Admin panel" (${adminItems.join(' | ')})`);
     await ad.keyboard.press('Escape');
+    await ad.setViewportSize({ width: ADMIN_PHONE_BAR_MAX + 201, height: 900 });
     await open(ad, '/admin/people');
-    check((await ad.locator('.topbar-link').allInnerTexts()).join('|') === 'Sources|Translations|Languages|People|Migrations', "an admin's sections: all five");
+    check((await ad.locator('.topbar-link').allInnerTexts()).map((words) => words.replace(/\s*\d+$/, '').trim()).join('|') === 'Sources|Translations|Languages|People|Migrations|Errors|Audit|Feedback|Backups', "an admin's sections: all nine - the family's admin tools too");
     // As the IAM's: "anotoki admin panel" beside the mark, the app's name in the link's accessible name.
     check((await ad.locator('app-top-bar app-brand .wordmark').innerText()).replace(/\s+/g, ' ').trim() === 'anotoki admin panel', 'the brand says "anotoki admin panel"');
     check((await ad.locator('app-top-bar app-brand a').getAttribute('aria-label')) === 'anotoki Build Analyzer: the admin panel', 'its link is named "anotoki Build Analyzer: the admin panel"');
     check((await ad.title()) === 'People · Admin panel · Build Analyzer', `the tab's title: ${await ad.title()}`);
+    await ad.waitForSelector('anotoki-people-page [data-person]', { timeout: 15000 });
     const people = await ad.locator('main').innerText();
-    check(people.includes('mona') && /visitor/i.test(people), 'People lists mona, and the visitors apart');
+    check(people.includes('mona') && /visitor/i.test(people), "People (the family's page) lists mona, and the visitors apart");
+    check((await ad.locator('[data-person="7"] [data-delete]').count()) === 1, "mona's row: Delete their data");
+    check((await ad.locator('[data-person="1"] [data-you]').count()) === 1 || people.includes('you'), 'the reader\'s own row says "you"');
     await shot(ad, '10-admin-people', { fullPage: true });
+    for (const [scheme, width] of [['dark', 1280], ['light', 390], ['dark', 390]]) {
+      await ad.setViewportSize({ width, height: 900 });
+      await ad.emulateMedia({ colorScheme: scheme });
+      await open(ad, '/admin/people');
+      await ad.waitForSelector('anotoki-people-page [data-person]', { timeout: 15000 });
+      const scroll = await ad.evaluate(() => document.documentElement.scrollWidth);
+      check(scroll <= width, `People, ${width} px, ${scheme}: no sideways scroll (${scroll})`);
+      await shot(ad, `10-admin-people-${width}-${scheme}`, { fullPage: true });
+    }
+    await ad.emulateMedia({ colorScheme: 'light' });
 
-    step(`The admin panel's bar at 390, ${ADMIN_PHONE_BAR_MAX}, ${ADMIN_PHONE_BAR_MAX + 1}, 1024 and 1280 px, light and dark`);
+    step(`The admin panel's bar at 390, 1024, 1280, ${ADMIN_PHONE_BAR_MAX}, ${ADMIN_PHONE_BAR_MAX + 1} and ${ADMIN_PHONE_BAR_MAX + 201} px for the ADMIN, light and dark - and an editor's at ${EDITOR_PHONE_BAR_MAX} and ${EDITOR_PHONE_BAR_MAX + 1} px`);
     for (const scheme of ['light', 'dark']) {
-      for (const width of [390, ADMIN_PHONE_BAR_MAX, ADMIN_PHONE_BAR_MAX + 1, 1024, 1280]) {
+      for (const width of [390, 1024, 1280, ADMIN_PHONE_BAR_MAX, ADMIN_PHONE_BAR_MAX + 1, ADMIN_PHONE_BAR_MAX + 201]) {
         await ad.setViewportSize({ width, height: 760 });
         await ad.emulateMedia({ colorScheme: scheme });
         await open(ad, '/admin/migrations');
         const layout = await checkBar(ad, `admin panel, ${width} px, ${scheme}`);
         check((await ad.locator('.menu-button').count()) === (width <= ADMIN_PHONE_BAR_MAX ? 1 : 0), `admin panel, ${width} px: ${width <= ADMIN_PHONE_BAR_MAX ? "a phone's bar" : "a desktop's bar"}`);
-        if (width === 1280) {
-          check(layout.nameCut === false, `admin panel, 1280 px: the person's name shows, whole (${layout.nameCut})`);
+        if (width === ADMIN_PHONE_BAR_MAX + 201) {
+          check(layout.nameCut === false, `admin panel, ${width} px: the person's name shows, whole (${layout.nameCut})`);
         }
         await shot(ad, `admin-bar-${width}-${scheme}`, { clip: { x: 0, y: 0, width, height: 120 } });
       }
     }
     await ad.emulateMedia({ colorScheme: 'light' });
+    for (const width of [EDITOR_PHONE_BAR_MAX, EDITOR_PHONE_BAR_MAX + 1, EDITOR_PHONE_BAR_MAX + 201]) {
+      await ed.setViewportSize({ width, height: 760 });
+      await open(ed, '/admin/sources');
+      const layout = await checkBar(ed, `admin panel, an editor, ${width} px`);
+      check((await ed.locator('.menu-button').count()) === (width <= EDITOR_PHONE_BAR_MAX ? 1 : 0), `admin panel, an editor, ${width} px: ${width <= EDITOR_PHONE_BAR_MAX ? "a phone's bar" : "a desktop's bar"}`);
+      if (width === EDITOR_PHONE_BAR_MAX + 201) {
+        check(layout.nameCut === false, `admin panel, an editor, ${width} px: the person's name shows, whole (${layout.nameCut})`);
+      }
+      await shot(ed, `admin-bar-editor-${width}`, { clip: { x: 0, y: 0, width, height: 120 } });
+    }
 
     // ── The site's words: the Translations and Languages pages (anotoki-lib's, drawn with its kit) ──────
     step("Translations (EDITOR and ADMIN) and Languages (ADMIN): the anotoki library's pages in the admin panel - a string reworded and read back, light and dark, 1280 and 390 px");
@@ -696,6 +826,110 @@ try {
       await tab.emulateMedia({ colorScheme: 'light' });
     }
 
+    // ── The family's admin tools ───────────────────────────────────────────────────────────────────────
+    step("The anotoki family's admin tools (ADMIN): the error log, the audit log, feedback with its count in the bar, backups - light and dark, 1280 and 390 px; an editor has none of them");
+    {
+      // Something worth seeing in the error log: a path nobody has (404).
+      await fetch(`${SITE}/api/nothing-here`);
+      const wide = ADMIN_PHONE_BAR_MAX + 201;
+      await ad.setViewportSize({ width: wide, height: 900 });
+      await ad.emulateMedia({ colorScheme: 'light' });
+      await open(ad, '/admin/sources');
+      await ad.waitForSelector('app-top-bar a[href="/admin/feedback"] .link-badge', { timeout: 15000 });
+      const count = (await ad.locator('app-top-bar a[href="/admin/feedback"] .link-badge').innerText()).trim();
+      check(count === '1' && (await ad.locator('app-top-bar a[href="/admin/feedback"]').getAttribute('aria-label')) === 'Feedback, 1 new', `the new feedback counted beside Feedback (${count})`);
+      await shot(ad, '19-admin-bar-feedback-count', { clip: { x: 0, y: 0, width: wide, height: 120 } });
+
+      const tools = [
+        ['/admin/errors', 'anotoki-error-log-page', 'Error log'],
+        ['/admin/audit', 'anotoki-audit-log-page', 'Audit log'],
+        ['/admin/feedback', 'anotoki-feedback-page', 'Feedback'],
+        ['/admin/backups', 'anotoki-backups-page', 'Backups'],
+      ];
+      for (const [path, element, title] of tools) {
+        for (const [scheme, width] of [['light', 1280], ['dark', 1280], ['light', 390], ['dark', 390]]) {
+          await ad.setViewportSize({ width, height: 900 });
+          await ad.emulateMedia({ colorScheme: scheme });
+          await open(ad, path);
+          await ad.waitForSelector(`${element} h1`, { timeout: 15000 });
+          await ad.waitForLoadState('networkidle');
+          if (scheme === 'light' && width === 1280) {
+            check((await ad.title()) === `${title} · Admin panel · Build Analyzer` && (await ad.evaluate(() => document.documentElement.lang)) === 'en', `${path}: "${await ad.title()}", in English`);
+          }
+          const scroll = await ad.evaluate(() => document.documentElement.scrollWidth);
+          check(scroll <= width, `${path}, ${width} px, ${scheme}: no sideways scroll (${scroll})`);
+          if (scheme === 'dark') {
+            check(await darkSurface(ad, 'body'), `${path}, ${width} px: in the site's dark colours`);
+          }
+          await shot(ad, `19-admin${path.replace(/\//g, '-')}-${width}-${scheme}`, { fullPage: true });
+        }
+      }
+      await ad.setViewportSize({ width: 1280, height: 900 });
+      await ad.emulateMedia({ colorScheme: 'light' });
+
+      await open(ad, '/admin/errors');
+      await ad.waitForSelector('anotoki-error-log-page h1');
+      await ad.waitForLoadState('networkidle');
+      check((await ad.locator('anotoki-error-log-page').innerText()).includes('/api/nothing-here'), 'the error log: the 404 a moment ago, by its path');
+      await open(ad, '/admin/audit');
+      await ad.waitForSelector('anotoki-audit-log-page h1');
+      await ad.waitForLoadState('networkidle');
+      const audit = await ad.locator('anotoki-audit-log-page').innerText();
+      check(audit.includes('translations.saved') && audit.includes('ada'), 'the audit log: the string ada saved on the Translations page, by her name');
+
+      // Feedback: the visitor's message; opened, it is read - and the count beside Feedback goes.
+      await open(ad, '/admin/feedback');
+      await ad.waitForSelector('anotoki-feedback-page h1');
+      await ad.waitForLoadState('networkidle');
+      check((await ad.locator('anotoki-feedback-page').innerText()).includes('Import sa zastaví pri druhom kroku.'), "the visitor's message is listed");
+      await ad.getByText('Import sa zastaví pri druhom kroku.').first().click();
+      await ad.waitForSelector('[data-viewer]', { timeout: 10000 });
+      await shot(ad, '19-admin-feedback-opened');
+      await ad.keyboard.press('Escape');
+      await ad.setViewportSize({ width: wide, height: 900 });
+      await ad.waitForFunction(() => document.querySelector('app-top-bar a[href="/admin/feedback"]') !== null && document.querySelector('app-top-bar a[href="/admin/feedback"] .link-badge') === null, null, { timeout: 10000 });
+      check(sql("SELECT status FROM anotoki_feedback WHERE message = 'Import sa zastaví pri druhom kroku.'")[0]?.status === 'read', 'opened: read, and no count beside Feedback any more');
+      await ad.setViewportSize({ width: 1280, height: 900 });
+
+      // Backups: Back up now asks first; a sign-in of more than ten minutes ago is no proof - Sign in again, and back.
+      await open(ad, '/admin/backups');
+      await ad.waitForSelector('anotoki-backups-page [data-create]:not([disabled])', { timeout: 15000 });
+      const made = () => sql("SELECT count(*) AS n FROM anotoki_audit_log WHERE action = 'backup.created' AND actor_id = 1")[0].n;
+      const before = Number(made());
+      const backUp = async () => {
+        await ad.click('[data-create]');
+        await ad.waitForSelector('[data-guarded] [data-guarded-confirm]', { timeout: 10000 });
+        await ad.click('[data-guarded] [data-guarded-confirm]');
+        await ad.waitForSelector(':is([data-outcome], [data-sign-in-needed])', { timeout: 30000 });
+      };
+      await backUp();
+      if ((await ad.locator('[data-sign-in-needed]').count()) > 0) {
+        check(true, 'a sign-in older than ten minutes: "Sign in again first"');
+        await shot(ad, '19-admin-backups-sign-in-again');
+        await iamAs(ADA);
+        await ad.click('[data-sign-in]');
+        await ad.waitForURL((url) => url.href.startsWith(SITE) && url.pathname === '/admin/backups', { timeout: 20000 });
+        await ad.waitForSelector('anotoki-backups-page [data-create]:not([disabled])', { timeout: 15000 });
+        await backUp();
+      }
+      await ad.waitForLoadState('networkidle');
+      check(Number(made()) === before + 1, 'Back up now: a backup made by the ADMIN, in the audit log');
+      check((await ad.locator('[data-backups] [data-backup]').count()) >= 1, 'listed on the page');
+      await shot(ad, '19-admin-backups-made', { fullPage: true });
+
+      // An editor has none of them: sent to Sources, and the server refuses them.
+      for (const path of ['/admin/errors', '/admin/audit', '/admin/feedback', '/admin/backups']) {
+        await open(ed, path);
+        check(new URL(ed.url()).pathname === '/admin/sources', `${path} sends an editor to Sources`);
+      }
+      const edRefused = await ed.evaluate(async () => {
+        const token = JSON.parse(localStorage.getItem('anotoki-auth:build-analyzer') ?? '{}').access_token;
+        const answers = await Promise.all(['/api/admin/errors', '/api/admin/audit', '/api/admin/feedback', '/api/admin/backups'].map((path) => fetch(path, { headers: { Authorization: `Bearer ${token}` } })));
+        return Promise.all(answers.map(async (answer) => `${answer.status} ${(await answer.json()).code}`));
+      });
+      check(edRefused.every((answer) => answer === '403 admin_only'), `the server refuses an editor every one of them (${edRefused.join(', ')})`);
+    }
+
     // ── The Migrations page, and the site while an update waits ────────────────────────────────────────
     step("Migrations (ADMIN): the family's page - every file applied, nothing waiting, a file's SQL");
     await ad.setViewportSize({ width: 1280, height: 900 });
@@ -704,14 +938,13 @@ try {
     check((await ad.locator('h1').innerText()) === 'Migrations', 'the page: Migrations');
     check((await ad.title()) === 'Migrations · Admin panel · Build Analyzer', `its title: ${await ad.title()}`);
     check((await ad.locator('[data-pending]').innerText()).includes('Nothing pending - the database is up to date with the files.'), 'nothing pending on a database the migrations built');
-    // Two sets - the site's own, then the anotoki library's translations - so each file is named with its set.
-    const appliedFiles = await ad.locator('[data-applied] .anotoki-migrations-page__files code').allInnerTexts();
+    // Four sets, in the order they run - the library's admin tools', the site's own, the library's translations and
+    // people - each file named as its set's records name it: the site's by its name, the library's with its set.
+    const appliedFiles = (await ad.locator('[data-applied] .anotoki-migrations-page__files code').allInnerTexts()).map((name) => name.trim());
     const sqlFiles = (folder) => readdirSync(folder).filter((file) => file.endsWith('.sql')).sort();
-    const migrationFiles = [
-      ...sqlFiles(join(backend, 'migrations')).map((file) => `build_analyzer/${file}`),
-      ...sqlFiles(join(backend, 'vendor/anotoki/lib/php/migrations/translations')).map((file) => `anotoki_translations/${file}`),
-    ];
-    check(appliedFiles.join('|') === migrationFiles.join('|'), `every file applied, in order - the library's last: ${appliedFiles.join(', ')}`);
+    const library = (set, folder) => sqlFiles(join(backend, 'vendor/anotoki/lib/php/migrations', folder)).map((file) => `${set}/${file}`);
+    const migrationFiles = [...library('anotoki_admin', 'admin'), ...sqlFiles(join(backend, 'migrations')), ...library('anotoki_translations', 'translations'), ...library('anotoki_people', 'people')];
+    check(appliedFiles.join('|') === migrationFiles.join('|'), `every file applied, in order - the admin tools' first, the translations' and the people's after the site's: ${appliedFiles.join(', ')}`);
     check(await ad.locator('[data-apply]').isDisabled(), 'Apply pending cannot be pressed with nothing pending');
     await ad.locator('[data-applied] li', { hasText: '005_' }).getByRole('button', { name: /^View/ }).click();
     await ad.waitForSelector('anotoki-dialog[data-sql] pre');
@@ -773,10 +1006,9 @@ try {
       await ad.click('anotoki-site-status a');
       await ad.waitForURL('**/admin/migrations');
       await ad.waitForSelector('[data-pending] .anotoki-migrations-page__files');
-      // With two sets the Pending card heads each set's files with the set (migrations/<set>/), the file by its name.
-      const pendingSets = await ad.locator('[data-pending] .anotoki-migrations-page__set').allInnerTexts();
+      // Pending is one list in the order the files run (anotoki-lib 0.4), each named as its set's records name it.
       const pendingFiles = (await ad.locator('[data-pending] .anotoki-migrations-page__files li').allInnerTexts()).map((line) => line.replace(/\s+/g, ' ').trim());
-      check(pendingSets.join('|') === 'migrations/build_analyzer/' && pendingFiles.join('|') === '004_visitors_and_family_bar.sql pending', `Migrations: 004 pending, under its set (${pendingSets.join(', ')} ${pendingFiles.join(', ')})`);
+      check(pendingFiles.join('|') === '004_visitors_and_family_bar.sql pending', `Migrations: 004 pending (${pendingFiles.join(', ')})`);
       check((await ad.locator('app-top-bar .topbar').count()) === 1, 'in the admin panel\'s frame');
       await shot(ad, '13-admin-migrations-pending', { fullPage: true });
 
@@ -804,7 +1036,7 @@ try {
       await ad.click('[data-confirm-apply]');
       await ad.waitForSelector('[data-result]', { timeout: 30000 });
       const outcome = await ad.locator('[data-result]').innerText();
-      check(outcome.includes('Stopped at build_analyzer/004_visitors_and_family_bar.sql') && outcome.includes('Nothing was applied.') && outcome.includes('rolled back as a whole') && /already exists/.test(outcome), `the failure, named: ${outcome.replace(/\s+/g, ' ').slice(0, 160)}`);
+      check(outcome.includes('Stopped at 004_visitors_and_family_bar.sql') && outcome.includes('Nothing was applied.') && outcome.includes('rolled back as a whole') && /already exists/.test(outcome), `the failure, named: ${outcome.replace(/\s+/g, ' ').slice(0, 160)}`);
       check((await ad.locator('[data-result]').getAttribute('role')) === 'alert', 'said aloud: role alert');
       check((await ad.locator('[data-pending] .anotoki-migrations-page__files li').count()) === 1, 'still pending after the failed apply');
       await shot(ad, '15-admin-migrations-stopped', { fullPage: true });
@@ -879,27 +1111,63 @@ try {
     await hurry.close();
 
     // ── A refused sign-in while visiting, and the admin panel ──────────────────────────────────────────
-    step('A sign-in the IAM refuses while visiting (MEMBER taken away) is said; visiting goes on; /admin is sign-in only');
+    step("A sign-in the IAM refuses while visiting (MEMBER taken away): the failure's screen says why - light and dark, 1280 and 390 px; Back goes on visiting; /admin is sign-in only");
     await iamState({ deny: true });
     const turned = await newContext();
     const away = await turned.newPage();
+    /** The failure's screen as a person reads it. */
+    const failureScreen = () =>
+      away.evaluate(() => {
+        const screen = document.querySelector('anotoki-sign-in-failure');
+        const words = (element) => (element?.innerText ?? '').replace(/\s+/g, ' ').trim();
+        return {
+          title: words(screen?.querySelector('h1')),
+          message: words(screen?.querySelector('[role=alert]')),
+          buttons: [...(screen?.querySelectorAll('button') ?? [])].map(words),
+          robots: document.querySelector('meta[name=robots]')?.getAttribute('content') ?? null,
+          lang: screen?.querySelector('section')?.getAttribute('lang') ?? null,
+        };
+      });
     await open(away, '/builds/genshin?lang=en');
     await away.click('.sign-in');
     await away.waitForURL((url) => url.href.startsWith(SITE) && url.pathname === '/sign-in', { timeout: 15000 });
-    await away.waitForSelector('.notice[role=alert]');
-    const said = await away.locator('.notice[role=alert]').innerText();
-    check(said.includes('The sign-in was not completed'), `back from the IAM: the sign-in page says so ("${said.slice(0, 60)}...")`);
-    check((new URL(away.url()).searchParams.get('returnTo') ?? '').startsWith('/builds/genshin'), 'with the page asked for as returnTo');
-    await shot(away, '17-visitor-sign-in-refused', { fullPage: true });
-    await away.locator('app-top-bar .topbar-link', { hasText: 'Builds' }).click();
-    await away.waitForURL('**/builds/genshin');
-    await away.waitForSelector('app-builds-page, .page', { timeout: 10000 });
-    check(new URL(away.url()).pathname === '/builds/genshin', 'said once: the visitor goes on to the builds');
+    await away.waitForSelector('anotoki-sign-in-failure [role=alert]');
+    let seen = await failureScreen();
+    check(seen.title === 'Signing in did not work' && seen.message.startsWith('The sign-in was not completed.') && seen.buttons.join('|') === 'Try again|Back', `back from the IAM: the failure's screen says why ("${seen.title}: ${seen.message}" - ${seen.buttons.join(', ')})`);
+    check(seen.robots === 'noindex', `search engines are asked not to index it (${seen.robots})`);
+    check((await away.locator('app-top-bar .topbar').count()) === 1 && (await away.title()) === 'Sign in · Build Analyzer', `in the site's frame, under its bar ("${await away.title()}")`);
+    await shot(away, '17-visitor-sign-in-refused-1280-light', { fullPage: true });
+    for (const [scheme, width] of [['dark', 1280], ['light', 390], ['dark', 390]]) {
+      await away.setViewportSize({ width, height: 800 });
+      await away.emulateMedia({ colorScheme: scheme });
+      await away.waitForTimeout(200);
+      const scroll = await away.evaluate(() => document.documentElement.scrollWidth);
+      check(scroll <= width, `the failure's screen, ${width} px, ${scheme}: no sideways scroll (${scroll})`);
+      if (scheme === 'dark') {
+        check(await darkSurface(away, '.anotoki-sign-in-failure__panel'), `the failure's screen, ${width} px: in the site's dark colours`);
+      }
+      await shot(away, `17-visitor-sign-in-refused-${width}-${scheme}`, { fullPage: true });
+    }
+    await away.setViewportSize({ width: 1280, height: 800 });
+    await away.emulateMedia({ colorScheme: 'light' });
+    await away.click('anotoki-sign-in-failure [data-back]');
+    await away.waitForURL((url) => url.pathname === '/builds/genshin', { timeout: 10000 });
+    await away.waitForSelector('app-top-bar .sign-in', { timeout: 10000 });
+    check(new URL(away.url()).pathname === '/builds/genshin', 'Back: on to the page the sign-in started on, visiting');
+    await open(away, '/?lang=sk');
+    check(new URL(away.url()).pathname === '/' && (await away.locator('app-visitor-hero').count()) === 1, 'said once: the next page is the visitor\'s again');
+    // In Slovak: the screen reads the site's own words, moved under the library's keys by 009.
+    await away.click('.sign-in');
+    await away.waitForURL((url) => url.href.startsWith(SITE) && url.pathname === '/sign-in', { timeout: 15000 });
+    await away.waitForSelector('anotoki-sign-in-failure [role=alert]');
+    seen = await failureScreen();
+    check(seen.lang === 'sk' && seen.message.startsWith('Prihlásenie sa nedokončilo.') && seen.buttons.join('|') === 'Skúsiť znova|Späť', `in Slovak: "${seen.title}: ${seen.message}" (${seen.buttons.join(', ')})`);
+    await shot(away, '17-visitor-sign-in-refused-sk-1280-light', { fullPage: true });
     await away.goto(`${SITE}/admin`);
-    await away.waitForURL((url) => url.href.startsWith(SITE) && url.pathname.startsWith('/admin'), { timeout: 15000 });
-    await away.waitForSelector('.no-access h1');
-    check((await away.locator('.no-access h1').innerText()) === 'You are not signed in', 'a visitor at /admin is sent to sign in; refused, the panel\'s card says so');
-    check((await away.locator('.topbar-link').count()) === 0, 'and no section of the panel shows');
+    await away.waitForURL((url) => url.href.startsWith(SITE) && url.pathname === '/sign-in', { timeout: 15000 });
+    await away.waitForSelector('anotoki-sign-in-failure [role=alert]');
+    check((await failureScreen()).message.length > 0, 'a visitor at /admin is sent to sign in; refused, the failure\'s screen says so');
+    check((await away.locator('.topbar-link', { hasText: 'Sources' }).count()) === 0, 'and no section of the panel shows');
     await iamState({ deny: false });
     await turned.close();
 
@@ -932,15 +1200,15 @@ try {
     await iamState({ deny: true });
     await lateTab.goto(`${SITE}/builds/genshin`);
     await lateTab.waitForURL((url) => url.href.startsWith(SITE) && url.pathname === '/sign-in', { timeout: 15000 });
-    await lateTab.waitForSelector('.notice[role=alert]');
-    check(new URL(lateTab.url()).searchParams.get('returnTo') === '/builds/genshin', 'a page load went to the IAM by itself, and came back refused to the sign-in page');
+    await lateTab.waitForSelector('anotoki-sign-in-failure [role=alert]');
+    check((await lateTab.locator('anotoki-sign-in-failure [role=alert]').innerText()).trim().startsWith('The sign-in was not completed.'), "a page load went to the IAM by itself, and came back refused to the failure's screen");
     check((await lateTab.evaluate(() => localStorage.getItem('build-analyzer-visitor'))) === lateKey, 'the key is kept while sign-in is required');
     await shot(lateTab, '18-required-refused', { fullPage: true });
     await iamState({ deny: false });
 
     // Then let in: back on the page asked for, and what the visitor imported is the person's.
     await iamAs(RITA);
-    await lateTab.click('main button');
+    await lateTab.click('anotoki-sign-in-failure [data-retry]');
     await lateTab.waitForURL((url) => url.href.startsWith(SITE) && url.pathname === '/builds/genshin', { timeout: 15000 });
     await lateTab.waitForSelector('.user-button', { timeout: 15000 });
     await lateTab.waitForLoadState('networkidle');

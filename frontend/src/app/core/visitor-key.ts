@@ -1,9 +1,11 @@
 import { HttpErrorResponse } from '@angular/common/http';
 import { DestroyRef, Injectable, computed, effect, inject, signal, untracked } from '@angular/core';
+import type { VisitorKeyStore } from '@anotoki/lib/auth';
 import { firstValueFrom } from 'rxjs';
 import { Api } from './api';
 import { AuthService } from './auth';
 import { VisitorMove } from './models';
+import { SignInKind } from './sign-in-kind';
 import { readStorage, storageUsable, writeStorage } from './storage';
 
 /** Where this browser keeps its visitor key (localStorage: every tab of the site shares it). */
@@ -21,8 +23,10 @@ export const MOVE_RETRY_MS: readonly number[] = [2_000, 10_000, 30_000];
 /**
  * The visitor key: what lets somebody who is not signed in keep what they import. The server makes it on
  * the first import of somebody with neither a token nor a key and sends it once, in the `X-Visitor-Key`
- * header of that answer; it keeps only its hash. This browser keeps the key in localStorage, and
- * authInterceptor sends it on the site's own API requests issued as a visitor's (core/api.ts ISSUED_AS).
+ * header of that answer; it keeps only its hash. This browser keeps the key in localStorage - the site's
+ * visitor key store (the anotoki family's VisitorKeyStore: current(), remember(), forget()), which the
+ * family's interceptor (@anotoki/lib/auth) reads to send it on the site's own API requests issued as a
+ * visitor's, and hands a key an answer brought, or one the server no longer knows.
  *
  * - **Kept, not sent, while the site requires a sign-in** (AuthService.loginRequired: the IAM's switch). The
  *   server would refuse it (401 sign_in_required) and nobody visits then; the next sign-in moves what it
@@ -37,20 +41,25 @@ export const MOVE_RETRY_MS: readonly number[] = [2_000, 10_000, 30_000];
  * - **Forgotten** when the server no longer knows it (401 `visitor_unknown`: moved by another tab, or
  *   swept) - `lost` says so, for the page to word once - and after the move.
  * - **The move, after a sign-in** (whether or not the site requires one). Signed in with a key held:
- *   `POST /api/visitor/move` with the token and the key, once at a time. On a 200 (found or not) the key is forgotten, `moves` counts up (the pages that
+ *   `POST /api/visitor/move` with the token and the key, once at a time - and `silent` when the sign-in was the
+ *   IAM's hint's silent hop (SignInKind). On a 200 (found or not) the key is forgotten, `moves` counts up (the pages that
  *   list accounts load them again) and `moved` holds what it did, for the shell's snack bar. On a network
  *   error or a 5xx (`visitor_move_retry`, `visitors_unavailable`) the key stays and the move is asked again
  *   later: the data is out of sight meanwhile, never lost.
+ * - **Held, after a silent sign-in into an account that has data here** (the owner's decision of 2026-10-11):
+ *   the server moves nothing (`held`), and the key stays this browser's - signed out, its visitor's data is
+ *   there again; the next sign-in the person clicks moves it. Nothing is said, nothing reloaded.
  *
  * A private window that refuses storage: the key lives in memory for the tab.
  *
- * This service reads AuthService, and never the other way round (AuthService knows nothing of visitors):
- * the move is started here, by an effect on `auth.signedIn()`.
+ * This service reads AuthService, and never the other way round (the auth module is handed it as the site's
+ * `visitors`, app.config.ts): the move is started here, by an effect on `auth.signedIn()`.
  */
 @Injectable({ providedIn: 'root' })
-export class VisitorKey {
+export class VisitorKey implements VisitorKeyStore {
   private readonly auth = inject(AuthService);
   private readonly api = inject(Api);
+  private readonly signInKind = inject(SignInKind);
 
   /** The key, when storage cannot keep it (or refused to). */
   private memory: string | null = null;
@@ -149,8 +158,12 @@ export class VisitorKey {
       this.retryTimer = null;
     }
     try {
-      const result = await firstValueFrom(this.api.moveVisitor(key));
+      const result = await firstValueFrom(this.api.moveVisitor(key, this.signInKind.silent()));
       this.retries = 0;
+      if (result.held) {
+        // A silent sign-in into an account with data here: nothing moved, and the key stays this browser's.
+        return;
+      }
       this.forget(key);
       this.moves.update((count) => count + 1);
       if (result.moved > 0 || result.kept > 0) {

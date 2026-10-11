@@ -3,14 +3,14 @@ import { TestBed } from '@angular/core/testing';
 import { provideTestTranslations } from '@anotoki/lib/translations/testing';
 import { AuthService } from '../auth';
 import { timeAgo } from '../format';
-import { AnotokiPreferences } from '../iam/anotoki-auth';
+import { AnotokiPreferences } from '@anotoki/lib/auth';
 import { LocalDatePipe } from './local-date';
 import { TranslatePluralPipe } from './translate-plural';
 import { TranslatePipe } from './translate';
 import { TranslationService } from './translation';
 
 const ENGLISH = {
-  'signIn.failed': 'The sign-in did not complete: {code}',
+  'footer.version': 'Version {version}',
   'theme.label': 'Theme',
   'buildDetail.optionAny.one': '(any {count})',
   'buildDetail.optionAny.few': '(any {count})',
@@ -18,7 +18,7 @@ const ENGLISH = {
   'recommendation.sets_missing_empty': '{set_label}: use the recommended {best}. Nothing is equipped now.',
 };
 const SLOVAK = {
-  'signIn.failed': 'Prihlásenie sa nedokončilo: {code}',
+  'footer.version': 'Verzia {version}',
   'theme.label': 'Vzhľad',
   'buildDetail.optionAny.one': '(ľubovoľný 1)',
   'buildDetail.optionAny.few': '(ľubovoľné {count})',
@@ -44,7 +44,7 @@ function pipes(language: 'en' | 'sk', account?: Partial<AnotokiPreferences>) {
       TranslatePipe,
       TranslatePluralPipe,
       LocalDatePipe,
-      ...(account ? [{ provide: AuthService, useValue: { user: signal({ sub: '7', preferences }), preferences: signal(preferences) } }] : []),
+      account ? { provide: AuthService, useValue: { user: signal({ sub: '7', preferences }), preferences: signal(preferences) } } : { provide: AuthService, useValue: { user: () => null, signedIn: () => false, preferences: () => null } },
     ],
   });
   return {
@@ -57,8 +57,8 @@ function pipes(language: 'en' | 'sk', account?: Partial<AnotokiPreferences>) {
 
 describe('the translate pipes', () => {
   it('word a key, and fill its placeholders', () => {
-    expect(pipes('en').translate.transform('signIn.failed', { code: 'invalid_grant' })).toBe('The sign-in did not complete: invalid_grant');
-    expect(pipes('sk').translate.transform('signIn.failed', { code: 'invalid_grant' })).toBe('Prihlásenie sa nedokončilo: invalid_grant');
+    expect(pipes('en').translate.transform('footer.version', { version: '0.4.0' })).toBe('Version 0.4.0');
+    expect(pipes('sk').translate.transform('footer.version', { version: '0.4.0' })).toBe('Verzia 0.4.0');
   });
 
   it('pick the plural form, and a sentence takes the whole phrase as a placeholder', () => {

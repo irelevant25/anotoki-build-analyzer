@@ -1,8 +1,10 @@
 # Data model
 
-The schema is `backend/migrations/*.sql` - the set `build_analyzer` - and after them the anotoki library's own
-set `anotoki_translations` (`vendor/anotoki/lib/php/migrations/translations`: the check of the words' tables
-and the library's words, since version 0.4.0), applied in order by one engine - the anotoki family's (anotoki-lib's
+The schema is `backend/migrations/*.sql` - the set `build_analyzer` - with the anotoki library's own sets
+around it, in this order (the library's README): `anotoki_admin` first (`vendor/anotoki/lib/php/migrations/admin`:
+the audit log's and feedback's tables), then this site's, then `anotoki_translations` (`…/translations`: the
+check of the words' tables and the library's words, since version 0.4.0) and `anotoki_people` (`…/people`: where
+the scrub of the IAM's deleted accounts stands), applied in order by one engine - the anotoki family's (anotoki-lib's
 `Anotoki\Lib\Migrations\Migrator`, on this site's files through `src/Db/Migrations.php`) - whichever way it
 runs: `php migration.php`, "Apply pending" on the admin panel's Migrations page, or `setup.php`. There is no
 separate schema file; a database is what you get by replaying the migrations. `migrations(id, filename,
@@ -53,6 +55,30 @@ the site is closed to everybody but its ADMIN on the Migrations page (the site g
   gate counts those only, `name NOT LIKE 'anotoki.%'`, since the library adds its own when it likes
   (452 - 2 = 450). Then the library's set: `001` finds this site's three tables, checks their shape and
   changes nothing; `002` adds its words (English and Slovak; descriptions its own).
+- `007_people.sql` (version 0.4.0: the people module, anotoki-lib 0.4.1) adds `users.anonymized_at`
+  (TIMESTAMPTZ, NULL) - when the IAM deleted the account; written by the library's scrub only - and touches no
+  row. Gated: the column there and NULL everywhere, the rows as many and as named as before (people and
+  visitors apart), `users_visitor_check` still there.
+- `008_drop_laravel_leftovers.sql` (the owner's decisions of 2026-10-11: no email address, nor the address an
+  old session came from, nor an old job's payload, on any anotoki site) drops what the first version left and
+  001 kept where it was not empty, where it is: its login tables - `laravel_users` (old addresses and password
+  hashes), `laravel_password_reset_tokens` (addresses and reset tokens), `laravel_sessions` (network addresses,
+  browsers) - and its queue's, which nothing here reads - `laravel_jobs`, `laravel_job_batches`,
+  `laravel_failed_jobs` - with their sequences (`laravel_users_id_seq`, `laravel_jobs_id_seq`,
+  `laravel_failed_jobs_id_seq`). Only `laravel_migrations` stays (what that version ran; nobody's data). No
+  CASCADE: anything pointing at one of the six makes it fail. Gated: none of them there, every other table still
+  there with as many rows (the audit log's may only have grown: the admin tools that stay open during an update
+  write it), nothing new.
+- `009_sign_in_and_feedback_words.sql` moves the five words of the old sign-in page that the library's sign-in
+  screen has under its own keys - `signIn.notCompleted`, `stateMismatch` (→ `anotoki.signIn.expired`),
+  `storageUnavailable`, `failed`, `signingIn` → `anotoki.signIn.*` - with every language's string as it is, who
+  saved it and when, before the library's `anotoki_translations/003` (where that ran first, its own words give
+  way to the site's - never an owner's rewording of the library's key); retires `signIn.intro`,
+  `signIn.notConfigured` and `signIn.unreachable` with their strings; adds `footer.feedback` and the feedback
+  form's four places (`feedback.section.*`) in English and Slovak. Gated: every moved string as it was (or an
+  owner's rewording of the library key), no `signIn.*` left, the new keys in both languages, and the site's own
+  keys (450 - 8 + 5 = 447). Then the library's `anotoki_translations/003` (the sign-in screen's words) and `004`
+  (the feedback form's), and `anotoki_people/001`.
 
 Rules: never edit a migration that has run somewhere; add `NNN_what.sql`. A migration runs in one transaction
 (PostgreSQL DDL is transactional), so a failing one leaves nothing behind. A migration that changes data ends
@@ -71,13 +97,25 @@ build's main stats, is kept as written).
 
 | Table | Notes |
 | --- | --- |
-| `users` | A person: `id` = the anotoki IAM user id (the token's `sub`, always a positive number; not a sequence), `name` = `preferred_username` (refreshed from each token). Rows are created on a person's first request (`Auth/UserProvisioner`, which refuses an id below 1); roles are never stored, and there are no passwords. Deleting a row (the People page, ADMIN: `Users::deletePerson()`) deletes the person's accounts with everything in them and their import runs by the foreign keys; `sync_runs.started_by` becomes NULL, and the strings they saved keep their words with `translations.updated_by` NULL. **A visitor** (migration 004): a negative `id` from the sequence `visitor_ids` (-1, -2 ...), `name` `visitor`, `visitor_key_hash` (CHAR(64), the SHA-256 of its key in lowercase hex, UNIQUE - the key itself is never stored), `last_seen_at` (written at most once an hour). `users_visitor_check`: a negative id has a hash and a last-seen time, a positive one neither; partial index `users_visitors_last_seen_at_index` on `last_seen_at` for `id < 0`. Only `App\Auth\Visitors` (through `Users`) makes, finds, sweeps and moves them; a visitor never starts a sync or saves a string, so `started_by` and `updated_by` are always people. The People list shows `id > 0` only and counts visitors apart |
+| `users` | A person: `id` = the anotoki IAM user id (the token's `sub`, always a positive number; not a sequence), `name` = `preferred_username` (refreshed from each token; "user {id}" without one), `last_seen_at` (written at most every five minutes, since 0.4.0), `anonymized_at` (migration 007: when the IAM deleted the account - the scrub then names the row `deleted-{id}`, and nothing writes it again). Rows are made and kept on a person's requests by the anotoki library's people module (`RecordPerson`, `App\People\SitePeople`'s mapping; never an id below 1, never a row the scrub made nobody's); roles are never stored, and there are no passwords. Deleting a row (the People page, ADMIN: `Users::deletePerson()`) deletes the person's accounts with everything in them and their import runs by the foreign keys; `sync_runs.started_by` becomes NULL, and the strings they saved keep their words with `translations.updated_by` NULL. **A visitor** (migration 004): a negative `id` from the sequence `visitor_ids` (-1, -2 ...), `name` `visitor`, `visitor_key_hash` (CHAR(64), the SHA-256 of its key in lowercase hex, UNIQUE - the key itself is never stored), `last_seen_at` (written at most once an hour). `users_visitor_check`: a negative id has a hash and a last-seen time, a positive one no hash (a last-seen time it may have); partial index `users_visitors_last_seen_at_index` on `last_seen_at` for `id < 0`. Only `App\Auth\Visitors` (through `Users`) makes, finds, sweeps and moves them; a visitor never starts a sync or saves a string, so `started_by` and `updated_by` are always people. The People list shows `id > 0` only and counts visitors apart |
 
 A database adopted from the Laravel version gives every account and import run without an owner to IAM user
 1 (the owner), creating that user's row.
 
 Tests never assume which negative id a visitor gets: `TRUNCATE ... RESTART IDENTITY` does not reset
 `visitor_ids` (no column owns it).
+
+## The library's own tables (people and the admin tools)
+
+Made by the anotoki library's sets, read and written by its modules only (anotoki-lib's README, "People" and
+"Admin tools", says what each column holds):
+
+| Table | Notes |
+| --- | --- |
+| `anotoki_people_sync` | one row: where the scrub of the IAM's deleted accounts stands (`since` - the IAM's paging -, `checked_at`, `ok_at`, `error`, `scrubbed`) - shown on the People page |
+| `anotoki_people_anonymized` | the IAM ids the IAM deleted (whether a row was here or not), with when: a token naming one never makes a row again |
+| `anotoki_audit_log` | what was done in the admin panel: `actor_id` (the IAM id; NULL for the command line and the day's backup), `action` (`source.enabled`, `sync.started`, `translations.saved`, `person.data_deleted`, `backup.created` …), `target_type` / `target_id`, `details` (JSONB). No address is kept (`ip` stays NULL). Never restored by a backup's restore; the scrub blanks a deleted person's name in the details |
+| `anotoki_feedback` | the visitors' messages: `kind`, `section`, `subject`, `message`, `details`, `contact_email` (what they typed, or a signed-in person's account address unless sent "without my name"), `user_id` (the token's, never the body's; NULL without a name), `page` (a path, no query), `language`, `user_agent`, `status` (`new` \| `read` \| `resolved` \| `spam`), `handled_by`. Nothing of where it came from (no address, no hash); the scrub blanks a deleted person's address and browser, the message stays |
 
 ## Catalog (reference data, filled by catalog runs)
 

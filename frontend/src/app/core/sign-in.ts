@@ -1,31 +1,27 @@
-import { MatSnackBar } from '@angular/material/snack-bar';
+import { Router } from '@angular/router';
 import { AuthService } from './auth';
-import { TranslationService } from './i18n/translation';
+import { SIGN_IN_FAILED_PATH } from './auth.guards';
 
 /**
- * A Sign in button's work (the bar's, the visitor notice's, the dashboard's, the admin panel's): to the IAM
- * and back to `returnTo` (this page, by default), the IAM's pages in the language the person reads here when
- * it is known (a bundle is in memory) - or, when the sign-in cannot start (the browser refuses the site's
- * storage, where the SDK keeps the sign-in in progress), a snack bar that says why, where nothing would have
- * happened at all. Worded from the key AuthService.login() left in `lastError`, never the SDK's sentence.
- * The page is left only once the saves on their way have their answers (AuthService.login(): a visitor's
- * first import brings the key the move needs).
+ * A Sign in button's work (the bar's, the visitor notice's, the dashboard's, the admin panel's, the site gate's
+ * page's): to the IAM and back to `returnTo` (this page, by default) - the IAM's pages in the language read here,
+ * once the saves on their way have their answers (the auth module waits for them: a visitor's first import
+ * brings the key the move after the sign-in needs). When the sign-in cannot even start - the browser refuses the
+ * site's storage, where the sign-in in progress is kept - the failure's screen (/sign-in) says why, where nothing
+ * would have happened at all.
  *
  * Answers true when the browser is on its way to the IAM.
  */
 export async function signInOrSayWhy(
   auth: AuthService,
-  i18n: TranslationService,
-  snackBar: MatSnackBar,
+  router: Router,
   returnTo?: string,
 ): Promise<boolean> {
-  if (await auth.login(returnTo, { uiLocales: i18n.signInLanguage() })) {
+  if (await auth.login(returnTo)) {
     return true;
   }
-  const problem = auth.lastError();
-  if (problem) {
-    // A finished sentence when raised; a snack bar is not worded again.
-    snackBar.open(i18n.t(problem.key, problem.params), i18n.t('common.close'), { duration: 10000 });
+  if (auth.failure() !== null) {
+    await router.navigateByUrl(`/${SIGN_IN_FAILED_PATH}`);
   }
   return false;
 }

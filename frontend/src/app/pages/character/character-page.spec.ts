@@ -91,7 +91,7 @@ function gameMeta(key: GameKey): GameMeta {
   };
 }
 
-const META: Meta = { games: [gameMeta('genshin'), gameMeta('hsr')], version: '1.0.0', auth: { issuer: null, client_id: null } };
+const META: Meta = { games: [gameMeta('genshin'), gameMeta('hsr')], version: '1.0.0', auth: { issuer: '', client_id: '' } };
 
 const RECOMMENDATIONS: Recommendation[] = [
   {
@@ -262,7 +262,7 @@ describe('CharacterPage: the site’s words are keys, the game’s words stay', 
         provideRouter([]),
         language === 'en' ? provideTestTranslations(en) : provideTestTranslations(language === 'sk' ? SLOVAK : MARKED, { language: 'sk', english: en }),
         { provide: Api, useValue: { meta: () => of(META), character: () => answer } },
-        { provide: AuthService, useValue: { signedIn: signal(who !== 'nobody'), isStaff: signal(who === 'editor'), available: signal(true), lastError: signal(null), user: signal(null), preferences: signal(null) } },
+        { provide: AuthService, useValue: { signedIn: signal(who !== 'nobody'), isStaff: signal(who === 'editor'), available: signal(true), failure: signal(null), user: signal(null), preferences: signal(null) } },
         { provide: MATERIAL_ANIMATIONS, useValue: { animationsDisabled: true } },
       ],
     });

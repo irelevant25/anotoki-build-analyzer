@@ -22,7 +22,7 @@ function setup(options: { available?: boolean } = {}) {
     signedIn: signal(false),
     user: signal(null),
     available: signal(options.available ?? true),
-    lastError: signal(null),
+    failure: signal(null),
     login: vi.fn(async () => true),
   };
   TestBed.configureTestingModule({
@@ -58,7 +58,7 @@ describe('the ways in for somebody new (visitor hero)', () => {
       ['Buildy pre hru Honkai: Star Rail', '/builds/hsr'],
     ]);
     host.querySelector<HTMLButtonElement>('button')!.click();
-    expect(auth.login).toHaveBeenCalledWith(undefined, { uiLocales: 'sk' });
+    expect(auth.login).toHaveBeenCalledWith(undefined);
     expect(host.textContent).not.toMatch(/\b(home|common)\.[A-Za-z]/);
   });
 

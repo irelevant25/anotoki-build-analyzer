@@ -10,7 +10,7 @@ import { provideTestTranslations } from '@anotoki/lib/translations/testing';
 import { App } from './app';
 import { AuthService } from './core/auth';
 import { Changelog } from './core/changelog';
-import { AnotokiUser } from './core/iam/anotoki-auth';
+import { AnotokiUser } from '@anotoki/lib/auth';
 import { VisitorMove } from './core/models';
 import { provideSiteStatus } from './core/site-status';
 import { VisitorKey } from './core/visitor-key';
@@ -102,7 +102,7 @@ describe('the shell', () => {
             signedIn: () => user() !== null,
             isAdmin: computed(() => (user()?.roles ?? []).includes('ADMIN')),
             preferences: () => null,
-            lastError: signal(null),
+            failure: signal(null),
             login,
           },
         },
@@ -178,7 +178,7 @@ describe('the shell', () => {
     // Sign in: to the IAM, and back to this page (no address given: the one the person is on).
     host.querySelector<HTMLButtonElement>('anotoki-site-status button')!.click();
     await fixture.whenStable();
-    expect(login).toHaveBeenCalledWith(undefined, { uiLocales: 'sk' });
+    expect(login).toHaveBeenCalledWith(undefined);
   });
 
   it('an update waits: a signed-in member reads the same, with no button at all', async () => {
@@ -293,7 +293,7 @@ describe('the shell', () => {
 
   it('says once, after a sign-in, what moved from the visitor into the account - in the language on the page', async () => {
     await setup();
-    visitor.moved.set({ found: true, moved: 2, kept: 1, imports: 3 });
+    visitor.moved.set({ found: true, moved: 2, kept: 1, imports: 3, held: false });
     await fixture.whenStable();
 
     expect(snackBar.open).toHaveBeenCalledTimes(1);

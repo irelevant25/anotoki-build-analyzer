@@ -148,7 +148,7 @@ test('nobody\'s first import that goes through makes a visitor: the key once, in
     visitorClient($key)->withHeaders(['Authorization' => 'Bearer not-a-token'])->get('/api/accounts')->status(401);
 
     $logged = is_file($log) ? (string) file_get_contents($log) : '';
-    check(str_contains($logged, 'IAM access token refused'), 'the flow wrote to the log: '.$logged);
+    check(str_contains($logged, '[anotoki auth] token refused'), 'the flow wrote to the log: '.$logged);
     check(! str_contains($logged, $key), 'the key is not in the log');
     Log::to(null);
 });
@@ -169,6 +169,27 @@ test('a first import that does not go through makes nobody - and gives its count
     newVisitor('198.51.100.2');
     newVisitor('198.51.100.2');
     refusedAs((new Client('198.51.100.2'))->post('/api/imports/file', ['content' => goodFile()]), 429, 'too_many_visitors', 'the third');
+});
+
+test('nobody\'s import is JSON or nothing: what any page could send without asking - a form, plain text, a file upload - is 415, no visitor made, nothing counted', function () {
+    T::$app->config->set('visitors.new_per_hour_per_address', 1);
+    $path = T::$storage.DIRECTORY_SEPARATOR.'upload.json';
+    file_put_contents($path, goodFile());
+    $nobody = fn (): Client => new Client('198.51.100.3');
+    $sent = [
+        'a form' => $nobody()->request('POST', '/api/imports/file', null, ['body' => 'content='.rawurlencode(goodFile()), 'type' => 'application/x-www-form-urlencoded']),
+        'plain text' => $nobody()->request('POST', '/api/imports/showcase', null, ['body' => '{"game":"genshin","uid":"700000001"}', 'type' => 'text/plain']),
+        'a file upload' => $nobody()->request('POST', '/api/imports/file', null, ['files' => ['file' => [$path, 'export.json']], 'form' => []]),
+    ];
+    foreach ($sent as $what => $answer) {
+        refusedAs($answer, 415, 'unsupported_media_type', $what);
+        same('', $answer->header('X-Visitor-Key'), "{$what}: no key");
+    }
+    same([0, 0], [visitorCount(), (int) db()->value("SELECT count(*) FROM cache WHERE key LIKE 'rate:%' OR key LIKE 'visitors:new%'")], 'no visitor made, nothing counted');
+
+    // As JSON, from the same address, its one new visitor of the hour - which, with its key, may upload a file.
+    [$key] = newVisitor('198.51.100.3');
+    visitorClient($key, '198.51.100.3')->request('POST', '/api/imports/file', null, ['files' => ['file' => [$path, 'export.json']], 'form' => []])->status(201);
 });
 
 test('a key nobody has, or one that is no key: 401 visitor_unknown - and it never makes a new visitor', function () {
@@ -256,14 +277,14 @@ test('a token that is there but does not verify never falls back to the key: 401
 
     $tokens = [
         'expired' => 'Bearer '.iamToken(PERSON, claims: ['exp' => time() - 120]),
-        'a bad signature' => 'Bearer '.iamToken(PERSON, key: anotoki_iam_test_keypair('test-key')),
+        'a bad signature' => 'Bearer '.iamToken(PERSON, iam: strangerIam()),
         'garbage' => 'Bearer x',
         'empty bearer' => 'Bearer ',
     ];
     foreach ($tokens as $what => $authorization) {
         $client = (new Client)->withHeaders(['X-Visitor-Key' => $key, 'Authorization' => $authorization]);
-        refusedAs($client->get('/api/accounts'), 401, 'sign_in_required', "{$what}: the accounts");
-        refusedAs($client->post('/api/imports/file', ['content' => goodFile(90)]), 401, 'sign_in_required', "{$what}: an import");
+        refusedAs($client->get('/api/accounts'), 401, 'invalid_token', "{$what}: the accounts");
+        refusedAs($client->post('/api/imports/file', ['content' => goodFile(90)]), 401, 'invalid_token', "{$what}: an import");
     }
     same($before, [visitorRow($key), db()->all('SELECT * FROM accounts ORDER BY id'), db()->all('SELECT * FROM import_runs ORDER BY id')],
         'the visitor, its accounts and runs, and when it was last seen: as they were');
@@ -307,6 +328,12 @@ test('new visitors an hour per address: IPv4 by address, IPv6 by its /64', funct
     refusedAs((new Client('2001:db8:1:2::abcd'))->post('/api/imports/file', ['content' => goodFile()]), 429, 'too_many_visitors', 'a third from the same /64');
     newVisitor('2001:db8:1:3::1');
     same(6, visitorCount(), 'six visitors: three from IPv4 addresses, three from IPv6 ones');
+
+    // Counted by a keyed hash of each address (the installation's key), never the address: the cache table
+    // and every backup of it hold none.
+    $keys = db()->column('SELECT key FROM cache ORDER BY key');
+    same([], array_values(array_filter($keys, fn (string $key): bool => str_contains($key, '198.51.100') || str_contains($key, '2001:db8'))), 'no address in a counter: '.implode(', ', $keys));
+    same(4, count(preg_grep('/^visitors:new:[0-9a-f]{32}$/', $keys) ?: []), 'one counter for each address (an IPv6 /64 as one) - by its hash');
 });
 
 test('behind a trusted proxy the proxy\'s header names the address - and from anybody else no header is believed', function () {
@@ -342,6 +369,44 @@ test('behind a trusted proxy the proxy\'s header names the address - and from an
     refusedAs($viaList('198.51.100.51, 198.51.100.60'), 429, 'too_many_visitors', 'a new address written on the left by the visitor itself');
     refusedAs($viaList('198.51.100.52, 198.51.100.60, 10.6.6.6'), 429, 'too_many_visitors', 'the same visitor behind two of the proxies');
     $viaList('198.51.100.61, 10.6.6.6')->status(201);
+});
+
+test('behind Cloudflare, as committed: a connection from one of its ranges counts the address CF-Connecting-IP names, any other is counted itself - and the address is kept nowhere, nor in a backup', function () {
+    T::$app->config->set('visitors.new_per_hour_per_address', 1);
+    same(['CF-Connecting-IP', 22], [T::$app->config->get('client_address.client_ip_header'), count((array) T::$app->config->get('client_address.trusted_proxies'))],
+        'the header, and Cloudflare\'s 22 published ranges');
+
+    $through = fn (string $connection, string $named): Answer => (new Client($connection))->withHeaders(['CF-Connecting-IP' => $named])
+        ->post('/api/imports/file', ['content' => goodFile()]);
+    $through('173.245.48.10', '198.51.100.70')->status(201);
+    refusedAs($through('2400:cb00::1', '198.51.100.70'), 429, 'too_many_visitors', 'the same visitor through another of Cloudflare\'s edges (IPv6)');
+    $through('104.16.0.1', '198.51.100.71')->status(201);
+
+    // From a connection that is not Cloudflare's, the header is whatever the sender wrote: the connection is counted.
+    $through('203.0.113.9', '198.51.100.80')->status(201);
+    refusedAs($through('203.0.113.9', '198.51.100.81'), 429, 'too_many_visitors', 'another address claimed from the same connection');
+    same(3, visitorCount(), 'three visitors: two named by Cloudflare, one by its own connection');
+
+    // Never the address itself: in the counters a keyed hash of it - and nothing of it in a backup of the database.
+    $addresses = ['198.51.100.70', '198.51.100.71', '198.51.100.80', '198.51.100.81', '203.0.113.9', '173.245.48.10', '2400:cb00', '104.16.0.1'];
+    $keys = implode("\n", db()->column('SELECT key FROM cache'));
+    same([], array_values(array_filter($addresses, fn (string $address): bool => str_contains($keys, $address))), 'no address in the counters');
+    $backups = T::$app->get(Anotoki\Lib\Backups\Backups::class);
+    $made = $backups->create();
+    check(is_array($made), 'a backup made');
+    $folder = T::$storage.DIRECTORY_SEPARATOR.'backup-read-'.bin2hex(random_bytes(4));
+    try {
+        $backups->extractTo($made['id'], $folder);
+        $everything = '';
+        foreach (new RecursiveIteratorIterator(new RecursiveDirectoryIterator($folder, FilesystemIterator::SKIP_DOTS)) as $file) {
+            $everything .= (string) file_get_contents($file->getPathname());
+        }
+        check(str_contains($everything, 'visitors:new:'), 'the backup has the counters');
+        same([], array_values(array_filter($addresses, fn (string $address): bool => str_contains($everything, $address))), 'and no address');
+    } finally {
+        removeTree($folder);
+        removeTree(T::$storage.DIRECTORY_SEPARATOR.'backups');
+    }
 });
 
 test('a site-wide ceiling on new visitors an hour, and on visitors at once', function () {
@@ -409,7 +474,7 @@ function watchedLog(string $name): string
     @unlink($log);
     Log::to($log);
     (new Client)->withHeaders(['Authorization' => 'Bearer not-a-token'])->get('/api/accounts')->status(401);
-    check(str_contains((string) @file_get_contents($log), 'IAM access token refused'), 'the log is written');
+    check(str_contains((string) @file_get_contents($log), '[anotoki auth] token refused'), 'the log is written');
 
     return $log;
 }
@@ -618,7 +683,7 @@ test('the move: the person\'s copy of an account both have stays, everything els
 
     $person = (new Client)->asIam(PERSON)->withHeaders(['X-Visitor-Key' => $key]);
     $moved = $person->post('/api/visitor/move')->status(200);
-    same(['found' => true, 'moved' => 2, 'kept' => 1, 'imports' => $runsMoving], $moved->json(), 'the answer');
+    same(['found' => true, 'moved' => 2, 'kept' => 1, 'imports' => $runsMoving, 'held' => false], $moved->json(), 'the answer');
     same(3, $runsMoving, 'Y\'s, the file\'s and the failed run');
 
     same($before, $snapshot($personsX), 'the person\'s copy of X, row for row');
@@ -646,7 +711,7 @@ test('the move asks for both a token and a key, and is safe to ask again', funct
     (new Client)->asIam(PERSON)->withHeaders(['X-Visitor-Key' => 'abc'])->post('/api/visitor/move')->status(422)
         ->path('errors.visitor_key.0', 'The X-Visitor-Key header is not a visitor key.');
     $bad = (new Client)->withHeaders(['X-Visitor-Key' => $key, 'Authorization' => 'Bearer '.iamToken(PERSON, claims: ['exp' => time() - 120])]);
-    refusedAs($bad->post('/api/visitor/move'), 401, 'sign_in_required', 'an expired token with the key');
+    refusedAs($bad->post('/api/visitor/move'), 401, 'invalid_token', 'an expired token with the key');
     same(1, visitorCount(), 'the visitor is still there');
 
     $unknown = rtrim(strtr(base64_encode(random_bytes(32)), '+/', '-_'), '=');
@@ -656,6 +721,38 @@ test('the move asks for both a token and a key, and is safe to ask again', funct
     $person = (new Client)->asIam(PERSON)->withHeaders(['X-Visitor-Key' => $key]);
     $person->post('/api/visitor/move')->status(200)->path('found', true)->path('moved', 1);
     $person->post('/api/visitor/move')->status(200)->path('found', false)->path('moved', 0);
+    (new Client)->asIam(PERSON)->withHeaders(['X-Visitor-Key' => $key])->post('/api/visitor/move', ['silent' => 'perhaps'])->status(422)
+        ->path('errors.silent.0', 'The silent field must be true or false.');
+});
+
+test('the move after a sign-in nobody clicked (the IAM\'s hint): into an account with nothing here yet, as ever - never into one with data: the visitor stays, its key still its own', function () {
+    // Silent, an account new here (its first time, after playing as a visitor): it takes the visitor's data in.
+    seedUser(PERSON, 'mona');
+    [$key] = newVisitor();
+    same(['found' => true, 'moved' => 1, 'kept' => 0, 'imports' => 1, 'held' => false],
+        (new Client)->asIam(PERSON)->withHeaders(['X-Visitor-Key' => $key])->post('/api/visitor/move', ['silent' => true])->status(200)->json(), 'moved: nothing here before');
+    same([0, 1], [visitorCount(), (int) db()->value('SELECT count(*) FROM accounts WHERE user_id = ?', [PERSON])], 'the visitor gone, the account the person\'s');
+
+    // Silent, an account with data here: nothing moves - the visitor and what it imported stay as they were.
+    [$key] = newVisitor('198.51.100.2', goodFile(70));
+    $visitorId = (int) visitorRow($key)['id'];
+    $visitorsData = fn (): array => [db()->all('SELECT id, user_id, nickname FROM accounts WHERE user_id = ? ORDER BY id', [$visitorId]),
+        db()->all('SELECT id, user_id, status FROM import_runs WHERE user_id = ? ORDER BY id', [$visitorId])];
+    $before = [$visitorsData(), db()->all('SELECT id FROM accounts WHERE user_id = ? ORDER BY id', [PERSON])];
+    same(['found' => true, 'moved' => 0, 'kept' => 0, 'imports' => 0, 'held' => true],
+        (new Client)->asIam(PERSON)->withHeaders(['X-Visitor-Key' => $key])->post('/api/visitor/move', ['silent' => true])->status(200)->json(), 'held: the person has data here');
+    same($before, [$visitorsData(), db()->all('SELECT id FROM accounts WHERE user_id = ? ORDER BY id', [PERSON])], 'the visitor\'s data and the person\'s, as they were');
+    same(1, count(visitorClient($key, '198.51.100.2')->get('/api/accounts')->status(200)->json()), 'the key still opens the visitor\'s account on this browser');
+
+    // A failed import is data here too: a person whose one run failed never takes in a visitor silently either.
+    seedUser(OTHER_PERSON, 'eda');
+    db()->insert('import_runs', ['user_id' => OTHER_PERSON, 'game' => 'genshin', 'source' => 'file', 'status' => 'failed', 'created_at' => Clock::now(), 'updated_at' => Clock::now()]);
+    (new Client)->asIam(OTHER_PERSON)->withHeaders(['X-Visitor-Key' => $key])->post('/api/visitor/move', ['silent' => true])->status(200)->path('held', true);
+
+    // Clicked - the same account with data: moved, as always.
+    same(['found' => true, 'moved' => 1, 'kept' => 0, 'imports' => 1, 'held' => false],
+        (new Client)->asIam(PERSON)->withHeaders(['X-Visitor-Key' => $key])->post('/api/visitor/move', ['silent' => false])->status(200)->json(), 'a sign-in the person clicked: moved');
+    same([0, 2], [visitorCount(), (int) db()->value('SELECT count(*) FROM accounts WHERE user_id = ?', [PERSON])], 'the visitor gone, both accounts the person\'s');
 });
 
 test('the move while the person is importing: it waits, and says "again" rather than half-moving - then the person\'s copy stays', function () {
@@ -714,13 +811,13 @@ test('the move into a person whose data an admin deleted meanwhile: 401 sign_in_
 
 test('sign-in required: nobody\'s import is refused before anything - no visitor made, nothing counted, nothing swept', function () {
     [$old] = oldVisitor(40, withAccount: false);
-    T::$signIn->required = true;
+    iamRequiresSignIn(true);
     $before = db()->all('SELECT key, value FROM cache ORDER BY key');
 
     foreach (['/api/imports/file' => ['content' => goodFile(), 'file_name' => 'export.json'], '/api/imports/showcase' => ['game' => 'genshin', 'uid' => '700000005']] as $url => $body) {
         $answer = (new Client('198.51.100.1'))->post($url, $body);
         refusedAs($answer, 401, 'sign_in_required', $url);
-        same(['', 'Bearer'], [$answer->header('X-Visitor-Key'), $answer->header('WWW-Authenticate')], "{$url}: no key, a sign-in asked for");
+        same(['', 'Bearer realm="'.TEST_CLIENT.'"'], [$answer->header('X-Visitor-Key'), $answer->header('WWW-Authenticate')], "{$url}: no key, a sign-in asked for");
     }
     same([$old], array_map('intval', db()->column('SELECT id FROM users')), 'no visitor made, and the 40-day one not swept by a refused request');
     same($before, db()->all('SELECT key, value FROM cache ORDER BY key'), 'no limit counted: not the address\'s, not the site\'s, not the imports\'');
@@ -733,7 +830,7 @@ test('sign-in required: a visitor\'s key is refused unread - 401 sign_in_require
     db()->run('UPDATE users SET last_seen_at = ? WHERE visitor_key_hash = ?', [$twoHoursAgo, hash('sha256', $key)]);
     $before = [visitorRow($key), db()->all('SELECT * FROM accounts ORDER BY id')];
     $account = (int) db()->value('SELECT id FROM accounts');
-    T::$signIn->required = true;
+    iamRequiresSignIn(true);
 
     $unknown = rtrim(strtr(base64_encode(random_bytes(32)), '+/', '-_'), '=');
     foreach (['its key' => $key, 'a key nobody has' => $unknown, 'no key at all' => 'not a key'] as $what => $sent) {
@@ -749,14 +846,14 @@ test('sign-in required: a visitor\'s key is refused unread - 401 sign_in_require
     // A person goes on as ever; and when the IAM opens the site again, the same key is that visitor again.
     seedUser(PERSON, 'mona');
     (new Client)->asIam(PERSON, ['MEMBER'])->get('/api/accounts')->status(200);
-    T::$signIn->required = false;
+    iamRequiresSignIn(false);
     same(1, count(visitorClient($key)->get('/api/accounts')->status(200)->json()), 'the key works again');
 });
 
 test('sign-in required: the move at sign-in still takes the key in with the token, and brings what the visitor imported', function () {
     seedUser(PERSON, 'mona');
     [$key] = newVisitor();
-    T::$signIn->required = true;
+    iamRequiresSignIn(true);
     refusedAs(visitorClient($key)->post('/api/visitor/move'), 401, 'sign_in_required', 'the key alone');
 
     (new Client)->asIam(PERSON, ['MEMBER'])->withHeaders(['X-Visitor-Key' => $key])->post('/api/visitor/move')->status(200)
@@ -772,7 +869,7 @@ test('"Basic" credentials (a host behind a password file) are none: a visitor be
     check(preg_match(KEY_PATTERN, $key) === 1, 'a visitor made with Basic sent along');
     same(1, count(visitorClient($key)->withHeaders($basic)->get('/api/accounts')->status(200)->json()), 'its key opens its accounts');
 
-    T::$signIn->required = true;
+    iamRequiresSignIn(true);
     refusedAs(visitorClient($key)->withHeaders($basic)->get('/api/accounts'), 401, 'sign_in_required', 'Basic is no token when sign-in is required');
 });
 

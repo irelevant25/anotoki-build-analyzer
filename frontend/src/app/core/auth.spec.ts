@@ -1,398 +1,121 @@
+import { provideHttpClient } from '@angular/common/http';
 import { TestBed } from '@angular/core/testing';
-import { AUTH_CLIENT_FACTORY, AuthService, preferencesProblem, signInProblem } from './auth';
+import { provideRouter } from '@angular/router';
+import { AnotokiAuth } from '@anotoki/lib/auth';
 import {
-  AnotokiAuth,
-  AnotokiInitResult,
-  AnotokiPreferenceChanges,
-  AnotokiSavedPreferences,
-  AnotokiUser,
-} from './iam/anotoki-auth';
-import { SAVES_WAIT_MS, SavesInFlight } from './saves-in-flight';
+  TestAnotokiAuth,
+  TestAnotokiAuthOptions,
+  provideTestAnotokiAuth,
+  testAnotokiAuth,
+} from '@anotoki/lib/auth/testing';
+import { AuthService, preferencesProblem } from './auth';
 
-const MONA: AnotokiUser = {
-  sub: '7',
-  preferred_username: 'mona',
-  email: 'mona@example.test',
-  email_verified: true,
-  locale: 'en',
-  roles: [],
-  preferences: null,
-};
-
-/** Mona with an IAM that keeps the account's preferences (its migration 015). */
-const MONA_015: AnotokiUser = {
-  ...MONA,
-  preferences: { theme: 'auto', date_format: null, time_format: null },
-};
-
-const IAM = { issuer: 'https://iam.example.test', client_id: 'build-analyzer' };
-
-/** A stand-in for the anotoki-auth SDK; `current` is who it says is signed in. */
-function fakeClient(state: { current: AnotokiUser | null; init?: AnotokiInitResult }) {
-  let listener: (() => void) | null = null;
-  const client = {
-    version: 'test',
-    init: vi.fn(async () => state.init ?? { returnTo: null, error: null }),
-    login: vi.fn(async () => undefined),
-    register: vi.fn(async () => undefined),
-    logout: vi.fn(async () => undefined),
-    getAccessToken: vi.fn(async () => 'token-1'),
-    refresh: vi.fn(async () => 'token-2'),
-    fetch: vi.fn(),
-    // As the SDK does: the account as it now stands goes into user() at once, and onChange fires.
-    savePreferences: vi.fn(async (changes: AnotokiPreferenceChanges): Promise<AnotokiSavedPreferences> => {
-      const current = state.current;
-      if (!current) {
-        throw Object.assign(new Error('Nobody is signed in'), { code: 'login_required' });
-      }
-      const { language, ...preferences } = changes;
-      const saved = {
-        locale: language ?? current.locale,
-        preferences: current.preferences ? { ...current.preferences, ...preferences } : null,
-      };
-      state.current = { ...current, ...saved };
-      listener?.();
-      return saved;
-    }),
-    onChange: vi.fn((next: () => void) => {
-      listener = next;
-      return () => (listener = null);
-    }),
-    isAuthenticated: () => state.current !== null,
-    user: () => state.current,
-    roles: () => state.current?.roles ?? [],
-    hasRole: (role: string) => state.current?.roles.includes(role) ?? false,
-    accountUrl: () => 'https://iam.example.test/account',
-    issuer: () => 'https://iam.example.test',
-    clientId: () => 'build-analyzer',
-  } satisfies AnotokiAuth;
-
-  return { client, changed: () => listener?.() };
+/** The auth module with the IAM's client in memory, started as the app starts it. */
+async function start(
+  options: TestAnotokiAuthOptions,
+): Promise<{ handle: TestAnotokiAuth; auth: AuthService }> {
+  TestBed.resetTestingModule();
+  const handle = testAnotokiAuth();
+  TestBed.configureTestingModule({
+    providers: [provideRouter([]), provideHttpClient(), ...provideTestAnotokiAuth(options, handle)],
+  });
+  await TestBed.inject(AnotokiAuth).init();
+  return { handle, auth: TestBed.inject(AuthService) };
 }
 
-function setup(client: AnotokiAuth) {
-  const factory = vi.fn(() => client);
-  TestBed.configureTestingModule({ providers: [{ provide: AUTH_CLIENT_FACTORY, useValue: factory }] });
-  return { auth: TestBed.inject(AuthService), factory };
-}
-
-describe('AuthService', () => {
-  it('signs in through the IAM only: a leftover sign-in mode in the settings opens nothing', async () => {
-    const { auth, factory } = setup(fakeClient({ current: null }).client);
-
-    await auth.init({ mode: 'none', issuer: null, client_id: null } as never);
-
-    expect(factory).not.toHaveBeenCalled();
-    expect(auth.available()).toBe(false);
-    expect(auth.signedIn()).toBe(false);
-    expect(auth.isAdmin()).toBe(false);
-    expect(auth.isStaff()).toBe(false);
-  });
-
-  it('reads the roles from the token: EDITOR and ADMIN are staff, ADMIN alone is an admin, anything else is just signed in', async () => {
-    const state = { current: { ...MONA, roles: ['editor'] } as AnotokiUser | null };
-    const { client, changed } = fakeClient(state);
-    const { auth } = setup(client);
-    await auth.init(IAM);
-    expect([auth.signedIn(), auth.isStaff(), auth.isAdmin()]).toEqual([true, true, false]);
-
-    state.current = { ...MONA, roles: ['ADMIN'] };
-    changed();
-    expect([auth.signedIn(), auth.isStaff(), auth.isAdmin()]).toEqual([true, true, true]);
-
-    state.current = { ...MONA, roles: ['MEMBER'] };
-    changed();
-    expect([auth.signedIn(), auth.isStaff(), auth.isAdmin()]).toEqual([true, false, false]);
-
-    state.current = { ...MONA, roles: [] };
-    changed();
-    expect([auth.signedIn(), auth.isStaff(), auth.isAdmin()]).toEqual([true, false, false]);
-  });
-
-  it('answers whether the sign-in started - and says why when the browser will not keep it (storage_unavailable)', async () => {
-    const { client } = fakeClient({ current: null });
-    const { auth } = setup(client);
-    expect(await auth.login('/x')).toBe(false); // no IAM yet
-
-    await auth.init(IAM);
-    expect(await auth.login('/x')).toBe(true);
-    expect(auth.lastError()).toBeNull();
-
-    client.login.mockRejectedValueOnce(Object.assign(new Error('This browser will not let the site remember the sign-in in progress'), { code: 'storage_unavailable' }));
-    expect(await auth.login('/x', { uiLocales: 'sk' })).toBe(false);
-    expect(auth.lastError()).toEqual({ key: 'signIn.storageUnavailable', params: {} });
-
-    // The next attempt starts clean.
-    expect(await auth.login('/x')).toBe(true);
-    expect(auth.lastError()).toBeNull();
-  });
-
-  it('signs in through the IAM client, on this site and back to it', async () => {
-    const { client } = fakeClient({ current: MONA });
-    const { auth, factory } = setup(client);
-
-    await auth.init(IAM);
-
-    expect(factory).toHaveBeenCalledWith({
-      issuer: 'https://iam.example.test',
-      clientId: 'build-analyzer',
-      redirectUri: `${location.origin}/auth/callback`,
-      postLogoutRedirectUri: `${location.origin}/`,
+describe("AuthService: the auth module (@anotoki/lib/auth) under the names the site's pages use", () => {
+  it('says who is signed in, with their roles here, their name and their account page', async () => {
+    const { auth } = await start({
+      user: { sub: '7', preferred_username: 'mona', email: 'mona@example.test' },
+      roles: ['MEMBER', 'EDITOR'],
+      loginRequired: false,
     });
-    expect(client.init).toHaveBeenCalledTimes(1);
-    expect(auth.displayName()).toBe('mona');
-    expect(auth.signedIn()).toBe(true);
-    expect(auth.available()).toBe(true);
-    expect(auth.isAdmin()).toBe(false);
-    expect(await auth.accessToken()).toBe('token-1');
-    expect(await auth.refreshedToken()).toBe('token-2');
-    expect(auth.accountUrl()).toBe('https://iam.example.test/account');
-  });
-
-  it('says a sign-in the IAM refused as a key for the page to word - never in the IAM\'s words', async () => {
-    const error = Object.assign(new Error('This account cannot use Build Analyzer'), { code: 'access_denied' });
-    const { auth } = setup(fakeClient({ current: null, init: { returnTo: '/', error } }).client);
-
-    await auth.init(IAM);
-
-    expect(auth.signedIn()).toBe(false);
-    expect(auth.lastError()).toEqual({ key: 'signIn.notCompleted', params: {} });
-  });
-
-  it('says going back from the IAM\'s page with the same key: one sentence that is true either way', async () => {
-    const error = Object.assign(new Error('The sign-in was cancelled'), { code: 'access_denied' });
-    const { auth } = setup(fakeClient({ current: null, init: { returnTo: '/', error } }).client);
-
-    await auth.init(IAM);
-
-    expect(auth.signedIn()).toBe(false);
-    expect(auth.lastError()).toEqual({ key: 'signIn.notCompleted', params: {} });
-  });
-
-  it('decides what to say from the error\'s code alone', async () => {
-    expect(signInProblem('access_denied')).toEqual({ key: 'signIn.notCompleted', params: {} });
-    expect(signInProblem('state_mismatch')).toEqual({ key: 'signIn.stateMismatch', params: {} });
-    expect(signInProblem('storage_unavailable')).toEqual({ key: 'signIn.storageUnavailable', params: {} });
-    expect(signInProblem('invalid_grant')).toEqual({ key: 'signIn.failed', params: { code: 'invalid_grant' } });
-    expect(signInProblem('http_503')).toEqual({ key: 'signIn.failed', params: { code: 'http_503' } });
-    // What came through the address and does not look like a code is never shown.
-    expect(signInProblem('Your account is locked. Call 0900 123 456')).toEqual({ key: 'signIn.failed', params: { code: 'unknown' } });
-    expect(signInProblem('x'.repeat(41))).toEqual({ key: 'signIn.failed', params: { code: 'unknown' } });
-    expect(signInProblem('')).toEqual({ key: 'signIn.failed', params: { code: 'unknown' } });
-    expect(signInProblem(undefined)).toEqual({ key: 'signIn.failed', params: { code: 'unknown' } });
-
-    const error = Object.assign(new Error('The ID token could not be verified'), { code: 'invalid_id_token' });
-    const { auth } = setup(fakeClient({ current: null, init: { returnTo: '/', error } }).client);
-    await auth.init(IAM);
-    expect(auth.lastError()).toEqual({ key: 'signIn.failed', params: { code: 'invalid_id_token' } });
-  });
-
-  it('says so when the server has no issuer or client id for the sign-in', async () => {
-    const { auth, factory } = setup(fakeClient({ current: null }).client);
-
-    await auth.init({ issuer: null, client_id: 'build-analyzer' });
-
-    expect(factory).not.toHaveBeenCalled();
-    expect(auth.available()).toBe(false);
-    expect(auth.lastError()).toEqual({ key: 'signIn.notConfigured', params: {} });
-  });
-
-  it('names the signed-in person by user name, else by email - and leaves anything else to the template', async () => {
-    const state = { current: { ...MONA, preferred_username: null } as AnotokiUser | null };
-    const { client, changed } = fakeClient(state);
-    const { auth } = setup(client);
-    await auth.init(IAM);
-    expect(auth.displayName()).toBe('mona@example.test');
-
-    state.current = { ...MONA, preferred_username: null, email: null };
-    changed();
-    expect(auth.displayName()).toBeNull();
-    expect(auth.user()?.sub).toBe('7');
-
-    state.current = null;
-    changed();
-    expect(auth.displayName()).toBeNull();
-  });
-
-  it('hands the IAM the language its caller says, and none when the caller has none', async () => {
-    const { client } = fakeClient({ current: null });
-    const { auth } = setup(client);
-    await auth.init(IAM);
-
-    await auth.login('/builds', { uiLocales: 'sk' });
-    await auth.login('/builds', { anotherAccount: true, uiLocales: undefined });
-    await auth.login('/builds', { uiLocales: null });
-
-    expect(client.login.mock.calls).toEqual([
-      [{ returnTo: '/builds', prompt: undefined, uiLocales: 'sk' }],
-      [{ returnTo: '/builds', prompt: 'login' }],
-      [{ returnTo: '/builds', prompt: undefined }],
+    expect([auth.signedIn(), auth.displayName(), auth.user()?.sub]).toEqual([true, 'mona', '7']);
+    expect([auth.isStaff(), auth.isAdmin(), auth.roles()]).toEqual([
+      true,
+      false,
+      ['MEMBER', 'EDITOR'],
     ]);
-    // No language is said at all - not even an empty one - so the IAM chooses for itself.
-    expect(client.login.mock.calls.slice(1).every(([parameters]: unknown[]) => !Object.hasOwn(parameters as object, 'uiLocales'))).toBe(true);
+    expect([auth.available(), auth.loginRequired()]).toEqual([true, false]);
+    expect(auth.accountUrl()).toBe('https://iam.test/account');
+    expect(auth.preferences()).toBeNull();
+    expect(auth.failure()).toBeNull();
   });
 
-  it("reads the account's theme, dates and clock from the token - none from an IAM that keeps none, or while nobody is signed in", async () => {
-    const state = { current: MONA_015 as AnotokiUser | null };
-    const { client, changed } = fakeClient(state);
-    const { auth } = setup(client);
-    await auth.init(IAM);
-    expect(auth.preferences()).toEqual({ theme: 'auto', date_format: null, time_format: null });
-
-    // Changed on another anotoki site: the next token (or another tab) brings it.
-    state.current = { ...MONA_015, preferences: { theme: 'dark', date_format: 'ymd_dash', time_format: '12' } };
-    changed();
-    expect(auth.preferences()).toEqual({ theme: 'dark', date_format: 'ymd_dash', time_format: '12' });
-
-    // An IAM before its migration 015, or a sign-in without `profile`: the site keeps its own.
-    state.current = MONA;
-    changed();
-    expect(auth.preferences()).toBeNull();
-
-    state.current = null;
-    changed();
-    expect(auth.preferences()).toBeNull();
-  });
-
-  it('saves a choice to the account through the IAM client, and follows the answer at once', async () => {
-    const state = { current: MONA_015 as AnotokiUser | null };
-    const { client } = fakeClient(state);
-    const { auth } = setup(client);
-    await auth.init(IAM);
-
-    expect(await auth.savePreferences({ theme: 'dark' })).toEqual({
-      locale: 'en',
-      preferences: { theme: 'dark', date_format: null, time_format: null },
+  it('names a person by their address where the account has no name - and nobody by nothing', async () => {
+    const named = await start({
+      user: { sub: '8', preferred_username: null, email: 'albedo@example.test' },
     });
-    expect(client.savePreferences).toHaveBeenCalledWith({ theme: 'dark' });
-    expect(auth.preferences()?.theme).toBe('dark');
+    expect(named.auth.displayName()).toBe('albedo@example.test');
 
-    await auth.savePreferences({ language: 'sk' });
-    expect(auth.user()?.locale).toBe('sk');
+    const nobody = await start({ loginRequired: false });
+    expect([nobody.auth.signedIn(), nobody.auth.user(), nobody.auth.displayName()]).toEqual([
+      false,
+      null,
+      null,
+    ]);
+    expect(nobody.auth.isStaff()).toBe(false);
   });
 
-  it('saves nothing before there is an IAM to save to: login_required', async () => {
-    const { client } = fakeClient({ current: MONA_015 });
-    const { auth } = setup(client);
+  it('signs in at the IAM, back to the page asked for - or to this one - and out everywhere', async () => {
+    const { handle, auth } = await start({ loginRequired: false });
+    expect(await auth.login('/builds/hsr')).toBe(true);
+    expect(await auth.login()).toBe(true);
+    expect(handle.client?.logins.map((login) => login.returnTo)).toEqual(['/builds/hsr', '/']);
 
-    await expect(auth.savePreferences({ theme: 'dark' })).rejects.toMatchObject({ code: 'login_required' });
-    expect(client.savePreferences).not.toHaveBeenCalled();
+    const signedIn = await start({ user: { sub: '7' } });
+    await signedIn.auth.logout();
+    expect(signedIn.handle.client?.logouts).toEqual([{ local: false }]);
   });
 
-  it("says a choice the account did not take from the error's code alone, in the words of a failed request", () => {
-    const refused = (code: unknown) => preferencesProblem(Object.assign(new Error('The IAM said no'), { code }));
-    expect(refused('network')).toEqual({ key: 'error.offline', params: {} });
-    expect(refused('invalid_token')).toEqual({ key: 'error.sign_in_required', params: {} });
-    expect(refused('login_required')).toEqual({ key: 'error.sign_in_required', params: {} });
-    expect(refused('temporarily_unavailable')).toEqual({ key: 'error.unknown', params: {} });
-    // The site no longer lets the person in: signing in again would not help.
-    expect(refused('access_denied')).toEqual({ key: 'error.unknown', params: {} });
-    expect(refused('http_502')).toEqual({ key: 'error.unknown', params: {} });
+  it("follows the account's theme, dates and clock, and saves a choice to it", async () => {
+    const { handle, auth } = await start({
+      user: {
+        sub: '7',
+        preferences: { theme: 'dark', date_format: 'ymd_dash', time_format: '24' },
+      },
+    });
+    expect(auth.preferences()).toEqual({
+      theme: 'dark',
+      date_format: 'ymd_dash',
+      time_format: '24',
+    });
+    await auth.savePreferences({ theme: 'light' });
+    expect(handle.client?.saved).toEqual([{ theme: 'light' }]);
+    expect(auth.preferences()?.theme).toBe('light');
+  });
+
+  it('is fail-closed about requiring a sign-in, and offers none where the IAM does not know the site', async () => {
+    const { auth } = await start({ signInAvailable: false });
+    expect([auth.loginRequired(), auth.available()]).toEqual([true, false]);
+  });
+});
+
+describe('preferencesProblem: a refused choice, worded from its code alone', () => {
+  it("says offline, signed out, or that something went wrong - never the IAM's sentence", () => {
+    expect(preferencesProblem({ code: 'network' })).toEqual({ key: 'error.offline', params: {} });
+    expect(preferencesProblem({ code: 'invalid_token' })).toEqual({
+      key: 'error.sign_in_required',
+      params: {},
+    });
+    expect(preferencesProblem({ code: 'login_required' })).toEqual({
+      key: 'error.sign_in_required',
+      params: {},
+    });
+    expect(preferencesProblem({ code: 'access_denied' })).toEqual({
+      key: 'error.unknown',
+      params: {},
+    });
+    expect(
+      preferencesProblem(
+        Object.assign(new Error('Your account is locked. Call 0900 123 456'), {
+          code: 'temporarily_unavailable',
+        }),
+      ),
+    ).toEqual({
+      key: 'error.unknown',
+      params: {},
+    });
     expect(preferencesProblem(null)).toEqual({ key: 'error.unknown', params: {} });
-    expect(preferencesProblem('network')).toEqual({ key: 'error.unknown', params: {} });
-  });
-
-  it('follows a sign-out in another tab', async () => {
-    const state = { current: { ...MONA, roles: ['ADMIN'] } as AnotokiUser | null };
-    const { client, changed } = fakeClient(state);
-    const { auth } = setup(client);
-    await auth.init(IAM);
-    expect(auth.isAdmin()).toBe(true);
-
-    state.current = null;
-    changed();
-
-    expect(auth.user()).toBeNull();
-    expect(auth.signedIn()).toBe(false);
-    expect(auth.isAdmin()).toBe(false);
-  });
-
-  it('stays unavailable without the settings from the server', async () => {
-    const { auth, factory } = setup(fakeClient({ current: null }).client);
-
-    await auth.init(null);
-
-    expect(factory).not.toHaveBeenCalled();
-    expect(auth.available()).toBe(false);
-    expect(auth.signedIn()).toBe(false);
-  });
-
-  it('takes whether a sign-in is required from the server - required when it says nothing, or could not be asked', async () => {
-    const off = setup(fakeClient({ current: null }).client).auth;
-    expect(off.loginRequired()).toBe(true); // before the server has said anything
-    await off.init({ ...IAM, login_required: false });
-    expect(off.loginRequired()).toBe(false);
-
-    TestBed.resetTestingModule();
-    const on = setup(fakeClient({ current: null }).client).auth;
-    await on.init({ ...IAM, login_required: true });
-    expect(on.loginRequired()).toBe(true);
-
-    TestBed.resetTestingModule();
-    const unsaid = setup(fakeClient({ current: null }).client).auth;
-    await unsaid.init(IAM);
-    expect(unsaid.loginRequired()).toBe(true);
-
-    TestBed.resetTestingModule();
-    const unreachable = setup(fakeClient({ current: null }).client).auth;
-    await unreachable.init(null);
-    expect(unreachable.loginRequired()).toBe(true);
-  });
-
-  it('says once that the sign-in this page load came back from was refused - and nothing of one that was not', async () => {
-    const error = Object.assign(new Error('No access'), { code: 'access_denied' });
-    const refused = setup(fakeClient({ current: null, init: { returnTo: '/builds/genshin', error } }).client).auth;
-    await refused.init({ ...IAM, login_required: false });
-    expect(refused.takeRefusalOnReturn()).toBe(true);
-    expect(refused.takeRefusalOnReturn()).toBe(false);
-    // The words stay for the page that says them.
-    expect(refused.lastError()).toEqual({ key: 'signIn.notCompleted', params: {} });
-
-    TestBed.resetTestingModule();
-    const fine = setup(fakeClient({ current: MONA }).client).auth;
-    await fine.init(IAM);
-    expect(fine.takeRefusalOnReturn()).toBe(false);
-
-    TestBed.resetTestingModule();
-    const unconfigured = setup(fakeClient({ current: null }).client).auth;
-    await unconfigured.init({ issuer: null, client_id: 'build-analyzer', login_required: false });
-    expect(unconfigured.takeRefusalOnReturn()).toBe(false);
-  });
-
-  it('leaves for the IAM only once the saves on their way have their answers', async () => {
-    const { client } = fakeClient({ current: null });
-    const { auth } = setup(client);
-    await auth.init({ ...IAM, login_required: false });
-    const saves = TestBed.inject(SavesInFlight);
-    const end = saves.begin();
-
-    let started: boolean | null = null;
-    void auth.login('/import').then((answer) => (started = answer));
-    await new Promise((resolve) => setTimeout(resolve, 0));
-    expect(client.login).not.toHaveBeenCalled();
-    expect(started).toBeNull();
-
-    end();
-    await new Promise((resolve) => setTimeout(resolve, 0));
-    expect(client.login).toHaveBeenCalledTimes(1);
-    expect(started).toBe(true);
-  });
-
-  it('does not wait for ever for a save that hangs', async () => {
-    vi.useFakeTimers();
-    try {
-      const { client } = fakeClient({ current: null });
-      const { auth } = setup(client);
-      await auth.init({ ...IAM, login_required: false });
-      TestBed.inject(SavesInFlight).begin();
-
-      const started = auth.login('/import');
-      await vi.advanceTimersByTimeAsync(SAVES_WAIT_MS - 1);
-      expect(client.login).not.toHaveBeenCalled();
-      await vi.advanceTimersByTimeAsync(1);
-      expect(await started).toBe(true);
-    } finally {
-      vi.useRealTimers();
-    }
   });
 });

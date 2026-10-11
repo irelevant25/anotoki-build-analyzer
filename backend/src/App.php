@@ -2,19 +2,28 @@
 
 namespace App;
 
+use Anotoki\Lib\Admin\AdminContext;
+use Anotoki\Lib\Audit\AuditLog;
+use Anotoki\Lib\Auth\AccessTokens;
+use Anotoki\Lib\Auth\IamClient;
+use Anotoki\Lib\Auth\SignInRule;
+use Anotoki\Lib\Backups\Backups;
+use Anotoki\Lib\ErrorLog\ErrorLog;
+use Anotoki\Lib\Feedback\Feedback;
 use Anotoki\Lib\Migrations\Migrator;
+use Anotoki\Lib\People\People;
 use Anotoki\Lib\Translations\Translations;
-use App\Auth\IamSignInPolicy;
-use App\Auth\SignInPolicy;
+use App\Admin\AdminTools;
+use App\Auth\Iam;
 use App\Db\Db;
 use App\Db\Migrations;
 use App\Http\CurlHttpClient;
 use App\Http\Fetcher;
 use App\Http\HttpClient;
+use App\People\SitePeople;
 use App\Repositories\BuildSources;
 use App\Services\Builds\BuildSourceRegistry;
 use App\Services\Translations\SiteTranslations;
-use App\Support\Iam\IamTokenVerifier;
 use LogicException;
 use ReflectionClass;
 use ReflectionNamedType;
@@ -24,13 +33,16 @@ use ReflectionNamedType;
  *
  * A service is made the first time it is asked for, from its constructor's type hints, and kept for the rest
  * of the request (or command). resetScope() starts the next request afresh - the catalog's in-memory rows,
- * a sync runner's state - except for what outlives requests on purpose: the database connection and the
- * HTTP client. The tests replace a service with set(), which also survives resetScope().
+ * a sync runner's state, the IAM's answer about signing in - except for what outlives requests on purpose:
+ * the database connection, the HTTP client, and the anotoki library's people and admin tools, whose route
+ * groups (made once with the API) hold the same objects. The tests replace a service with set(), which also
+ * survives resetScope().
  */
 final class App
 {
     /** Kept across resetScope(). */
-    private const LASTING = [Db::class, HttpClient::class];
+    private const LASTING = [Db::class, HttpClient::class, People::class, AdminContext::class, AuditLog::class,
+        Feedback::class, Backups::class, ErrorLog::class];
 
     /** @var array<string, object> */
     private array $instances = [];
@@ -119,15 +131,27 @@ final class App
             // The family's migration engine (anotoki/lib) on this site's files and table (App\Db\Migrations): the
             // site gate asks it whether an update waits, the Migrations page applies with it. A test puts in one
             // of its own (another folder, a file that fails).
-            Migrator::class => Migrations::migrator($this->get(Db::class)->raw()),
+            // Its Apply makes a backup of the database as it is first (the library's backups: before-migration).
+            Migrator::class => Migrations::migrator($this->get(Db::class)->raw(), beforeApply: $this->get(Backups::class)->beforeApplyHook()),
             // The site's words (anotoki/lib's translations, with this site's own in Services\Translations\SiteTranslations):
             // the routes of api/routes/translations.php, the People page's delete and the command line ask them.
             Translations::class => SiteTranslations::make($this->get(Db::class)->raw()),
             HttpClient::class => new CurlHttpClient,
             Fetcher::class => new Fetcher($this->get(HttpClient::class), $this->get(Cache\Cache::class), $this->config, $this->web),
-            IamTokenVerifier::class => IamTokenVerifier::fromConfig($this->config),
-            // Whether the IAM requires sign-in here (the tests put a fixed answer in its place).
-            SignInPolicy::class => IamSignInPolicy::fromConfig($this->config),
+            // Signing in (anotoki/lib's auth module, api/middleware/auth.php): the IAM, its tokens checked here, and
+            // whether it says this site requires signing in - read afresh for each request.
+            IamClient::class => Iam::client($this->config),
+            AccessTokens::class => new AccessTokens($this->get(IamClient::class)),
+            SignInRule::class => new SignInRule($this->get(IamClient::class)),
+            // The people the IAM signed in here, and the scrub of the accounts it deleted (App\People\SitePeople).
+            People::class => SitePeople::make($this),
+            // The admin tools (App\Admin\AdminTools). The API sets an error log of its own, which names each line's
+            // route (api/app.php); this one is the command line's.
+            ErrorLog::class => AdminTools::errorLog($this),
+            AdminContext::class => AdminTools::context($this),
+            AuditLog::class => AdminTools::auditLog($this),
+            Feedback::class => AdminTools::feedback($this),
+            Backups::class => AdminTools::backups($this),
             BuildSourceRegistry::class => new BuildSourceRegistry((array) $this->config->get('sources', []), $this, $this->get(BuildSources::class)),
             default => $this->make($id),
         };

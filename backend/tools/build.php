@@ -63,7 +63,7 @@ copyTree($backend.'/migrations', $site.'/migrations', fn () => false);
 copyTree($backend.'/vendor', $site.'/vendor', fn () => false);
 // config/: the committed app.php only; every *.local.php (the database password, the setup token) stays.
 copyTree($backend.'/config', $site.'/config', fn (string $relative) => str_ends_with($relative, '.local.php'));
-// storage/: the folders the app writes to, empty.
+// storage/: the folders the app writes to, empty (the backups' folder the library makes, guarded, at its first backup).
 foreach (['cache', 'http-cache', 'icons', 'logs'] as $folder) {
     mkdir("{$site}/storage/{$folder}", 0775, true);
 }
@@ -143,15 +143,16 @@ foreach (new RecursiveIteratorIterator(new RecursiveDirectoryIterator($site, Fil
 }
 // The library's own migration files and words ship inside vendor/ (anotoki/lib's php/migrations and php/resources):
 // without them the Migrations page would have nothing of the library's to apply, and a save of strings would fail.
-foreach (['index.html', 'changelog.json', 'api/index.php', 'api/.htaccess', 'vendor/autoload.php', 'config/app.php', 'migrations/002_schema.sql',
-    'migrations/003_languages_and_translations.sql', 'vendor/anotoki/lib/php/migrations/translations/001_languages_and_strings.sql',
+foreach (['index.html', 'changelog.json', 'robots.txt', 'api/index.php', 'api/.htaccess', 'vendor/autoload.php', 'config/app.php', 'migrations/002_schema.sql',
+    'migrations/003_languages_and_translations.sql', 'vendor/anotoki/lib/php/migrations/admin/001_audit_log.sql',
+    'vendor/anotoki/lib/php/migrations/translations/001_languages_and_strings.sql', 'vendor/anotoki/lib/php/migrations/people/001_people.sql',
     'vendor/anotoki/lib/php/resources/library-words.json'] as $required) {
     if (! is_file("{$site}/{$required}")) {
         $problems[] = "missing: build-analyzer/{$required}";
     }
 }
 foreach (['tests', 'tools', 'node_modules', 'router.php', 'migration.php', 'sync-builds.php', 'sync-catalog.php', 'import-account.php', 'translations.php', 'setup.php',
-    'composer.json'] as $absent) {
+    'backup.php', 'composer.json'] as $absent) {
     if (file_exists("{$site}/{$absent}")) {
         $problems[] = "should not be there: build-analyzer/{$absent}";
     }

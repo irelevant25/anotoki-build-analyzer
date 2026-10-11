@@ -13,12 +13,21 @@ npx ng build               # production build into dist/frontend/browser (backen
 With npm, `npx -y npm@11 ci` installs from `package-lock.json` (npm 10.9.x has a resolver bug here); a change
 of the dependencies updates both lock files.
 
-Sign-in goes through the anotoki IAM's browser SDK, vendored unchanged in `src/app/core/iam/`
-(`anotoki-auth.mjs` + `anotoki-auth.d.ts`, v1.2.0): copy both files from `anotoki-iam/sdk/js/` to update it.
-Since 1.2.0 it also brings the account's theme, date order and clock (`AuthService.preferences()`) and saves a
-signed-in person's choices to the account (`AuthService.savePreferences()`): signed in, the theme toggle, the
-language menu and the dates follow the account, which every anotoki site shares; a visitor's stay this
-device's (`core/theme.ts`, `core/i18n/translations.config.ts`, `core/i18n/date-patterns.ts`).
+Sign-in goes through the anotoki family's auth module, `@anotoki/lib/auth` (set up in `app.config.ts`:
+`provideAnotokiAuth()` - the boot answer is `/api/meta`'s `auth`, this site's visitor key store, the failure
+screen on `/sign-in`): the IAM's client (the tokens under the same keys as the IAM's SDK kept them), the callback
+(`/auth/callback`), the interceptor, the guards, the sign-in hint (a visitor signed in at the IAM is signed in here
+without a click) and the account's theme, date order and clock (`AuthService.preferences()`, saved with
+`AuthService.savePreferences()`: signed in, the theme toggle, the language menu and the dates follow the account,
+which every anotoki site shares; a visitor's stay this device's - `core/theme.ts`,
+`core/i18n/translations.config.ts`, `core/i18n/date-patterns.ts`). `core/auth.ts` is the pages' view of it
+(`AuthService`, a facade); specs use `@anotoki/lib/auth/testing` or a fake `AuthService`.
+
+The People page and the admin tools (the error log, the audit log, feedback, backups) are the family's pages
+(`@anotoki/lib/people/page`, `@anotoki/lib/admin/*`, lazy, routed in `app.routes.ts`, set up in `app.config.ts`);
+the bar counts the new feedback beside Feedback (`FeedbackUnread`). The visitors' feedback form
+(`@anotoki/lib/feedback/form`) opens from the footer in a dialog (`shared/feedback-dialog/`, set up in
+`core/feedback.ts`), loaded with the first press. `public/robots.txt` keeps search engines off `/auth/`.
 
 The site's words come through the family's translations module, `@anotoki/lib/translations`: its service, set
 up for this site in `core/i18n/translations.config.ts` (the storage names, the English compiled into the app as
@@ -36,31 +45,37 @@ its page runs; the interceptor that hears the server say so; and the admin panel
 (`pages/admin/migrations/`, from `@anotoki/lib/migrations/page`). `core/site-status.ts` wires them to this site
 (who is ADMIN, how to sign in, the language on the page, the account's dates), and `styles.scss` maps this
 site's colours onto the library's `--anotoki-*` properties, light and dark - the gate's page, Migrations,
-Translations and Languages are drawn with the library's kit (0.3.0; each piece from its own entry point, never
-the `@anotoki/lib/ui` barrel), and every other page stays on Angular Material.
+Translations, Languages, People, the admin tools, the feedback form and the sign-in failure's screen are drawn
+with the library's kit (0.4.1; each piece from its own entry point, never the `@anotoki/lib/ui` barrel), and every
+other page stays on Angular Material.
 
 ```text
 src/app/
-  core/        api.ts (ISSUED_AS: whose each request is), models.ts, auth.ts + auth.interceptor.ts +
-               auth.guards.ts + sign-in.ts (the IAM only), saves-in-flight.ts (a sign-in waits for them),
-               visitor-key.ts (somebody not signed in: the key, the move at sign-in), storage.ts, download.ts,
+  core/        api.ts (the family's ISSUED_AS: whose each request is), models.ts, auth.ts (the family's
+               AnotokiAuth under the pages' names) + auth.guards.ts (sitePagesGuard) + sign-in.ts,
+               feedback.ts (the family's form set up for this site),
+               visitor-key.ts (somebody not signed in: the key, the move at sign-in), sign-in-kind.ts (whether
+               the present sign-in was the IAM's hint's silent hop: the move asks with it), storage.ts, download.ts,
                meta-store.ts, changelog.ts, sync-driver.ts, theme.ts (the account's while signed in, else this
                device's), site-status.ts (the family's site gate and Migrations page, wired to this site),
                i18n/ (the site's words on @anotoki/lib/translations; date-patterns.ts: the account's date
-               order and clock), localization-drafts.ts (the sign-out question about unsaved strings), iam/
-               (the vendored SDK)
-  layouts/     top-bar/ (the anotoki family's bar: one row, a phone's menu up to 880 px), footer/ (version,
-               What's new), app-layout/ (everybody's pages), admin-layout/ (the admin panel: staff / signed out / no role)
+               order and clock), localization-drafts.ts (the sign-out question about unsaved strings)
+  layouts/     top-bar/ (the anotoki family's bar: one row, a phone's menu up to 880 px - in the admin panel
+               the ADMIN's and an editor's rows each their own), footer/ (version, What's new, Feedback),
+               app-layout/ (everybody's pages), admin-layout/ (the admin panel: staff / signed out / no role)
   shared/      brand/ (the anotoki mark, public/anotoki.png), theme-toggle/, language-switcher/, visitor-notice/,
-               visitor-hero/, data-card/ ("Your data"), build-detail, item-card, confirm-dialog, ...
-  pages/       dashboard, import, account, character, builds, sign-in;
-               admin/ (sources, translations, languages, people, migrations - English, under /admin/)
+               visitor-hero/, data-card/ ("Your data"), feedback-dialog/, build-detail, item-card, confirm-dialog, ...
+  pages/       dashboard, import, account, character, builds;
+               admin/ (sources, translations, languages, migrations - English, under /admin/; People and the
+               admin tools are the family's pages, routed straight)
 ```
 
 Every page outside `/admin/` is open to everybody - unless the IAM says this site requires a sign-in
-(`AuthService.loginRequired`, from `/api/meta`): then `siteSignInGuard` sends anybody not signed in to sign in
-first; `/admin/` always asks for a sign-in (`signInGuard`), a visitor's too. Whether a request is a person's or
-a visitor's is decided when `Api` issues it (`ISSUED_AS`), never by whether a token is there when it leaves. How
+(`AuthService.loginRequired`, from `/api/meta`): then `sitePagesGuard` (the family's `personOrVisitorGuard`) sends
+anybody not signed in to the IAM first; a sign-in that came back without one is said once on `/sign-in`;
+`/admin/` always asks for a sign-in (the family's `personGuard`), a visitor's too, and its ADMIN pages are the
+ADMIN's (`adminGuard`). Whether a request is a person's or a visitor's is decided when `Api` issues it
+(`ISSUED_AS`), never by whether a token is there when it leaves. How
 the pieces work: [docs/architecture.md](../docs/architecture.md), "Frontend" and "Visitors".
 
 The version in the footer and its "What's new" come from `public/changelog.json`; a new release adds an entry

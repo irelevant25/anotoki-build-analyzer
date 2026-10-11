@@ -1,5 +1,6 @@
 <?php
 
+use Anotoki\Lib\Audit\AuditLog;
 use Anotoki\Lib\Support\JsonResponse;
 use Anotoki\Lib\Support\Refusal;
 use Anotoki\Lib\Translations\Http\TranslationsRoutes;
@@ -41,7 +42,9 @@ use Psr\Http\Message\ServerRequestInterface as Request;
  * The role checks are this site's (api/middleware/auth.php), on each route group: 401 sign_in_required, 403
  * editor_only / admin_only - before anything else is looked at. Who saved a string is the token's person,
  * never anything a body says. A refusal is this site's error body, {message, code, ...what it is about: key,
- * language, placeholder, keys, field, found}, never kept by a cache.
+ * language, placeholder, keys, field, found}, never kept by a cache. Every write that changed something is in
+ * the audit log (the library's: translations.saved, translations.imported, language.created, language.updated,
+ * language.deleted), by that person.
  *
  * The writes take JSON and nothing else, read by the library from the request itself: another type of body -
  * a form, which any page open in the browser can send without asking first - is 415 unsupported_media_type;
@@ -62,8 +65,10 @@ return function (Slim\App $slim, App $app): void {
         ['message' => $refusal->message, 'code' => $refusal->code] + $refusal->extra,
     );
     $actor = fn (Request $request): int => currentUser($request)->id;
+    $audit = fn (Request $request, string $action, ?string $type, ?string $id, array $details) => $app->get(AuditLog::class)
+        ->record($request, currentUser($request)->id, $action, $type, $id, $details);
 
     TranslationsRoutes::bundle($slim, $translations, $error);
-    TranslationsRoutes::strings($slim, '/api/admin', $translations, $actor, $error)->add(requireRole($app, ...Role::STAFF));
-    TranslationsRoutes::languages($slim, '/api/admin', $translations, $error)->add(requireRole($app, Role::ADMIN));
+    TranslationsRoutes::strings($slim, '/api/admin', $translations, $actor, $error, $audit)->add(requireRole($app, ...Role::STAFF));
+    TranslationsRoutes::languages($slim, '/api/admin', $translations, $error, $audit)->add(requireRole($app, Role::ADMIN));
 };

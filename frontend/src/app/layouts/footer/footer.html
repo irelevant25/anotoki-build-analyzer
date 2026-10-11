@@ -1,9 +1,19 @@
-@if (changelog.current(); as version) {
-  <footer class="footer">
+<footer class="footer">
+  @if (changelog.current(); as version) {
     <span class="version">{{ 'footer.version' | translate: { version: version } }}</span>
     <span class="dot" aria-hidden="true">·</span>
     <button type="button" class="whats-new" (click)="changelog.open()">
       {{ 'whatsNew.title' | translate }}
     </button>
-  </footer>
-}
+    <span class="dot" aria-hidden="true">·</span>
+  }
+  <button
+    type="button"
+    class="whats-new feedback"
+    aria-haspopup="dialog"
+    [disabled]="opening()"
+    (click)="openFeedback()"
+  >
+    {{ 'footer.feedback' | translate }}
+  </button>
+</footer>

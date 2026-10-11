@@ -4,10 +4,13 @@
     "date": "2026-10-07",
     "changes": {
       "added": [
-        "When you are signed in, the theme, the language and the way dates are written follow your anotoki account, the same on every anotoki site - and the theme and the language you choose at the top of the page are saved to your account"
+        "When you are signed in, the theme, the language and the way dates are written follow your anotoki account, the same on every anotoki site - and the theme and the language you choose at the top of the page are saved to your account",
+        "Signed in to your anotoki account on another anotoki site, you are signed in here too as soon as you open Build Analyzer - without a click",
+        "Feedback at the foot of every page: tell us what does not work, an idea or anything else - with your name, or without it"
       ],
       "updated": [
-        "While Build Analyzer is being updated, the page says so in your language instead of showing an error, and comes back by itself when the update is done"
+        "While Build Analyzer is being updated, the page says so in your language instead of showing an error, and comes back by itself when the update is done",
+        "When signing in does not work, a page says why in your language, with Try again and Back"
       ]
     }
   },
