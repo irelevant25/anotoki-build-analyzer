@@ -156,12 +156,13 @@ describe('authInterceptor', () => {
       expect(status).toBe(401);
     });
 
-    it('the admin panel\'s requests are a person\'s alone: nobody signed in, they are never sent', async () => {
+    it("the admin panel's requests are a person's alone - the library's pages' too: nobody signed in, they are never sent", async () => {
       signedOut();
       visitor.held = KEY_A;
       const api = TestBed.inject(Api);
       let status = 0;
-      api.translationGrid().subscribe({ error: (error) => (status = error.status) });
+      // As the anotoki library's Translations page asks for its grid: not through Api, with no ISSUED_AS.
+      http.get('/api/admin/translations').subscribe({ error: (error) => (status = error.status) });
       api.people().subscribe({ error: () => undefined });
       api.exportData().subscribe({ error: () => undefined });
       await settle();

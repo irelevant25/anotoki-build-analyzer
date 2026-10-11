@@ -1,13 +1,15 @@
 import { DYNAMIC_KEYS } from './dynamic-keys';
 import { EN_PARTS, en, isTranslationKey } from './en';
 
-/** The namespaces a key may begin with. Never "changelog" or "pasted": the app has file names of that shape. */
+/**
+ * The namespaces a key may begin with. Never "changelog" or "pasted": the app has file names of that shape.
+ * And never "anotoki": the library's own words (the language button's name among them) are its own keys.
+ */
 const NAMESPACES = [
   'common',
   'nav',
   'toolbar',
   'theme',
-  'language',
   'title',
   'error',
   'signIn',
@@ -63,6 +65,7 @@ describe('the compiled English (en.ts and its parts)', () => {
     expect(keys.filter((key) => !NAMESPACES.includes(key.split('.')[0]))).toEqual([]);
     expect(NAMESPACES).not.toContain('changelog');
     expect(NAMESPACES).not.toContain('pasted');
+    expect(NAMESPACES).not.toContain('anotoki');
   });
 
   it('has a string for every key: text, with no space around it and no brace that is not a placeholder', () => {

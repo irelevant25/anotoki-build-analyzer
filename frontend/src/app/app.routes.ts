@@ -1,6 +1,6 @@
 import { Routes } from '@angular/router';
+import { anotokiUnsavedChangesGuard } from '@anotoki/lib/translations';
 import { adminOnlyGuard, signInGuard, siteSignInGuard } from './core/auth.guards';
-import { unsavedChangesGuard } from './core/unsaved-changes.guard';
 import { AppLayout } from './layouts/app-layout/app-layout';
 
 /**
@@ -87,7 +87,7 @@ export const routes: Routes = [
       {
         path: 'translations',
         title: 'Translations',
-        canDeactivate: [unsavedChangesGuard],
+        canDeactivate: [anotokiUnsavedChangesGuard],
         loadComponent: () =>
           import('./pages/admin/translations/translations-page').then((m) => m.TranslationsPage),
       },
@@ -95,7 +95,7 @@ export const routes: Routes = [
         path: 'languages',
         title: 'Languages',
         canActivate: [adminOnlyGuard],
-        canDeactivate: [unsavedChangesGuard],
+        canDeactivate: [anotokiUnsavedChangesGuard],
         loadComponent: () =>
           import('./pages/admin/languages/languages-page').then((m) => m.LanguagesPage),
       },

@@ -29,6 +29,8 @@ import { VisitorKey } from './visitor-key';
  *   new one taken, a 401 `sign_in_required` never forgets it), so the next sign-in still moves what it holds.
  * - **The move** after a sign-in (`CARRIES_VISITOR_KEY`, a person's): the token, beside the key the request
  *   set itself - the one request that carries both.
+ * - **The admin panel's** (`/api/admin/...`) are a person's, also when Api did not issue them: the anotoki
+ *   library's Translations, Languages and Migrations pages make their own requests. Never a visitor's key there.
  *
  * Every write (anything but GET and HEAD) is counted while it is on its way (SavesInFlight): a sign-in waits
  * for them before it leaves the page.
@@ -40,7 +42,11 @@ export const authInterceptor: HttpInterceptorFn = (request, next) => {
   const auth = inject(AuthService);
   const visitor = inject(VisitorKey);
   const saves = inject(SavesInFlight);
-  const caller: Caller = request.context.get(ISSUED_AS) ?? (auth.signedIn() ? 'person' : 'visitor');
+  // A request Api did not issue - the anotoki library's admin pages (Translations, Languages, Migrations) issue
+  // their own - is decided now: the admin panel's are a person's alone, whatever the page's state.
+  const caller: Caller =
+    request.context.get(ISSUED_AS) ??
+    (isAdminRequest(request.url) || auth.signedIn() ? 'person' : 'visitor');
   const sent =
     caller === 'person' ? asPerson(request, next, auth) : asVisitor(request, next, visitor, auth.loginRequired());
   return counted(request, sent, saves);
@@ -133,6 +139,16 @@ export function isApiRequest(url: string): boolean {
   try {
     const target = new URL(url, window.location.href);
     return target.origin === window.location.origin && (target.pathname === API_BASE || target.pathname.startsWith(`${API_BASE}/`));
+  } catch {
+    return false;
+  }
+}
+
+/** "/api/admin" and anything under it, on this site: the admin panel's routes - a person's alone. */
+export function isAdminRequest(url: string): boolean {
+  try {
+    const path = new URL(url, window.location.href).pathname;
+    return path === `${API_BASE}/admin` || path.startsWith(`${API_BASE}/admin/`);
   } catch {
     return false;
   }

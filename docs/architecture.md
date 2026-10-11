@@ -43,9 +43,9 @@ other anotoki sites (the genshin site, the IAM).
 | Builds | `src/Services/Builds/{BuildSync,BuildSourceRegistry}.php`, `Sources/*`, `Parsing/*`; `BuildFile.php`, `BuildTransfer.php` | see [build-sources.md](build-sources.md); a source's builds exported to / imported from a file: [data-model.md](data-model.md) ("Builds files") |
 | Syncs | `src/Services/Sync/{SyncRunner,RunHandler,RunLog,StepResult}.php` | runs worked through in short steps; see "Syncs" below |
 | Analysis | `src/Services/Analysis/*` | recommendations are kinds with params (`BuildEvaluator::KINDS`); see [analysis.md](analysis.md) |
-| The site's words | `src/Repositories/Translations.php` (`available()`: are the tables there), `src/Services/Translations/{TranslationCheck,TranslationEditor}.php`, `src/Presenters/TranslationPresenter.php`, `api/routes/translations.php`, migration 003 | see "The site's words" below and [data-model.md](data-model.md) |
-| Output | `src/Presenters/*` (accounts, builds, sync runs, icon addresses, translations), `src/Support/Neutral.php` | what the API sends, in the shapes of `frontend/src/app/core/models.ts` |
-| Command line | `migration.php`, `sync-builds.php`, `sync-catalog.php`, `import-account.php`, `translations.php` (→ `src/Commands/*`) | loop over the same steps as the Sources page; nothing is scheduled |
+| The site's words | anotoki-lib's translations (`Anotoki\Lib\Translations`: `Translations`, `TranslationsRoutes`, `TranslationsCommand`, `KeyScanner`; its migration set `anotoki_translations`) with this site's own in `src/Services/Translations/SiteTranslations.php` (the released languages, `names_another_site`, the key scan's configuration), `api/routes/translations.php`, migrations 003-006 | see "The site's words" below and [data-model.md](data-model.md) |
+| Output | `src/Presenters/*` (accounts, builds, sync runs, icon addresses), `src/Support/Neutral.php` | what the API sends, in the shapes of `frontend/src/app/core/models.ts` |
+| Command line | `migration.php`, `sync-builds.php`, `sync-catalog.php`, `import-account.php`, `translations.php` (→ `src/Commands/*`; `translations.php` is anotoki-lib's `TranslationsCommand`) | loop over the same steps as the Sources page; nothing is scheduled |
 | Setup | `setup.php` + `src/Setup/Installer.php` | writes `config/*.local.php`, builds the database; see [operations.md](operations.md) |
 | People | `api/routes/people.php`, `src/Repositories/Users.php` (`withCounts()`, `visitorCounts()`, `deletePerson()`) | ADMIN: who used the site, and deleting a person's data |
 | Deploy | `tools/build.php` | `dist/` (beside `backend/`), the web root to upload; see DEV.md "Deploying" |
@@ -59,7 +59,7 @@ stands (`api/middleware/site_gate.php`: `siteState()`), afresh each time:
 | State | When | What the API answers |
 | --- | --- | --- |
 | not set up | `Config::load()` found a required local file missing or incomplete (no database, no IAM issuer or client id; the log says which file and which value) | every path `503 {"code": "not_set_up", "installed": …, "message": …}`, with `"setup": "/setup.php"` only while the site was never installed - `storage/installed.lock`, which `setup.php` writes when it finishes on a real host (never on this computer) |
-| update pending | a migration file is ready to apply | every path `503 {"code": "update_pending", "message": "The site is being updated. Try again in a few minutes."}` with `Retry-After: 60` - but the open paths (`SITE_OPEN_PATHS`): `/api/meta` (where people sign in), `/api/translations/{code}` (the pages' words; its route answers `translations_unavailable` itself while the tables are not there) and the Migrations page's three routes, `/api/admin/migrations`, `…/file` and `…/apply` (an ADMIN's, judged from the token alone: `requireTokenRole()`). Each is a route exactly, never a prefix: the gate reads the path decoded, as the router does, and neither resolves dot segments, so a crafted `/api/admin/migrations/../x` (or `%2e%2e`, `%2F`) stays closed |
+| update pending | a migration file is ready to apply | every path `503 {"code": "update_pending", "message": "The site is being updated. Try again in a few minutes."}` with `Retry-After: 60` - but the open paths (`siteOpenPaths()`): `/api/meta` (where people sign in), `/api/translations/{code}` (the pages' words, opened by the library's own pattern, `TranslationsRoutes::openPath()`; its route answers `translations_unavailable` itself while the tables are not there) and the Migrations page's three routes, `/api/admin/migrations`, `…/file` and `…/apply` (an ADMIN's, judged from the token alone: `requireTokenRole()`). Each is a route exactly, never a prefix: the gate reads the path decoded, as the router does, and neither resolves dot segments, so a crafted `/api/admin/migrations/../x` (or `%2e%2e`, `%2F`) stays closed |
 | unavailable | the database cannot be reached | everything passes: the routes answer as they do without a database (500 `server_error`) |
 | ready | otherwise | everything passes |
 
@@ -87,8 +87,12 @@ one draws nothing), which the gate makes only while it shows the pages: a page b
 made at all, so it sends no request and leaves no error, snack bar or sync state behind. (0.1.0 took the outlet
 as plain content, which Angular made whether it showed or not; `app.ts` kept it out with a condition of its
 own, `pagesMade`, gone since.) Nothing in the boot stops while an update waits: the sign-in (and its callback)
-completes, the words are asked for. The gate's pages and the Migrations page are drawn with the library's kit
-(0.2.0), in this site's colours: the `--anotoki-*` properties in `styles.scss`.
+completes, the words are asked for. The gate's pages and the Migrations, Translations and Languages pages are
+drawn with the library's kit (0.2.0; 0.3.0 gave every class of the kit its own name, `anotoki-<piece>__<part>`),
+in this site's colours: the `--anotoki-*` properties in `styles.scss`. Their words are the database's
+(`anotoki.siteStatus.*`, `anotoki.ui.*`: `TranslationService.forKit()` and `siteStatusWords()`), the library's
+own under them. The Migrations page names each file with its set (`build_analyzer/004_….sql`,
+`anotoki_translations/001_….sql`): two sets are configured.
 
 ### Sign-in
 
@@ -221,10 +225,12 @@ changelog. So the API never sends a site's name or address either:
 - Icons: the catalog stores the provider's icon address; the API sends `/api/icons/{c|w|s}/{id}`, which fetches
   the image once into `storage/icons/` and serves it from this site.
 - The site's words: no string names another site or holds a web address, whether a migration seeded it or the
-  editor reworded it in the browser (or imported it from a file, or the command line). `TranslationCheck`
-  refuses one (422 `names_another_site`, checked last, in any language, also in a language's names), and
-  `tests/translation_catalogue.test.php` puts every seeded string through the same check. A word refused only
-  because it contains a name is reworded; the list of names is not changed for it.
+  editor reworded it in the browser (or imported it from a file, or the command line). This site's last check
+  of the library's (`SiteTranslations::namesAnotherSite()`, its `extraCheck`) refuses one (422
+  `names_another_site`, checked last, in any language, also in a language's names), and
+  `tests/translation_catalogue.test.php` puts every stored string through the same checks
+  (`Translations::storedRefusals()`). A word refused only because it contains a name is reworded; the list of
+  names is not changed for it.
 
 ### Main flows
 
@@ -284,6 +290,18 @@ The member pages read in English or Slovak (more languages can be added in the b
 of the database ([data-model.md](data-model.md), "The site's words"), because the host has no shell and an
 upload overwrites the build: a string is a key the code names and a value per language an editor may reword.
 
+Since version 0.4.0 the code around them is the anotoki family's own, in its shared library (anotoki-lib 0.3.0,
+its translations module - [decisions.md](decisions.md), 2026-10-11): the bundle the pages read, the admin
+pages' grid and languages, the checks of a string, the command line, the frontend's `TranslationService`
+and the admin Translations and Languages pages. One wire format for every anotoki site: the IAM's, snake_case
+(this site's already). What stays this site's own: its keys and their English and Slovak (the migrations, and
+the compiled English in `core/i18n/en/*.json`), its released languages (`SiteTranslations::RELEASED`), its last
+check (`names_another_site`), who may do what (its role checks on each route group), its error body
+(`{message, code, …}`), its typed keys and pipes, its storage names, the bar's language switcher (its own, as
+its bar is: Angular Material) and the wording tables. The library has words of its own under `anotoki.` - its
+kit's and its status page's - which its migration set writes and its code asks for; this site's 006 moved its
+two copies of them (`language.button`, `language.notLoaded`) under the library's keys, with every rewording.
+
 - **Keys, not sentences.** A template words a key with the `translate` / `translatePlural` pipes; state holds
   keys, kinds and errors, and a template or a `computed()` words them, so a page follows a change of language
   without reloading. Keys put together at run time come only from the closed lists in
@@ -299,14 +317,18 @@ upload overwrites the build: a string is a key the code names and a value per la
   (`core/game-terms.ts`, `shared/build-terms.ts`, and what `/api/meta` sends).
 - **The fallbacks**: the server merges English under every bundle; a key the database lacks shows as the key,
   on purpose. The compiled English (`core/i18n/en.ts` and its parts `en/*.json`) is the list of keys (an
-  unknown key is a compile error) and the last resort: it is shown only while no bundle is in memory - before
-  migration 003 is applied (every translation route answers 503 `translations_unavailable` then) or while a
-  first visit waits for its words - and never fills a single missing string.
+  unknown key is a compile error: `TranslationKey`, through this site's typed view of the library's service
+  and its typed `translate` / `translatePlural` pipes) and the last resort (the library's `fallbackEnglish`):
+  it is shown only while no bundle is in memory - before migration 003 is applied (every translation route
+  answers 503 `translations_unavailable` then) or while a first visit waits for its words - and never fills a
+  single missing string. A library key (`anotoki.*`) never shows as a key: the database's string, else the
+  library's built-in words.
 - **The language**: `?lang=` (kept for the tab), the menu's remembered choice, the IAM token's `locale`, the
-  browser's languages (Czech readers get Slovak while no Czech is offered), else English
-  (`TranslationService`). The last bundle is kept in the browser, so a returning reader starts in their
-  language. `<html lang>` and the page titles (`title-strategy.ts`) follow it; dates and numbers use
-  `Intl` (`localDate`).
+  browser's languages (Czech readers get Slovak while no Czech is offered), else English (the library's
+  `TranslationService`, set up for this site in `core/i18n/translations.config.ts`, with the storage names this
+  site always had). The last bundle is kept in the browser, so a returning reader starts in their language;
+  a first visit whose answer is lost asks once more after half a second. `<html lang>` and the page titles
+  (`title-strategy.ts`) follow it; dates and numbers use `Intl` (`localDate`).
 - **The account's language, theme and dates** (the IAM's migration 015, SDK 1.2.0; the owner's decision of
   2026-10-06 - "it should be in the iam only and apply for every project/application"): while somebody is
   signed in at an IAM that keeps them (`AuthService.preferences()` not null), the account's `locale` comes
@@ -314,7 +336,8 @@ upload overwrites the build: a string is a key the code names and a value per la
   when it changes (on another anotoki site, in another tab); the menu's choice is saved to the account
   (`savePreferences({ language })`, one save at a time, the latest last; a language the IAM does not offer -
   `invalid_request` - stays this site's own for the visit, silently; any other refusal keeps it for the visit
-  and says why in a snack bar). The theme is the account's on every page, the admin panel included
+  and the bar's language switcher says so in a snack bar, `anotoki.language.notSaved`). The theme is the
+  account's on every page, the admin panel included
   (`core/theme.ts`, below). Dates follow the account's date order and clock where it has chosen them
   (`core/i18n/date-patterns.ts`): What's new's days (`localDate: 'day'`), and in the admin panel when a
   migration was applied and when a builds file was exported; relative times ("3 hours ago") have neither
@@ -324,17 +347,25 @@ upload overwrites the build: a string is a key the code names and a value per la
   English code and reads English with `<html lang="en">` whatever language is chosen; the server's admin-only
   sentences stay English and those pages show them as they come (`errorMessage()`).
 - **The Translations and Languages pages** (editors; adding, renaming, switching and deleting a language:
-  admins): Translations is a grid of every key with its description and a cell per
-  language, saved together (`PUT /api/admin/translations`, checked whole by `TranslationCheck` and written in
-  one transaction), plus export and import of one language as a `{key: text}` file. Languages adds, renames,
-  orders, offers or hides and deletes languages; a new language starts hidden, so its strings can be written
-  before readers are offered it. What neither page has saved is kept for the tab (`LocalizationDrafts`, in
-  `sessionStorage`, per person), leaving inside the app asks first (`unsavedChangesGuard`, through
-  `shared/confirm-dialog`), and closing the tab asks the browser's question.
+  admins) are the anotoki family's (`@anotoki/lib/translations/admin`, a lazy entry point of their own), drawn
+  with the library's kit in the admin panel's frame (`pages/admin/translations`, `pages/admin/languages`), so
+  every anotoki site's read alike. Translations is a grid of every key with its description and a box per
+  language - coverage per language, a search, "Missing in X", plural families as one block - saved together
+  (`PUT /api/admin/translations`, only the changed boxes, checked whole and written in one transaction), plus
+  export and import of one language as a `{key: text}` file. Languages adds, renames, orders, offers or hides
+  and deletes languages (English never, Slovak - released with the site - never; a delete offers the
+  language's strings as a file first); a new language starts hidden, so its strings can be written before
+  readers are offered it. What neither page has saved is kept for the tab (the library's `LocalizationDrafts`,
+  in `sessionStorage` under `build-analyzer-localization-drafts`, per person; `core/localization-drafts.ts`
+  reaches them from outside the pages without loading them: the bar's "Sign out without your latest
+  changes?", and a page load's drafts armed before either page is opened), leaving inside the app asks first
+  (the library's `anotokiUnsavedChangesGuard`, asking the page), and closing the tab asks the browser's question.
 - **The tests hold the pieces together** (`tests/translation_catalogue.test.php`): the compiled English is,
-  key for key, the seeded English; every key the frontend uses (the scan `tests/support/translation_keys.php`,
-  which reads the sources and `dynamic-keys.ts` as text) is in the database and every database key is used;
-  the server's kinds are the declared tails; every seeded string passes the checks a save makes.
+  key for key, the seeded English of the site's own keys; every key the frontend uses (the library's
+  `KeyScanner`, configured in `SiteTranslations::keyScanner()`, which reads the sources and `dynamic-keys.ts` as
+  text) is in the database and every key of the site's own is used; the server's kinds are the declared tails;
+  every stored string passes the checks a save makes; the gates count the site's own keys. The library's
+  generic behaviour is tested in the library.
 
 ### REST API (`api/routes/`)
 
@@ -364,11 +395,14 @@ upload overwrites the build: a string is a key the code names and a value per la
 | `GET /api/admin/migrations` | admin (from the token alone; open while an update waits) | `{sets: ["build_analyzer"], applied: [{set, name, applied_at}], pending: [{set, name, ready, blocked}], missing: [{set, name, applied_at}]}` - the files applied, in order, with when (UTC, `…Z`); the files not applied yet, in the order they will run; files recorded but not on disk (anotoki-lib's `MigrationsRoutes::admin`) |
 | `GET /api/admin/migrations/file?set=&name=` | admin (likewise) | `{set, name, sql}` of one of the set's files; 404 `not_found` for anything else (no path tricks) |
 | `POST /api/admin/migrations/apply` | admin (likewise) | applies every pending file in order, each in its own transaction with its record, stopping at the first that fails: `{applied: [{set, name}], failed: {set, name}\|null, error: string\|null, note: null}` (200 either way; the failed file rolled back whole; `error` is `statement N of M: <the database's message>` and the statement's first lines); 409 `busy` while another apply holds the advisory lock every apply takes (the page, `migration.php`, setup). No shell on the host; the same engine as `migration.php` and setup. Given five minutes and not cut short when the browser goes; the log says what was applied and where it stopped |
-| `GET /api/translations/{code}` | anyone (no token read) | the bundle: `{language, languages (the offered ones), values, english?}`, the language's strings with English underneath; ETag and 304 |
-| `GET /api/admin/languages` | editor | the languages, hidden ones too, with their string counts |
-| `POST /api/admin/languages`, `PUT/DELETE /api/admin/languages/{code}` | admin | add one / change name, native name, offered, order / delete one and its strings (never `en` or `sk`) |
+| `GET /api/translations/{code}` | anyone (no token read) | the bundle: `{language, languages (the offered ones), values, english?}`, the language's strings with English underneath (the library's words among them); ETag and 304 |
+| `GET /api/admin/languages` | editor | the languages, hidden ones too: `{code, name, native_name, enabled, sort_order, seeded, strings}` |
+| `POST /api/admin/languages`, `PUT/DELETE /api/admin/languages/{code}` | admin | add one / change name, native name, offered, order / delete one and its strings (never `en` or `sk`): `{strings}` |
 | `GET/PUT /api/admin/translations` `{values: {key: {code: text}}}` | editor | the grid (every key, its description, its strings) / save the changed strings, all or none |
 | `GET /api/admin/translations/{code}/export`, `PUT …/{code}/import` `{key: text}` | editor | one language's own strings as a file / back in, with a save's checks |
+
+The translation routes are anotoki-lib's (`TranslationsRoutes`), in the family's one wire format, behind this
+site's role checks and in its error body.
 | `GET /api/admin/people` | admin | `{people: [{id, name, accounts, import_runs, created_at, last_import_at}], visitors: {count, accounts}}` - the IAM people who used the site |
 | `DELETE /api/admin/people/{id}` | admin | delete a person's data (accounts with everything in them, import runs); `{accounts, import_runs}`; their syncs and strings stay, by nobody; 404 for no such person |
 
@@ -378,14 +412,17 @@ Errors are JSON `{message}` and, where a page words them, a `code` (validation a
 `editor_only` "Only an editor or an admin can do this." / `admin_only` "Only an admin can do this.", 404 `Not found.` (also for other users' accounts and unknown paths), 409 (a step holds
 the lock; a builds file for a source that is syncing; `language_exists`, `fallback_language`,
 `seeded_language`), 422 (import problems `{code, params}`, a builds file that does not fit, validation, a
-string or language the checks refuse - with the key and the language; a write to the translation routes whose body is not
-`application/json`, such as a form, is `invalid_language` / `invalid_value` like a malformed one; a visitor's limits,
+string or language the checks refuse - with the key and the language; the translation routes' `empty_body` for a
+write that arrived empty; a visitor's limits,
 `visitor_limit` `{limit: accounts | file_size, max}`; an accounts file not read, `{code, params}`: `no_file`,
 `file_too_big` `{max_mb}`, `not_a_data_file`, `newer_version` `{version}`, `bad_entry` `{path}`, `too_many_accounts`
-`{max}`, and an export too large for one file, `export_too_big` `{max_mb, max_accounts}`), 429 (`too_many_imports`; `too_many_visitors`, which says to sign in), 503
+`{max}`, and an export too large for one file, `export_too_big` `{max_mb, max_accounts}`), the translation routes' 400
+`invalid_json`, 413 `too_large` (over 1 MiB) and 415 `unsupported_media_type` (a write that is not
+`application/json`, such as a form), 429 (`too_many_imports`; `too_many_visitors`, which says to sign in), 503
 `not_set_up` and `update_pending` (the site gate's: `{code, message}`, `not_set_up` with `installed` and - only
-while never installed - `setup`; see "The site gate"), 503 `translations_unavailable` from the translation routes
-while the tables of migration 003 are not there, 503 `visitors_unavailable` from the visitor paths while 004's
+while never installed - `setup`; see "The site gate"), 503 `translations_unavailable` (with `Retry-After: 60`) from
+the translation routes while the tables of migration 003 are not there (and from the bundle while English has no
+string), 503 `visitors_unavailable` from the visitor paths while 004's
 columns are not (both behind the gate: a second line), and 503 `visitor_move_retry` (ask again). The Migrations
 page's API answers its own: 404 `not_found` (a file that is none of the set's), 409 `busy`.
 
@@ -453,24 +490,33 @@ page's API answers its own: 404 `not_found` (a file that is none of the set's), 
   effect exists before the sign-in settles.
 - `core/sync-driver.ts` (`SyncDriver`, provided in root): steps the syncs while the tab is open; the top bar shows
   an editor or an admin a spinning icon while it drives (in the phone's menu on a phone).
-- `core/i18n/` (see "The site's words" above): `translation.ts` (`TranslationService`: the language, the
-  bundle, `init()` from the app initializer, the English pages), `en.ts` with the compiled English parts
-  `en/{core,shell,builds,import}.json` (one flat `{"key": "English"}` object each, a key in exactly one part),
-  the pipes `translate`, `translatePlural`, `localDate`, `dynamic-keys.ts`, `error-text.ts` (a failed request
-  by its `code`), `recommendation-words.ts`, `import-words.ts`, `title-strategy.ts` (`AppTitleStrategy`: a
-  member route's `title` is a key) and `testing.ts` (the specs' helpers). The game's own words:
-  `core/game-terms.ts`, `shared/build-terms.ts`. `pages/import/stepper-words.ts` words the Material stepper's
-  own labels.
+- `core/i18n/` (see "The site's words" above): `translation.ts` (`TranslationService`: anotoki-lib's service -
+  the language, the bundle, `init()` from the app initializer, the English pages - under its own token, typed
+  with this site's keys: `WordKey` = `TranslationKey` | the library's `LibraryKey`), `translations.config.ts`
+  (`provideTranslations()`: the library set up for this site - its storage names `LANGUAGE_STORAGE`, the
+  compiled English as the fallback, the account, `canAsk` = `/api/meta` answered, the admin pages' rights and
+  routes), `en.ts` with the compiled English parts `en/{core,shell,builds,import}.json` (one flat
+  `{"key": "English"}` object each, a key in exactly one part), the typed pipes `translate`, `translatePlural`,
+  and `localDate`, `dynamic-keys.ts`, `error-text.ts` (a failed request by its `code`),
+  `recommendation-words.ts`, `import-words.ts`, `title-strategy.ts` (`AppTitleStrategy`: a member route's
+  `title` is a key; it tells the service where the page is, `noteAddress()`). The specs take the library's
+  stand-in, `@anotoki/lib/translations/testing`. The kit's words (`provideAnotokiUi(... forKit())` in
+  `app.config.ts`) and the status page's (`siteStatusWords()`, `core/site-status.ts`) are the database's too.
+  The game's own words: `core/game-terms.ts`, `shared/build-terms.ts`. `pages/import/stepper-words.ts` words
+  the Material stepper's own labels.
 - The admin panel (`/admin/...`, English with `lang="en"`; the old `/sources`, `/translations`, `/languages`
   redirect there): `layouts/admin-layout/` (`AdminLayout`: for staff the area's sections - Sources and
   Translations for an editor, Languages, People and Migrations too for an admin - and the page; for nobody signed in "You are
   signed out" or, after a sign-in that did not complete, "You are not signed in", with a Sign in button; for
   somebody without a role "This part is for editors and admins"), under the top bar with the area's sections
-  as its links and the footer. The frontend only hides: the server refuses (403 `editor_only` / `admin_only`).
-  `core/localization-drafts.ts` (`LocalizationDrafts`: what the Translations and Languages pages have not saved,
-  for the tab and the IAM person who typed it, and the one `beforeunload` question),
-  `core/unsaved-changes.guard.ts` (`unsavedChangesGuard`, `canDeactivate` on both routes),
-  `shared/confirm-dialog`.
+  as its links and the footer. The frontend only hides: the server refuses (403 `editor_only` / `admin_only`);
+  and the admin panel's requests are a person's alone, also those the library's pages make themselves
+  (`core/auth.interceptor.ts`: never sent without the token, never with a visitor's key).
+  `pages/admin/{translations,languages,migrations}` hold the anotoki family's pages in the panel's `.page`
+  (each from its own lazy entry point); the first two answer the route's `anotokiUnsavedChangesGuard` by
+  asking the library's page. `core/localization-drafts.ts` reaches the library's `LocalizationDrafts` (what
+  those pages have not saved, for the tab and the IAM person who typed it, and the one `beforeunload`
+  question) only when the tab holds some, `shared/confirm-dialog`.
 - The frame: `app.ts` is the router inside the site gate (`<anotoki-site-gate>`, the outlet its template: the
   gate's own page while the site is not ready, and no page made behind it - see "The site gate") plus what
   belongs to no page - the theme on `<html>`, What's new to somebody who has used the site before (signed in,
@@ -489,7 +535,8 @@ page's API answers its own: 404 `not_found` (a file that is none of the set's), 
   person; `ADMIN_LINKS`: Sources, Translations, and for ADMIN Languages, People and Migrations, English, staff only), then
   the sync spinner (staff, while this tab drives a sync), the language (`shared/language-switcher/`: 40 px, a
   menu of the languages in their own names; only with more than one and never under `/admin`; signed in, a
-  choice is the account's too), the theme (`shared/theme-toggle/`: 102 x 40, a radio group; signed in, the
+  choice is the account's too - its languages and choice the library's `forShell()`, its words the library's
+  `anotoki.language.*`), the theme (`shared/theme-toggle/`: 102 x 40, a radio group; signed in, the
   account's, in both areas), and the person's menu (name, email, the role pill
   "Administrator" / "Editor"; "Your anotoki account"; "Admin panel" for staff, or "Back to Build Analyzer" in the
   admin panel; Sign out, which first asks about strings typed on the Translations and Languages pages and not
@@ -506,8 +553,9 @@ page's API answers its own: 404 `not_found` (a file that is none of the set's), 
   menus (and the language's) follow the family's rule: focus into the menu on open, arrows / Home / End,
   Escape and an outside click close it (Escape back to the button), Tab and Shift+Tab from any item
   `preventDefault()` and close it with the focus on its button, a breakpoint crossing closes it. Every member
-  word is a key (`brand.*`, `topbar.*`, `footer.version`, `language.button`, `theme.*`); under `/admin` the
-  translation service answers in English, so the same keys read English there.
+  word is a key (`brand.*`, `topbar.*`, `footer.version`, `theme.*`, and the library's
+  `anotoki.language.button`); under `/admin` the translation service answers in English, so the same keys read
+  English there.
 - `shared/`: `build-detail` (renders a build, optionally annotated with an evaluation), `item-card`,
   `grade-badge`, `score-bar`, `char-avatar` (`app-avatar`), `changelog-dialog`, `confirm-dialog`,
   `stat-pipes` (`statLabel`, `statValue`, `slotLabel`, `timeAgo`), `visitor-notice/` (for somebody not signed

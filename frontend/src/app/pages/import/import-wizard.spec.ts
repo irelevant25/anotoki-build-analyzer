@@ -5,10 +5,10 @@ import { MATERIAL_ANIMATIONS } from '@angular/material/core';
 import { MatStepperIntl } from '@angular/material/stepper';
 import { provideRouter } from '@angular/router';
 import { of, throwError } from 'rxjs';
+import { provideTestTranslations } from '@anotoki/lib/translations/testing';
 import { Api } from '../../core/api';
 import { AuthService } from '../../core/auth';
 import { en } from '../../core/i18n/en';
-import { provideTestTranslations } from '../../core/i18n/testing';
 import { TranslationService } from '../../core/i18n/translation';
 import { AccountSummary, ImportRun } from '../../core/models';
 import { VisitorKey } from '../../core/visitor-key';
@@ -207,7 +207,7 @@ describe('the import wizard', () => {
     expect(intl).toBeInstanceOf(StepperWords);
     expect(intl.completedLabel).toBe('Dokončené');
 
-    expect(await i18n.setLanguage('en', false)).toBe(true);
+    expect(await i18n.setLanguage('en', { remember: false })).toBe(true);
     await settle();
     expect(text(host.querySelector('h1'))).toBe('Import your account');
     expect([...host.querySelectorAll('.mat-step-label')].map(text)).toEqual(['Game', 'Method', 'Prepare', 'Import', 'Done']);
@@ -340,7 +340,7 @@ describe('the import wizard', () => {
     await settle();
     expect(text(problem())).toBe('Hráč sa nenašiel (skontroluj UID aj hru).');
 
-    expect(await i18n.setLanguage('en', false)).toBe(true);
+    expect(await i18n.setLanguage('en', { remember: false })).toBe(true);
     await settle();
     expect(text(problem())).toBe('No player with this UID exists (check the UID and the game).');
   });
@@ -376,7 +376,7 @@ describe('the import wizard', () => {
     expect(api.importFile).not.toHaveBeenCalled();
 
     // The refusal is a key with the games' names, so it follows the language.
-    expect(await i18n.setLanguage('en', false)).toBe(true);
+    expect(await i18n.setLanguage('en', { remember: false })).toBe(true);
     await settle();
     expect(text(problem())).toBe('This file contains Honkai: Star Rail data, but you chose Genshin Impact.');
   });
@@ -389,7 +389,7 @@ describe('the import wizard', () => {
     expect(problem()).toBeNull();
     expect(text(host.querySelector('.drop strong'))).toBe('inventory.json · 20 480 KB · rozpoznaný export z hry Genshin Impact');
 
-    expect(await i18n.setLanguage('en', false)).toBe(true);
+    expect(await i18n.setLanguage('en', { remember: false })).toBe(true);
     await settle();
     expect(text(host.querySelector('.drop strong'))).toBe('inventory.json · 20,480 KB · Genshin Impact export detected');
 

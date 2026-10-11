@@ -4,6 +4,7 @@ namespace App\Db;
 
 use Anotoki\Lib\Migrations\MigrationSet;
 use Anotoki\Lib\Migrations\Migrator;
+use Anotoki\Lib\Translations\Schema;
 use PDO;
 
 /**
@@ -18,8 +19,14 @@ use PDO;
  * recorded as applied never runs again - so an applied file is never edited; a new one is written instead.
  * Nothing un-applies anything.
  *
- * - One set of files, recorded in `migrations (id, filename, applied_at)` - the table this site's own engine
- *   made, which the library reads and writes as it is.
+ * - Two sets of files, in this order: this site's own (`build_analyzer`, backend/migrations), then the
+ *   library's translations set (`anotoki_translations`, anotoki/lib's php/migrations/translations: its 001
+ *   proves the shape of the three tables of the site's words, which this site's 003 made, and its 002 adds the
+ *   library's own words under `anotoki.`). The library's come last because this site's early files make those
+ *   tables themselves; a file of this site's never needs a file of the library's. Both are recorded in
+ *   `migrations (id, filename, applied_at)` - the table this site's own engine made, which the library reads
+ *   and writes as it is: this site's files by their names, the library's as
+ *   `anotoki_translations/001_languages_and_strings.sql`.
  * - The first version of the app was a Laravel application, whose database has a `migrations` table of its
  *   own (columns `migration`, `batch`). The `prepare` hook moves that table aside as `laravel_migrations`
  *   before the engine makes its own, and 001_adopt_laravel_database.sql then brings such a database forward.
@@ -43,21 +50,35 @@ final class Migrations
         return dirname(__DIR__, 2).'/migrations';
     }
 
-    /** The one set of files: backend/migrations, or a folder of a test's own. */
+    /** This site's own set of files: backend/migrations, or a folder of a test's own. */
     public static function set(?string $directory = null): MigrationSet
     {
         return new MigrationSet(self::SET, $directory ?? self::directory());
     }
 
     /**
+     * Every set, in the order they run: this site's own, then the library's.
+     *
+     * @param  string|null  $directory  the site's migrations folder; a test gives one of its own
+     * @return list<MigrationSet>
+     */
+    public static function sets(?string $directory = null, bool $library = true): array
+    {
+        return $library ? [self::set($directory), Schema::migrationSet()] : [self::set($directory)];
+    }
+
+    /**
      * The site's Migrator on this connection.
      *
-     * @param  string|null  $directory  the migrations folder; a test gives one of its own
+     * @param  string|null  $directory  the site's migrations folder; a test gives one of its own
      * @param  array<string, scalar>  $settings  session settings for the migrations (build_analyzer.<name>)
+     * @param  bool  $library  with the library's set after the site's - always, but in a test that builds a world
+     *                         of its own: a database as it was before the library's files were released, or a
+     *                         folder of files that are the test's alone
      */
-    public static function migrator(PDO $pdo, ?string $directory = null, array $settings = []): Migrator
+    public static function migrator(PDO $pdo, ?string $directory = null, array $settings = [], bool $library = true): Migrator
     {
-        return new Migrator($pdo, [self::set($directory)], [
+        return new Migrator($pdo, self::sets($directory, $library), [
             'lock' => self::LOCK,
             'prepare' => static function (PDO $pdo): void {
                 self::moveLaravelTableAside($pdo);

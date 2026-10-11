@@ -4,8 +4,10 @@ import {
   Injector,
   afterNextRender,
   computed,
+  effect,
   inject,
   signal,
+  untracked,
   viewChild,
 } from '@angular/core';
 import { MatIconModule } from '@angular/material/icon';
@@ -17,6 +19,13 @@ import { TranslationService } from '../../core/i18n/translation';
  * The language the pages are read in, in the top bar: one round 40 px button with the current language's
  * code ("SK"), opening a menu of the languages on offer, each in the name its own speakers give it and
  * saying which language that name is in (`lang`), so a screen reader says "Slovenčina" as Slovak.
+ *
+ * Its languages and its choice are the anotoki library's (TranslationService.forShell() - what the family's
+ * own bar hands its switcher): a choice switches once that language's words are here, is remembered on this
+ * device, and - signed in with an IAM that keeps the person's choices - is saved to the account, one save at a
+ * time and the latest last. Its words are the library's too: the button's name (`anotoki.language.button`),
+ * a language that could not be loaded (`anotoki.language.notLoaded`) and one the account did not take
+ * (`anotoki.language.notSaved`) - the last two said in a snack bar, as this site says such things.
  *
  * A menu button like the bar's own menus (layouts/top-bar): focus onto the language in use when it opens,
  * the arrow keys, Home and End between the items, Escape and a click outside to close it (Escape gives
@@ -36,7 +45,9 @@ import { TranslationService } from '../../core/i18n/translation';
   },
 })
 export class LanguageSwitcher {
-  protected readonly i18n = inject(TranslationService);
+  private readonly i18n = inject(TranslationService);
+  /** The languages on offer and the choice, as the library hands them to a bar's switcher. */
+  protected readonly languages = this.i18n.forShell();
   private readonly snackBar = inject(MatSnackBar);
   private readonly host = inject<ElementRef<HTMLElement>>(ElementRef);
   private readonly injector = inject(Injector);
@@ -45,12 +56,12 @@ export class LanguageSwitcher {
   /** The chosen language's strings are on their way. */
   protected readonly switching = signal(false);
   /** What the button shows ("SK") - and its accessible name says it too (WCAG 2.5.3, Label in Name: somebody who speaks to the computer says "click SK"). */
-  protected readonly currentCode = computed(() => this.i18n.language().toUpperCase());
+  protected readonly currentCode = computed(() => this.languages.current().toUpperCase());
   /** The current language as its speakers write it; its code while the list does not name it. */
   protected readonly currentName = computed(() => {
-    const code = this.i18n.language();
+    const code = this.languages.current();
     return (
-      this.i18n.languages().find((language) => language.code === code)?.native_name ??
+      this.languages.offered().find((language) => language.code === code)?.name ??
       code.toUpperCase()
     );
   });
@@ -60,6 +71,22 @@ export class LanguageSwitcher {
 
   private readonly button = viewChild<ElementRef<HTMLButtonElement>>('button');
   private readonly menu = viewChild<ElementRef<HTMLElement>>('menu');
+
+  constructor() {
+    // The account did not take the language chosen here (the IAM out of reach, the sign-in over): said once, in
+    // the language the page is in now - which stays the chosen one for this visit. A finished sentence when
+    // raised; a snack bar is not worded again.
+    effect(() => {
+      if (this.languages.notSaved()) {
+        untracked(() => {
+          this.snackBar.open(this.i18n.t('anotoki.language.notSaved'), undefined, {
+            duration: 6000,
+          });
+          this.languages.clearNotSaved();
+        });
+      }
+    });
+  }
 
   protected toggle(): void {
     if (this.open()) {
@@ -88,25 +115,25 @@ export class LanguageSwitcher {
   }
 
   /**
-   * Switches once the language's strings are here, and remembers the choice on this device; says so when
-   * they could not be had, and stays as it was. The last choice wins: one it overtook comes back false for
-   * having been overtaken, and that is nothing to tell anybody.
+   * Switches once the language's strings are here, and remembers the choice; says so when they could not be
+   * had, and stays as it was. The last choice wins: one it overtook comes back false for having been
+   * overtaken, and that is nothing to tell anybody.
    */
   protected async choose(code: string): Promise<void> {
     this.close(true);
-    if (code === this.i18n.language() && !this.switching()) {
+    if (code === this.languages.current() && !this.switching()) {
       return;
     }
     const mine = ++this.choice;
     this.switching.set(true);
-    const switched = await this.i18n.setLanguage(code);
+    const switched = await this.languages.choose(code);
     if (mine !== this.choice) {
       return;
     }
     this.switching.set(false);
     if (!switched) {
       // A finished sentence when raised, in the language the page is still in; a snack bar is not worded again.
-      this.snackBar.open(this.i18n.t('language.notLoaded'), undefined, { duration: 6000 });
+      this.snackBar.open(this.i18n.t('anotoki.language.notLoaded'), undefined, { duration: 6000 });
     }
   }
 

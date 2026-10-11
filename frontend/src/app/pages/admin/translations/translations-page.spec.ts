@@ -1,268 +1,158 @@
-import { HttpErrorResponse, HttpHeaders, HttpResponse } from '@angular/common/http';
+import { provideHttpClient } from '@angular/common/http';
+import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
 import { signal } from '@angular/core';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
-import { MATERIAL_ANIMATIONS } from '@angular/material/core';
-import { MatSnackBar } from '@angular/material/snack-bar';
 import { provideRouter } from '@angular/router';
-import { Observable, Subject, of, throwError } from 'rxjs';
-import { Api } from '../../../core/api';
+import { TranslationGrid } from '@anotoki/lib/translations';
+import { provideTestTranslations } from '@anotoki/lib/translations/testing';
 import { AuthService } from '../../../core/auth';
-import { TranslationService } from '../../../core/i18n/translation';
-import { LocalizationDrafts } from '../../../core/localization-drafts';
-import { AdminLanguage, TranslationGrid, TranslationKeyRow } from '../../../core/models';
+import { en } from '../../../core/i18n/en';
+import { provideTranslations } from '../../../core/i18n/translations.config';
 import { TranslationsPage } from './translations-page';
 
-const ENGLISH: AdminLanguage = { code: 'en', name: 'English', native_name: 'English', enabled: true, sort_order: 1, seeded: true, strings: 5 };
-const SLOVAK: AdminLanguage = { code: 'sk', name: 'Slovak', native_name: 'Slovenčina', enabled: true, sort_order: 2, seeded: true, strings: 4 };
+/** The grid as this site's server answers it (anotoki/lib's routes: snake_case). */
+const GRID: TranslationGrid = {
+  languages: [
+    {
+      code: 'en',
+      name: 'English',
+      native_name: 'English',
+      enabled: true,
+      sort_order: 1,
+      seeded: true,
+      strings: 2,
+    },
+    {
+      code: 'sk',
+      name: 'Slovak',
+      native_name: 'Slovenčina',
+      enabled: true,
+      sort_order: 2,
+      seeded: true,
+      strings: 1,
+    },
+  ],
+  keys: [
+    {
+      name: 'title.builds',
+      description: "The browser tab's title on the list of builds.",
+      values: { en: 'Builds', sk: 'Buildy' },
+    },
+    {
+      name: 'topbar.import',
+      description: 'The top bar: the link to the import guide.',
+      values: { en: 'Import' },
+    },
+  ],
+};
 
-const key = (name: string, values: Record<string, string>, description = ''): TranslationKeyRow => ({ name, description, values });
-
-/** As the API sends it: the keys by name, so a family's forms come few, one, other. */
-function grid(changes: Record<string, Record<string, string>> = {}): TranslationGrid {
-  const keys = [
-    key('common.close', { en: 'Close', sk: 'Zavrieť' }, 'A button that closes what is open.'),
-    key('dashboard.accounts.few', { en: '{count} accounts', sk: '{count} účty' }),
-    key('dashboard.accounts.one', { en: '{count} account', sk: '1 účet' }),
-    key('dashboard.accounts.other', { en: '{count} accounts', sk: '{count} účtov' }),
-    key('dashboard.title', { en: 'Your accounts' }, 'The dashboard: its heading.'),
-  ];
-  return { languages: [ENGLISH, SLOVAK], keys: keys.map((row) => ({ ...row, values: { ...row.values, ...changes[row.name] } })) };
+/** jsdom has <dialog> but neither showModal() nor close(): enough of both for the page's own questions. */
+function dialogsThatOpen(): void {
+  const dialogs = HTMLDialogElement.prototype;
+  if (typeof dialogs.showModal !== 'function') {
+    dialogs.showModal = function (this: HTMLDialogElement): void {
+      this.setAttribute('open', '');
+    };
+    dialogs.close = function (this: HTMLDialogElement): void {
+      if (this.hasAttribute('open')) {
+        this.removeAttribute('open');
+        this.dispatchEvent(new Event('close'));
+      }
+    };
+  }
 }
 
-function refusal(status: number, body: Record<string, unknown>): Observable<never> {
-  return throwError(() => new HttpErrorResponse({ status, error: body }));
-}
+/** An element's words, its white space folded. */
+const words = (element: Element | null | undefined) =>
+  element?.textContent?.replace(/\s+/g, ' ').trim() ?? null;
 
-describe('TranslationsPage', () => {
+describe("/admin/translations: the family's Translations page in the admin panel (EDITOR and ADMIN)", () => {
+  const roles = signal<string[]>(['EDITOR']);
+  const auth = {
+    user: () => ({ sub: '7', locale: null }),
+    preferences: () => null,
+    isStaff: () => roles().includes('EDITOR') || roles().includes('ADMIN'),
+    isAdmin: () => roles().includes('ADMIN'),
+    savePreferences: vi.fn(),
+  };
+  let http: HttpTestingController;
   let fixture: ComponentFixture<TranslationsPage>;
   let host: HTMLElement;
-  let api: Record<'translationGrid' | 'saveTranslations' | 'exportTranslations' | 'importTranslations', ReturnType<typeof vi.fn>>;
-  let reload: ReturnType<typeof vi.fn>;
-  let snackBar: { open: ReturnType<typeof vi.fn> };
-
-  const clean = (text: string | null | undefined) => (text ?? '').replace(/\s+/g, ' ').trim();
-  const text = (selector: string, within: ParentNode = host) => clean(within.querySelector(selector)?.textContent);
-  const parts = (selector: string) => Array.from(host.querySelectorAll(selector)).map((element) => clean(element.textContent));
-  const row = (name: string) => host.querySelector<HTMLElement>(`[id="key-${name}"]`)!;
-  const box = (name: string, code: string) => row(name).querySelector<HTMLTextAreaElement>(`textarea[lang="${code}"]`)!;
-  const button = (label: string) => Array.from(host.querySelectorAll<HTMLButtonElement>('button')).find((candidate) => clean(candidate.textContent).endsWith(label))!;
-  const overlay = () => document.querySelector<HTMLElement>('.cdk-overlay-container');
-  const dialog = () => overlay()?.querySelector<HTMLElement>('mat-dialog-container') ?? null;
 
   async function settle(): Promise<void> {
-    for (let i = 0; i < 3; i++) {
+    for (let i = 0; i < 4; i++) {
       await new Promise((done) => setTimeout(done));
       await fixture.whenStable();
     }
   }
 
-  async function type(element: HTMLTextAreaElement, value: string): Promise<void> {
-    element.value = value;
-    element.dispatchEvent(new Event('input', { bubbles: true }));
-    await settle();
-  }
-
-  /** Answers the question that is open, and says what it asked. */
-  async function answer(yes: boolean): Promise<string> {
-    const open = dialog();
-    const title = clean(open?.querySelector('h2')?.textContent);
-    open!.querySelectorAll<HTMLButtonElement>('mat-dialog-actions button')[yes ? 1 : 0].click();
-    await settle();
-    return title;
-  }
-
-  async function page(answerWith: Observable<TranslationGrid> = of(grid())): Promise<void> {
-    api = {
-      translationGrid: vi.fn(() => answerWith),
-      saveTranslations: vi.fn(),
-      exportTranslations: vi.fn(),
-      importTranslations: vi.fn(),
-    };
-    reload = vi.fn(async () => undefined);
-    snackBar = { open: vi.fn() };
+  async function draw(): Promise<void> {
     TestBed.configureTestingModule({
       providers: [
+        provideHttpClient(),
+        provideHttpClientTesting(),
         provideRouter([]),
-        { provide: Api, useValue: api },
-        { provide: AuthService, useValue: { user: signal({ sub: '7', locale: null }), isAdmin: signal(true) } },
-        { provide: TranslationService, useValue: { reload } },
-        { provide: MatSnackBar, useValue: snackBar },
-        { provide: MATERIAL_ANIMATIONS, useValue: { animationsDisabled: true } },
+        provideTestTranslations(en),
+        provideTranslations(),
+        { provide: AuthService, useValue: auth },
       ],
     });
+    http = TestBed.inject(HttpTestingController);
     fixture = TestBed.createComponent(TranslationsPage);
     host = fixture.nativeElement;
+    document.body.appendChild(host);
     await settle();
   }
 
-  beforeEach(() => sessionStorage.clear());
+  beforeEach(() => {
+    dialogsThatOpen();
+    sessionStorage.clear();
+    roles.set(['EDITOR']);
+  });
 
   afterEach(() => {
-    vi.restoreAllMocks();
-    overlay()?.replaceChildren();
-    sessionStorage.clear();
+    http.verify();
+    host?.remove();
+    fixture?.destroy();
   });
 
-  it('is English, shows a row for every key with a box for every language, and holds a plural family together', async () => {
-    await page();
-
-    expect(host.querySelector('.page')?.getAttribute('lang')).toBe('en');
-    expect(text('h1')).toBe('Translations');
-    expect(Array.from(host.querySelectorAll('.key-name')).map((element) => clean(element.textContent))).toEqual([
-      'common.close',
-      'dashboard.accounts.one',
-      'dashboard.accounts.few',
-      'dashboard.accounts.other',
-      'dashboard.title',
-    ]);
-    expect(box('common.close', 'sk').value).toBe('Zavrieť');
-    expect(box('dashboard.title', 'sk').value).toBe('');
-    expect(box('dashboard.title', 'sk').placeholder).toBe('Falls back to English');
-    expect(parts('.sample[lang="sk"] li')).toEqual(['1 účet', '3 účty', '12 účtov']);
-  });
-
-  it('saves with one button only the boxes that changed, marks them until then, and takes the grid the server answers', async () => {
-    await page();
-    await type(box('dashboard.title', 'sk'), 'Tvoje účty');
-    await type(box('common.close', 'en'), 'Close');
-
-    expect(text('.save-state')).toBe('1 string changed, not saved yet');
-    expect(text('.mark', row('dashboard.title'))).toBe('Changed');
-
-    api.saveTranslations.mockReturnValue(of(grid({ 'dashboard.title': { sk: 'Tvoje účty' } })));
-    button('Save').click();
+  it("draws the library's page in the admin panel's frame, with this site's words of what it is - for an editor", async () => {
+    await draw();
+    http.expectOne({ method: 'GET', url: '/api/admin/translations' }).flush(GRID);
     await settle();
 
-    expect(api.saveTranslations).toHaveBeenCalledWith({ 'dashboard.title': { sk: 'Tvoje účty' } });
-    expect(text('.save-state')).toBe('Everything is saved');
-    expect(row('dashboard.title').querySelector('.mark')).toBeNull();
-    expect(box('dashboard.title', 'sk').value).toBe('Tvoje účty');
-    expect(snackBar.open).toHaveBeenCalledWith('The string is saved.', undefined, { duration: 4000 });
-    expect(reload).toHaveBeenCalledTimes(1);
-  });
-
-  it("shows the server's refusal beside the key it is about, and keeps what was typed", async () => {
-    await page();
-    await type(box('dashboard.title', 'sk'), 'Tvoje {accounts}');
-    api.saveTranslations.mockReturnValue(
-      refusal(422, { message: 'The Slovak string of "dashboard.title" has {accounts}, which the English does not have.', code: 'unknown_placeholder', key: 'dashboard.title', language: 'sk' }),
+    expect(host.querySelector('.page > anotoki-translations-page')).not.toBeNull();
+    expect(words(host.querySelector('h1'))).toBe('Translations');
+    expect(words(host.querySelector('anotoki-page-header'))).toContain(
+      "Game terms and values are the games' own and are not here.",
     );
-
-    button('Save').click();
-    await settle();
-
-    expect(text('.refused > span', row('dashboard.title'))).toBe('Nothing was saved. The Slovak string of "dashboard.title" has {accounts}, which the English does not have.');
-    expect(box('dashboard.title', 'sk').getAttribute('aria-invalid')).toBe('true');
-    expect(box('dashboard.title', 'sk').value).toBe('Tvoje {accounts}');
-    expect(text('.save-state .refused > span')).toBe('Nothing was saved: see dashboard.title');
-    expect(reload).not.toHaveBeenCalled();
-
-    // Changing the box is the answer to it.
-    await type(box('dashboard.title', 'sk'), 'Tvoje účty');
-    expect(row('dashboard.title').querySelector('.refused')).toBeNull();
+    expect(host.querySelector('textarea[aria-label="Slovak: topbar.import"]')).not.toBeNull();
   });
 
-  it('shows a string that names another site beside its key, in the server\'s words', async () => {
-    await page();
-    await type(box('common.close', 'sk'), 'Zavrieť (pozri example.com)');
-    api.saveTranslations.mockReturnValue(
-      refusal(422, {
-        message: 'The Slovak string of "common.close" names another site (a web address). Strings name no other site.',
-        code: 'names_another_site',
-        key: 'common.close',
-        language: 'sk',
-        found: ['a web address'],
-      }),
-    );
-
-    button('Save').click();
-    await settle();
-
-    expect(text('.refused > span', row('common.close'))).toBe('Nothing was saved. The Slovak string of "common.close" names another site (a web address). Strings name no other site.');
-    expect(box('common.close', 'sk').getAttribute('aria-invalid')).toBe('true');
-    expect(box('common.close', 'en').getAttribute('aria-invalid')).toBeNull();
+  it('asks the server nothing for somebody this site does not let reword its strings', async () => {
+    roles.set(['MEMBER']);
+    await draw();
+    expect(words(host)).toBe('The translations are for the people the site lets change its words.');
   });
 
-  it('says in the save bar a save that failed for no key, and takes it away at the next keystroke', async () => {
-    await page();
-    await type(box('dashboard.title', 'sk'), 'Tvoje účty');
-    api.saveTranslations.mockReturnValue(refusal(0, {}));
-
-    button('Save').click();
+  it("leaves at once with nothing typed, and asks first with something typed and not saved - the library's page answers for it", async () => {
+    await draw();
+    http.expectOne({ method: 'GET', url: '/api/admin/translations' }).flush(GRID);
     await settle();
-
-    expect(text('.save-state .refused > span')).toBe('Nothing was saved. Cannot reach the server. Check your connection and try again.');
-    expect(host.querySelector('.key .refused')).toBeNull();
-
-    await type(box('dashboard.title', 'sk'), 'Tvoje účty!');
-    expect(text('.save-state')).toBe('1 string changed, not saved yet');
-  });
-
-  it('keeps what is typed while a save is on its way - even the old text typed back', async () => {
-    await page();
-    await type(box('dashboard.title', 'sk'), 'Tvoje účty');
-    await type(box('common.close', 'en'), 'Shut');
-    const answerLater = new Subject<TranslationGrid>();
-    api.saveTranslations.mockReturnValue(answerLater);
-
-    button('Save').click();
-    await settle();
-    // While it is out: the title typed on, and "Close" typed back over "Shut".
-    await type(box('dashboard.title', 'sk'), 'Tvoje účty!');
-    await type(box('common.close', 'en'), 'Close');
-
-    answerLater.next(grid({ 'dashboard.title': { sk: 'Tvoje účty' }, 'common.close': { en: 'Shut' } }));
-    answerLater.complete();
-    await settle();
-
-    expect(TestBed.inject(LocalizationDrafts).strings()).toEqual({ 'dashboard.title': { sk: 'Tvoje účty!' }, 'common.close': { en: 'Close' } });
-    expect(box('dashboard.title', 'sk').value).toBe('Tvoje účty!');
-    expect(box('common.close', 'en').value).toBe('Close');
-    expect(text('.save-state')).toBe('2 strings changed, not saved yet');
-  });
-
-  it('asks before it is left with changes not saved, and not otherwise - and "Leave" gives them up', async () => {
-    await page();
     expect(fixture.componentInstance.canLeave()).toBe(true);
 
-    await type(box('dashboard.title', 'sk'), 'Tvoje účty');
-    let left: boolean | undefined;
-    void Promise.resolve(fixture.componentInstance.canLeave()).then((answer) => (left = answer));
-    await settle();
-    expect(await answer(false)).toBe('Leave without saving?');
-    expect(left).toBe(false);
-    expect(TestBed.inject(LocalizationDrafts).count()).toBe(1);
-
-    void Promise.resolve(fixture.componentInstance.canLeave()).then((answer) => (left = answer));
-    await settle();
-    await answer(true);
-    expect(left).toBe(true);
-    expect(TestBed.inject(LocalizationDrafts).count()).toBe(0);
-  });
-
-  it('says to apply the waiting database update first while the strings are not in the database', async () => {
-    await page(refusal(503, { message: 'The site\'s words are not in the database yet.', code: 'translations_unavailable' }));
-
-    expect(parts('.load-error-text > *').join(' ')).toBe('The translations could not be loaded. An admin applies the waiting database update on the Migrations page first.');
-    expect(host.querySelector('.load-error a')?.getAttribute('href')).toBe('/admin/migrations');
-  });
-
-  it('exports a language as the file the server makes, by the name it gives', async () => {
-    await page();
-    const saved = vi.spyOn(URL, 'createObjectURL').mockReturnValue('blob:file');
-    vi.spyOn(URL, 'revokeObjectURL').mockImplementation(() => undefined);
-    const clicked = vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => undefined);
-    const file = new Blob(['{\n    "common.close": "Zavrieť"\n}\n'], { type: 'application/json' });
-    api.exportTranslations.mockReturnValue(
-      of(new HttpResponse({ body: file, headers: new HttpHeaders({ 'Content-Disposition': 'attachment; filename="translations-sk.json"' }) })),
-    );
-
-    button('Export').parentElement!.querySelectorAll('button')[0].click();
+    const box = host.querySelector<HTMLTextAreaElement>(
+      'textarea[aria-label="Slovak: topbar.import"]',
+    )!;
+    box.value = 'Import';
+    box.dispatchEvent(new Event('input', { bubbles: true }));
     await settle();
 
-    expect(api.exportTranslations).toHaveBeenCalledWith('en');
-    expect(saved).toHaveBeenCalledWith(file);
-    expect(clicked).toHaveBeenCalled();
-    expect(snackBar.open).toHaveBeenCalledWith('1 string of English is downloaded.', undefined, { duration: 4000 });
+    const leaving = fixture.componentInstance.canLeave();
+    expect(leaving).toBeInstanceOf(Promise);
+    await settle();
+    expect(words(document.querySelector('[data-question] h2'))).toBe('Leave without saving?');
+    document.querySelector<HTMLButtonElement>('[data-question-no]')!.click();
+    expect(await leaving).toBe(false);
   });
 });

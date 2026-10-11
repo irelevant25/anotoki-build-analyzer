@@ -1,11 +1,11 @@
-import { Component, effect, inject, untracked } from '@angular/core';
+import { Component, Injector, effect, inject, untracked } from '@angular/core';
 import { MatSnackBar } from '@angular/material/snack-bar';
 import { RouterOutlet } from '@angular/router';
 import { SiteGateComponent, SitePagesDirective, SiteStatus } from '@anotoki/lib/migrations';
 import { AuthService } from './core/auth';
 import { Changelog } from './core/changelog';
 import { TranslationService } from './core/i18n/translation';
-import { LocalizationDrafts } from './core/localization-drafts';
+import { localizationDrafts } from './core/localization-drafts';
 import { ThemeService } from './core/theme';
 import { VisitorKey } from './core/visitor-key';
 
@@ -38,14 +38,13 @@ export class App {
   private readonly visitor = inject(VisitorKey);
   /** The theme - the account's while somebody is signed in, else this device's - on <html> before anything is drawn. */
   private readonly theme = inject(ThemeService);
-  /**
-   * What the owner typed on the Translations and Languages pages and did not save: made here, after the
-   * sign-in has settled, so drafts a page load brought back are asked about before the tab closes even
-   * before either page is opened again.
-   */
-  private readonly drafts = inject(LocalizationDrafts);
-
   constructor() {
+    // What an editor typed on the Translations and Languages pages and did not save, brought back by a page
+    // load: made now - after the sign-in has settled, so whose they are is known - and so asked about before the
+    // tab closes, even before either page is opened again. The library keeps them with those pages, in an
+    // entry point of their own: it is loaded only when this tab holds some (core/localization-drafts.ts).
+    void localizationDrafts(inject(Injector));
+
     // What is new since this browser last looked - for somebody who has used the site before (signed in, or
     // holding a visitor key), while the site is there to use; a first visit is never interrupted. The dialog is
     // the shell's, outside the gate, so the gate does not keep it away: it would stand over the gate's page.

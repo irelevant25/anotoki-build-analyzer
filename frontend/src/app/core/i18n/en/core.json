@@ -3,8 +3,6 @@
   "theme.system": "System",
   "theme.light": "Light",
   "theme.dark": "Dark",
-  "language.button": "Language: {name} ({code})",
-  "language.notLoaded": "The language could not be loaded. Try again.",
 
   "title.import": "Import account",
   "title.account": "Account",

@@ -2,9 +2,9 @@ import { computed, signal } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
 import { MatSnackBar } from '@angular/material/snack-bar';
 import { ANOTOKI_MIGRATIONS_CONFIG, AnotokiMigrationsConfig } from '@anotoki/lib/migrations';
+import { provideTestTranslations } from '@anotoki/lib/translations/testing';
 import { AuthService } from './auth';
 import { AnotokiPreferences, AnotokiUser } from './iam/anotoki-auth';
-import { provideTestTranslations } from './i18n/testing';
 import { TranslationService } from './i18n/translation';
 import { appliedAt, provideSiteStatus } from './site-status';
 

@@ -26,7 +26,7 @@ import { AuthService } from '../../core/auth';
 import { TranslationKey } from '../../core/i18n/en';
 import { TranslatePipe } from '../../core/i18n/translate';
 import { TranslationService } from '../../core/i18n/translation';
-import { LocalizationDrafts } from '../../core/localization-drafts';
+import { localizationDrafts } from '../../core/localization-drafts';
 import { signInOrSayWhy } from '../../core/sign-in';
 import { SyncDriver } from '../../core/sync-driver';
 import { Brand } from '../../shared/brand/brand';
@@ -137,7 +137,6 @@ export class TopBar {
   protected readonly i18n = inject(TranslationService);
   protected readonly sync = inject(SyncDriver);
   private readonly router = inject(Router);
-  private readonly drafts = inject(LocalizationDrafts);
   private readonly dialog = inject(MatDialog);
   private readonly snackBar = inject(MatSnackBar);
   private readonly host = inject<ElementRef<HTMLElement>>(ElementRef);
@@ -286,11 +285,13 @@ export class TopBar {
    * Signs out everywhere (the IAM ends its session). What is typed on the Translations and Languages pages
    * and not saved is asked about first, in one question in the language on the page: a sign-out asked for
    * here gives it up (the next person at this browser starts clean), where a session that ends by itself
-   * keeps it for the person's return (LocalizationDrafts).
+   * keeps it for the person's return (the library's LocalizationDrafts, reached only when this tab holds some:
+   * core/localization-drafts.ts).
    */
   protected async signOut(): Promise<void> {
     this.signingOut.set(true);
-    if (this.drafts.count() > 0) {
+    const drafts = await localizationDrafts(this.injector);
+    if (drafts && drafts.count() > 0) {
       this.closeMenu(false);
       // Finished sentences when asked; a question is not worded again.
       const sure = await askConfirm(this.dialog, {
@@ -304,7 +305,7 @@ export class TopBar {
         this.signingOut.set(false);
         return;
       }
-      this.drafts.clear();
+      drafts.clear();
     }
     await this.auth.logout();
   }

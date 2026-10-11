@@ -5,7 +5,6 @@ import { AuthService } from './auth';
 import {
   AccountDetail,
   AccountSummary,
-  AdminLanguage,
   BuildCharacter,
   BuildImportResult,
   CharacterAnalysis,
@@ -13,9 +12,7 @@ import {
   DataImportResult,
   GameKey,
   ImportRun,
-  LanguageChanges,
   Meta,
-  NewLanguage,
   PeopleList,
   PersonDeleted,
   SourceStatus,
@@ -23,9 +20,6 @@ import {
   SyncStartResult,
   SyncStatus,
   SyncStepResult,
-  TranslationBundle,
-  TranslationChanges,
-  TranslationGrid,
   VisitorMove,
 } from './models';
 
@@ -84,53 +78,6 @@ export class Api {
 
   meta(): Observable<Meta> {
     return this.http.get<Meta>(`${this.base}/meta`, { context: this.asCaller() });
-  }
-
-  /**
-   * The site's own words in one language (core/i18n). Public: authInterceptor sends it without a token.
-   * Only ever asked with a code that has the shape of one.
-   */
-  translations(code: string): Observable<TranslationBundle> {
-    return this.http.get<TranslationBundle>(`${this.base}/translations/${encodeURIComponent(code)}`);
-  }
-
-  // The owner's two pages, Languages and Translations (admins only; 503 translations_unavailable while
-  // the database update that brings the tables waits on the Migrations page).
-
-  languages(): Observable<{ languages: AdminLanguage[] }> {
-    return this.http.get<{ languages: AdminLanguage[] }>(`${this.base}/admin/languages`, { context: this.asPerson() });
-  }
-
-  createLanguage(language: NewLanguage): Observable<{ language: AdminLanguage }> {
-    return this.http.post<{ language: AdminLanguage }>(`${this.base}/admin/languages`, language, { context: this.asPerson() });
-  }
-
-  updateLanguage(code: string, changes: LanguageChanges): Observable<{ language: AdminLanguage }> {
-    return this.http.put<{ language: AdminLanguage }>(`${this.base}/admin/languages/${encodeURIComponent(code)}`, changes, { context: this.asPerson() });
-  }
-
-  /** Answers how many strings went with the language. */
-  deleteLanguage(code: string): Observable<{ strings: number }> {
-    return this.http.delete<{ strings: number }>(`${this.base}/admin/languages/${encodeURIComponent(code)}`, { context: this.asPerson() });
-  }
-
-  translationGrid(): Observable<TranslationGrid> {
-    return this.http.get<TranslationGrid>(`${this.base}/admin/translations`, { context: this.asPerson() });
-  }
-
-  /** Only the changed cells; checked whole by the server, all or nothing. Answers the grid as it is now. */
-  saveTranslations(values: TranslationChanges): Observable<TranslationGrid> {
-    return this.http.put<TranslationGrid>(`${this.base}/admin/translations`, { values }, { context: this.asPerson() });
-  }
-
-  /** A language's own strings as a file to save, its name in Content-Disposition (fetched: the API wants the token). */
-  exportTranslations(code: string): Observable<HttpResponse<Blob>> {
-    return this.http.get(`${this.base}/admin/translations/${encodeURIComponent(code)}/export`, { observe: 'response', responseType: 'blob', context: this.asPerson() });
-  }
-
-  /** A flat {key: text} into one language, checked like a save. Answers the grid as it is now. */
-  importTranslations(code: string, values: Record<string, string>): Observable<TranslationGrid> {
-    return this.http.put<TranslationGrid>(`${this.base}/admin/translations/${encodeURIComponent(code)}/import`, values, { context: this.asPerson() });
   }
 
   accounts(): Observable<AccountSummary[]> {

@@ -50,7 +50,7 @@ Correctness first:
   renaming / switching / deleting a language, People) and, for the Migrations page's routes, `requireTokenRole(Role::ADMIN)`
   (the same answers from the token alone: they answer while an update waits); `auth.test.php`'s route lists name every one.
   The site gate (anotoki-lib's, `api/middleware/site_gate.php`) answers every path 503 `not_set_up` /
-  `update_pending` but its open paths (`SITE_OPEN_PATHS`: meta, a language's strings, the Migrations page's three
+  `update_pending` but its open paths (`siteOpenPaths()`: meta, a language's strings - `TranslationsRoutes::openPath()` -, the Migrations page's three
   routes - each a route exactly, never a prefix: the gate does not resolve `..`, `%2e%2e` or `%2F`, and neither
   does the router): a route opened there must answer on a database without the waiting migration's tables.
   Visitors (`src/Auth/Visitors.php`): only `requireOwner()` reads `X-Visitor-Key` (a visitor never passes
@@ -81,7 +81,8 @@ Correctness first:
   API keys `{game}-{n}`; text from elsewhere goes through `Neutral::text()`; icons go through `/api/icons/…`.
   Game names are fine. The command line and `docs/` may name sites. That covers every string a migration
   seeds or the owner edits: run `cd backend && php tests/translation_catalogue.test.php`, which puts each
-  seeded string (every language) through `TranslationCheck` - no other site's name, no web address.
+  seeded string (every language) through `SiteTranslations::namesAnotherSite()` - no other site's name, no web
+  address - the check the library asks last of every save, import and language name.
 - The site's words (`docs/architecture.md`, "The site's words"):
   - A member page shows keys worded in a template (`translate` / `translatePlural`) or a `computed()`; no
     sentence written into a template or a component, and **state holds keys, kinds and errors** - never a
@@ -90,12 +91,20 @@ Correctness first:
   - A new string is its key and English in `core/i18n/en/*.json` plus a **new** migration (never 003 once it
     ran) with the key, a description, the English and informal Slovak ("ty"); a new recommendation or import
     kind also has its row in `KINDS` / `ImportKinds`, its tail in `dynamic-keys.ts` and its row in
-    `recommendation-words.ts` / `import-words.ts`.
+    `recommendation-words.ts` / `import-words.ts`. Never a key under `anotoki.` (the library's, with its own
+    migrations), and a gate's running total counts `name NOT LIKE 'anotoki.%'` only.
+  - The strings' machinery is anotoki-lib's (`Anotoki\Lib\Translations`, `@anotoki/lib/translations`): the
+    site's part is `SiteTranslations` (released languages, `extraCheck`, the key scan), the rights on the route
+    groups in `api/routes/translations.php` (`STAFF` the strings, `ADMIN` the languages), the typed view in
+    `core/i18n/translation.ts` and `provideTranslations()`; a change the library needs is made there and
+    released, never patched here. Kit pieces come from their own entry points, never the `@anotoki/lib/ui`
+    barrel (the first load).
   - **No Slovak word agrees with a game term**: game terms and values (stat, slot, talent, set, weapon,
     character names, "Lv.", "4pc", UID, grades, "62.4%", "R1") stay English and reach the sentence as a
     `{placeholder}` or before a colon - never declined, never a key, never a row (`core/game-terms.ts`,
     `shared/build-terms.ts`).
-  - The Sources, Translations and Languages pages stay English (their code untouched); a member never sees
+  - The Sources, Translations and Languages pages stay English (Translations and Languages are the library's,
+    in the admin panel's frame); a member never sees
     the server's English sentence except a stored row without a known kind, marked `lang="en"`.
 - Database: queries are parameterised (`Db` helpers with `?`), identifiers only from literals; schema changes
   are new files in `backend/migrations/` (an applied one is never edited), data-changing migrations end with a

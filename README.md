@@ -171,7 +171,8 @@ backend/
   src/Services/         Catalog/ (game catalog, name resolution), Import/ (showcase + file parsers,
                         AccountImporter, ImportKinds), Builds/ (BuildSync, the scrapers, page-data parsers), Sync/
                         (SyncRunner: runs worked through in steps), Analysis/ (scores, recommendations),
-                        Translations/ (the checks and the editing of the site's words)
+                        Translations/ (the site's words on anotoki-lib's translations module: its released
+                        languages, its check that nothing names another site)
   config/               app.php (committed) and *.local.php (per installation, written by setup.php)
   migrations/           the schema and the site's words, as SQL files applied in order
   tests/                php tests/run.php: throwaway PostgreSQL databases, fixtures, a fake network;
@@ -180,13 +181,15 @@ backend/
   setup.php, router.php, migration.php, sync-builds.php, sync-catalog.php, import-account.php, translations.php
 frontend/src/app/
   core/                 API client, models, metadata store, changelog, sign-in (iam/ = the IAM's browser SDK), the
-                        visitor key, sync driver, i18n/ (the site's words: service, pipes, the compiled English), game
+                        visitor key, sync driver, i18n/ (the site's words on anotoki-lib's service: typed keys,
+                        pipes, the compiled English), game
                         terms, site-status (anotoki-lib's site gate and Migrations page, wired to this site)
   layouts/              admin-layout (the admin panel's frame)
   shared/               build detail, item card, grade badge, changelog dialog, confirm dialog, the visitor notice,
                         the ways in for somebody new, the "Your data" card, ...
   pages/                dashboard, import wizard, account, character analysis, builds, sign-in;
-                        admin/ (sources, translations, languages, people, migrations)
+                        admin/ (sources, translations, languages, people, migrations - translations,
+                        languages and migrations are anotoki-lib's pages)
 frontend/public/        changelog.json, favicon
 docs/                   knowledge base (start at docs/README.md)
 .claude/                project skills and agents for AI-assisted work

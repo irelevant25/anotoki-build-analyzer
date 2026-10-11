@@ -41,8 +41,8 @@ these steps (configuration keys, sign-in and roles, syncs, troubleshooting) is [
    cd ../frontend && bun ci
    ```
 
-   Both bring the anotoki family's shared library, **anotoki-lib** (the migration engine, the site gate and the
-   Migrations page; see "The shared library" below), from GitHub: Composer `anotoki/lib` from the repository
+   Both bring the anotoki family's shared library, **anotoki-lib** (the migration engine, the site gate, the
+   Migrations page and the translations module; see "The shared library" below), from GitHub: Composer `anotoki/lib` from the repository
    `irelevant25/anotoki-lib`, the frontend `@anotoki/lib` from that repository's release tarball.
 
 2. Start the two servers, each in its own terminal:
@@ -107,7 +107,8 @@ longer read and can be deleted.
   closed** (the site gate): everybody but the ADMIN on the Migrations page reads "The site is being updated" -
   on this computer too, so after pulling a new migration run `php migration.php` (or Apply on the page).
 - **API changes**: the shapes live in `backend/src/Presenters/` and are mirrored in
-  `frontend/src/app/core/models.ts`; change both together.
+  `frontend/src/app/core/models.ts`; change both together. The strings' routes are the library's: their
+  shapes come with it, in both halves.
 - **Nothing names another site** in the UI or in what the API sends to be shown: build sources are "Source 1",
   "Source 2" …, the showcase service and the tools are described, never named. See
   [docs/architecture.md](docs/architecture.md) ("Neutral names").
@@ -128,19 +129,36 @@ longer read and can be deleted.
 
 What the anotoki sites share lives in one library, [irelevant25/anotoki-lib](https://github.com/irelevant25/anotoki-lib),
 in two halves with one version: the Composer package `anotoki/lib` (`backend/composer.json`: a `vcs` repository
-entry and `"anotoki/lib": "^0.1"`; installed into `backend/vendor/`, which the upload carries) and the npm
-package `@anotoki/lib` (`frontend/package.json`: the release's tarball). The frontend has 0.2.0 and the backend
-0.1.0 (0.1.1 and 0.2.0 changed only the Angular half); they hold the migrations module, one behaviour for every
-anotoki site while its database is not ready:
+entry and `"anotoki/lib": "^0.3"`; installed into `backend/vendor/`, which the upload carries) and the npm
+package `@anotoki/lib` (`frontend/package.json`: the release's tarball). Both halves are 0.3.0. They hold the
+migrations module, one behaviour for every anotoki site while its database is not ready:
 
 - the engine (`Anotoki\Lib\Migrations\Migrator`), on this site's files and bookkeeping table through
-  `backend/src/Db/Migrations.php` - `migration.php`, `setup.php`, the Migrations page and the tests;
+  `backend/src/Db/Migrations.php` - `migration.php`, `setup.php`, the Migrations page and the tests; it runs
+  this site's set (`build_analyzer`) and then the library's own (`anotoki_translations`: its tables' check and
+  its words), each file named with its set;
 - the site gate in front of every API route (`SiteState`, `SiteGate`: `backend/api/middleware/site_gate.php`),
   `GET /api/site-status`, and the Migrations page's API (`MigrationsRoutes`: `backend/api/routes/admin.php`);
 - in the frontend, the gate with its page - the router outlet given to it as a marked template,
   `<ng-template anotokiSitePages>`, so the pages are made only while the site is open -, and the Migrations
   page, from its own entry point `@anotoki/lib/migrations/page` (`frontend/src/app/core/site-status.ts` wires
-  them to this site); since 0.2.0 both are drawn with the library's kit, in this site's colours (`styles.scss`).
+  them to this site);
+
+and the translations module (since this site's 0.4.0), the strings every anotoki site keeps the same way:
+
+- the server's half (`Anotoki\Lib\Translations`) on this site's three tables: the bundle a page reads, the
+  admin pages' routes, every check of a string, the command line (`php translations.php`) -
+  `backend/src/Services/Translations/SiteTranslations.php` gives it what is this site's (its released
+  languages, its check that no string names another site, how its frontend's keys are found), and
+  `backend/api/routes/translations.php` puts the routes behind this site's own rights;
+- the browser's half (`@anotoki/lib/translations`): the service, the pipes and the language switcher's state,
+  with this site's typed keys over them (`frontend/src/app/core/i18n/translation.ts`) and the English compiled
+  into the app as the fallback (`translations.config.ts`); the admin Translations and Languages pages from
+  `@anotoki/lib/translations/admin`.
+
+The status page, the Migrations page and the Translations and Languages pages are drawn with the library's
+kit (each piece from its own entry point, never the `@anotoki/lib/ui` barrel), in this site's colours
+(`styles.scss`); the rest of the site stays on Angular Material.
 
 To update it, both halves together (while its version is 0.x a minor version may break: read its
 `CHANGELOG.md` first):
@@ -260,11 +278,16 @@ and press **Apply pending** there at once. `config/*.local.php` and `storage/` s
   everybody else); then apply IAM 007. If nobody holds ADMIN here yet, apply IAM 007 right after the upload, then
   Apply. Then check in a private window that a file imports without signing in and stays after a reload. The
   whole sequence: [docs/operations.md](docs/operations.md), "Deploying".
-- **The family's site gate and Migrations page** (version 0.4.0: anotoki-lib 0.1.0 in `vendor/` and 0.1.1 in
-  the app, migration 005): upload `vendor/` with the rest (it holds `vendor/anotoki/lib`), then Apply on
+- **The family's site gate and Migrations page** (version 0.4.0: anotoki-lib in `vendor/` and in the app,
+  migration 005): upload `vendor/` with the rest (it holds `vendor/anotoki/lib`), then Apply on
   `/admin/migrations` - 005 only deletes the six words of the old "Not set up yet" page. From this version on
   every upload with a migration closes the site until it is applied, and the setup page is never offered
   again once `storage/installed.lock` is there.
+- **The site's words through the anotoki library** (version 0.4.0: anotoki-lib 0.3.0, migration 006 and the
+  library's two files): Export each language on the Translations page first, upload with `vendor/`, then one
+  Apply runs 006 (the language button's two strings move to the library's keys, every rewording kept) and the
+  library's `anotoki_translations/001` (checks this site's tables, changes nothing) and `002` (its own words,
+  never over a string that is there). [docs/operations.md](docs/operations.md), "Deploying".
 - **The IAM's sign-in switch** (IAM SDK 1.1.0): upload only once the IAM answers
   `https://iam.anotoki.eu/api/public/applications/build-analyzer` with 200 - before that the site requires
   sign-in (fail closed) and turns visitors away. [docs/operations.md](docs/operations.md), "Deploying".

@@ -1,11 +1,11 @@
 import { TestBed } from '@angular/core/testing';
+import { provideTestTranslations } from '@anotoki/lib/translations/testing';
 import { Api } from '../api';
 import { MetaStore } from '../meta-store';
 import { GameKey, KindParams } from '../models';
 import { DYNAMIC_KEYS } from './dynamic-keys';
 import { en } from './en';
 import { RECOMMENDATION_KINDS, recommendationText, setOptionText } from './recommendation-words';
-import { provideTestTranslations } from './testing';
 import { TranslationService } from './translation';
 
 /** The informal Slovak these kinds are seeded with: every game term stays as it is, first or after a colon. */
@@ -295,7 +295,7 @@ describe('recommendationText(): what a build recommends, in the reader’s words
     const { i18n, meta } = words('sk');
     const recommendation = { kind: 'talent_level', params: { talent: 'Elemental Skill', level: 6 }, message: 'Level Elemental Skill first (priority #1, currently 6).' };
     expect(recommendationText(i18n, meta, 'genshin', recommendation).text).toBe('Elemental Skill: zvýš level prednostne (priorita č. 1, teraz 6).');
-    expect(await i18n.setLanguage('en', false)).toBe(true);
+    expect(await i18n.setLanguage('en', { remember: false })).toBe(true);
     expect(recommendationText(i18n, meta, 'genshin', recommendation).text).toBe('Level Elemental Skill first (priority #1, currently 6).');
   });
 });

@@ -5,7 +5,8 @@ import { TranslationParams, TranslationService } from './translation';
 /**
  * `{{ 'buildDetail.optionAny' | translatePlural: n }}`: the form of a plural family (`.one`, `.few`,
  * `.other`) the number asks for in the language on the page, with the number as `{count}`. A third
- * argument carries more placeholders.
+ * argument carries more placeholders. This site's own pipe over the anotoki library's service, the family's
+ * name typed (en.ts): one that does not exist is a template compile error.
  *
  * A family belongs to a place in a sentence, not to a noun: each phrase is complete in its own case. A
  * sentence with two counts is a family on the number its Slovak noun follows, with the other number as a

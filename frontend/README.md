@@ -18,7 +18,14 @@ Sign-in goes through the anotoki IAM's browser SDK, vendored unchanged in `src/a
 Since 1.2.0 it also brings the account's theme, date order and clock (`AuthService.preferences()`) and saves a
 signed-in person's choices to the account (`AuthService.savePreferences()`): signed in, the theme toggle, the
 language menu and the dates follow the account, which every anotoki site shares; a visitor's stay this
-device's (`core/theme.ts`, `core/i18n/translation.ts`, `core/i18n/date-patterns.ts`).
+device's (`core/theme.ts`, `core/i18n/translations.config.ts`, `core/i18n/date-patterns.ts`).
+
+The site's words come through the family's translations module, `@anotoki/lib/translations`: its service, set
+up for this site in `core/i18n/translations.config.ts` (the storage names, the English compiled into the app as
+the fallback, the account, the admin pages' rights) and typed by this site's keys in
+`core/i18n/translation.ts` (an unknown key is a compile error); the admin Translations and Languages pages are
+the library's (`@anotoki/lib/translations/admin`, wrapped in `pages/admin/translations/` and `languages/`); specs
+use `@anotoki/lib/translations/testing`.
 
 What the site shows while it is not ready comes from the anotoki family's library, `@anotoki/lib/migrations`
 (the npm package `@anotoki/lib`, installed from its GitHub release's tarball - `package.json`; DEV.md "The shared
@@ -28,8 +35,9 @@ waiting" for the site's ADMIN, "not set up yet" -, which takes the router outlet
 its page runs; the interceptor that hears the server say so; and the admin panel's Migrations page
 (`pages/admin/migrations/`, from `@anotoki/lib/migrations/page`). `core/site-status.ts` wires them to this site
 (who is ADMIN, how to sign in, the language on the page, the account's dates), and `styles.scss` maps this
-site's colours onto the library's `--anotoki-*` properties, light and dark - both pages are drawn with the
-library's kit (0.2.0).
+site's colours onto the library's `--anotoki-*` properties, light and dark - the gate's page, Migrations,
+Translations and Languages are drawn with the library's kit (0.3.0; each piece from its own entry point, never
+the `@anotoki/lib/ui` barrel), and every other page stays on Angular Material.
 
 ```text
 src/app/
@@ -38,7 +46,8 @@ src/app/
                visitor-key.ts (somebody not signed in: the key, the move at sign-in), storage.ts, download.ts,
                meta-store.ts, changelog.ts, sync-driver.ts, theme.ts (the account's while signed in, else this
                device's), site-status.ts (the family's site gate and Migrations page, wired to this site),
-               i18n/ (the site's words; date-patterns.ts: the account's date order and clock), iam/
+               i18n/ (the site's words on @anotoki/lib/translations; date-patterns.ts: the account's date
+               order and clock), localization-drafts.ts (the sign-out question about unsaved strings), iam/
                (the vendored SDK)
   layouts/     top-bar/ (the anotoki family's bar: one row, a phone's menu up to 880 px), footer/ (version,
                What's new), app-layout/ (everybody's pages), admin-layout/ (the admin panel: staff / signed out / no role)

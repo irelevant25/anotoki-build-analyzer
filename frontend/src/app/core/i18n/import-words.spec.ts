@@ -15,7 +15,7 @@ import {
   importWarningText,
   importWarnings,
 } from './import-words';
-import { provideTestTranslations } from './testing';
+import { provideTestTranslations } from '@anotoki/lib/translations/testing';
 import { TranslationService } from './translation';
 
 /** The informal Slovak of the codes that carry something: every game term and name stays as it is. */

@@ -5,9 +5,9 @@ import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { MatSnackBar } from '@angular/material/snack-bar';
 import { provideRouter } from '@angular/router';
 import { SiteStatus, siteStatusInterceptor } from '@anotoki/lib/migrations';
+import { provideTestTranslations } from '@anotoki/lib/translations/testing';
 import { AuthService } from '../../../core/auth';
 import { AnotokiPreferences } from '../../../core/iam/anotoki-auth';
-import { provideTestTranslations } from '../../../core/i18n/testing';
 import { TranslationService } from '../../../core/i18n/translation';
 import { appliedAt, provideSiteStatus } from '../../../core/site-status';
 import { MigrationsPage } from './migrations-page';
@@ -199,10 +199,11 @@ describe("/admin/migrations: the family's Migrations page in the admin panel (AD
 
     const result = host.querySelector('[data-result]');
     expect(result?.getAttribute('role')).toBe('alert');
-    expect(words(result?.querySelector('.heading'))).toBe(
+    // The kit's class names are its own since @anotoki/lib 0.3.0: a part of a piece is anotoki-<piece>__<part>.
+    expect(words(result?.querySelector('.anotoki-alert__heading'))).toBe(
       'Stopped at 004_visitors_and_family_bar.sql',
     );
-    expect(words(result?.querySelector('.result-text'))).toBe(
+    expect(words(result?.querySelector('.anotoki-migrations-page__result-text'))).toBe(
       'Nothing was applied. The failed file was rolled back as a whole.',
     );
     expect(result?.querySelector('pre')?.textContent).toBe(error);

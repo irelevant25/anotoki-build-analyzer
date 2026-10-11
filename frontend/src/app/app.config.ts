@@ -8,6 +8,7 @@ import {
 import { MatIconRegistry } from '@angular/material/icon';
 import { TitleStrategy, provideRouter, withComponentInputBinding, withInMemoryScrolling } from '@angular/router';
 import { SiteStatus, siteStatusInterceptor } from '@anotoki/lib/migrations';
+import { provideAnotokiUi } from '@anotoki/lib/ui/config';
 
 import { routes } from './app.routes';
 import { AuthService } from './core/auth';
@@ -15,6 +16,7 @@ import { authInterceptor } from './core/auth.interceptor';
 import { Changelog } from './core/changelog';
 import { AppTitleStrategy } from './core/i18n/title-strategy';
 import { TranslationService } from './core/i18n/translation';
+import { provideTranslations } from './core/i18n/translations.config';
 import { MetaStore } from './core/meta-store';
 import { provideSiteStatus } from './core/site-status';
 import { VisitorKey } from './core/visitor-key';
@@ -26,6 +28,12 @@ export const appConfig: ApplicationConfig = {
     // siteStatusInterceptor first: it hears every answer that says the site is not set up or is being updated
     // (and the request still fails as it did), whoever the request was for.
     provideHttpClient(withFetch(), withInterceptors([siteStatusInterceptor, authInterceptor])),
+    // The site's words: the anotoki library's translations, set up for this site (core/i18n/translations.config.ts).
+    provideTranslations(),
+    // The words of the library's kit - the pieces of the site gate's page and of the Migrations, Translations and
+    // Languages pages - in the language on the page, from the database's anotoki.* strings (an editor's rewording
+    // on the Translations page reaches them), the kit's own words under them.
+    provideAnotokiUi(() => inject(TranslationService).forKit()),
     // Where the site stands, and what is shown while it is not ready (core/site-status.ts).
     provideSiteStatus(),
     // Words a route's title in the language on the page, and tells the translation service where the page is.

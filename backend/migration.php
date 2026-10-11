@@ -8,8 +8,10 @@
  *   php migration.php --dry-run    say what would be applied, and apply nothing
  *
  * The migrations are the schema: there is no separate schema file, and a database is what you get by
- * applying migrations/001 and everything after it in order. A file already recorded as applied is never run
- * again, so editing one that has been applied changes nothing where it ran - write another instead.
+ * applying migrations/001 and everything after it in order - and then the anotoki library's own files
+ * (anotoki/lib's translations set, named here as anotoki_translations/001_...: they check the tables of the
+ * site's words and add the library's words). A file already recorded as applied is never run again, so
+ * editing one that has been applied changes nothing where it ran - write another instead.
  *
  * A database made by the first (Laravel) version of the app is recognised and brought forward by
  * 001_adopt_laravel_database.sql, with every row it holds (accounts that belonged to nobody yet go to IAM
@@ -35,6 +37,9 @@ $dryRun = isset($options['dry-run']);
 $config = (array) $app->config->get('database');
 $name = (string) $config['database'];
 
+/** A file as this command names it: the site's by its name, the library's with its set in front. */
+$label = static fn (array $file): string => ($file['set'] === Migrations::SET ? '' : $file['set'].'/').$file['name'];
+
 Cli::line("== build analyzer database ({$name})");
 
 try {
@@ -46,7 +51,12 @@ try {
     $laravel = Migrations::isLaravelDatabase($pdo);
     // Reads only: nothing is created by looking.
     $status = $migrator->status();
-    $files = $migrator->files(Migrations::set());
+    $files = [];
+    foreach (Migrations::sets() as $set) {
+        foreach ($migrator->files($set) as $file) {
+            $files[] = $label(['set' => $set->name, 'name' => $file]);
+        }
+    }
 } catch (Throwable $e) {
     Cli::fail('  Cannot reach it: '.$e->getMessage());
 }
@@ -55,10 +65,10 @@ if ($laravel) {
     Cli::warn('  This database was made by the first (Laravel) version of the app; 001 brings it forward.');
 }
 foreach ($status['missing'] as $file) {
-    Cli::warn("  {$file['name']} is recorded as applied, but the file is not in migrations/.");
+    Cli::warn("  {$label($file)} is recorded as applied, but the file is not there.");
 }
 
-$pending = array_column($status['pending'], 'name');
+$pending = array_map($label, $status['pending']);
 
 if ($statusOnly) {
     foreach ($files as $file) {
@@ -94,10 +104,10 @@ if ($result['busy']) {
     exit(1);
 }
 foreach ($result['applied'] as $file) {
-    Cli::info("  {$file['name']} ... done");
+    Cli::info("  {$label($file)} ... done");
 }
 if ($result['error'] !== null) {
-    Cli::error('  '.($result['failed']['name'] ?? 'The update').' ... FAILED');
+    Cli::error('  '.($result['failed'] !== null ? $label($result['failed']) : 'The update').' ... FAILED');
     Cli::error('    '.$result['error']);
     Cli::warn('    Nothing from this file was applied. The migrations before it stand.');
     exit(1);

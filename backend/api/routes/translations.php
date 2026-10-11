@@ -1,20 +1,19 @@
 <?php
 
+use Anotoki\Lib\Support\JsonResponse;
+use Anotoki\Lib\Support\Refusal;
+use Anotoki\Lib\Translations\Http\TranslationsRoutes;
+use Anotoki\Lib\Translations\Translations;
 use App\App;
 use App\Auth\Role;
-use App\Presenters\TranslationPresenter;
-use App\Repositories\Translations;
-use App\Services\Translations\TranslationCheck;
-use App\Services\Translations\TranslationEditor;
-use App\Web\HttpError;
-use App\Web\Json;
 use Psr\Http\Message\ResponseInterface as Response;
 use Psr\Http\Message\ServerRequestInterface as Request;
-use Slim\Routing\RouteCollectorProxy;
 
 /**
- * The site's own words: the strings a page reads, and the admin pages that keep the languages and reword
- * the strings (App\Services\Translations). A {code} that is not a language code is 404 before any query.
+ * The site's own words: the strings a page reads, and the admin pages that keep the languages and reword the
+ * strings - the anotoki family's routes (anotoki/lib: TranslationsRoutes, on the library's Translations with this
+ * site's own rules, App\Services\Translations\SiteTranslations), in the family's one wire format (the IAM's:
+ * snake_case), behind this site's own checks. A {code} that is not a language code is 404 before any query.
  *
  *   GET    /api/translations/{code}               public, no token read: {language, languages: [{code, name,
  *                                                 native_name}], values, english?} - the language's strings
@@ -39,163 +38,32 @@ use Slim\Routing\RouteCollectorProxy;
  *   DELETE /api/admin/languages/{code}            -> {strings}: how many strings went with it;
  *                                                 409 fallback_language, seeded_language
  *
- * The writes take JSON only: a body of another type (a form) is 422 invalid_language on the language routes
- * and invalid_value on the string routes, as a malformed body is.
+ * The role checks are this site's (api/middleware/auth.php), on each route group: 401 sign_in_required, 403
+ * editor_only / admin_only - before anything else is looked at. Who saved a string is the token's person,
+ * never anything a body says. A refusal is this site's error body, {message, code, ...what it is about: key,
+ * language, placeholder, keys, field, found}, never kept by a cache.
  *
- * Between an upload and "Apply pending" on the Migrations page the tables are not there. The site gate then
+ * The writes take JSON and nothing else, read by the library from the request itself: another type of body -
+ * a form, which any page open in the browser can send without asking first - is 415 unsupported_media_type;
+ * more than 1 MiB is 413 too_large; nothing at all 422 empty_body (what PHP makes of a body larger than its
+ * post_max_size); a body that is not JSON 400 invalid_json.
+ *
+ * Between an upload and "Apply pending" on the Migrations page the tables may not be there. The site gate then
  * answers every route here 503 update_pending but the strings of a language (an open path: the pages need
- * their words while an update waits) - and whatever reaches a route here with the tables missing answers 503
- * translations_unavailable - never a 500, and never not_set_up - and the app reads its compiled English.
+ * their words while an update waits) - and whatever reaches a route here with the tables missing, or with no
+ * English string at all, answers 503 translations_unavailable with Retry-After: 60 - never a 500, and never
+ * not_set_up - and the app reads its compiled English.
  */
 return function (Slim\App $slim, App $app): void {
-    $unavailable = fn (): HttpError => new HttpError(
-        503,
-        'The site\'s words are not in the database yet. An admin applies the waiting database update on the Migrations page.',
-        ['code' => 'translations_unavailable'],
-        ['Retry-After' => '60'],
+    $translations = fn (): Translations => $app->get(Translations::class);
+    $error = fn (Response $response, Refusal $refusal): Response => JsonResponse::write(
+        $response,
+        $refusal->status,
+        ['message' => $refusal->message, 'code' => $refusal->code] + $refusal->extra,
     );
+    $actor = fn (Request $request): int => currentUser($request)->id;
 
-    /** The strings are there to be read and written - or the 503. */
-    $ready = function () use ($app, $unavailable): void {
-        try {
-            $available = $app->get(Translations::class)->available();
-        } catch (PDOException) {
-            $available = false;
-        }
-        if (! $available) {
-            throw $unavailable();
-        }
-    };
-
-    /** A {code} of the address: a language code, or there is no such thing - before any query. */
-    $code = function (array $args): string {
-        $code = (string) ($args['code'] ?? '');
-        if (! TranslationCheck::codeOk($code)) {
-            throw TranslationEditor::languageNotFound();
-        }
-
-        return $code;
-    };
-
-    /**
-     * Every write here takes JSON and nothing else: a body of another type - a form, which any page open in
-     * the browser can send without asking first - is refused as a malformed one is, with the route's code.
-     * A request with no Content-Type has no body to read (a DELETE, a PUT whose body PHP dropped).
-     */
-    $jsonOnly = function (Request $request, string $code): void {
-        $type = $request->getHeaderLine('Content-Type');
-        if ($type !== '' && strtolower(trim(explode(';', $type)[0])) !== 'application/json') {
-            throw TranslationCheck::invalid($code, 'Send it as JSON, with Content-Type: application/json.');
-        }
-    };
-
-    /** A save's or an import's body, measured before anything in it is looked at - and JSON. */
-    $measured = function (Request $request) use ($jsonOnly): mixed {
-        $jsonOnly($request, 'invalid_value');
-        $bytes = strlen((string) $request->getBody());
-        if ($bytes === 0) {
-            // What PHP makes of a body larger than its post_max_size: it arrives as nothing.
-            throw TranslationCheck::invalid('empty_body', 'Nothing arrived. A body larger than this server accepts arrives empty.');
-        }
-        if ($bytes > TranslationCheck::BODY_LIMIT) {
-            throw TranslationCheck::invalid('too_large', sprintf('That is more than %d MB, far more than every string of a language takes.', TranslationCheck::BODY_LIMIT / 1048576));
-        }
-
-        return $request->getParsedBody();
-    };
-
-    // No role check, on purpose: the words are the same for everybody, so a token - even one that would not
-    // check out - is not looked at, and a page whose sign-in has run out still reads in its language.
-    $slim->get('/api/translations/{code}', function (Request $request, Response $response, array $args) use ($app, $code, $ready, $unavailable): Response {
-        $language = $code($args);
-
-        try {
-            $ready();
-            $body = json_encode($app->get(TranslationPresenter::class)->bundle($language), JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR);
-        } catch (PDOException) {
-            // A database that cannot be asked must not log a failure on every page load: the app has its
-            // compiled English to read.
-            throw $unavailable();
-        }
-
-        // The strings change when somebody saves one, or with a release: the browser asks every time
-        // (no-cache) and is told "the same as you have" in a few bytes. Both headers are set before that
-        // answer, so it carries them too - without them it would go out as no-store.
-        $etag = TranslationPresenter::etag($body);
-        $response = $response->withHeader('ETag', $etag)->withHeader('Cache-Control', 'no-cache');
-        if (TranslationPresenter::notModified($request->getHeaderLine('If-None-Match'), $etag)) {
-            return $response->withStatus(304);
-        }
-        $response->getBody()->write($body);
-
-        return $response->withHeader('Content-Type', 'application/json; charset=utf-8');
-    });
-
-    // Editors (EDITOR or ADMIN): the languages as they are, and the strings - read, reworded, out and back in.
-    $slim->group('/api/admin', function (RouteCollectorProxy $group) use ($app, $code, $ready, $measured) {
-        $group->get('/languages', function (Request $request, Response $response) use ($app, $ready): Response {
-            $ready();
-
-            return Json::send($response, ['languages' => $app->get(TranslationPresenter::class)->languages()]);
-        });
-
-        $group->get('/translations', function (Request $request, Response $response) use ($app, $ready): Response {
-            $ready();
-
-            return Json::send($response, $app->get(TranslationPresenter::class)->grid());
-        });
-
-        // Who saved a string is the request's person - the token's - and nothing a body says.
-        $group->put('/translations', function (Request $request, Response $response) use ($app, $ready, $measured): Response {
-            $ready();
-            $body = $measured($request);
-            $app->get(TranslationEditor::class)->save(is_array($body) ? ($body['values'] ?? null) : null, currentUser($request)->id);
-
-            return Json::send($response, $app->get(TranslationPresenter::class)->grid());
-        });
-
-        $group->get('/translations/{code}/export', function (Request $request, Response $response, array $args) use ($app, $code, $ready): Response {
-            $language = $code($args);
-            $ready();
-            $strings = $app->get(TranslationEditor::class)->export($language);
-
-            return Json::download($response, TranslationPresenter::map($strings), "translations-{$language}.json");
-        });
-
-        $group->put('/translations/{code}/import', function (Request $request, Response $response, array $args) use ($app, $code, $ready, $measured): Response {
-            $language = $code($args);
-            $ready();
-            $app->get(TranslationEditor::class)->import($language, $measured($request), currentUser($request)->id);
-
-            return Json::send($response, $app->get(TranslationPresenter::class)->grid());
-        });
-    })->add(requireRole($app, ...Role::STAFF));
-
-    // Admins: adding, renaming, switching and deleting a language.
-    $slim->group('/api/admin', function (RouteCollectorProxy $group) use ($app, $code, $ready, $jsonOnly) {
-        $group->post('/languages', function (Request $request, Response $response) use ($app, $ready, $jsonOnly): Response {
-            $ready();
-            $jsonOnly($request, 'invalid_language');
-            $language = $app->get(TranslationEditor::class)->createLanguage($request->getParsedBody());
-
-            return Json::send($response, ['language' => TranslationPresenter::language($language)], 201);
-        });
-
-        $group->put('/languages/{code}', function (Request $request, Response $response, array $args) use ($app, $code, $ready, $jsonOnly): Response {
-            $language = $code($args);
-            $ready();
-            $jsonOnly($request, 'invalid_language');
-            $language = $app->get(TranslationEditor::class)->changeLanguage($language, $request->getParsedBody());
-
-            return Json::send($response, ['language' => TranslationPresenter::language($language)]);
-        });
-
-        $group->delete('/languages/{code}', function (Request $request, Response $response, array $args) use ($app, $code, $ready, $jsonOnly): Response {
-            $language = $code($args);
-            $ready();
-            $jsonOnly($request, 'invalid_language');
-
-            return Json::send($response, ['strings' => $app->get(TranslationEditor::class)->deleteLanguage($language)]);
-        });
-    })->add(requireRole($app, Role::ADMIN));
+    TranslationsRoutes::bundle($slim, $translations, $error);
+    TranslationsRoutes::strings($slim, '/api/admin', $translations, $actor, $error)->add(requireRole($app, ...Role::STAFF));
+    TranslationsRoutes::languages($slim, '/api/admin', $translations, $error)->add(requireRole($app, Role::ADMIN));
 };

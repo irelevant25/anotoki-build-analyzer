@@ -2,9 +2,9 @@ import { ApplicationRef } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
 import { MATERIAL_ANIMATIONS } from '@angular/material/core';
 import { MatDialog } from '@angular/material/dialog';
+import { provideTestTranslations } from '@anotoki/lib/translations/testing';
 import type { ChangelogEntry } from '../core/changelog';
 import { en } from '../core/i18n/en';
-import { provideTestTranslations } from '../core/i18n/testing';
 import { TranslationService } from '../core/i18n/translation';
 import { ChangelogDialog } from './changelog-dialog';
 

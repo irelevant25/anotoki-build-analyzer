@@ -1,7 +1,7 @@
 import { signal } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
+import { provideTestTranslations } from '@anotoki/lib/translations/testing';
 import { Changelog } from '../../core/changelog';
-import { provideTestTranslations } from '../../core/i18n/testing';
 import { TranslationService } from '../../core/i18n/translation';
 import { Footer } from './footer';
 

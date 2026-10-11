@@ -19,6 +19,7 @@ require __DIR__.'/lib.php';
 
 use Anotoki\Lib\Migrations\Migrator;
 use Anotoki\Lib\Migrations\Splitter;
+use Anotoki\Lib\Translations\Schema;
 use App\Auth\Role;
 use App\Config;
 use App\Db\Db;
@@ -29,6 +30,9 @@ use Tests\Support\Client;
 bootTests();
 
 $server = require __DIR__.'/../config/database.local.php';
+
+/** The file that moved this site's two words of the library's under the library's keys. */
+const ADOPTION_FILE = '006_strings_through_the_library.sql';
 
 /** Every column, constraint and index of the app's tables, as comparable lines. */
 function schemaOf(PDO $pdo): array
@@ -147,6 +151,38 @@ function siteFile(string $name): array
     return ['set' => Migrations::SET, 'name' => $name];
 }
 
+/**
+ * The anotoki library's own files (its translations set), in the order they apply - after every one of the
+ * site's - as the engine names them in its answers.
+ *
+ * @return list<array{set: string, name: string}>
+ */
+function libraryFiles(): array
+{
+    $files = array_map('basename', glob(Schema::directory().'/*.sql') ?: []);
+    sort($files);
+
+    return array_map(static fn (string $name): array => ['set' => Schema::SET, 'name' => $name], $files);
+}
+
+/** Every file a database is built from, as the engine names them: the site's, then the library's. */
+function everyFile(): array
+{
+    return [...array_map('siteFile', allMigrations()), ...libraryFiles()];
+}
+
+/** A file as the bookkeeping table and the command line name it: the site's by its name, the library's with its set in front. */
+function recorded(array $file): string
+{
+    return ($file['set'] === Migrations::SET ? '' : $file['set'].'/').$file['name'];
+}
+
+/** The engine's answer's files, without what else it says of them (applied_at, ready, blocked). */
+function filesOf(array $files): array
+{
+    return array_map(static fn (array $file): array => ['set' => $file['set'], 'name' => $file['name']], $files);
+}
+
 /** The bookkeeping table as a database has it: its columns and its keys. */
 function bookkeepingOf(PDO $pdo): array
 {
@@ -176,9 +212,10 @@ function migrationsFolder(string $name, array $copies, array $own = []): string
 test('a new database is built by the migrations, in the bookkeeping table this site always had', function () {
     $migrator = Migrations::migrator(db()->raw());
     $status = $migrator->status();
-    same([Migrations::SET], $status['sets'], 'one set of files');
-    same([[], [], allMigrations()], [$status['pending'], $status['missing'], array_column($status['applied'], 'name')],
-        'status: nothing pending or missing, every file applied in order');
+    same([Migrations::SET, Schema::SET], $status['sets'], 'the site\'s set of files, then the library\'s');
+    same([[], [], everyFile()], [$status['pending'], $status['missing'], filesOf($status['applied'])],
+        'status: nothing pending or missing, every file applied in order - the library\'s after the site\'s');
+    same(array_map('recorded', everyFile()), db()->column('SELECT filename FROM migrations ORDER BY id'), 'recorded: the site\'s by their names, the library\'s with their set');
     same([], $migrator->applicable(), 'nothing to apply');
     foreach ($status['applied'] as $file) {
         check(preg_match('/^\d{4}-\d\d-\d\dT\d\d:\d\d:\d\dZ$/', (string) $file['applied_at']) === 1, 'applied_at in UTC: '.$file['applied_at']);
@@ -205,7 +242,7 @@ test('a failing migration applies nothing of itself, and stops there', function 
         '003_never.sql' => 'CREATE TABLE never (id INT);',
     ]);
 
-    $result = Migrations::migrator($pdo, $dir)->apply();
+    $result = Migrations::migrator($pdo, $dir, library: false)->apply();
 
     same([siteFile('001_good.sql')], $result['applied'], 'applied');
     same(siteFile('002_bad.sql'), $result['failed'], 'failed');
@@ -241,7 +278,7 @@ test('"Apply pending" on the Migrations page that stops at a failing file: 200, 
         $status = $admin->get('/api/admin/migrations')->status(200);
         same([siteFile('900_good.sql') + ['ready' => true, 'blocked' => false], siteFile('901_bad.sql') + ['ready' => true, 'blocked' => false],
             siteFile('902_never.sql') + ['ready' => true, 'blocked' => false]], $status->json('pending'), 'pending, in the order they will run');
-        same(allMigrations(), array_column($status->json('applied'), 'name'), 'applied, in the order they were');
+        same(everyFile(), filesOf($status->json('applied')), 'applied, in the order they were - the library\'s too');
 
         $answer = $admin->post('/api/admin/migrations/apply')->status(200);
         same([[siteFile('900_good.sql')], siteFile('901_bad.sql'), null], [$answer->json('applied'), $answer->json('failed'), $answer->json('note')], 'applied before the stop, and where it stopped');
@@ -277,8 +314,8 @@ test('a second run finds nothing left to do: a data migration is never applied t
     $pdo = scratchDatabase($server, 'twice');
     $dir = migrationsFolder('twice-migrations', [], ['001_table.sql' => 'CREATE TABLE counted (n INT);', '002_data.sql' => 'INSERT INTO counted VALUES (1);']);
 
-    $first = Migrations::migrator($pdo, $dir);
-    $second = Migrations::migrator($pdo, $dir);
+    $first = Migrations::migrator($pdo, $dir, library: false);
+    $second = Migrations::migrator($pdo, $dir, library: false);
     same([siteFile('001_table.sql'), siteFile('002_data.sql')], $second->applicable(), 'both pending for both runs');
     same([siteFile('001_table.sql'), siteFile('002_data.sql')], $first->apply()['applied'], 'the first run');
 
@@ -296,7 +333,7 @@ test('one apply at a time, whoever starts it: while another holds the lock, an a
     $other = Db::pdo($server, (string) $pdo->query('SELECT current_database()')->fetchColumn(), false);
     $other->query('SELECT pg_advisory_lock('.Migrations::LOCK.')');
     try {
-        $result = Migrations::migrator($pdo, $dir)->apply();
+        $result = Migrations::migrator($pdo, $dir, library: false)->apply();
         same([true, [], null, null], [$result['busy'], $result['applied'], $result['failed'], $result['error']], 'busy, and nothing applied');
         same(false, (bool) $pdo->query("SELECT to_regclass('public.waited') IS NOT NULL")->fetchColumn(), 'nothing ran');
         same(false, (bool) $pdo->query("SELECT to_regclass('public.migrations') IS NOT NULL")->fetchColumn(), 'not even the bookkeeping table was made');
@@ -304,7 +341,7 @@ test('one apply at a time, whoever starts it: while another holds the lock, an a
         $other->query('SELECT pg_advisory_unlock('.Migrations::LOCK.')');
     }
 
-    same([siteFile('001_table.sql')], Migrations::migrator($pdo, $dir)->apply()['applied'], 'once the other run is done');
+    same([siteFile('001_table.sql')], Migrations::migrator($pdo, $dir, library: false)->apply()['applied'], 'once the other run is done');
 });
 
 test('a pooled connection gives back the lock an apply left held when its request died - or the site would stay closed', function () use ($server) {
@@ -346,7 +383,9 @@ test('the command line builds a database from nothing, says where it stands, and
 
         return [proc_close($process), str_replace("\r\n", "\n", (string) $output)];
     };
-    $files = allMigrations();
+    // The site's files by their names, then the library's with their set in front.
+    $files = array_map('recorded', everyFile());
+    check(in_array('anotoki_translations/001_languages_and_strings.sql', $files, true), 'the library\'s files among them');
 
     [$code, $output] = $run();
     same(0, $code, 'the first run: '.$output);
@@ -354,6 +393,7 @@ test('the command line builds a database from nothing, says where it stands, and
     foreach ($files as $file) {
         check(str_contains($output, "  {$file} ... done\n"), "{$file} applied: {$output}");
     }
+    check(strpos($output, '006_strings_through_the_library.sql ... done') < strpos($output, 'anotoki_translations/001_languages_and_strings.sql ... done'), 'the library\'s after the site\'s');
 
     [$code, $output] = $run('--status');
     same(0, $code, '--status: '.$output);
@@ -369,7 +409,7 @@ test('004 applies over a 003 whose strings were reworded and whose Slovak was cl
     // A database as the owner's is before 004: 001-003 applied, then the Translations grid used.
     $dir = migrationsFolder('migrations-to-003', array_values(array_filter(allMigrations(), fn (string $file): bool => strcmp($file, '004') < 0)));
     $pdo = scratchDatabase($server, 'to003');
-    $built = Migrations::migrator($pdo, $dir)->apply();
+    $built = Migrations::migrator($pdo, $dir, library: false)->apply();
     same(null, $built['error'], '001-003 applied');
     same([siteFile('003_languages_and_translations.sql')], array_slice($built['applied'], -1), 'up to 003');
 
@@ -381,7 +421,7 @@ test('004 applies over a 003 whose strings were reworded and whose Slovak was cl
 
     $result = Migrations::migrator($pdo)->apply();
     same(null, $result['error'], 'no error');
-    same(array_values(array_filter(allMigrations(), fn (string $f): bool => strcmp($f, '004') >= 0)), array_column($result['applied'], 'name'), 'applied from 004 on');
+    same([...array_map('siteFile', array_values(array_filter(allMigrations(), fn (string $f): bool => strcmp($f, '004') >= 0))), ...libraryFiles()], $result['applied'], 'applied from 004 on, and the library\'s');
 
     $value = fn (string $key, string $code): mixed => $pdo->query("SELECT value FROM translations WHERE key_name = '{$key}' AND language_code = '{$code}'")->fetchColumn();
     same(false, $value('common.signIn', 'sk'), 'the cleared Slovak string stays cleared');
@@ -389,6 +429,74 @@ test('004 applies over a 003 whose strings were reworded and whose Slovak was cl
     same(0, (int) $pdo->query("SELECT count(*) FROM translation_keys WHERE name = 'nav.dashboard'")->fetchColumn(), 'a retired key goes, reworded or not');
     same(false, $value('nav.dashboard', 'en'), 'and its strings with it');
     check($value('topbar.dashboard', 'sk') !== false, 'the new keys read in Slovak');
+});
+
+test('006 moves the two words of the library\'s under its keys with every rewording, writer and time - on a database as its owner left it', function () use ($server) {
+    // A database as the owner's is before this upload: 001-005 applied (none of the library's files yet), then
+    // the Translations grid and the Languages page used.
+    $dir = migrationsFolder('migrations-to-005', array_values(array_filter(allMigrations(), fn (string $file): bool => strcmp($file, '006') < 0)));
+    $pdo = scratchDatabase($server, 'to005');
+    $built = Migrations::migrator($pdo, $dir, library: false)->apply();
+    same(null, $built['error'], '001-005 applied');
+    same([siteFile('005_retire_not_set_up_page.sql')], array_slice($built['applied'], -1), 'up to 005');
+
+    // An editor (IAM user 7) reworded the English of the language button's name; another (8) the Slovak of
+    // "could not be loaded"; Slovak's language button was cleared on purpose (it reads the English); German was
+    // added, with a string of its own; and a string of a key that stays where it is was reworded too.
+    $pdo->exec("UPDATE translations SET value = 'Choose a language: {name} ({code})', updated_by = 7, updated_at = '2026-10-09 08:15:00+00' WHERE key_name = 'language.button' AND language_code = 'en'");
+    $pdo->exec("UPDATE translations SET value = 'Jazyk sa teraz nedá načítať - skús to o chvíľu.', updated_by = 8, updated_at = '2026-10-10 18:30:00+00' WHERE key_name = 'language.notLoaded' AND language_code = 'sk'");
+    $pdo->exec("DELETE FROM translations WHERE key_name = 'language.button' AND language_code = 'sk'");
+    $pdo->exec("INSERT INTO languages (code, name, native_name, enabled, sort_order) VALUES ('de', 'German', 'Deutsch', FALSE, 3)");
+    $pdo->exec("INSERT INTO translations (key_name, language_code, value, updated_by, updated_at) VALUES ('language.button', 'de', 'Sprache: {name} ({code})', 7, '2026-10-09 09:00:00+00')");
+    $pdo->exec("UPDATE translations SET value = 'Moje účty', updated_by = 8 WHERE key_name = 'topbar.dashboard' AND language_code = 'sk'");
+    $row = fn (string $key, string $code): ?array => ($found = $pdo->query("SELECT value, updated_by, updated_at FROM translations WHERE key_name = '{$key}' AND language_code = '{$code}'")->fetch(PDO::FETCH_ASSOC)) === false ? null : $found;
+    $before = [
+        'button en' => $row('language.button', 'en'), 'button de' => $row('language.button', 'de'),
+        'notLoaded en' => $row('language.notLoaded', 'en'), 'notLoaded sk' => $row('language.notLoaded', 'sk'),
+        'dashboard sk' => $row('topbar.dashboard', 'sk'),
+    ];
+    $keys = (int) $pdo->query('SELECT count(*) FROM translation_keys')->fetchColumn();
+
+    // The upload: 006, then the library's two files - one Apply.
+    $result = Migrations::migrator($pdo)->apply();
+    same(null, $result['error'], 'no error');
+    same([siteFile(ADOPTION_FILE), ...libraryFiles()], $result['applied'], '006, then the library\'s');
+
+    // Every string moved as it was - its words, its writer, its time - and the cleared one stayed cleared:
+    // the library writes strings only for a key of its own that has none.
+    same($before['button en'], $row('anotoki.language.button', 'en'), 'the English rewording, by whom and when');
+    same(null, $row('anotoki.language.button', 'sk'), 'the cleared Slovak stays cleared - the library did not write its own words there');
+    same($before['button de'], $row('anotoki.language.button', 'de'), 'German moved too');
+    same($before['notLoaded sk'], $row('anotoki.language.notLoaded', 'sk'), 'the Slovak rewording');
+    same($before['notLoaded en'], $row('anotoki.language.notLoaded', 'en'), 'the English as it was seeded, by nobody');
+    same($before['dashboard sk'], $row('topbar.dashboard', 'sk'), 'a string of a key that stays: as the owner left it');
+    same(0, (int) $pdo->query("SELECT count(*) FROM translation_keys WHERE name IN ('language.button', 'language.notLoaded')")->fetchColumn(), 'the old keys are gone');
+    same(0, (int) $pdo->query("SELECT count(*) FROM translations WHERE key_name IN ('language.button', 'language.notLoaded')")->fetchColumn(), 'and their strings');
+
+    // The library's own words came with its 002: its descriptions on the moved keys, its words on its other keys.
+    check(str_starts_with((string) $pdo->query("SELECT description FROM translation_keys WHERE name = 'anotoki.language.button'")->fetchColumn(), 'The anotoki library\'s language switcher'), 'the library\'s description');
+    same('Jazyk sa nepodarilo uložiť do tvojho anotoki účtu - platí len počas tejto návštevy.', $row('anotoki.language.notSaved', 'sk')['value'] ?? null, 'a word of the library\'s this site did not have, in Slovak');
+    same(['the site\'s' => $keys - 2, 'the library\'s' => 54], [
+        'the site\'s' => (int) $pdo->query("SELECT count(*) FROM translation_keys WHERE name NOT LIKE 'anotoki.%'")->fetchColumn(),
+        'the library\'s' => (int) $pdo->query("SELECT count(*) FROM translation_keys WHERE name LIKE 'anotoki.%'")->fetchColumn(),
+    ], 'the site\'s keys less the two that moved, and the library\'s');
+    same([], Migrations::migrator($pdo)->applicable(), 'nothing left to apply');
+});
+
+test('006\'s gate refuses a database whose keys are not the ones it expects - and nothing of it, nor the library\'s files after it, is applied', function () use ($server) {
+    $dir = migrationsFolder('migrations-to-005-gate', array_values(array_filter(allMigrations(), fn (string $file): bool => strcmp($file, '006') < 0)));
+    $pdo = scratchDatabase($server, 'to005gate');
+    same(null, Migrations::migrator($pdo, $dir, library: false)->apply()['error'], '001-005 applied');
+    // A key no migration of this site wrote: the running count of the site's own keys does not hold.
+    $pdo->exec("INSERT INTO translation_keys (name, description) VALUES ('zz.stray', 'Not a migration''s')");
+    $pdo->exec("INSERT INTO translations (key_name, language_code, value) VALUES ('zz.stray', 'en', 'Stray')");
+
+    $result = Migrations::migrator($pdo)->apply();
+    same([[], siteFile(ADOPTION_FILE)], [$result['applied'], $result['failed']], 'stopped at 006');
+    check(str_contains((string) $result['error'], 'There are 451 keys of the site\'s own, and 005 with this file leave 450'), 'the gate says why: '.$result['error']);
+    same(2, (int) $pdo->query("SELECT count(*) FROM translation_keys WHERE name IN ('language.button', 'language.notLoaded')")->fetchColumn(), 'the keys did not move');
+    same(0, (int) $pdo->query("SELECT count(*) FROM translation_keys WHERE name LIKE 'anotoki.%'")->fetchColumn(), 'and the library\'s files did not run');
+    same([ADOPTION_FILE, ...array_column(libraryFiles(), 'name')], array_column(Migrations::migrator($pdo)->status()['pending'], 'name'), 'all three still wait');
 });
 
 foreach ([6 => 'the version first committed', 7 => 'with sign-in through the IAM', 8 => 'with resumable syncs'] as $level => $what) {
@@ -403,13 +511,13 @@ foreach ([6 => 'the version first committed', 7 => 'with sign-in through the IAM
         // Looking does not change anything: Laravel's table has no file column, so nothing counts as applied.
         check(Migrations::isLaravelDatabase($pdo), 'recognised');
         $status = $migrator->status();
-        same([allMigrations(), [], []], [array_column($status['pending'], 'name'), $status['applied'], $status['missing']], 'pending, and nothing applied');
-        same(allMigrations(), array_column($migrator->applicable(), 'name'), 'every file to apply');
+        same([everyFile(), [], []], [filesOf($status['pending']), $status['applied'], $status['missing']], 'pending, and nothing applied');
+        same(everyFile(), $migrator->applicable(), 'every file to apply - the library\'s last');
         same(1, (int) $pdo->query("SELECT count(*) FROM information_schema.columns WHERE table_name = 'migrations' AND column_name = 'batch'")->fetchColumn(), 'still Laravel\'s table after looking');
 
         $result = $migrator->apply();
         same(null, $result['error'], 'no error');
-        same(allMigrations(), array_column($result['applied'], 'name'), 'every file applied');
+        same(everyFile(), $result['applied'], 'every file applied');
         same(true, (bool) $pdo->query("SELECT to_regclass('public.laravel_migrations') IS NOT NULL")->fetchColumn(), 'Laravel\'s table moved aside');
         check(Migrations::isLaravelDatabase($pdo), 'and still known for what it was');
 

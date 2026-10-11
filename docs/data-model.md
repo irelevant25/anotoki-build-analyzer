@@ -1,11 +1,14 @@
 # Data model
 
-The schema is `backend/migrations/*.sql`, applied in order by one engine - the anotoki family's (anotoki-lib's
+The schema is `backend/migrations/*.sql` - the set `build_analyzer` - and after them the anotoki library's own
+set `anotoki_translations` (`vendor/anotoki/lib/php/migrations/translations`: the check of the words' tables
+and the library's words, since version 0.4.0), applied in order by one engine - the anotoki family's (anotoki-lib's
 `Anotoki\Lib\Migrations\Migrator`, on this site's files through `src/Db/Migrations.php`) - whichever way it
 runs: `php migration.php`, "Apply pending" on the admin panel's Migrations page, or `setup.php`. There is no
 separate schema file; a database is what you get by replaying the migrations. `migrations(id, filename,
 applied_at)` records what has run - the table this site's own engine made, which the library reads and writes
-as it is (a new database gets the same: `tests/migrations.test.php` holds it to that) - each file in a
+as it is (a new database gets the same: `tests/migrations.test.php` holds it to that), this site's files by
+their names and the library's as `anotoki_translations/001_languages_and_strings.sql` - each file in a
 transaction of its own with its record, stopping at the first that fails. One apply at a time, whoever starts
 it: each takes the same PostgreSQL advisory lock (`Migrations::LOCK`, the number this site's engine took),
 and another is told it is busy and does nothing; a file recorded meanwhile is passed over. While a file waits
@@ -24,8 +27,8 @@ the site is closed to everybody but its ADMIN on the Migrations page (the site g
   database that has not run it yet. Later string migrations follow its pattern.
 - `004_visitors_and_family_bar.sql` (version 0.3) adds the visitor accounts to `users` (below) and every
   word 0.3 brings - the visitor notice, the ways in for somebody new, the "Your data" card, the new error
-  sentences, and the family's top bar and footer (`brand.*`, `topbar.*`, `footer.version`, `language.button`)
-  - in 003's form, retiring the keys of the sign-in modes, the old owner's menu and the toolbar the bar
+  sentences, and the family's top bar and footer (`brand.*`, `topbar.*`, `footer.version`, `language.button` -
+  the library's `anotoki.language.button` since 006) - in 003's form, retiring the keys of the sign-in modes, the old owner's menu and the toolbar the bar
   replaced (`nav.dashboard`, `nav.import`, `nav.builds`, `toolbar.menu`, `toolbar.version`,
   `toolbar.yourAccount`, `toolbar.account`, `language.label`), and rewording the descriptions that told of
   the toolbar. What it changes: the schema part is additive; its new strings never write over one reworded in
@@ -40,6 +43,16 @@ the site is closed to everybody but its ADMIN on the Migrations page (the site g
   (`notSetUp.*`), with their strings: the anotoki family's site gate shows its own page now, in its own words
   (the owner's decision of 2026-10-07). Gated: the six gone with every string of theirs, and the number of keys
   (458 - 6 = 452).
+- `006_strings_through_the_library.sql` (version 0.4.0: the site's words kept by the anotoki library's
+  translations module) moves the language button's two keys to the library's namespace - `language.button` to
+  `anotoki.language.button`, `language.notLoaded` to `anotoki.language.notLoaded` - with every language's
+  string as it is, reworded ones included, and who reworded it when (`updated_at`, `updated_by`); the old keys
+  go. It runs before the library's `anotoki_translations/002`, which writes a library key's strings only
+  while it has none, so a rewording is never written over. Gated: every moved string there unchanged, nothing
+  else under the two keys, the old keys gone, both with English, and the number of the site's own keys - every
+  gate counts those only, `name NOT LIKE 'anotoki.%'`, since the library adds its own when it likes
+  (452 - 2 = 450). Then the library's set: `001` finds this site's three tables, checks their shape and
+  changes nothing; `002` adds its words (English and Slovak; descriptions its own).
 
 Rules: never edit a migration that has run somewhere; add `NNN_what.sql`. A migration runs in one transaction
 (PostgreSQL DDL is transactional), so a failing one leaves nothing behind. A migration that changes data ends
@@ -278,19 +291,21 @@ written as compact JSON (one line), saved as `build-analyzer-accounts-YYYY-MM-DD
 
 | Table | Notes |
 | --- | --- |
-| `languages` | `code` (key; `^[a-z]{2}(-[a-z]{2})?$`, as a browser and the IAM's token write it), `name` (in English, for the admin pages), `native_name` (for the reader's chooser), `enabled` (offered to readers; a hidden one keeps its strings), `sort_order`. `en` and `sk` are seeded and cannot be deleted (`TranslationCheck::SEEDED`); English cannot be switched off. At most 20 |
+| `languages` | `code` (key; `^[a-z]{2}(-[a-z]{2})?$`, as a browser and the IAM's token write it), `name` (in English, for the admin pages), `native_name` (for the reader's chooser), `enabled` (offered to readers; a hidden one keeps its strings), `sort_order`. `en` and `sk` are seeded and cannot be deleted (`SiteTranslations::RELEASED`); English cannot be switched off. At most 20 |
 | `translation_keys` | `name` (key: `namespace.thing[.detail]`), `description` (where it is shown and what its `{placeholders}` stand for - all a translator has to go by), `created_at`. Only migrations write keys; the browser changes values |
 | `translations` | key (`key_name`, `language_code`), both cascading on delete and rename; `value` (never empty: a language with no string of its own has no row and reads the English), `updated_at`, `updated_by` (the IAM user id of whoever last reworded it; null as a migration wrote it; no foreign key) |
 
 - A string is plain text, at most 2000 characters, drawn as text (there is no HTML on the site). Its
   `{placeholders}` are the code's: the English keeps exactly its own, another language may leave one out but
-  never add one. No string names another website or holds a web address (`TranslationCheck`, on every save,
-  import and seeded string).
+  never add one. No string names another website or holds a web address (`SiteTranslations::namesAnotherSite()`,
+  the library's last check, on every save and import; the catalogue test asks it of every seeded string).
 - Saving an empty string in a language other than English deletes that row; an import passes empty ones over
   and deletes nothing. Deleting a language deletes its strings.
 - Game terms are never keys (stat, character, weapon, set, slot and talent names, "Lv.", "4pc", UID).
 - A later string migration: key rows with a description, one `INSERT … SELECT … FROM (VALUES …)` block per
-  language, `ON CONFLICT DO NOTHING`, and a `DO $$` gate that counts what it seeds. Each installation's
+  language, `ON CONFLICT DO NOTHING`, and a `DO $$` gate that counts what it seeds - and, keeping a running
+  total, the site's own keys only (`WHERE name NOT LIKE 'anotoki.%'`). The namespace `anotoki.` is the
+  library's: its keys come with its migrations, never with this site's. Each installation's
   database holds its own strings: what the owner rewords in the browser is not in any file
   ([operations.md](operations.md), "The site's words").
 

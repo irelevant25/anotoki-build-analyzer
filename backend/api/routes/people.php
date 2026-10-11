@@ -1,9 +1,9 @@
 <?php
 
+use Anotoki\Lib\Translations\Translations;
 use App\App;
 use App\Auth\Role;
 use App\Db\Db;
-use App\Repositories\Translations;
 use App\Repositories\Users;
 use App\Support\Clock;
 use App\Web\HttpError;
@@ -42,7 +42,8 @@ return function (Slim\App $slim, App $app): void {
             $deleted = $app->get(Db::class)->transaction(function () use ($app, $id): ?array {
                 $deleted = $app->get(Users::class)->deletePerson($id);
                 if ($deleted !== null) {
-                    $app->get(Translations::class)->forgetWhoSaved($id);
+                    // On the same connection, in this transaction: the strings they saved stay, saved by nobody.
+                    $app->get(Translations::class)->forgetWriter($id);
                 }
 
                 return $deleted;

@@ -1,8 +1,9 @@
 import { Injectable, effect, inject, signal } from '@angular/core';
 import { Title } from '@angular/platform-browser';
 import { RouterStateSnapshot, TitleStrategy } from '@angular/router';
+import { isAdminArea } from '@anotoki/lib/translations';
 import { isTranslationKey } from './en';
-import { TranslationService, isEnglishPath } from './translation';
+import { TranslationService } from './translation';
 
 /** The app's name: a brand, the same in every language. */
 export const BRAND = 'Build Analyzer';
@@ -53,7 +54,7 @@ export class AppTitleStrategy extends TitleStrategy {
    */
   override updateTitle(snapshot: RouterStateSnapshot): void {
     this._i18n.noteAddress(snapshot.url);
-    this._admin.set(isEnglishPath(snapshot.url));
+    this._admin.set(isAdminArea(snapshot.url));
     this._page.set(this.buildTitle(snapshot));
   }
 }

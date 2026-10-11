@@ -24,6 +24,25 @@ bootTests();
 
 $server = require __DIR__.'/../config/database.local.php';
 
+/**
+ * Every file a database is built from, as the bookkeeping table names them: the site's by their names, then
+ * the anotoki library's own (its translations set) with their set in front.
+ *
+ * @return list<string>
+ */
+function everyFile(): array
+{
+    $migrator = Migrations::migrator(db()->raw());
+    $files = [];
+    foreach (Migrations::sets() as $set) {
+        foreach ($migrator->files($set) as $name) {
+            $files[] = ($set->name === Migrations::SET ? '' : $set->name.'/').$name;
+        }
+    }
+
+    return $files;
+}
+
 /** A stand-in for backend/: config/ (with the committed app.php) and storage/. */
 function installRoot(): string
 {
@@ -210,13 +229,13 @@ test('"Test connection" answers in the family\'s words: up to date, empty, updat
     same(['ok' => true, 'message' => "Connected to the database \"{$emptyName}\": it is empty - Save makes the tables."],
         $installer->testDatabase(['database' => $emptyName] + $server), 'an empty database');
 
-    // The first file applied (from a folder holding it alone): the others wait.
+    // The first file applied (from a folder holding it alone): the others wait - the library's own too.
     $files = Migrations::migrator($empty)->files(Migrations::set());
     $first = T::$storage.DIRECTORY_SEPARATOR.'first-migration-only';
     @mkdir($first, 0777, true);
     copy(Migrations::directory().'/'.$files[0], $first.'/'.$files[0]);
-    same(null, Migrations::migrator($empty, $first)->apply()['error'], 'the first file applied');
-    same(['ok' => true, 'message' => "Connected to the database \"{$emptyName}\": ".(count($files) - 1).' update(s) to apply - Save applies them.'],
+    same(null, Migrations::migrator($empty, $first, library: false)->apply()['error'], 'the first file applied');
+    same(['ok' => true, 'message' => "Connected to the database \"{$emptyName}\": ".(count(everyFile()) - 1).' update(s) to apply - Save applies them.'],
         $installer->testDatabase(['database' => $emptyName] + $server), 'a database with updates to apply');
     $empty = null;
 
@@ -284,7 +303,7 @@ test('installing creates the database and builds it, and a second run finds it u
         Db::pdo($server, 'postgres', false)->exec('DROP DATABASE IF EXISTS "'.$database['database'].'" WITH (FORCE)');
     });
 
-    $files = Migrations::migrator(db()->raw())->files(Migrations::set());
+    $files = everyFile();
     same(['Created the database "'.$database['database'].'".', 'Applied '.count($files).' migration(s).'], $installer->buildDatabase($database), 'first run');
     same(['The database is up to date.'], $installer->buildDatabase($database), 'second run');
     $pdo = Db::pdo($server, $database['database'], false);
@@ -307,7 +326,7 @@ test('installing while another update is applied to the database applies nothing
     } finally {
         $other->query('SELECT pg_advisory_unlock('.Migrations::LOCK.')');
     }
-    same('Applied '.count(Migrations::migrator(db()->raw())->files(Migrations::set())).' migration(s).', $installer->buildDatabase($database)[0], 'and once it is free, the whole database');
+    same('Applied '.count(everyFile()).' migration(s).', $installer->buildDatabase($database)[0], 'and once it is free, the whole database - the library\'s files too');
 });
 
 finishTests();

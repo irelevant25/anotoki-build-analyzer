@@ -239,7 +239,10 @@ a file over 8 MB is refused before it is sent). The format and every rule:
 ## The site's words
 
 The member pages read in English or Slovak; the words are rows of the database (migration 003,
-[architecture.md](architecture.md), "The site's words"). An editor or an admin opens them in the admin panel -
+[architecture.md](architecture.md), "The site's words"), kept since version 0.4.0 by the anotoki family's
+translations module (anotoki-lib 0.3.0) - the same two pages as on every anotoki site, with the library's own
+words (the language button's, the status page's, its kit's) among the keys as `anotoki.*`. An editor or an
+admin opens them in the admin panel -
 the "Admin panel" item of the person's menu in the top bar, then Translations (`/admin/translations`); the Languages page
 (`/admin/languages`) is an admin's, as are adding, renaming, switching and deleting a language:
 
@@ -298,11 +301,25 @@ map, are in [DEV.md](../DEV.md) ("Deploying"); in short:
    - **A release that adds strings**: they are there once Apply is pressed - until then the site is closed
      anyway (only the ADMIN's frame of the Migrations page may show a new key). Upload and press Apply in one
      sitting.
-   - **Version 0.4.0: the family's site gate and Migrations page (anotoki-lib 0.1.0 in `vendor/`, 0.1.1 in the
-     app; migration 005)**: upload with `vendor/` (it holds `vendor/anotoki/lib`), then Apply 005 on the
+   - **Version 0.4.0: the family's site gate and Migrations page (anotoki-lib in `vendor/` and in the app;
+     migration 005)**: upload with `vendor/` (it holds `vendor/anotoki/lib`), then Apply 005 on the
      Migrations page - it only deletes the six words of the old "Not set up yet" page. From then on every upload
      with a migration closes the site until it is applied, and a site whose `storage/installed.lock` is there
      never offers the setup page again.
+   - **Version 0.4.0: the site's words through the anotoki library (anotoki-lib 0.3.0 in `vendor/` and in the
+     app; migration 006, then the library's `anotoki_translations` 001 and 002)**: before uploading, **Export**
+     each language on the Translations page (a copy of every rewording). Upload with `vendor/`, then Apply at
+     once - one Apply runs all three, the Migrations page naming each file with its set
+     (`build_analyzer/006_…`, `anotoki_translations/001_…`): 006 moves the language button's two strings
+     (`language.button`, `language.notLoaded`) to the library's keys (`anotoki.language.button`,
+     `anotoki.language.notLoaded`), every language's string with who reworded it and when, and refuses (rolled
+     back whole) if anything did not arrive or the site's own keys are not the 450 it expects; the library's 001
+     finds this site's three tables already there, checks they are in the shape it needs and changes nothing;
+     002 adds the library's own words (English and Slovak), never over a string that is there. Then check: the
+     Translations page lists the `anotoki.*` keys too, and in Slovak (`/?lang=sk`) the language button is named
+     "Jazyk: Slovenčina (SK)". The strings' answers are the library's now: the same shapes (snake_case), the
+     same rights (EDITOR the strings, ADMIN the languages), a few new refusals (415 a body that is not JSON, 413
+     one over 1 MiB, 422 `empty_body`, 400 `invalid_json`).
    - **Version 0.3: visitors and the family's bar (migration 004, IAM migration 007)**, in this
      order: (1) before uploading, make sure an account that can sign in holds **ADMIN on `build-analyzer` now**
      (the IAM's admin panel; IAM 007 is what later gives every IAM administrator ADMIN here); (2) upload;

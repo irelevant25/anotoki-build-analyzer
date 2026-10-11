@@ -13,7 +13,8 @@
  * visitors_unavailable, never a 500 - for whatever reaches them with the tables missing: the second line. The
  * tests of it open the gate with a Migrator that sees only 001 and 002 (behindTheGate()).
  *
- * The app of this file runs on a database of its own built from the first two migrations only.
+ * The app of this file runs on a database of its own built from the first two migrations only - from before the
+ * anotoki library's own files (its translations set) were released, too: they wait as well, after this site's.
  */
 
 declare(strict_types=1);
@@ -21,14 +22,14 @@ declare(strict_types=1);
 require __DIR__.'/lib.php';
 
 use Anotoki\Lib\Migrations\Migrator;
+use Anotoki\Lib\Translations\Schema;
+use Anotoki\Lib\Translations\Translations;
 use App\App;
 use App\Auth\Role;
-use App\Cli;
 use App\Commands\Translations as TranslationsCommand;
 use App\Db\Db;
 use App\Db\Migrations;
 use App\Http\HttpClient;
-use App\Repositories\Translations;
 use App\Support\Log;
 use Tests\Support\Client;
 
@@ -44,7 +45,7 @@ foreach (['001_adopt_laravel_database.sql', '002_schema.sql'] as $file) {
     copy(Migrations::directory().'/'.$file, $before.'/'.$file);
 }
 $pdo = scratchDatabase($server, 'before');
-$built = Migrations::migrator($pdo, $before)->apply();
+$built = Migrations::migrator($pdo, $before, library: false)->apply();
 if ($built['busy'] || $built['error'] !== null) {
     fwrite(STDERR, $built['busy'] ? "the migrations' lock is held: nothing was applied\n" : 'migration '.($built['failed']['name'] ?? '')." failed: {$built['error']}\n");
     exit(1);
@@ -60,25 +61,32 @@ beforeEach(function () use ($database): void {
     Log::to(null);
 });
 
-/** The migrations that write strings: once there is one, "Apply" brings the strings too. */
-function stringMigrations(): array
-{
-    return array_values(array_filter(glob(Migrations::directory().'/*.sql') ?: [], fn (string $file): bool => (bool) preg_match('/^\s*INSERT\s+INTO\s+translation_keys\b/mi', (string) file_get_contents($file))));
-}
-
-/** The files that wait: every one but 001 and 002. */
+/**
+ * The files that wait, in the order they run: every one of the site's but 001 and 002, then the library's.
+ *
+ * @return list<array{set: string, name: string}>
+ */
 function waiting(): array
 {
-    return array_values(array_diff(array_map('basename', glob(Migrations::directory().'/*.sql') ?: []), ['001_adopt_laravel_database.sql', '002_schema.sql']));
+    $own = array_values(array_diff(array_map('basename', glob(Migrations::directory().'/*.sql') ?: []), ['001_adopt_laravel_database.sql', '002_schema.sql']));
+    $library = array_map('basename', glob(Schema::directory().'/*.sql') ?: []);
+    sort($own);
+    sort($library);
+
+    return [
+        ...array_map(static fn (string $name): array => ['set' => Migrations::SET, 'name' => $name], $own),
+        ...array_map(static fn (string $name): array => ['set' => Schema::SET, 'name' => $name], $library),
+    ];
 }
 
 /**
- * $body with the gate open: the site's Migrator sees only 001 and 002, so nothing waits and every route is
- * reached - with the tables of 003 and 004 still missing. What answers then is the second line.
+ * $body with the gate open: the site's Migrator sees only 001 and 002 (and not the library's files), so nothing
+ * waits and every route is reached - with the tables of 003 and 004 still missing. What answers then is the
+ * second line.
  */
 function behindTheGate(callable $body): void
 {
-    T::$app->set(Migrator::class, Migrations::migrator(db()->raw(), BEFORE_FOLDER));
+    T::$app->set(Migrator::class, Migrations::migrator(db()->raw(), BEFORE_FOLDER, library: false));
     try {
         same('ready', (new Client)->get('/api/site-status')->json('state'), 'the gate open');
         $body();
@@ -145,13 +153,13 @@ function translationRoutes(): array
 test('the database has seen the first two migrations, and the rest wait for an admin', function () {
     same(false, (bool) db()->value("SELECT to_regclass('public.translations') IS NOT NULL"), 'no translations table');
     same(false, (bool) db()->value("SELECT to_regclass('public.languages') IS NOT NULL"), 'no languages table');
-    same(false, T::$app->get(Translations::class)->available(), 'the strings are not there to be read - asked without an error');
+    same(false, T::$app->get(Translations::class)->ready(), 'the strings are not there to be read - asked without an error');
 
-    check(in_array('003_languages_and_translations.sql', waiting(), true), 'the migration with the languages and the strings is on disk');
+    check(in_array(['set' => Migrations::SET, 'name' => '003_languages_and_translations.sql'], waiting(), true), 'the migration with the languages and the strings is on disk');
     same(['state' => 'update_pending', 'installed' => false], (new Client)->get('/api/site-status')->status(200)->json(), 'the site says an update waits');
     $status = (new Client)->asIam(1, [Role::ADMIN])->get('/api/admin/migrations')->status(200);
-    same([Migrations::SET], $status->json('sets'), 'one set');
-    same(array_map(fn (string $name): array => ['set' => Migrations::SET, 'name' => $name, 'ready' => true, 'blocked' => false], waiting()), $status->json('pending'), 'pending, in the order they will run');
+    same([Migrations::SET, Schema::SET], $status->json('sets'), 'the site\'s set, then the library\'s');
+    same(array_map(fn (array $file): array => $file + ['ready' => true, 'blocked' => false], waiting()), $status->json('pending'), 'pending, in the order they will run: the library\'s last');
     same(['001_adopt_laravel_database.sql', '002_schema.sql'], array_column($status->json('applied'), 'name'), 'applied, in the order they were');
     same([], $status->json('missing'), 'nothing missing');
     foreach ($status->json('applied') as $file) {
@@ -209,14 +217,14 @@ test('while they wait the site is closed - 503 update_pending - but meta, the st
 test('the command line says that the strings are not there, and exits 1', function () {
     foreach ([['--status'], ['--export=sk'], ['--import=sk', T::$storage.'/nothing.json']] as $arguments) {
         T::$app->resetScope();
-        Cli::capture();
-        try {
-            $code = TranslationsCommand::run(T::$app, ['translations.php', ...$arguments]);
-        } finally {
-            $out = Cli::captured();
-        }
-        same(1, $code, implode(' ', $arguments).": {$out}");
-        same('The site\'s strings are not in the database '.T::$database.'_before yet: apply the migrations first (php migration.php).', $out, implode(' ', $arguments));
+        $out = fopen('php://memory', 'w+');
+        $err = fopen('php://memory', 'w+');
+        $code = TranslationsCommand::run(T::$app, ['translations.php', ...$arguments], null, $out, $err);
+        rewind($out);
+        rewind($err);
+        $said = [stream_get_contents($out), stream_get_contents($err)];
+        same(1, $code, implode(' ', $arguments).': '.implode(' | ', $said));
+        same(['', "This database has no strings yet: apply the migrations first (php migration.php).\n"], $said, implode(' ', $arguments));
     }
 });
 
@@ -288,15 +296,15 @@ test('behind the gate: every translation route answers 503 translations_unavaila
         foreach (translationRoutes() as [$method, $url, $body]) {
             $answer = $admin->request($method, $url, $body);
             same(503, $answer->status, "{$method} {$url} ({$answer->body})");
-            same(['message' => 'The site\'s words are not in the database yet. An admin applies the waiting database update on the Migrations page.', 'code' => 'translations_unavailable'],
+            same(['message' => 'The words are not in the database yet. An administrator applies the waiting database update on the Migrations page.', 'code' => 'translations_unavailable'],
                 $answer->json(), "{$method} {$url}: the whole answer");
             same('60', $answer->header('Retry-After'), "{$method} {$url}: when to ask again");
             check(str_starts_with($answer->header('Content-Type'), 'application/json'), "{$method} {$url}: JSON");
         }
         // The page's strings are asked for by everybody: signed out, too.
         (new Client)->get('/api/translations/sk')->status(503)->path('code', 'translations_unavailable');
-        // An empty body, and one too large: what is said is still that the strings are not there.
-        $admin->request('PUT', '/api/admin/translations', null, ['body' => ''])->status(503)->path('code', 'translations_unavailable');
+        // A body is read before the tables are looked for: an empty one is said to be empty, and nothing else is asked.
+        $admin->request('PUT', '/api/admin/translations', null, ['body' => ''])->status(422)->path('code', 'empty_body');
 
         // What was refused for who asks, or for the address, is refused as ever.
         (new Client)->get('/api/admin/translations')->status(401)->path('code', 'sign_in_required');
@@ -318,28 +326,29 @@ test('behind the gate: every translation route answers 503 translations_unavaila
     });
 });
 
-test('nothing else the server does reads the three tables: every query on them is in the Translations repository', function () {
+test('nothing else the server does reads the three tables: every query on them is the anotoki library\'s', function () {
     $backend = str_replace('\\', '/', (string) realpath(__DIR__.'/..'));
     $tables = 'languages|translation_keys|translations';
+    $query = '/\b(?:FROM|JOIN|INTO|UPDATE|TABLE|TRUNCATE)\s+(?:ONLY\s+)?(?:'.$tables.')\b|->(?:insert|insertMany|update|delete)\(\s*[\'"](?:'.$tables.')[\'"]|to_regclass\(\s*\'(?:public\.)?(?:'.$tables.')\'/';
     $found = [];
     $read = 0;
     foreach (['api', 'src'] as $folder) {
         foreach (new RecursiveIteratorIterator(new RecursiveDirectoryIterator("{$backend}/{$folder}", FilesystemIterator::SKIP_DOTS)) as $file) {
             $relative = substr(str_replace('\\', '/', $file->getPathname()), strlen($backend) + 1);
-            if (! str_ends_with($relative, '.php') || $relative === 'src/Repositories/Translations.php') {
+            if (! str_ends_with($relative, '.php')) {
                 continue;
             }
             $read++;
-            $source = (string) file_get_contents($file->getPathname());
-            if (preg_match_all('/\b(?:FROM|JOIN|INTO|UPDATE|TABLE|TRUNCATE)\s+(?:ONLY\s+)?(?:'.$tables.')\b|->(?:insert|insertMany|update|delete)\(\s*[\'"](?:'.$tables.')[\'"]|to_regclass\(\s*\'public\.(?:'.$tables.')\'/', $source, $matches)) {
+            if (preg_match_all($query, (string) file_get_contents($file->getPathname()), $matches)) {
                 $found[] = "{$relative}: ".implode('; ', array_unique($matches[0]));
             }
         }
     }
     check($read > 80, "the sources were read ({$read} files)");
-    same([], $found, 'a query on the languages or the strings outside App\Repositories\Translations');
-    // And the repository's own are found by the same reading, so the expression does find them.
-    check((bool) preg_match('/\bFROM\s+(?:'.$tables.')\b/', (string) file_get_contents("{$backend}/src/Repositories/Translations.php")), 'the repository queries them');
+    same([], $found, 'a query on the languages or the strings outside the library (anotoki/lib: Anotoki\Lib\Translations)');
+    // And the library's own are found by the same reading, so the expression does find them.
+    $library = (new ReflectionClass(Translations::class))->getFileName();
+    check((bool) preg_match($query, (string) file_get_contents((string) $library)), 'the library queries them: '.$library);
 });
 
 test('behind the gate, before 004: every visitor path answers 503 visitors_unavailable - never a 500 - and a member\'s requests work and sweep nothing', function () {
@@ -376,11 +385,13 @@ test('behind the gate, before 004: every visitor path answers 503 visitors_unava
 
 test('"Apply" brings the tables - and the strings with them - and opens the site again', function () {
     $admin = (new Client)->asIam(1, [Role::ADMIN]);
-    $pending = array_column($admin->get('/api/admin/migrations')->status(200)->json('pending'), 'name');
-    same(waiting(), $pending, 'what waits');
+    $pending = array_map(static fn (array $file): array => ['set' => $file['set'], 'name' => $file['name']], $admin->get('/api/admin/migrations')->status(200)->json('pending'));
+    same(waiting(), $pending, 'what waits: the site\'s files, then the library\'s');
 
     $applied = $admin->post('/api/admin/migrations/apply')->status(200);
-    same([$pending, null, null], [array_column($applied->json('applied'), 'name'), $applied->json('failed'), $applied->json('error')], 'applied: '.$applied->json('error'));
+    same([$pending, null, null], [$applied->json('applied'), $applied->json('failed'), $applied->json('error')], 'applied, in that order: '.$applied->json('error'));
+    same(['anotoki_translations/001_languages_and_strings.sql', 'anotoki_translations/002_library_words.sql'],
+        db()->column("SELECT filename FROM migrations WHERE filename LIKE 'anotoki\\_%' ORDER BY id"), 'the library\'s files recorded in this site\'s table, with their set');
     same([], $admin->get('/api/admin/migrations')->status(200)->json('pending'), 'nothing pending after');
     same(['state' => 'ready', 'installed' => false], (new Client)->get('/api/site-status')->status(200)->json(), 'the site is open again');
     same(true, (bool) db()->value("SELECT to_regclass('public.translations') IS NOT NULL"), 'the tables are there');
@@ -396,18 +407,14 @@ test('"Apply" brings the tables - and the strings with them - and opens the site
     (new Client)->withHeaders(['X-Visitor-Key' => $key])->get('/api/accounts')->status(200)->path('0.characters_count', null);
     same(1, (int) db()->value('SELECT count(*) FROM users WHERE id < 0'), 'a visitor');
 
-    if (stringMigrations() === []) {
-        // The migration holds no string yet: the tables are there and empty, and that too is "not there".
-        echo "wait  after Apply the bundle answers in English and in Slovak - until a migration inserts into translation_keys\n";
-        (new Client)->get('/api/translations/sk')->status(503)->path('code', 'translations_unavailable');
-        $admin->get('/api/admin/translations')->status(503)->path('code', 'translations_unavailable');
-
-        return;
-    }
     $english = (new Client)->get('/api/translations/en')->status(200)->path('language', 'en');
     check(count($english->json('values')) > 100, 'the English strings are there');
     $slovak = (new Client)->get('/api/translations/sk')->status(200)->path('language', 'sk');
     same(array_keys($english->json('values')), array_keys($slovak->json('values')), 'and the Slovak ones, key for key');
+    // The library's words with them - the two this site had of them (006) under the library's keys.
+    same('Jazyk: {name} ({code})', $slovak->json('values')['anotoki.language.button'] ?? null, 'the language button\'s name');
+    check(isset($slovak->json('values')['anotoki.siteStatus.updatingTitle']), 'the status page\'s words');
+    check(! isset($english->json('values')['language.button']), 'the site\'s own key of it is gone');
     $admin->get('/api/admin/translations')->status(200);
 });
 

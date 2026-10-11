@@ -1,10 +1,10 @@
 import { signal } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
+import { provideTestTranslations } from '@anotoki/lib/translations/testing';
 import { AuthService } from '../auth';
 import { timeAgo } from '../format';
 import { AnotokiPreferences } from '../iam/anotoki-auth';
 import { LocalDatePipe } from './local-date';
-import { provideTestTranslations } from './testing';
 import { TranslatePluralPipe } from './translate-plural';
 import { TranslatePipe } from './translate';
 import { TranslationService } from './translation';
@@ -80,7 +80,7 @@ describe('the translate pipes', () => {
     expect(plural.transform('buildDetail.optionAny', 3)).toBe('(any 3)');
     i18n.noteAddress('/');
     expect(translate.transform('theme.label')).toBe('Vzhľad');
-    expect(await i18n.setLanguage('en', false)).toBe(true);
+    expect(await i18n.setLanguage('en', { remember: false })).toBe(true);
     expect(translate.transform('theme.label')).toBe('Theme');
   });
 });

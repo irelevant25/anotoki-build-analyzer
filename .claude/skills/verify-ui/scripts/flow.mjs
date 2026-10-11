@@ -612,6 +612,90 @@ try {
     }
     await ad.emulateMedia({ colorScheme: 'light' });
 
+    // ── The site's words: the Translations and Languages pages (anotoki-lib's, drawn with its kit) ──────
+    step("Translations (EDITOR and ADMIN) and Languages (ADMIN): the anotoki library's pages in the admin panel - a string reworded and read back, light and dark, 1280 and 390 px");
+    {
+      const box = (key, language = 'Slovak') => ad.locator(`textarea[aria-label="${language}: ${key}"]`);
+      const bundle = async (code) => (await (await fetch(`${SITE}/api/translations/${code}`)).json()).values;
+      await ad.setViewportSize({ width: 1280, height: 900 });
+      await open(ad, '/admin/translations');
+      await ad.waitForSelector('anotoki-translations-page textarea', { timeout: 15000 });
+      check((await ad.locator('anotoki-translations-page h1').innerText()).trim() === 'Translations', 'the page: Translations, in the admin panel\'s frame');
+      check((await ad.title()) === 'Translations · Admin panel · Build Analyzer', `its title: ${await ad.title()}`);
+      check((await ad.evaluate(() => document.documentElement.lang)) === 'en', '<html lang="en">');
+      const coverage = (await ad.locator('.anotoki-translations-page__languages').innerText()).replace(/\s+/g, ' ').trim();
+      check(/English/.test(coverage) && /Slovak/.test(coverage), `each language's coverage: ${coverage.slice(0, 140)}`);
+      check((await box('anotoki.language.button').count()) === 1, "the library's words are in the grid too - the language button's name among them (moved there by 006)");
+      check((await ad.locator('[data-languages-link]').count()) === 1, 'an admin is led on to Languages');
+      await shot(ad, '17-admin-translations-1280-light');
+
+      // A search, a string reworded, saved - and the Slovak pages read it at once.
+      await ad.getByLabel('Find a key or a text').fill('topbar.import');
+      await ad.waitForTimeout(400);
+      const before = await box('topbar.import').inputValue();
+      await box('topbar.import').fill('Importovať');
+      await ad.click('[data-save]');
+      await ad.waitForFunction(() => /saved/i.test(document.querySelector('[data-save-state]')?.textContent ?? ''), null, { timeout: 15000 });
+      check((await bundle('sk'))['topbar.import'] === 'Importovať', 'saved: the Slovak bundle has the new words');
+      const written = sql("SELECT value, updated_by FROM translations WHERE key_name = 'topbar.import' AND language_code = 'sk'")[0];
+      check(written?.value === 'Importovať' && Number(written?.updated_by) === 1, `by whoever saved it: the token's person (${JSON.stringify(written)})`);
+      await shot(ad, '17b-admin-translations-saved-1280-light');
+      await box('topbar.import').fill(before);
+      await ad.click('[data-save]');
+      let back = null;
+      for (let i = 0; i < 50 && back !== before; i++) {
+        await ad.waitForTimeout(200);
+        back = (await bundle('sk'))['topbar.import'];
+      }
+      check(back === before, `and back as it was (${back})`);
+      await ad.getByLabel('Find a key or a text').fill('');
+
+      for (const [scheme, width] of [['dark', 1280], ['light', 390], ['dark', 390]]) {
+        await ad.setViewportSize({ width, height: 900 });
+        await ad.emulateMedia({ colorScheme: scheme });
+        await open(ad, '/admin/translations');
+        await ad.waitForSelector('anotoki-translations-page textarea', { timeout: 15000 });
+        const scroll = await ad.evaluate(() => document.documentElement.scrollWidth);
+        check(scroll <= width, `Translations, ${width} px, ${scheme}: no sideways scroll (${scroll})`);
+        if (scheme === 'dark') {
+          check(await darkSurface(ad, 'body'), `Translations, ${width} px: in the site's dark colours`);
+        }
+        await shot(ad, `17-admin-translations-${width}-${scheme}`);
+      }
+
+      for (const [scheme, width] of [['light', 1280], ['dark', 1280], ['light', 390], ['dark', 390]]) {
+        await ad.setViewportSize({ width, height: 900 });
+        await ad.emulateMedia({ colorScheme: scheme });
+        await open(ad, '/admin/languages');
+        await ad.waitForSelector('anotoki-languages-page [data-language]', { timeout: 15000 });
+        if (width === 1280 && scheme === 'light') {
+          const rows = await ad.locator('[data-language]').evaluateAll((list) => list.map((row) => `${row.dataset.language}: ${[...row.querySelectorAll('anotoki-badge')].map((badge) => badge.textContent.trim()).join(', ')}`));
+          check(rows.join(' | ') === 'en: en, Fallback | sk: sk, Released with the site', `the languages: ${rows.join(' | ')}`);
+          check((await ad.title()) === 'Languages · Admin panel · Build Analyzer', `its title: ${await ad.title()}`);
+        }
+        const scroll = await ad.evaluate(() => document.documentElement.scrollWidth);
+        check(scroll <= width, `Languages, ${width} px, ${scheme}: no sideways scroll (${scroll})`);
+        await shot(ad, `18-admin-languages-${width}-${scheme}`, { fullPage: true });
+      }
+      await ad.emulateMedia({ colorScheme: 'light' });
+
+      // An editor rewords the strings too - the languages are an admin's.
+      await open(ed, '/admin/translations');
+      await ed.waitForSelector('anotoki-translations-page textarea', { timeout: 15000 });
+      check((await ed.locator('[data-languages-link]').count()) === 0, 'an editor has the grid, and no way on to Languages');
+
+      // A page in Slovak, dark, at 1280 and 390 px: the reader's words, the language button named by the library's.
+      for (const width of [1280, 390]) {
+        await tab.setViewportSize({ width, height: 800 });
+        await tab.emulateMedia({ colorScheme: 'dark' });
+        await open(tab, '/builds/genshin?lang=sk');
+        const shown = await keysShown(tab);
+        check(shown.length === 0 && (await tab.evaluate(() => document.documentElement.lang)) === 'sk', `/builds/genshin, ${width} px, dark: Slovak, no keys${shown.length ? ` - ${shown.join(', ')}` : ''}`);
+        await shot(tab, `sk-${width}-dark-builds`, { fullPage: true });
+      }
+      await tab.emulateMedia({ colorScheme: 'light' });
+    }
+
     // ── The Migrations page, and the site while an update waits ────────────────────────────────────────
     step("Migrations (ADMIN): the family's page - every file applied, nothing waiting, a file's SQL");
     await ad.setViewportSize({ width: 1280, height: 900 });
@@ -620,9 +704,14 @@ try {
     check((await ad.locator('h1').innerText()) === 'Migrations', 'the page: Migrations');
     check((await ad.title()) === 'Migrations · Admin panel · Build Analyzer', `its title: ${await ad.title()}`);
     check((await ad.locator('[data-pending]').innerText()).includes('Nothing pending - the database is up to date with the files.'), 'nothing pending on a database the migrations built');
-    const appliedFiles = await ad.locator('[data-applied] .files code').allInnerTexts();
-    const migrationFiles = readdirSync(join(backend, 'migrations')).filter((file) => file.endsWith('.sql')).sort();
-    check(appliedFiles.join('|') === migrationFiles.join('|'), `every file applied, in order: ${appliedFiles.join(', ')}`);
+    // Two sets - the site's own, then the anotoki library's translations - so each file is named with its set.
+    const appliedFiles = await ad.locator('[data-applied] .anotoki-migrations-page__files code').allInnerTexts();
+    const sqlFiles = (folder) => readdirSync(folder).filter((file) => file.endsWith('.sql')).sort();
+    const migrationFiles = [
+      ...sqlFiles(join(backend, 'migrations')).map((file) => `build_analyzer/${file}`),
+      ...sqlFiles(join(backend, 'vendor/anotoki/lib/php/migrations/translations')).map((file) => `anotoki_translations/${file}`),
+    ];
+    check(appliedFiles.join('|') === migrationFiles.join('|'), `every file applied, in order - the library's last: ${appliedFiles.join(', ')}`);
     check(await ad.locator('[data-apply]').isDisabled(), 'Apply pending cannot be pressed with nothing pending');
     await ad.locator('[data-applied] li', { hasText: '005_' }).getByRole('button', { name: /^View/ }).click();
     await ad.waitForSelector('anotoki-dialog[data-sql] pre');
@@ -683,8 +772,11 @@ try {
       await shot(ad, '12d-update-waiting-admin', { fullPage: true });
       await ad.click('anotoki-site-status a');
       await ad.waitForURL('**/admin/migrations');
-      await ad.waitForSelector('[data-pending] .files');
-      check((await ad.locator('[data-pending] .files li').allInnerTexts()).map((line) => line.replace(/\s+/g, ' ').trim()).join('|') === '004_visitors_and_family_bar.sql pending', 'Migrations: 004 pending');
+      await ad.waitForSelector('[data-pending] .anotoki-migrations-page__files');
+      // With two sets the Pending card heads each set's files with the set (migrations/<set>/), the file by its name.
+      const pendingSets = await ad.locator('[data-pending] .anotoki-migrations-page__set').allInnerTexts();
+      const pendingFiles = (await ad.locator('[data-pending] .anotoki-migrations-page__files li').allInnerTexts()).map((line) => line.replace(/\s+/g, ' ').trim());
+      check(pendingSets.join('|') === 'migrations/build_analyzer/' && pendingFiles.join('|') === '004_visitors_and_family_bar.sql pending', `Migrations: 004 pending, under its set (${pendingSets.join(', ')} ${pendingFiles.join(', ')})`);
       check((await ad.locator('app-top-bar .topbar').count()) === 1, 'in the admin panel\'s frame');
       await shot(ad, '13-admin-migrations-pending', { fullPage: true });
 
@@ -698,7 +790,7 @@ try {
       await returning.waitForFunction(() => document.querySelector('anotoki-site-status h1')?.textContent?.includes('A database update is waiting'), null, { timeout: 15000 });
       check(new URL(returning.url()).pathname === '/', `back on the page Sign in was pressed on (${new URL(returning.url()).pathname})`);
       await returning.click('anotoki-site-status a');
-      await returning.waitForSelector('[data-pending] .files', { timeout: 15000 });
+      await returning.waitForSelector('[data-pending] .anotoki-migrations-page__files', { timeout: 15000 });
       check(new URL(returning.url()).pathname === '/admin/migrations', 'and on to the Migrations page');
       await comeback.close();
 
@@ -712,9 +804,9 @@ try {
       await ad.click('[data-confirm-apply]');
       await ad.waitForSelector('[data-result]', { timeout: 30000 });
       const outcome = await ad.locator('[data-result]').innerText();
-      check(outcome.includes('Stopped at 004_visitors_and_family_bar.sql') && outcome.includes('Nothing was applied.') && outcome.includes('rolled back as a whole') && /already exists/.test(outcome), `the failure, named: ${outcome.replace(/\s+/g, ' ').slice(0, 160)}`);
+      check(outcome.includes('Stopped at build_analyzer/004_visitors_and_family_bar.sql') && outcome.includes('Nothing was applied.') && outcome.includes('rolled back as a whole') && /already exists/.test(outcome), `the failure, named: ${outcome.replace(/\s+/g, ' ').slice(0, 160)}`);
       check((await ad.locator('[data-result]').getAttribute('role')) === 'alert', 'said aloud: role alert');
-      check((await ad.locator('[data-pending] .files li').count()) === 1, 'still pending after the failed apply');
+      check((await ad.locator('[data-pending] .anotoki-migrations-page__files li').count()) === 1, 'still pending after the failed apply');
       await shot(ad, '15-admin-migrations-stopped', { fullPage: true });
       await ad.setViewportSize({ width: 390, height: 800 });
       await shot(ad, '16-admin-migrations-stopped-390', { fullPage: true });

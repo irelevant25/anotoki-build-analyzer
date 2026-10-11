@@ -4,12 +4,14 @@ import { MATERIAL_ANIMATIONS } from '@angular/material/core';
 import { MatDialog } from '@angular/material/dialog';
 import { MatSnackBar } from '@angular/material/snack-bar';
 import { Router, provideRouter } from '@angular/router';
+import { provideAnotokiTranslations } from '@anotoki/lib/translations';
+import { LocalizationDrafts } from '@anotoki/lib/translations/admin';
+import { provideTestTranslations } from '@anotoki/lib/translations/testing';
 import { of } from 'rxjs';
 import { AuthService } from '../../core/auth';
 import { en } from '../../core/i18n/en';
-import { provideTestTranslations } from '../../core/i18n/testing';
 import { TranslationService, Wording } from '../../core/i18n/translation';
-import { LocalizationDrafts } from '../../core/localization-drafts';
+import { LANGUAGE_STORAGE } from '../../core/i18n/translations.config';
 import { SyncDriver } from '../../core/sync-driver';
 import { ADMIN_PHONE_BAR_MAX, PHONE_BAR_MAX, TopBar } from './top-bar';
 
@@ -47,8 +49,8 @@ const ENGLISH = {
   'theme.system': 'System',
   'theme.light': 'Light',
   'theme.dark': 'Dark',
-  'language.button': 'Language: {name} ({code})',
-  'language.notLoaded': 'The language could not be loaded. Try again.',
+  'anotoki.language.button': 'Language: {name} ({code})',
+  'anotoki.language.notLoaded': 'The language could not be loaded. Try again.',
   'signIn.storageUnavailable': 'This browser will not let the site remember a sign-in.',
 };
 const SLOVAK = {
@@ -84,8 +86,8 @@ const SLOVAK = {
   'theme.system': 'Systémový',
   'theme.light': 'Svetlý',
   'theme.dark': 'Tmavý',
-  'language.button': 'Jazyk: {name} ({code})',
-  'language.notLoaded': 'Jazyk sa nepodarilo načítať. Skús to znova.',
+  'anotoki.language.button': 'Jazyk: {name} ({code})',
+  'anotoki.language.notLoaded': 'Jazyk sa nepodarilo načítať. Skús to znova.',
   'signIn.storageUnavailable': 'Tento prehliadač nedovolí stránke zapamätať si prihlásenie.',
 };
 
@@ -219,6 +221,11 @@ describe('the top bar', () => {
     TestBed.configureTestingModule({
       providers: [
         provideTestTranslations(SLOVAK, { language: 'sk', english: ENGLISH }),
+        // The site's names in storage, and whose the drafts of the admin pages are (the library's LocalizationDrafts).
+        provideAnotokiTranslations(() => ({
+          storageKeys: LANGUAGE_STORAGE,
+          account: { language: () => null, userKey: () => user()?.sub ?? null },
+        })),
         provideRouter([{ path: '**', component: TestPage }]),
         { provide: AuthService, useValue: auth },
         { provide: SyncDriver, useValue: sync },
@@ -439,7 +446,7 @@ describe('the top bar', () => {
   it('follows a change of language without being drawn again', async () => {
     await draw();
     expect(accountButton().getAttribute('aria-label')).toBe('Tvoja ponuka: mona');
-    await TestBed.inject(TranslationService).setLanguage('en', false);
+    await TestBed.inject(TranslationService).setLanguage('en', { remember: false });
     await fixture.whenStable();
     expect(accountButton().getAttribute('aria-label')).toBe('Your menu: mona');
     expect(links().map(words)).toEqual(['Dashboard', 'Import', 'Builds']);
@@ -698,7 +705,11 @@ describe('the top bar', () => {
       items()
         .find((item) => words(item) === label)!
         .click();
-      await fixture.whenStable();
+      // The drafts are the admin pages' (their own entry point, loaded on the way when the tab holds some).
+      for (let i = 0; i < 5; i++) {
+        await new Promise((done) => setTimeout(done));
+        await fixture.whenStable();
+      }
     };
 
     it('signs out at once when nothing waits', async () => {
@@ -712,6 +723,8 @@ describe('the top bar', () => {
       await draw();
       const drafts = TestBed.inject(LocalizationDrafts);
       drafts.strings.set({ 'home.title': { sk: 'Každá postava' } });
+      await fixture.whenStable();
+      expect(sessionStorage.getItem('build-analyzer-localization-drafts')).not.toBeNull();
       await chooseSignOut('Odhlásiť sa');
 
       expect(dialog.open.mock.calls[0][1].data).toEqual({
@@ -739,6 +752,7 @@ describe('the top bar', () => {
       await draw('admin');
       const drafts = TestBed.inject(LocalizationDrafts);
       drafts.languages.set({ cs: { name: 'Czech', native_name: 'Čeština', sort_order: '3' } });
+      await fixture.whenStable();
       let draftsAtSignOut = -1;
       auth.logout.mockImplementationOnce(async () => {
         draftsAtSignOut = drafts.count();
@@ -748,6 +762,18 @@ describe('the top bar', () => {
       expect(dialog.open.mock.calls[0][1].data.title).toBe('Sign out without your latest changes?');
       expect(auth.logout).toHaveBeenCalledTimes(1);
       expect(draftsAtSignOut).toBe(0);
+      expect(sessionStorage.getItem('build-analyzer-localization-drafts')).toBeNull();
+    });
+
+    it("does not ask over somebody else's drafts left in the tab: they are not this person's to give up", async () => {
+      sessionStorage.setItem(
+        'build-analyzer-localization-drafts',
+        JSON.stringify({ owner: '99', strings: { 'home.title': { sk: 'Cudzie' } }, languages: {} }),
+      );
+      await draw();
+      await chooseSignOut('Odhlásiť sa');
+      expect(dialog.open).not.toHaveBeenCalled();
+      expect(auth.logout).toHaveBeenCalledTimes(1);
     });
   });
 });

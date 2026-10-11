@@ -3,6 +3,7 @@
 namespace App;
 
 use Anotoki\Lib\Migrations\Migrator;
+use Anotoki\Lib\Translations\Translations;
 use App\Auth\IamSignInPolicy;
 use App\Auth\SignInPolicy;
 use App\Db\Db;
@@ -12,6 +13,7 @@ use App\Http\Fetcher;
 use App\Http\HttpClient;
 use App\Repositories\BuildSources;
 use App\Services\Builds\BuildSourceRegistry;
+use App\Services\Translations\SiteTranslations;
 use App\Support\Iam\IamTokenVerifier;
 use LogicException;
 use ReflectionClass;
@@ -118,6 +120,9 @@ final class App
             // site gate asks it whether an update waits, the Migrations page applies with it. A test puts in one
             // of its own (another folder, a file that fails).
             Migrator::class => Migrations::migrator($this->get(Db::class)->raw()),
+            // The site's words (anotoki/lib's translations, with this site's own in Services\Translations\SiteTranslations):
+            // the routes of api/routes/translations.php, the People page's delete and the command line ask them.
+            Translations::class => SiteTranslations::make($this->get(Db::class)->raw()),
             HttpClient::class => new CurlHttpClient,
             Fetcher::class => new Fetcher($this->get(HttpClient::class), $this->get(Cache\Cache::class), $this->config, $this->web),
             IamTokenVerifier::class => IamTokenVerifier::fromConfig($this->config),

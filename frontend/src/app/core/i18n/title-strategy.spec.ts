@@ -1,11 +1,12 @@
 import { TestBed } from '@angular/core/testing';
 import { Title } from '@angular/platform-browser';
 import { Route, Router, TitleStrategy, provideRouter } from '@angular/router';
+import { isAdminArea } from '@anotoki/lib/translations';
+import { provideTestTranslations } from '@anotoki/lib/translations/testing';
 import { routes } from '../../app.routes';
 import { isTranslationKey } from './en';
-import { provideTestTranslations } from './testing';
 import { ADMIN_PANEL, AppTitleStrategy, BRAND } from './title-strategy';
-import { TranslationService, isEnglishPath } from './translation';
+import { TranslationService } from './translation';
 
 const ENGLISH = { 'title.import': 'Import account', 'title.builds': 'Builds' };
 const SLOVAK = { 'title.import': 'Import účtu', 'title.builds': 'Buildy' };
@@ -72,7 +73,7 @@ describe('AppTitleStrategy: the browser tab’s title', () => {
     const { title, i18n } = await at('/builds/hsr');
     expect(title).toBe('Buildy · Build Analyzer');
 
-    expect(await i18n.setLanguage('en', false)).toBe(true);
+    expect(await i18n.setLanguage('en', { remember: false })).toBe(true);
     TestBed.tick();
     expect(TestBed.inject(Title).getTitle()).toBe('Builds · Build Analyzer');
   });
@@ -94,7 +95,7 @@ describe('the routes’ titles', () => {
 
   it('are keys on the pages members read, and plain English in the admin panel', () => {
     for (const route of titled) {
-      const english = isEnglishPath(`/${route.path}`);
+      const english = isAdminArea(`/${route.path}`);
       expect(typeof route.title, route.path).toBe('string');
       expect(isTranslationKey(route.title as string), route.path).toBe(!english);
     }

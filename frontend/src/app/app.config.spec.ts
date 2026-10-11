@@ -4,13 +4,14 @@ import { ApplicationInitStatus } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
 import { Router, TitleStrategy } from '@angular/router';
 import { SiteStatus } from '@anotoki/lib/migrations';
+import { TranslationBundle } from '@anotoki/lib/translations';
+import { TEST_LANGUAGES } from '@anotoki/lib/translations/testing';
 import { appConfig } from './app.config';
 import { AUTH_CLIENT_FACTORY, AuthService } from './core/auth';
 import { AnotokiAuth, AnotokiInitResult, AnotokiUser } from './core/iam/anotoki-auth';
-import { TEST_LANGUAGES } from './core/i18n/testing';
 import { AppTitleStrategy } from './core/i18n/title-strategy';
 import { TranslationService } from './core/i18n/translation';
-import { Meta, TranslationBundle } from './core/models';
+import { Meta } from './core/models';
 import { VISITOR_STORAGE_KEY, VisitorKey } from './core/visitor-key';
 
 const META: Meta = { games: [], version: '0.1', auth: { issuer: null, client_id: null } };
@@ -216,7 +217,17 @@ describe('the start of the app (app.config.ts)', () => {
     requests.expectOne('/api/meta').flush(META);
     await settle();
 
-    translations()[0].flush({ message: 'The translations are not available yet.', code: 'translations_unavailable' }, { status: 503, statusText: 'Service Unavailable' });
+    const unavailable = {
+      message: 'The words are not in the database yet.',
+      code: 'translations_unavailable',
+    };
+    translations()[0].flush(unavailable, { status: 503, statusText: 'Service Unavailable' });
+    // A first visit's lost answer is asked once more, half a second later (the library's start) - then the page
+    // starts on what it has.
+    await new Promise((resolve) => setTimeout(resolve, 600));
+    const again = translations();
+    expect(again.map((request) => request.request.url)).toEqual(['/api/translations/en']);
+    again[0].flush(unavailable, { status: 503, statusText: 'Service Unavailable' });
     await started();
 
     expect(translations()).toEqual([]);

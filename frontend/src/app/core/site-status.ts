@@ -2,6 +2,10 @@ import { formatDate } from '@angular/common';
 import { EnvironmentProviders, inject } from '@angular/core';
 import { MatSnackBar } from '@angular/material/snack-bar';
 import { provideAnotokiMigrations } from '@anotoki/lib/migrations';
+import {
+  TranslationService as LibraryTranslations,
+  siteStatusWords,
+} from '@anotoki/lib/translations';
 import { AuthService } from './auth';
 import { DateChoices, OwnDateParts, chosenMoment } from './i18n/date-patterns';
 import { TranslationService } from './i18n/translation';
@@ -38,9 +42,9 @@ export function appliedAt(iso: string, chosen: DateChoices | null, locale: strin
 /**
  * The anotoki family's one behaviour while the site is not ready (@anotoki/lib/migrations, the owner's decision
  * of 2026-10-07), wired to this site: who is the site's ADMIN (the token's roles), who is signed in, how one
- * signs in (to the IAM and back to the page they are on), the language on the page, and the Migrations page's
- * dates. After an Apply that leaves nothing to apply, the site's words are read again: the strings may only now
- * exist, or have new keys.
+ * signs in (to the IAM and back to the page they are on), the language on the page and its words (the database's
+ * anotoki.siteStatus.* strings, the library's own under them), and the Migrations page's dates. After an Apply
+ * that leaves nothing to apply, the site's words are read again: the strings may only now exist, or have new keys.
  *
  * The rest of it lives where it acts: siteStatusInterceptor among the HTTP interceptors and SiteStatus.check()
  * at the start (app.config.ts), the gate around the router outlet (app.html), the Migrations page on
@@ -50,6 +54,8 @@ export function provideSiteStatus(): EnvironmentProviders {
   return provideAnotokiMigrations(() => {
     const auth = inject(AuthService);
     const i18n = inject(TranslationService);
+    // The same service, as the library's own function takes it (this site's view of it types the keys).
+    const words = inject(LibraryTranslations);
     const snackBar = inject(MatSnackBar);
     return {
       statusUrl: SITE_STATUS_URL,
@@ -62,6 +68,11 @@ export function provideSiteStatus(): EnvironmentProviders {
       language: () => i18n.effectiveLanguage(),
       formatDate: (iso: string) => appliedAt(iso, auth.preferences(), i18n.locale()),
       onUpToDate: () => i18n.reload(),
+      // The status page's words from the database (anotoki.siteStatus.*: an editor's rewording reaches them), in
+      // the language on the page; read whenever the page draws, so it follows a change of either.
+      get words() {
+        return siteStatusWords(words);
+      },
     };
   });
 }

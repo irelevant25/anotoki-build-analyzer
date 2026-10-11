@@ -2,9 +2,9 @@ import { Component, signal } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
 import { MatSnackBar } from '@angular/material/snack-bar';
 import { Router, provideRouter } from '@angular/router';
+import { provideTestTranslations } from '@anotoki/lib/translations/testing';
 import { AuthService } from '../../core/auth';
 import { Changelog } from '../../core/changelog';
-import { provideTestTranslations } from '../../core/i18n/testing';
 import { SyncDriver } from '../../core/sync-driver';
 import { AppLayout } from './app-layout';
 

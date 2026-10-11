@@ -1,7 +1,7 @@
 import { Component, inject } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
 import { MatStepperIntl } from '@angular/material/stepper';
-import { provideTestTranslations } from '../../core/i18n/testing';
+import { provideTestTranslations } from '@anotoki/lib/translations/testing';
 import { TranslationService } from '../../core/i18n/translation';
 import { StepperWords } from './stepper-words';
 
@@ -36,7 +36,7 @@ describe('the stepper’s own words', () => {
     let fired = 0;
     intl.changes.subscribe(() => fired++);
 
-    expect(await i18n.setLanguage('en', false)).toBe(true);
+    expect(await i18n.setLanguage('en', { remember: false })).toBe(true);
     await fixture.whenStable();
 
     expect(words(intl)).toEqual(['Optional', 'Completed', 'Editable']);

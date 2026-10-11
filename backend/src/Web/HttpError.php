@@ -16,8 +16,9 @@ use RuntimeException;
  * person's own accounts file (App\Services\Transfer\AccountsFileException, 422): no_file, file_too_big,
  * not_a_data_file, newer_version, bad_entry, too_many_accounts, export_too_big. The errors of the admin
  * area's routes carry their sentence alone -
- * but for the routes of the site's own strings, whose refusals say which key and language they are about
- * beside a code (App\Services\Translations\TranslationCheck), and answer translations_unavailable (503)
+ * but for the routes of the site's own strings (anotoki/lib's, api/routes/translations.php), which answer in
+ * the same shape without an HttpError: their refusals say which key and language they are about beside a code
+ * (the library's checks, and this site's names_another_site), and they answer translations_unavailable (503)
  * while the strings are not in the database.
  */
 class HttpError extends RuntimeException

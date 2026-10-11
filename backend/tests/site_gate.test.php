@@ -14,6 +14,8 @@ declare(strict_types=1);
 require __DIR__.'/lib.php';
 
 use Anotoki\Lib\Migrations\Migrator;
+use Anotoki\Lib\Translations\Http\TranslationsRoutes;
+use Anotoki\Lib\Translations\Schema;
 use App\App;
 use App\Auth\Role;
 use App\Auth\SignInPolicy;
@@ -98,7 +100,8 @@ const SOME_PATHS = [
 ];
 
 test('the paths open while an update waits are the sign-in settings, the strings and the Migrations page\'s - nothing else', function () {
-    same(['/api/meta', '~^/api/translations/[^/]+$~D', '~^/api/admin/migrations(/file|/apply)?$~D'], SITE_OPEN_PATHS, 'the open paths');
+    same(['/api/meta', '~^/api/translations/[^/]+$~D', '~^/api/admin/migrations(/file|/apply)?$~D'], siteOpenPaths(), 'the open paths');
+    same(TranslationsRoutes::openPath(), siteOpenPaths()[1], 'the strings\' as the library opens its own route: one segment, never a prefix');
 });
 
 test('ready: the status says so, and every path answers as ever', function () {
@@ -108,7 +111,7 @@ test('ready: the status says so, and every path answers as ever', function () {
     (new Client)->get('/api/meta')->status(200)->path('auth.issuer', TEST_ISSUER);
     (new Client)->get('/api/builds/genshin')->status(200);
     (new Client)->asIam(7, [])->get('/api/accounts')->status(200);
-    (new Client)->asIam(1, [Role::ADMIN])->get('/api/admin/migrations')->status(200)->path('pending', [])->path('sets', [Migrations::SET]);
+    (new Client)->asIam(1, [Role::ADMIN])->get('/api/admin/migrations')->status(200)->path('pending', [])->path('sets', [Migrations::SET, Schema::SET]);
     (new Client)->get('/api/nothing-here')->status(404)->path('code', 'not_found');
 });
 
@@ -240,12 +243,19 @@ test('a database with nothing in it yet: the Migrations page\'s ADMIN check need
 
         $admin = (new Client)->asIam(1, [Role::ADMIN], ['preferred_username' => 'ada']);
         $status = $admin->get('/api/admin/migrations')->status(200);
-        $files = Migrations::migrator($pdo)->files(Migrations::set());
-        same([[], $files], [$status->json('applied'), array_column($status->json('pending'), 'name')], 'nothing applied, every file pending');
+        // The site's files, then the library's.
+        $migrator = Migrations::migrator($pdo);
+        $files = [];
+        foreach (Migrations::sets() as $set) {
+            foreach ($migrator->files($set) as $name) {
+                $files[] = ['set' => $set->name, 'name' => $name];
+            }
+        }
+        same([[], $files], [$status->json('applied'), array_map(static fn (array $file): array => ['set' => $file['set'], 'name' => $file['name']], $status->json('pending'))], 'nothing applied, every file pending');
         same(false, (bool) $pdo->query("SELECT to_regclass('public.users') IS NOT NULL")->fetchColumn(), 'no table of users - and none was needed');
 
         $applied = $admin->post('/api/admin/migrations/apply')->status(200);
-        same([$files, null], [array_column($applied->json('applied'), 'name'), $applied->json('error')], 'every file applied');
+        same([$files, null], [$applied->json('applied'), $applied->json('error')], 'every file applied');
         same('ready', (new Client)->get('/api/site-status')->status(200)->json('state'), 'ready');
         $admin->get('/api/admin/people')->status(200)->path('people.0.name', 'ada');
     } finally {

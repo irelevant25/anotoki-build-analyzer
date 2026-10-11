@@ -4,6 +4,7 @@ use Anotoki\Lib\Migrations\Http\MigrationsRoutes;
 use Anotoki\Lib\Migrations\Migrator;
 use App\App;
 use App\Auth\Role;
+use App\Db\Migrations;
 use App\Support\Log;
 use Psr\Http\Message\ResponseInterface as Response;
 use Psr\Http\Message\ServerRequestInterface as Request;
@@ -12,7 +13,8 @@ use Psr\Http\Server\RequestHandlerInterface;
 /**
  * Schema changes on a host without a shell (admins only; the admin panel's Migrations page): upload the new
  * files in migrations/ by FTP, then apply them here. The anotoki family's routes (anotoki/lib:
- * MigrationsRoutes), on the same engine as `php migration.php` and setup.php (App\Db\Migrations):
+ * MigrationsRoutes), on the same engine as `php migration.php` and setup.php (App\Db\Migrations) - this site's
+ * set `build_analyzer`, then the library's own `anotoki_translations` (in vendor/, uploaded with it):
  *
  *   GET  /api/admin/migrations              {sets, applied: [{set, name, applied_at}], pending: [{set, name,
  *                                           ready, blocked}], missing: [{set, name, applied_at}]}
@@ -28,14 +30,16 @@ use Psr\Http\Server\RequestHandlerInterface;
  * run, they must not need a table one of them makes.
  */
 return function (Slim\App $slim, App $app): void {
-    MigrationsRoutes::admin($slim, '/api/admin/migrations', fn (): Migrator => $app->get(Migrator::class), function (Request $request, array $result): void {
+    // A file as the log names it: the site's by its name, the library's with its set in front (anotoki_translations/...).
+    $name = static fn (array $file): string => ($file['set'] === Migrations::SET ? '' : $file['set'].'/').$file['name'];
+    MigrationsRoutes::admin($slim, '/api/admin/migrations', fn (): Migrator => $app->get(Migrator::class), function (Request $request, array $result) use ($name): void {
         // A failing migration is reported, not thrown: on a host without a shell the admin has only the page's
         // answer to go on, and the log (FTP-only) keeps it.
         if ($result['failed'] !== null) {
-            Log::error("Migration {$result['failed']['name']} failed: {$result['error']}");
+            Log::error("Migration {$name($result['failed'])} failed: {$result['error']}");
         }
         foreach ($result['applied'] as $file) {
-            Log::info("Migration {$file['name']} applied.");
+            Log::info("Migration {$name($file)} applied.");
         }
     })
         // An apply on the host is not cut short when the browser goes, and has five minutes.

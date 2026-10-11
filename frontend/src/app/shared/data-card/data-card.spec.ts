@@ -3,10 +3,10 @@ import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { MATERIAL_ANIMATIONS } from '@angular/material/core';
 import { MatSnackBar } from '@angular/material/snack-bar';
 import { Observable, of, throwError } from 'rxjs';
+import { provideTestTranslations } from '@anotoki/lib/translations/testing';
 import { Api } from '../../core/api';
 import { DYNAMIC_KEYS } from '../../core/i18n/dynamic-keys';
 import { en } from '../../core/i18n/en';
-import { provideTestTranslations } from '../../core/i18n/testing';
 import { DataImportResult } from '../../core/models';
 import { DATA_FILE_MAX_MB, DATA_PROBLEM_CODES, DataCard, OUTCOME_KEYS } from './data-card';
 

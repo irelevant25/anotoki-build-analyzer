@@ -141,8 +141,11 @@ foreach (new RecursiveIteratorIterator(new RecursiveDirectoryIterator($site, Fil
         }
     }
 }
+// The library's own migration files and words ship inside vendor/ (anotoki/lib's php/migrations and php/resources):
+// without them the Migrations page would have nothing of the library's to apply, and a save of strings would fail.
 foreach (['index.html', 'changelog.json', 'api/index.php', 'api/.htaccess', 'vendor/autoload.php', 'config/app.php', 'migrations/002_schema.sql',
-    'migrations/003_languages_and_translations.sql'] as $required) {
+    'migrations/003_languages_and_translations.sql', 'vendor/anotoki/lib/php/migrations/translations/001_languages_and_strings.sql',
+    'vendor/anotoki/lib/php/resources/library-words.json'] as $required) {
     if (! is_file("{$site}/{$required}")) {
         $problems[] = "missing: build-analyzer/{$required}";
     }

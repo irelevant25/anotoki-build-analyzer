@@ -1,7 +1,7 @@
 import { Provider, signal } from '@angular/core';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
+import { provideTestTranslations } from '@anotoki/lib/translations/testing';
 import { AuthService } from '../../core/auth';
-import { provideTestTranslations } from '../../core/i18n/testing';
 import { AnotokiPreferences } from '../../core/iam/anotoki-auth';
 import { ThemeToggle } from './theme-toggle';
 

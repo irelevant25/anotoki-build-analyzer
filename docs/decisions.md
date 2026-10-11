@@ -3,6 +3,39 @@
 Short records of choices that shape the code. Add a new entry (newest first) when you make a similar call.
 Older entries describe the Laravel version as it was; where a setting has since moved, the entry says so.
 
+**2026-10-11 — The site's words through anotoki-lib 0.3.0's translations module; Translations and Languages are the family's pages (the owner's decision; version 0.4.0).**
+Every anotoki site keeps its words one way now, and this site's service is the one the library's grew from.
+- *What moved to the library*: the strings' routes (`TranslationsRoutes::bundle`, `strings`, `languages`), every
+  check of a string, the command line (`TranslationsCommand`: the same `translations.php` and flags), the
+  browser's service, pipes and the language switcher's state (`forShell()`), the kit's words (`forKit()`), the
+  admin Translations and Languages pages (`@anotoki/lib/translations/admin`, a lazy chunk), their drafts and
+  the unsaved-changes guard. Gone: the repository, presenter, check and editor of the strings, the site's
+  grid, cell and owner-error components, its guard and its test helpers.
+- *What stayed this site's*: its keys and their English (compiled into the app, `en/*.json` - the library
+  service's fallback) and Slovak, the released languages (en, sk), the check that no string or language name
+  names another site (`SiteTranslations::namesAnotherSite()`, the library's `extraCheck`), the storage names a
+  visitor's choice lives under, the rights (EDITOR the strings, ADMIN the languages: `requireRole` on the
+  library's route groups), its error body `{message, code}`, and the typed view of the service
+  (`core/i18n/translation.ts`: the same injection token, an unknown key still a compile error).
+- *One wire format*: snake_case, as this site spoke already (the IAM's). What the library answers differently:
+  415 for a body that is not JSON, 413 over 1 MiB, 422 `empty_body`, 400 `invalid_json`, sentences without the
+  full stop, a DELETE that reads no body, the admin routes working once the tables are there (the bundle 503
+  until there is English), and a first visit's lost bundle asked again after 500 ms.
+- *Every rewording survives*: 006 moves `language.button` and `language.notLoaded` to the library's
+  `anotoki.language.*` with every string, its time and its writer, before the library's 002 runs - which writes
+  a library key's strings only while it has none. The gates' running totals count the site's own keys only
+  (`name NOT LIKE 'anotoki.%'`): the library adds its own when it likes.
+- *The admin panel's requests stay the person's*: the library's pages issue theirs without `ISSUED_AS`, so the
+  interceptor takes `/api/admin/*` as the person's (`isAdminRequest()`) - never the visitor key.
+- *The first load*: the sign-out question about drafts loads the admin entry only when the tab holds drafts, and
+  every kit piece comes from its own entry point (`@anotoki/lib/ui/config` …), never the barrel. 702.49 kB to
+  696.18 kB (an estimated 177.97 to 180.47 kB sent); the two pages are a chunk of their own (about 96 kB).
+- *Two sets on the Migrations page*: the library's `anotoki_translations` runs after `build_analyzer`, so the
+  page names each file with its set. The kit's alert heading did not break "Stopped at
+  build_analyzer/004_….sql" on a phone; the page's wrapper breaks a word where it would overflow until the kit
+  does.
+- No What's new line: the pages people use read as they did (the language button's name and words included).
+
 **2026-10-08 — anotoki-lib 0.2.0 in the frontend: only what it requires; the site's own pages move onto the kit later.**
 The gate's pages are a marked template (`<ng-template anotokiSitePages>`, `SitePagesDirective` in `app.ts`):
 0.2.0 takes no other template for the pages, and an unmarked one draws nothing. The Migrations page comes from
@@ -66,7 +99,8 @@ especially as setup.php is no longer there." The migrations went into one librar
 engine and its behaviour. Here:
 - *A waiting migration closes the site* - which reverses the 2026-10-04 choice that nothing here waits for one:
   the site gate (`api/middleware/site_gate.php`) answers every path 503 `update_pending` (`Retry-After: 60`) but
-  `/api/meta` (where people sign in), a language's strings and the Migrations page's API (`SITE_OPEN_PATHS`,
+  `/api/meta` (where people sign in), a language's strings and the Migrations page's API (`SITE_OPEN_PATHS` -
+  `siteOpenPaths()` since 2026-10-11 -,
   each a route exactly - never a prefix, which a crafted `…/migrations/../x` would get past; nothing else is
   opened, so no route runs on tables a waiting file has yet to make). Everybody reads "The site
   is being updated" in their language - no error, no code, only a quiet Sign in while nobody is signed in - and
@@ -425,7 +459,8 @@ never keys; they reach a sentence as a placeholder or stand before a colon, so S
 English word. The admin's Sources page and the owner's two pages stay English (their code untouched,
 `<html lang="en">`), as do the server's admin-only sentences. A new language starts hidden, so its strings can be
 written before readers are offered it. The neutral-names rule covers every string, seeded or reworded
-(`TranslationCheck`, 422 `names_another_site`). Each installation's database holds its own strings; a language
+(`TranslationCheck` - since 2026-10-11 `SiteTranslations::namesAnotherSite()`, the anotoki library's last check -,
+422 `names_another_site`). Each installation's database holds its own strings; a language
 is carried between installations by export and import. The browser check at 390 px also found two phone-layout
 defects older than this work and fixed them in CSS: the toolbar's links painted over the buttons beside them
 (under 720 px the icon-only links and the user button drop Material's 64 px minimum width and the bar's padding

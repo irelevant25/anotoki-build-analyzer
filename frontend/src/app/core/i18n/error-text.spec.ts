@@ -1,9 +1,9 @@
 import { HttpErrorResponse } from '@angular/common/http';
 import { TestBed } from '@angular/core/testing';
+import { provideTestTranslations } from '@anotoki/lib/translations/testing';
 import { DYNAMIC_KEYS } from './dynamic-keys';
 import { en } from './en';
 import { ErrorTextPipe, answerParams, errorCode, errorKey, errorParams, errorText, isSignInRefusal } from './error-text';
-import { provideTestTranslations } from './testing';
 import { TranslationService } from './translation';
 
 /** An answer of the API: a status, and the body's code (and params) beside the server's English sentence. */
@@ -161,7 +161,7 @@ describe('errorText() and the errorText pipe: what a page’s error holds, worde
     expect(pipe.transform(null)).toBe('');
     expect(pipe.transform(undefined)).toBe('');
 
-    expect(await i18n.setLanguage('en', false)).toBe(true);
+    expect(await i18n.setLanguage('en', { remember: false })).toBe(true);
     expect(pipe.transform(error)).toBe('Only an editor or an admin can do this.');
     expect(pipe.transform({ key: 'error.http', params: { status: 418 } })).toBe('Request failed (HTTP 418).');
   });

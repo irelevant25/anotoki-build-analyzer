@@ -1,2 +1,10 @@
 // The family's Migrations page styles itself (in this site's colours: the --anotoki-* properties in
 // styles.scss); the admin panel's .page gives it the panel's width and margins.
+
+// Since the anotoki library's translations came there are two sets, so the page names a file with its set -
+// and the kit's alert (0.3.0) does not break a long word in its heading: "Stopped at
+// build_analyzer/004_visitors_and_family_bar.sql" pushed a 390 px screen sideways. A word breaks only where it
+// would overflow (inherited into the library's page, nothing else changes), until the kit does it itself.
+.page {
+  overflow-wrap: break-word;
+}

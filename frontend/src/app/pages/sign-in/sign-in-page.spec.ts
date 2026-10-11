@@ -2,9 +2,10 @@ import { signal } from '@angular/core';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { MatSnackBar } from '@angular/material/snack-bar';
 import { Router, provideRouter } from '@angular/router';
+import { provideAnotokiTranslations } from '@anotoki/lib/translations';
+import { provideTestTranslations } from '@anotoki/lib/translations/testing';
 import { AuthService } from '../../core/auth';
 import { en } from '../../core/i18n/en';
-import { provideTestTranslations } from '../../core/i18n/testing';
 import { Wording } from '../../core/i18n/translation';
 import { AuthCallbackPage } from './auth-callback-page';
 import { SignInPage, safePath } from './sign-in-page';
@@ -58,7 +59,7 @@ describe('the sign-in page', () => {
   const buttons = () => [...host.querySelectorAll<HTMLButtonElement>('button')];
 
   interface Options {
-    /** 'none': no bundle at all - the real service, reading the compiled English. */
+    /** 'none': no bundle at all - the real service, reading the compiled English (the site's fallback: translations.config.ts). */
     language?: 'en' | 'sk' | 'none';
     strings?: Record<string, string>;
     /** The server could not be asked: there is no IAM to go to. */
@@ -90,7 +91,14 @@ describe('the sign-in page', () => {
     TestBed.configureTestingModule({
       providers: [
         provideRouter([]),
-        language === 'sk' ? provideTestTranslations({ ...SLOVAK, ...options.strings }, { language: 'sk', english: en }) : language === 'en' ? provideTestTranslations(en) : [],
+        language === 'sk'
+          ? provideTestTranslations(
+              { ...SLOVAK, ...options.strings },
+              { language: 'sk', english: en },
+            )
+          : language === 'en'
+            ? provideTestTranslations(en)
+            : provideAnotokiTranslations(() => ({ fallbackEnglish: en })),
         { provide: AuthService, useValue: auth },
         { provide: MatSnackBar, useValue: snackBar },
       ],

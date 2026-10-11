@@ -5,10 +5,10 @@ import { MATERIAL_ANIMATIONS } from '@angular/material/core';
 import { MatSnackBar } from '@angular/material/snack-bar';
 import { provideRouter } from '@angular/router';
 import { Observable, of, throwError } from 'rxjs';
+import { provideTestTranslations } from '@anotoki/lib/translations/testing';
 import { Api } from '../../core/api';
 import { AuthService } from '../../core/auth';
 import { en } from '../../core/i18n/en';
-import { provideTestTranslations } from '../../core/i18n/testing';
 import { TranslationService } from '../../core/i18n/translation';
 import { MetaStore } from '../../core/meta-store';
 import { AccountDetail, CharacterOverview, GameKey, ImportRun } from '../../core/models';
@@ -306,7 +306,9 @@ describe('the account page', () => {
       await setup({ account: account({ characters: [character(1), character(2, { best: best({ top_issue: 'An older sentence.', top_issue_kind: null, top_issue_params: null }) })] }) });
       expect(cards().map((card) => text(card.querySelector('.issue span')))).toEqual(['Zvýš level: Staff of Homa (level 80/90).', 'An older sentence.']);
 
-      expect(await TestBed.inject(TranslationService).setLanguage('en', false)).toBe(true);
+      expect(await TestBed.inject(TranslationService).setLanguage('en', { remember: false })).toBe(
+        true,
+      );
       await fixture.whenStable();
 
       const issues = cards().map((card) => card.querySelector('.issue span')!);
