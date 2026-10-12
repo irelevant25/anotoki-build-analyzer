@@ -398,6 +398,18 @@ test('only CF-Connecting-IP names the address, and only from Cloudflare: X-Real-
     }
 });
 
+test('a proxy range wider than /8 (IPv6: /16) is refused - believed, a forged CF-Connecting-IP from anywhere in it would walk past every limit; Cloudflare\'s own list passes', function () {
+    $refusal = 'config/client_address.local.php trusts a proxy range wider than /8 (IPv4) or /16 (IPv6)';
+    $refused = fn (array $ranges): bool => in_array($refusal, testConfig(['client_address' => ['trusted_proxies' => $ranges]])->problems(), true);
+
+    foreach ([['0.0.0.0/0'], ['::/0'], ['10.0.0.0/8', '0.0.0.0/1'], ['2000::/3'], [' 64.0.0.0 / 2 ']] as $ranges) {
+        same(true, $refused($ranges), 'refused: '.implode(', ', $ranges));
+    }
+    foreach ([Anotoki\Lib\Support\ClientAddress::CLOUDFLARE, [], ['10.0.0.0/8', '2001:db8:ff::/48'], ['2001:db8::/16'], ['198.51.100.7']] as $ranges) {
+        same(false, $refused($ranges), 'taken: '.(implode(', ', $ranges) ?: 'none'));
+    }
+});
+
 test('behind Cloudflare, as committed: a connection from one of its ranges counts the address CF-Connecting-IP names, any other is counted itself - and the address is kept nowhere, nor in a backup', function () {
     T::$app->config->set('visitors.new_per_hour_per_address', 1);
     same([Anotoki\Lib\Support\ClientAddress::CLOUDFLARE, null],

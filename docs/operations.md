@@ -189,6 +189,8 @@ they import is kept on the server under a row of `users` with a negative id; the
   visitor, never Cloudflare's edge. `config/app.php` is the same everywhere and travels with the upload: change
   it here and build again. An installation that is not behind Cloudflare overrides the proxies - and nothing
   else - in `config/client_address.local.php` (by hand, gitignored): `<?php return ['trusted_proxies' => []];`.
+  A range wider than /8 (IPv6: /16) there is refused - believed, a forged `CF-Connecting-IP` from anywhere in
+  it would walk past every limit - and the site answers "not set up" until it is narrowed.
 - **Cloudflare's ranges change rarely.** The committed list is the one https://www.cloudflare.com/ips-v4 and
   https://www.cloudflare.com/ips-v6 published on 2026-10-11 (15 IPv4, 7 IPv6 ranges) - the library's
   `ClientAddress::CLOUDFLARE` of 0.5.0 is the same list, and `tests/visitors.test.php` holds the two to each

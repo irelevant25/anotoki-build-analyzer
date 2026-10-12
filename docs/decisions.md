@@ -50,7 +50,8 @@ Both halves on 0.5.0 (`anotoki/lib ^0.5.0`, the 0.5.0 tarball in both lock files
   (`countedKey()`). The header is `CF-Connecting-IP` and never a setting (the security review of 2026-10-12): the
   site's `client_ip_header` is gone, and `config/client_address.local.php` names the proxies alone - a local
   `X-Real-IP` or `True-Client-IP`, which Cloudflare passes through as the visitor wrote them, would have let every
-  visitor pick their own bucket. Two changes of behaviour, both stricter or equal: a header that is not one
+  visitor pick their own bucket. Nor may that file trust a range wider than /8 (IPv6: /16) - Cloudflare's are /13
+  and longer: the site is "not set up" until it is narrowed (genshin's security review of 2026-10-12). Two changes of behaviour, both stricter or equal: a header that is not one
   address - a list a proxy appends to, such as `X-Forwarded-For` - is no longer read from the right (the entry of
   2026-10-04) but never believed, so the proxy's own address counts: the owner's decision of 2026-10-11 - only
   `CF-Connecting-IP`, and only on a connection from Cloudflare's ranges; and a Cloudflare edge's IPv4 address

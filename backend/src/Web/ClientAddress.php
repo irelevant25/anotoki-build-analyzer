@@ -50,8 +50,9 @@ final class ClientAddress
      * What the limits count, as the counters keep it (the cache table's keys - the throttles', the new visitors'
      * limit): an HMAC of counted() under this installation's key (the anotoki library's Keys: made once in
      * storage/anotoki-lib.key, derived for this one purpose), never the address. The counters' rows live until
-     * something prunes them, and every backup of the database carries the table: no address anybody could read
-     * back is in either.
+     * something prunes them, and every backup of the database carries the table: neither holds an address as
+     * such - but the hash is a pseudonym, the same for one address for as long as the key lasts, and whoever
+     * holds the key (storage/anotoki-lib.key) could try every IPv4 address against it.
      */
     public static function countedKey(ServerRequestInterface $request, Config $config): string
     {

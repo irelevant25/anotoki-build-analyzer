@@ -19,7 +19,8 @@ use Anotoki\Lib\Auth\IamClient;
  *   client_address.local.php  optional, written by hand: an installation's own proxies over config/app.php's
  *                        client_address (Cloudflare's ranges) - ['trusted_proxies' => []] where the site is
  *                        not behind Cloudflare. Its trusted_proxies and nothing else: the header a proxy names
- *                        the address in is Cloudflare's CF-Connecting-IP, never one a setting names.
+ *                        the address in is Cloudflare's CF-Connecting-IP, never one a setting names; a range
+ *                        wider than /8 (IPv6: /16) is refused - the site is not set up until it is narrowed.
  *
  * There is no committed default for the required files: an installation that has not been set up says so
  * (503 "not_set_up", see api/middleware) instead of quietly running against a database or an IAM nobody
@@ -193,7 +194,29 @@ final class Config
             }
         }
 
+        // The proxies whose CF-Connecting-IP is believed are never a range that takes in most of the internet: from
+        // anywhere in it, a forged header would walk past every per-address limit. Cloudflare's own ranges are /13
+        // and longer (IPv6: /29 and longer), so a range wider than /8 (IPv6: /16) is a mistake, and the site says
+        // so instead of believing it.
+        foreach ((array) ($values['client_address']['trusted_proxies'] ?? []) as $range) {
+            if (is_string($range) && self::catchAll($range)) {
+                $problems[] = 'config/client_address.local.php trusts a proxy range wider than /8 (IPv4) or /16 (IPv6)';
+
+                break;
+            }
+        }
+
         return $problems;
+    }
+
+    /** A CIDR range too wide to be a proxy's: shorter than /8 for IPv4, /16 for IPv6. One address is no range. */
+    private static function catchAll(string $range): bool
+    {
+        if (preg_match('#^\s*([0-9A-Fa-f:.]+)\s*/\s*([0-9]{1,3})\s*$#D', $range, $match) !== 1) {
+            return false;
+        }
+
+        return (int) $match[2] < (str_contains($match[1], ':') ? 16 : 8);
     }
 
     public function isSetUp(): bool

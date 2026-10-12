@@ -133,7 +133,8 @@ return [
     | anywhere else the connection's own address is counted. They change rarely - refresh them from those
     | two addresses when Cloudflare announces a change (docs/operations.md). An installation that is not
     | behind Cloudflare (this computer, another host) may override them in config/client_address.local.php
-    | (gitignored): return ['trusted_proxies' => []] - the proxies alone, never another header.
+    | (gitignored): return ['trusted_proxies' => []] - the proxies alone, never another header, and never a
+    | range wider than /8 (IPv6: /16): the site is "not set up" until it is narrowed (App\Config::check()).
     |
     | CF-Connecting-IP and no other header, whatever a setting says (the owner's rule of 2026-10-11):
     | Cloudflare writes it whole over whatever the visitor sent, one address, while X-Real-IP and
