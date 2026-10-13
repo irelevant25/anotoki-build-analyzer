@@ -130,8 +130,9 @@ longer read and can be deleted.
 What the anotoki sites share lives in one library, [irelevant25/anotoki-lib](https://github.com/irelevant25/anotoki-lib),
 in two halves with one version: the Composer package `anotoki/lib` (`backend/composer.json`: a `vcs` repository
 entry and `"anotoki/lib": "^0.5.0"`; installed into `backend/vendor/`, which the upload carries) and the npm
-package `@anotoki/lib` (`frontend/package.json`: the release's tarball). The PHP half is 0.5.1, the Angular half 0.5.0 -
-0.5.1 changed only PHP (a restore moves a sequence that counts down, such as `visitor_ids`, further down). 0.5.0 is a minor version:
+package `@anotoki/lib` (`frontend/package.json`: the release's tarball). The PHP half is 0.5.2, the Angular half 0.5.0 -
+0.5.1 and 0.5.2 changed only PHP (0.5.1: a restore moves a sequence that counts down, such as `visitor_ids`, further
+down; 0.5.2: the origin secret, `config/cloudflare.local.php` - docs/operations.md, "Which address"). 0.5.0 is a minor version:
 `^0.4.1` never took it by itself; never 0.4.0, whose Feedback page fails on PHP 8.2. Besides the translations
 module, the auth module (signing in through the anotoki IAM: the token check, the IAM's switch, the browser's
 client, interceptor, guards and the sign-in hint), the people module (the People page, the scrub of the accounts

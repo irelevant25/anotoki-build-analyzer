@@ -23,6 +23,13 @@ use Psr\Http\Message\ServerRequestInterface;
  * looser). An IPv4 address written as IPv6 (::ffff:198.51.100.7, from a server listening on [::] for both) is the
  * IPv4 address it is, before it is judged.
  *
+ * Nor, with the origin secret (config/cloudflare.local.php, Config::originSecret(); anotoki-lib 0.5.2, the owner's
+ * decision of 2026-10-13), is CF-Connecting-IP believed from a Cloudflare address on a request that does not carry the
+ * secret in X-Anotoki-Origin: Cloudflare's ranges are every Cloudflare customer's, and anybody's Worker can open a
+ * connection from them and write the CF-Connecting-IP it likes. The owner's zone adds the secret to every request
+ * through it (a Transform Rule); a request without it counts as the edge it came from - coarser, never looser.
+ * Without the file the trusted proxies alone decide, as before.
+ *
  * One address, for counting: an IPv4 address as it is, an IPv6 address by its /64 - one household or one server
  * is handed a whole /64 and picks from it at will, so counting single IPv6 addresses would count nothing.
  */
@@ -41,7 +48,7 @@ final class ClientAddress
     /** What the limits count: the address, or for IPv6 its /64 ("2001:db8:1:2::/64"); "?" for none at all. */
     public static function counted(ServerRequestInterface $request, Config $config): string
     {
-        $address = Rule::of($request, self::trustedProxies($config), Rule::CLOUDFLARE_HEADER);
+        $address = Rule::of($request, self::trustedProxies($config), Rule::CLOUDFLARE_HEADER, $config->originSecret());
 
         return $address === null ? '?' : Rule::bucket($address);
     }

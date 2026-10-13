@@ -66,9 +66,11 @@ Correctness first:
   `no-store`; nothing outside `Visitors` / `Users` writes a visitor row; limits are checked before a visitor
   is made, and a failed first import deletes it; nobody's import is JSON or 415 (`jsonFromNobody()`: a form any
   page could send must never make a visitor); an address is never kept - the counters hold
-  `ClientAddress::countedKey()`, and `CF-Connecting-IP` is believed only from the committed Cloudflare ranges, by
-  the library's one rule (`Anotoki\Lib\Support\ClientAddress`), which `AdminContext` gets the same list for
-  (`trustedProxies`) - never a reading of the site's own beside it, and never another header or a setting naming
+  `ClientAddress::countedKey()`, and `CF-Connecting-IP` is believed only from the committed Cloudflare ranges -
+  with the origin secret (`config/cloudflare.local.php`, `Config::originSecret()`) only on a request carrying it
+  in `X-Anotoki-Origin`, the secret never shown or logged -, by
+  the library's one rule (`Anotoki\Lib\Support\ClientAddress`), which `AdminContext` gets the same list and
+  secret for (`trustedProxies`, `originSecret`) - never a reading of the site's own beside it, and never another header or a setting naming
   one (`X-Real-IP` and `True-Client-IP` pass through Cloudflare as the visitor wrote them); the
   sweep never fails a request; tests never assume a
   visitor's id; frontend calls go through `Api`, which marks each as the person's or the visitor's when it is

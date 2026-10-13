@@ -3,6 +3,26 @@
 Short records of choices that shape the code. Add a new entry (newest first) when you make a similar call.
 Older entries describe the Laravel version as it was; where a setting has since moved, the entry says so.
 
+**2026-10-13 — anotoki-lib PHP 0.5.2 (Angular 0.5.0): CF-Connecting-IP believed only through the owner's zone - the origin secret (the owner's decision, for every anotoki site).**
+Cloudflare's published ranges are every Cloudflare customer's, not the owner's zone alone: anybody's Worker can open
+a connection to the host from them and write a `CF-Connecting-IP` of its choosing - a new address for every request,
+past every limit counted per address (new visitors an hour, the imports per address, the feedback's and the pages'
+reports' senders). So a Transform Rule of the owner's zone adds a secret header, `X-Anotoki-Origin`, to every request
+through it, and the site, given the same value, believes `CF-Connecting-IP` only on a request that carries it (the
+library's `ClientAddress::of()`, compared in constant time); any other request from Cloudflare counts as the edge it
+came from - coarser, a Worker's made-up visitors sharing the edge's one bucket, never looser.
+- *One setting, the same file in every site*: the optional `config/cloudflare.local.php`
+  (`['origin_secret' => ...]`, `Config::ORIGIN_SECRET_FILE`), by hand - setup.php neither writes nor reads it
+  (`tests/setup.test.php`), the upload never carries it. Its `origin_secret` alone is taken; only a string with
+  something in it is a secret (`Config::originSecret()`, trimmed) - anything else is none, the site as before. A
+  file that returns no array is a problem, as for every other file here ("not set up" until mended) - read apart
+  from them, so that what PHP throws while running it (a parse error's message can quote the file) is never
+  repeated: the problem names the file alone. The secret is never shown or logged.
+- *Every reading of an address takes it*: `App\Web\ClientAddress::counted()` (the site's counters) and
+  `AdminTools::context()`'s `originSecret` (the feedback's limits, the error log's client hash). The audit log
+  keeps no address, so it needs none.
+- *Only the PHP half changed*: `vendor/` at v0.5.2, the frontend on the 0.5.0 tarball; no migration.
+
 **2026-10-12 — anotoki-lib 0.5.0: a restore does again what was deleted since its backup, sealed backups, the pages' errors in the error log, one reading of an address (the owner's round; version 0.4.0, unreleased).**
 Both halves on 0.5.0 (`anotoki/lib ^0.5.0`, the 0.5.0 tarball in both lock files).
 - *The People page's delete runs in the library's transaction, on the connection it is given* (`People::delete()`):

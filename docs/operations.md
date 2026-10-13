@@ -191,6 +191,26 @@ they import is kept on the server under a row of `users` with a negative id; the
   else - in `config/client_address.local.php` (by hand, gitignored): `<?php return ['trusted_proxies' => []];`.
   A range wider than /8 (IPv6: /16) there is refused - believed, a forged `CF-Connecting-IP` from anywhere in
   it would walk past every limit - and the site answers "not set up" until it is narrowed.
+- **The origin secret** (anotoki-lib PHP 0.5.2, the owner's decision of 2026-10-13): Cloudflare's ranges are
+  every Cloudflare customer's, not the owner's zone alone - anybody's Worker can open a connection to the host
+  from them and write the `CF-Connecting-IP` it likes, a new address every time, past every limit here. So the
+  owner's zone adds a secret header to every request through it, and the site believes `CF-Connecting-IP` only
+  on a request that carries it; any other request from Cloudflare counts as the edge it came from (coarser - a
+  Worker's made-up visitors share one bucket - never looser), for the site's counters and the admin tools alike
+  (`Config::originSecret()`, `App\Web\ClientAddress`, `AdminContext`'s `originSecret`). The same value in two
+  places, a long random value of 32 characters or more:
+  1. Cloudflare: Rules → Transform Rules → Modify Request Header → "Set static" `X-Anotoki-Origin` to the secret,
+     for every request of the zone (one rule serves every anotoki site; a site without the secret pays it no heed).
+  2. The host: `config/cloudflare.local.php`, by hand, beside the other settings (gitignored, never written or read
+     by `setup.php`, never in the upload - an upload leaves it where it is), the same file in every anotoki site:
+     `<?php return ['origin_secret' => '<the same long random value>'];`. Keep a copy off the server.
+
+  Set the rule first, then the file: the other way round, every visitor counts as their edge until the rule is
+  there; changing the secret, likewise. Without the file, or with a value that is not a string with something in
+  it, the site believes `CF-Connecting-IP` from the trusted proxies alone, as before. A file that returns no array
+  (one PHP cannot run among them) is a problem, as for the other files: the site answers "not set up" until it
+  is mended, and the problem names the file - never its contents, nor what PHP said of it. The secret is never
+  shown or logged.
 - **Cloudflare's ranges change rarely.** The committed list is the one https://www.cloudflare.com/ips-v4 and
   https://www.cloudflare.com/ips-v6 published on 2026-10-11 (15 IPv4, 7 IPv6 ranges) - the library's
   `ClientAddress::CLOUDFLARE` of 0.5.0 is the same list, and `tests/visitors.test.php` holds the two to each
@@ -515,6 +535,11 @@ map, are in [DEV.md](../DEV.md) ("Deploying"); in short:
      Dark in the bar - the IAM's account page (and every anotoki site) shows Dark; pick a language - the account
      has it too; What's new writes its dates in the order chosen on the account page. A visitor's choices stay
      the browser's. The site's server is not involved.
+   - **The origin secret (anotoki-lib PHP 0.5.2 in `vendor/`, the app's half still 0.5.0; no migration)**:
+     upload with `vendor/` - nothing waits for an Apply. Then, in this order, the Cloudflare zone's Transform Rule
+     (Rules → Transform Rules → Modify Request Header → "Set static" `X-Anotoki-Origin` to the secret, every
+     request of the zone) and `config/cloudflare.local.php` on the host by hand (*Visitors*, "The origin
+     secret"); without the file the site works as before.
 
 Check after an install: `https://builder.anotoki.eu/config/database.local.php`, `/storage/logs/app.log` and
 `/src/Config.php` must not download (403); `https://builder.anotoki.eu/api/meta` answers JSON with the IAM's

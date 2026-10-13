@@ -21,6 +21,15 @@ use Anotoki\Lib\Auth\IamClient;
  *                        not behind Cloudflare. Its trusted_proxies and nothing else: the header a proxy names
  *                        the address in is Cloudflare's CF-Connecting-IP, never one a setting names; a range
  *                        wider than /8 (IPv6: /16) is refused - the site is not set up until it is narrowed.
+ *   cloudflare.local.php optional, written by hand, the same file in every anotoki site: the secret the owner's
+ *                        Cloudflare zone adds to every request through it, in X-Anotoki-Origin (a Transform Rule,
+ *                        the owner's decision of 2026-10-13) - ['origin_secret' => '<a long random value>']. With
+ *                        it, CF-Connecting-IP is believed only on a request that carries that secret
+ *                        (originSecret(), App\Web\ClientAddress); without it, or with a value that is not a string
+ *                        with something in it, from the trusted proxies alone, as before. Its origin_secret and
+ *                        nothing else; never written or read by setup.php, never shown or logged - a file that
+ *                        does not return an array (PHP cannot run it, say) is named in the problems, never what
+ *                        PHP said of it, which can quote it.
  *
  * There is no committed default for the required files: an installation that has not been set up says so
  * (503 "not_set_up", see api/middleware) instead of quietly running against a database or an IAM nobody
@@ -36,6 +45,9 @@ final class Config
 
     /** The files that may be there: fetch's values over FETCH_DEFAULTS, client_address's over config/app.php's. */
     public const OPTIONAL_FILES = ['fetch.local.php', 'client_address.local.php'];
+
+    /** The file that may hold the origin secret (see the class comment; read apart from the others: it holds a secret). */
+    public const ORIGIN_SECRET_FILE = 'cloudflare.local.php';
 
     /** The browser check's settings folder (see the class comment). */
     public const TEST_CONFIG_ENV = 'BUILD_ANALYZER_TEST_CONFIG';
@@ -111,6 +123,22 @@ final class Config
         // header names the address is never a setting (CF-Connecting-IP, App\Web\ClientAddress).
         $own = array_intersect_key((array) ($local['client_address'] ?? []), ['trusted_proxies' => true]);
         $values['client_address'] = $own + (array) ($values['client_address'] ?? []);
+
+        // The origin secret (cloudflare.local.php, by hand): its origin_secret alone. Read apart from the other files,
+        // and what PHP throws while running it kept quiet - its message can quote the file, and the file is a secret.
+        $cloudflare = $dir.'/'.self::ORIGIN_SECRET_FILE;
+        if (is_file($cloudflare)) {
+            try {
+                $data = self::requireArray($cloudflare);
+            } catch (\Throwable) {
+                $data = null;
+            }
+            if ($data === null) {
+                $problems[] = 'config/'.self::ORIGIN_SECRET_FILE.' does not return an array';
+            } else {
+                $values['cloudflare'] = array_intersect_key($data, ['origin_secret' => true]);
+            }
+        }
 
         if ($testDir !== null && ! str_starts_with((string) ($values['database']['database'] ?? ''), self::TEST_DATABASE_PREFIX)) {
             // The test settings never reach a real database: not set up, rather than the wrong one.
@@ -228,6 +256,23 @@ final class Config
     public function problems(): array
     {
         return $this->problems;
+    }
+
+    /**
+     * The secret the owner's Cloudflare zone adds to every request through it (X-Anotoki-Origin, the library's
+     * ClientAddress::ORIGIN_HEADER: a Transform Rule - the owner's decision of 2026-10-13), from cloudflare.local.php;
+     * null without one. Cloudflare's published ranges are every Cloudflare customer's, not the owner's zone alone:
+     * anybody's Worker can reach the host from them and write the CF-Connecting-IP it likes, a new one for every
+     * request. With the secret that header is believed only on a request that carries it, and any other request from
+     * Cloudflare counts as the edge it came from - coarser, never looser (App\Web\ClientAddress, and the admin tools'
+     * AdminContext). Only a string with something in it is a secret (trimmed: a header's value never starts or ends
+     * with a space); anything else is none, as without the file.
+     */
+    public function originSecret(): ?string
+    {
+        $secret = $this->get('cloudflare.origin_secret');
+
+        return is_string($secret) && trim($secret) !== '' ? trim($secret) : null;
     }
 
     /**

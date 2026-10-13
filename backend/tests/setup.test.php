@@ -111,6 +111,20 @@ test('fetch.local.php is written only when there is none: one edited by hand is 
     same(5000, Config::load($installer->root)->get('fetch.delay_ms'), 'and read');
 });
 
+test('cloudflare.local.php - the origin secret - is the owner\'s alone: the installer neither writes nor reads it, and one put there by hand is kept', function () {
+    $installer = new Installer(installRoot());
+    $secret = 'origin-'.bin2hex(random_bytes(20));
+    $mine = "<?php return ['origin_secret' => '{$secret}'];\n";
+    file_put_contents($installer->root.'/config/cloudflare.local.php', $mine);
+    [$settings] = $installer->validate(form(), 'pw');
+
+    same(['config/database.local.php', 'config/auth.local.php', 'config/fetch.local.php'], $installer->writeConfig($settings), 'its own three, and no other');
+    same(['config/database.local.php', 'config/auth.local.php'], $installer->writeConfig($settings), 'again: its own two');
+    same($mine, file_get_contents($installer->root.'/config/cloudflare.local.php'), 'the origin secret kept as it was');
+    $config = Config::load($installer->root);
+    same([[], $secret], [$config->problems(), $config->originSecret()], 'and read, the site set up');
+});
+
 test('it refuses what it cannot use', function () {
     $installer = new Installer(installRoot());
     $cases = [

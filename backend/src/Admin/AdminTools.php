@@ -82,6 +82,9 @@ final class AdminTools
             // these - over the same list as the site's own counters. Without it the library would read REMOTE_ADDR
             // alone: Cloudflare's edge, for everybody.
             trustedProxies: ClientAddress::trustedProxies($app->config),
+            // And with the origin secret (config/cloudflare.local.php) only on a request that carries it, as the
+            // site's own counters read it: any other request from Cloudflare is the edge it came from.
+            originSecret: $app->config->originSecret(),
         );
     }
 

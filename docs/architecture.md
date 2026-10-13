@@ -186,8 +186,10 @@ reaches exactly what `requireOwner()` guards - its own accounts and imports, thr
 - **Limits** (`config/app.php` `visitors`, `client_address`): per address (`App\Web\ClientAddress`, by the
   anotoki library's one rule, `Support\ClientAddress`: `REMOTE_ADDR`, or on a connection from one of
   Cloudflare's ranges - the committed `trusted_proxies`, the owner's decision of 2026-10-11 - its
-  `CF-Connecting-IP`, one address or none believed; IPv6 by /64, `::ffff:` IPv4 as IPv4 - the admin tools read
-  by the same rule and list) and
+  `CF-Connecting-IP`, one address or none believed - with the origin secret, `config/cloudflare.local.php`
+  (anotoki-lib 0.5.2, the owner's decision of 2026-10-13), only on a request that carries it in
+  `X-Anotoki-Origin`, any other from Cloudflare counted as its edge; IPv6 by /64, `::ffff:` IPv4 as IPv4 - the
+  admin tools read by the same rule, list and secret) and
   site-wide; a visitor's imports throttled per address; per visitor a few accounts and smaller files (422
   `visitor_limit`; the accounts counted by the route before any work, and again by `AccountImporter` under the
   owner's lock, so two imports at once cannot both add the last one). The counters never keep the address:

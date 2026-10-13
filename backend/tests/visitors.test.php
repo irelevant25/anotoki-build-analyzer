@@ -450,6 +450,98 @@ test('behind Cloudflare, as committed: a connection from one of its ranges count
     }
 });
 
+test('with the origin secret (config/cloudflare.local.php), CF-Connecting-IP from Cloudflare only on a request carrying it in X-Anotoki-Origin: without it, or with a wrong one, a new address claimed every time is the edge - for the visitors\' limit and the admin tools alike; the right one names the visitor; from anywhere else, the connection', function () {
+    $secret = 'origin-'.bin2hex(random_bytes(20));
+    T::$app->config->set('visitors.new_per_hour_per_address', 1);
+    $through = fn (string $connection, string $named, array $headers = []): Answer => (new Client($connection))->withHeaders(['CF-Connecting-IP' => $named] + $headers)
+        ->post('/api/imports/file', ['content' => goodFile()]);
+
+    // (a) No secret (the tests' settings have no cloudflare.local.php): the visitor Cloudflare names, as before -
+    // whatever X-Anotoki-Origin says.
+    same(null, T::$app->config->originSecret(), 'no origin secret');
+    $through('173.245.48.10', '198.51.100.120', ['X-Anotoki-Origin' => 'anything'])->status(201);
+    $through('173.245.48.10', '198.51.100.121')->status(201);
+
+    // A Worker of anybody's, writing the CF-Connecting-IP it likes: the edge it came from.
+    T::$app->config->set('cloudflare.origin_secret', $secret);
+    same($secret, T::$app->config->originSecret(), 'the secret');
+    $through('173.245.48.11', '198.51.100.122')->status(201);
+    refusedAs($through('173.245.48.11', '198.51.100.123'), 429, 'too_many_visitors', '(b) a new address claimed through the same edge without X-Anotoki-Origin: the edge, counted already');
+    foreach (['another value' => 'not the secret', 'one character short' => substr($secret, 0, -1), 'one more' => $secret.'x', 'in capitals' => strtoupper($secret)] as $what => $sent) {
+        refusedAs($through('173.245.48.11', '198.51.100.124', ['X-Anotoki-Origin' => $sent]), 429, 'too_many_visitors', "(c) a wrong secret ({$what}): the edge too");
+    }
+    // Through the owner's zone - the secret beside it - the visitor is themselves, through any edge.
+    $through('173.245.48.11', '198.51.100.125', ['X-Anotoki-Origin' => $secret])->status(201);
+    refusedAs($through('2400:cb00::1', '198.51.100.125', ['X-Anotoki-Origin' => $secret]), 429, 'too_many_visitors', '(d) the same visitor through another edge, with the secret: that visitor, counted already');
+    // From outside Cloudflare's ranges the secret opens nothing: the connection is counted.
+    $through('203.0.113.20', '198.51.100.126', ['X-Anotoki-Origin' => $secret])->status(201);
+    refusedAs($through('203.0.113.20', '198.51.100.127', ['X-Anotoki-Origin' => $secret]), 429, 'too_many_visitors', '(e) another address claimed with the secret from outside the ranges: the connection, counted already');
+
+    // The admin tools' reading (the feedback's limits, the error log's client hash): their context, made from these
+    // settings as the API makes it, counts alike.
+    $context = App\Admin\AdminTools::context(T::$app);
+    $request = fn (string $connection, array $headers): Psr\Http\Message\ServerRequestInterface => array_reduce(
+        array_keys($headers),
+        fn (Psr\Http\Message\ServerRequestInterface $request, string $name) => $request->withHeader($name, $headers[$name]),
+        (new Slim\Psr7\Factory\ServerRequestFactory)->createServerRequest('POST', '/api/feedback', ['REMOTE_ADDR' => $connection]),
+    );
+    foreach ([
+        '(b) without X-Anotoki-Origin: the edge' => [$request('173.245.48.11', ['CF-Connecting-IP' => '198.51.100.130']), '173.245.48.11'],
+        '(c) with a wrong one: the edge' => [$request('173.245.48.11', ['CF-Connecting-IP' => '198.51.100.130', 'X-Anotoki-Origin' => 'not the secret']), '173.245.48.11'],
+        '(d) with the right one: the visitor' => [$request('173.245.48.11', ['CF-Connecting-IP' => '198.51.100.130', 'X-Anotoki-Origin' => $secret]), '198.51.100.130'],
+        '(d) ...over IPv6 too, by the visitor\'s /64' => [$request('2400:cb00::1', ['CF-Connecting-IP' => '2001:db8:aa:bb::1', 'X-Anotoki-Origin' => $secret]), '2001:db8:aa:bb::/64'],
+        '(e) the right one from outside the ranges: the connection' => [$request('203.0.113.20', ['CF-Connecting-IP' => '198.51.100.130', 'X-Anotoki-Origin' => $secret]), '203.0.113.20'],
+    ] as $what => [$asked, $bucket]) {
+        same([$bucket, $bucket], [$context->clientKey($asked), App\Web\ClientAddress::counted($asked, T::$app->config)], "the admin tools and the site's counters: {$what}");
+    }
+});
+
+test('config/cloudflare.local.php: its origin_secret alone, a string with something in it - anything else is no secret; a file that returns no array (PHP cannot run it, say) is a problem by its name alone, never by what PHP said of it', function () {
+    $secret = 'origin-'.bin2hex(random_bytes(20));
+    // A secret written bare is a constant PHP does not know, whose error quotes it; two strings side by side are a
+    // parse error quoting the second.
+    $bare = 'secret_'.bin2hex(random_bytes(16));
+    $problem = 'config/cloudflare.local.php does not return an array';
+    $root = T::$storage.DIRECTORY_SEPARATOR.'cloudflare-root';
+    @mkdir($root.'/config', 0777, true);
+    copy(dirname(__DIR__).'/config/app.php', $root.'/config/app.php');
+    $load = function (?string $contents) use ($root): App\Config {
+        $file = $root.'/config/cloudflare.local.php';
+        $contents === null ? @unlink($file) : file_put_contents($file, $contents);
+
+        return App\Config::load($root);
+    };
+    try {
+        $loaded = $load(null);
+        same([null, false], [$loaded->originSecret(), in_array($problem, $loaded->problems(), true)], 'no file: no secret, and nothing wrong');
+        $loaded = $load("<?php return ['origin_secret' => \" \\t{$secret}\\n\", 'other' => 'x'];\n");
+        same([$secret, null, false], [$loaded->originSecret(), $loaded->get('cloudflare.other'), in_array($problem, $loaded->problems(), true)],
+            'the secret, spaces around it no part of it - and nothing else of the file taken');
+        foreach ([
+            'an empty value' => "<?php return ['origin_secret' => ''];\n",
+            'only spaces' => "<?php return ['origin_secret' => '   '];\n",
+            'a number' => "<?php return ['origin_secret' => 123456789012345678];\n",
+            'a list' => "<?php return ['origin_secret' => ['{$secret}']];\n",
+            'another key' => "<?php return ['secret' => '{$secret}'];\n",
+        ] as $what => $contents) {
+            $loaded = $load($contents);
+            same([null, false], [$loaded->originSecret(), in_array($problem, $loaded->problems(), true)], "{$what}: no secret - the site as before");
+        }
+        foreach ([
+            'no array returned' => "<?php return '{$secret}';\n",
+            'a parse error' => "<?php return ['origin_secret' => 'x' '{$secret}'];\n",
+            'a word without its quotes' => "<?php return ['origin_secret' => {$bare}];\n",
+        ] as $what => $contents) {
+            $loaded = $load($contents);
+            $said = implode("\n", $loaded->problems());
+            same([null, true], [$loaded->originSecret(), in_array($problem, $loaded->problems(), true)], "{$what}: no secret, and the site not set up until it is mended");
+            check(! str_contains($said, $secret) && ! str_contains($said, $bare), "{$what}: the problems never hold the value - {$said}");
+        }
+    } finally {
+        removeTree($root);
+    }
+});
+
 test('a site-wide ceiling on new visitors an hour, and on visitors at once', function () {
     T::$app->config->set('visitors.new_per_hour', 3);
     newVisitor('198.51.100.1');
