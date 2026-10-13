@@ -531,8 +531,17 @@ test('config/cloudflare.local.php: its origin_secret alone, a string with someth
             'no array returned' => "<?php return '{$secret}';\n",
             'a parse error' => "<?php return ['origin_secret' => 'x' '{$secret}'];\n",
             'a word without its quotes' => "<?php return ['origin_secret' => {$bare}];\n",
+            // Written by hand without its first line, or saved with a BOM: PHP would print the file before every answer.
+            'no <?php line' => "return ['origin_secret' => '{$secret}'];\n",
+            'a BOM' => "\xEF\xBB\xBF<?php return ['origin_secret' => '{$secret}'];\n",
         ] as $what => $contents) {
-            $loaded = $load($contents);
+            ob_start();
+            try {
+                $loaded = $load($contents);
+            } finally {
+                $printed = (string) ob_get_clean();
+            }
+            same('', $printed, "{$what}: nothing of the file printed");
             $said = implode("\n", $loaded->problems());
             same([null, true], [$loaded->originSecret(), in_array($problem, $loaded->problems(), true)], "{$what}: no secret, and the site not set up until it is mended");
             check(! str_contains($said, $secret) && ! str_contains($said, $bare), "{$what}: the problems never hold the value - {$said}");

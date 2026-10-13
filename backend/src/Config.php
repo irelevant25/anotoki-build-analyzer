@@ -340,7 +340,19 @@ final class Config
         if (! is_file($file)) {
             return null;
         }
-        $data = (static fn (string $path) => require $path)($file);
+        // A file written by hand without its <?php line, with text after its closing tag, or with a BOM would print what it holds
+        // - a password, a secret - before the answer: what it prints is caught, and the file counts as no array.
+        ob_start();
+        try {
+            $data = (static fn (string $path) => require $path)($file);
+        } finally {
+            $printed = (string) ob_get_clean();
+        }
+        if ($printed !== '') {
+            error_log('[config] config/'.basename($file).' prints '.strlen($printed).' bytes of its own (no <?php line, text after ?>, or a BOM): it is not read.');
+
+            return null;
+        }
 
         return is_array($data) ? $data : null;
     }
