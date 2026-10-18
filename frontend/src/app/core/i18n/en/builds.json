@@ -14,6 +14,7 @@
   "character.versus": "vs. {build}",
   "character.noBuilds": "No builds for {name} yet. They appear after the next build sync (admins start one on the {link} page).",
   "character.closestMatch": "Closest match to your current setup",
+  "character.tabScore": "score {score}",
   "character.scoreBreakdown": "Score breakdown",
   "character.score.targets": "Stat targets",
   "character.targetsNeedTotals": "Stat targets need in-game totals; import this character by UID (Character Showcase) to check them.",

@@ -63,10 +63,10 @@ const SEVERITY_ICONS = new Map<string, string>([
 
 /**
  * One character of an account, against the recommended builds: its head (the game's facts, the grade against the
- * build in hand), a tab a build (its score beside it), what to improve, the gear it wears and the better pieces the
- * account already owns, the build itself (the site's own build sheet), what the sources agree on and the stats.
- * Drawn with the anotoki family's kit - cards, tabs, badges, alerts, tooltips, icons - around the site's own
- * pieces: the grade badge, the score bars, the item cards.
+ * build in hand), a tab a build (its score the tab's badge, the closest build marked), what to improve, the gear it
+ * wears and the better pieces the account already owns, the build itself (the site's own build sheet), what the
+ * sources agree on and the stats. Drawn with the anotoki family's kit - cards, tabs, badges, progress bars (the
+ * score bars), alerts, tooltips, icons - around the site's own pieces: the grade badge and the item cards.
  */
 @Component({
   selector: 'app-character-page',
@@ -137,14 +137,28 @@ export class CharacterPage {
     return data.evaluations.find((e) => e.build.id === this.selectedBuildId()) ?? data.evaluations[0] ?? null;
   });
 
-  /** A tab a build: its source and variant, its score beside them (the grade's number). */
-  protected readonly buildTabs = computed<TabItem[]>(() =>
-    (this.data()?.evaluations ?? []).map((evaluation) => ({
-      id: String(evaluation.build.id),
-      label: `${evaluation.build.source.name} · ${evaluation.build.variant}`,
-      count: evaluation.score.overall,
-    })),
-  );
+  /**
+   * A tab a build (the kit's tabs, anotoki-lib 0.6.0's icon and badge): its source and variant, its score beside them
+   * as the kit's badge - heard after the name, "Source 1 · DPS, score 87" -; the build closest to the character's
+   * setup marked by an icon and a filled badge, and heard so ("..., score 87, Closest match to your current setup").
+   */
+  protected readonly buildTabs = computed<TabItem[]>(() => {
+    const data = this.data();
+    return (data?.evaluations ?? []).map((evaluation): TabItem => {
+      const closest = evaluation.build.id === data?.best_build_id;
+      const overall = evaluation.score.overall;
+      // A build that could not be judged has no score: no badge (as the bare number was none before).
+      const score = overall === null ? null : this.i18n.t('character.tabScore', { score: this.i18n.number(overall) });
+      return {
+        id: String(evaluation.build.id),
+        label: `${evaluation.build.source.name} · ${evaluation.build.variant}`,
+        icon: closest ? 'checkCircle' : null,
+        badge: overall,
+        badgeTone: closest ? 'primary' : 'neutral',
+        badgeLabel: score && closest ? `${score}, ${this.i18n.t('character.closestMatch')}` : score,
+      };
+    });
+  });
 
   /** The tab of the build in hand. */
   protected readonly activeTab = computed(() => String(this.evaluation()?.build.id ?? ''));

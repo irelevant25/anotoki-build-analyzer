@@ -107,6 +107,10 @@
 // every ground of its theme - bg, surface, surface-2 and surface-3, the letter on its tint too (measured 2026-10-18:
 // 4.6 to 4.7 in light, 4.6 to 4.8 in dark; the light ones were 1.6 to 2.8, the dark ones 3.0 to 4.8). The same
 // hues, darker in light, lighter in dark; a severity is its grade's colour (high D, medium C, low B).
+//
+// An element's mark in the account page's element filter (the kit's segmented control, `--el-mark-*`) is its
+// colour where that reaches 3:1 on the control (surface and surface-2 - WCAG 1.4.11, as the kit asks of a mark),
+// darker where it does not: in light, ten of them; in dark, every element's own colour does (3.2 to 7.8).
 $site-colours: (
   light: (
     grade-s: #735410,
@@ -117,6 +121,20 @@ $site-colours: (
     sev-high: #a62824,
     sev-medium: #884a14,
     sev-low: #1b5f8b,
+    el-mark-pyro: #e25f12,
+    el-mark-hydro: #198ed3,
+    el-mark-anemo: #36957b,
+    el-mark-electro: var(--el-electro),
+    el-mark-dendro: #6d9221,
+    el-mark-cryo: #2e92ab,
+    el-mark-geo: #ab811f,
+    el-mark-physical: #858596,
+    el-mark-fire: var(--el-fire),
+    el-mark-ice: #1a90c7,
+    el-mark-lightning: var(--el-lightning),
+    el-mark-wind: #329771,
+    el-mark-quantum: var(--el-quantum),
+    el-mark-imaginary: #a18420,
   ),
   dark: (
     grade-s: #e0a526,
@@ -127,6 +145,20 @@ $site-colours: (
     sev-high: #e79592,
     sev-medium: #e69956,
     sev-low: #6ab2e2,
+    el-mark-pyro: var(--el-pyro),
+    el-mark-hydro: var(--el-hydro),
+    el-mark-anemo: var(--el-anemo),
+    el-mark-electro: var(--el-electro),
+    el-mark-dendro: var(--el-dendro),
+    el-mark-cryo: var(--el-cryo),
+    el-mark-geo: var(--el-geo),
+    el-mark-physical: var(--el-physical),
+    el-mark-fire: var(--el-fire),
+    el-mark-ice: var(--el-ice),
+    el-mark-lightning: var(--el-lightning),
+    el-mark-wind: var(--el-wind),
+    el-mark-quantum: var(--el-quantum),
+    el-mark-imaginary: var(--el-imaginary),
   ),
 );
 
@@ -183,9 +215,9 @@ $site-colours: (
   color: var(--anotoki-muted);
 }
 
-// A tile of the site's own - a game account, a character, a build, a piece of gear: the kit's card look (its
-// surface, edge, corners and shadow), on an element that is the site's (often the link itself). What only shows
-// content uses the kit's <anotoki-card>.
+// A tile of the site's own - a game account with its actions, a piece of gear, a slot with nothing in it: the kit's
+// card look (its surface, edge, corners and shadow), on an element that is the site's. What only shows content uses
+// the kit's <anotoki-card>; a card that is one link as a whole, the kit's link card (`a[anotokiLinkCard]`).
 .tile {
   display: block;
   min-width: 0;
@@ -195,17 +227,6 @@ $site-colours: (
   background: var(--anotoki-surface);
   color: var(--anotoki-text);
   box-shadow: var(--anotoki-shadow-sm);
-}
-
-a.tile {
-  text-decoration: none;
-  transition:
-    border-color var(--anotoki-duration) var(--anotoki-ease),
-    transform var(--anotoki-duration) var(--anotoki-ease);
-
-  &:hover {
-    border-color: var(--anotoki-primary);
-  }
 }
 
 // A heading of a part of a page, with what belongs beside it (a count, a link) on the same line.
@@ -221,8 +242,9 @@ a.tile {
   }
 }
 
-// A native disclosure (<details><summary>) in the kit's colours: the import history, a build's notes, a sync's
-// log, the wizard's help - none of which the kit has a piece for.
+// A native disclosure (<details><summary>) in the kit's colours, for the one the kit's disclosure cannot draw: a
+// sync's run on the Sources page, whose summary holds its state's dot and a quieter line of when, how long and what
+// came of it - the kit's heading is words alone. Every other is the kit's `<anotoki-disclosure>`.
 details.disclosure {
   border: 1px solid var(--anotoki-border);
   border-radius: var(--anotoki-radius-lg);

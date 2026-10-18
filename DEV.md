@@ -317,10 +317,11 @@ one (the Backups page, "before an update"). `config/*.local.php` and `storage/` 
   "before-migration" backup on the Backups page once the site works: it still holds those tables. Nothing on disk
   is deleted by the update (`storage/logs/app.log` stays; the error log and the backups are new beside it).
   [docs/operations.md](docs/operations.md), "Deploying".
-- **Terms, Privacy and Contact** (version 0.4.0: anotoki-lib 0.6.2, migration 011 and the library's
-  `anotoki_translations` 005-011): in the same Apply as the files above, or after them - Export each language
-  first, upload with `vendor/`, Apply at once. 011 adds the site's facts (`legal.*`), the pages' tab titles and
-  the footer's fan clause, in English and Slovak; the library's files add the pages' own words. Then the foot of
+- **Terms, Privacy and Contact, and the kit's newer pieces** (version 0.4.0: anotoki-lib 0.6.2, migrations 011
+  and 012 and the library's `anotoki_translations` 005-011): in the same Apply as the files above, or after them -
+  Export each language first, upload with `vendor/`, Apply at once. 011 adds the site's facts (`legal.*`), the
+  pages' tab titles and the footer's fan clause, in English and Slovak; 012 the words the kit's stepper and a
+  build's tab badge are heard by; the library's files add the pages' own words and the kit's. Then the foot of
   every page has Terms · Privacy · Contact and the fan clause, and `/privacy` links "your anotoki account" to the
   IAM's own Privacy page. A change to what the site keeps, or for how long, changes the facts' strings (a
   migration) and `SITE_LEGAL_UPDATED` (`frontend/src/app/core/legal-facts.ts`). [docs/operations.md](docs/operations.md), "Deploying".

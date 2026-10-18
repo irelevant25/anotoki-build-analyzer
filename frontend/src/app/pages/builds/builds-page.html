@@ -29,15 +29,18 @@
 
   <div class="grid-list">
     @for (c of filtered(); track c.key) {
-      <a class="tile card" [routerLink]="['/builds', gameKey(), c.key]">
-        <app-avatar [src]="c.icon_url" [alt]="c.name" [rarity]="c.rarity" [element]="c.element" />
-        <div class="text">
-          <div class="name">{{ c.name }}</div>
-          <div class="muted small">
-            {{ titleCase(c.element) }}{{ c.weapon_type ? ' · ' + titleCase(c.weapon_type) : '' }}
-          </div>
-          <div class="muted small">
-            {{ 'builds.count' | translatePlural: c.builds }} · {{ c.sources.join(', ') }}
+      <!-- The kit's link card: the character's name first (where it goes), nothing to press inside. -->
+      <a anotokiLinkCard class="card" [routerLink]="['/builds', gameKey(), c.key]">
+        <div class="card-body">
+          <app-avatar [src]="c.icon_url" [alt]="c.name" [rarity]="c.rarity" [element]="c.element" />
+          <div class="text">
+            <div class="name">{{ c.name }}</div>
+            <div class="muted small">
+              {{ titleCase(c.element) }}{{ c.weapon_type ? ' · ' + titleCase(c.weapon_type) : '' }}
+            </div>
+            <div class="muted small">
+              {{ 'builds.count' | translatePlural: c.builds }} · {{ c.sources.join(', ') }}
+            </div>
           </div>
         </div>
       </a>

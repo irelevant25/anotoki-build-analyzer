@@ -69,9 +69,8 @@
               <anotoki-icon name="x" [size]="18" />
             </button>
           </div>
-          <!-- A run's progress: the native bar, in the site's colours (the kit has none); without a total yet, it waits. -->
-          @let percent = progress(run);
-          <progress class="run-progress" max="100" [attr.value]="percent" [attr.aria-label]="runLabel(run)"></progress>
+          <!-- A run's progress: the kit's progress bar, named by the run; before its total is known nobody knows how far it is, and the bar moves on its own. -->
+          <anotoki-progress-bar class="run-progress" [label]="runLabel(run)" [value]="progress(run)" />
         </div>
       }
 

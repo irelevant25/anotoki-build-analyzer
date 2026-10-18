@@ -44,7 +44,12 @@
   max-width: 20rem;
 }
 
-.element,
+// The element filter as wide as its choices (the kit's segmented control wraps them onto lines where they do not fit).
+.element {
+  flex: 0 1 auto;
+  max-width: 100%;
+}
+
 .sort {
   flex: 0 1 13rem;
 }
@@ -70,15 +75,12 @@
   gap: 1rem;
 }
 
-// A character: the site's own tile, the whole of it a link.
-.char-card {
+// A character: the kit's link card, the whole of it a link (its look, hover and focus ring the kit's); what it holds
+// laid out inside it.
+.char-body {
   display: flex;
   flex-direction: column;
   gap: 0.625rem;
-
-  &:hover {
-    transform: translateY(-2px);
-  }
 }
 
 .char-head,

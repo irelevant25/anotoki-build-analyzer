@@ -7,7 +7,7 @@ import { provideRouter } from '@angular/router';
 import { provideTestTranslations } from '@anotoki/lib/translations/testing';
 import { Api } from '../../../core/api';
 import { AuthService } from '../../../core/auth';
-import { SourceStatus } from '../../../core/models';
+import { SourceStatus, SyncRunSummary } from '../../../core/models';
 import { BUILD_FILE_MAX_BYTES } from './build-file';
 import { SourcesPage } from './sources-page';
 import { provideKit } from '../../../core/kit';
@@ -91,6 +91,52 @@ describe('SourcesPage, moving builds through a file', () => {
     );
     expect(read).not.toHaveBeenCalled();
     expect(api['importSourceBuilds']).not.toHaveBeenCalled();
+  });
+});
+
+describe('SourcesPage, the syncs on their way', () => {
+  function run(id: number, change: Partial<SyncRunSummary>): SyncRunSummary {
+    return {
+      id, kind: 'builds', game: 'genshin', status: 'running', started_at: '2026-10-18T08:00:00Z', finished_at: null, stats: null,
+      progress: null, next_step_at: null, last_step_at: null, started_by: null, source: { key: 'genshin-1', name: 'Source 1', game: 'genshin' },
+      ...change,
+    };
+  }
+
+  it("shows each run's progress as the kit's progress bar, named by the run - moving on its own while nobody knows the total", async () => {
+    const api = {
+      sources: vi.fn(() => of([source('genshin-1', 'Source 1')])),
+      syncRuns: vi.fn(() => of([])),
+      syncStatus: vi.fn(() =>
+        of({
+          active: true,
+          wait_ms: 0,
+          runs: [run(1, { progress: { done: 9, total: 20 } }), run(2, { kind: 'catalog', source: null, progress: { done: 0, total: null } })],
+        }),
+      ),
+    };
+    TestBed.configureTestingModule({
+      imports: [SourcesPage],
+      providers: [
+        { provide: Api, useValue: api },
+        { provide: AuthService, useValue: { isAdmin: signal(true), user: signal(null) } },
+        provideTestTranslations({}),
+        provideKit(),
+        provideRouter([]),
+      ],
+    });
+    const fixture = TestBed.createComponent(SourcesPage);
+    await fixture.whenStable();
+    const element: HTMLElement = fixture.nativeElement;
+    const bars = [...element.querySelectorAll('.active-run anotoki-progress-bar')];
+    const said = (attribute: string) => bars.map((bar) => bar.querySelector('[role=progressbar]')?.getAttribute(attribute) ?? null);
+
+    expect(said('aria-label')).toEqual(['Source 1 · Genshin Impact', 'Game catalog · Genshin Impact']);
+    // 9 of 20 characters: 45 %, said in the admin panel's English.
+    expect(said('aria-valuenow')).toEqual(['45', null]);
+    expect(said('aria-valuetext')).toEqual(['45%', null]);
+    expect(bars.map((bar) => bar.classList.contains('anotoki-progress-bar--indeterminate'))).toEqual([false, true]);
+    expect(element.querySelector('progress')).toBeNull();
   });
 });
 

@@ -540,12 +540,13 @@ map, are in [DEV.md](../DEV.md) ("Deploying"); in short:
      (one made on this computer, or before 0.5.0, cannot: it is read offline); `https://builder.anotoki.eu/robots.txt`
      says `Disallow: /auth/`. A token that does not verify now answers 401 `invalid_token` (it was
      `sign_in_required`).
-   - **Version 0.4.0: Terms, Privacy and Contact (anotoki-lib 0.6.2 in `vendor/` and in the app; migration 011,
-     then the library's `anotoki_translations` 005-011)**: with the files above, in the same Apply, or on their own
+   - **Version 0.4.0: Terms, Privacy and Contact, and the kit's newer pieces (anotoki-lib 0.6.2 in `vendor/` and in
+     the app; migrations 011 and 012, then the library's `anotoki_translations` 005-011)**: with the files above, in the same Apply, or on their own
      after them - **Export** each language first, upload with `vendor/`, and **Apply pending** at once: 011 adds the
      legal pages' facts (the site's own words: what it keeps, what for and how long, its browser storage, who else
      handles data), their tabs' titles and the footer's fan clause, in English and Slovak, and rewords five
-     descriptions that still told of a snack bar; the library's 005 writes the pages' shared words and the footer's
+     descriptions that still told of a snack bar; 012 adds the names the kit's stepper and a build's tab badge are
+     heard by and retires the old stepper's "Completed"; the library's 005 writes the pages' shared words and the footer's
      links', 006-009 the kit's newer pieces' and 010-011 its own rewordings of the Privacy page - each only where
      a key has no string, or where nobody saved it. Then check: the foot of every page has Terms · Privacy ·
      Contact and the fan clause; `/privacy` reads the site's parts and its storage, and links "your anotoki account"

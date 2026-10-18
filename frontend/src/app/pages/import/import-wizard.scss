@@ -1,105 +1,12 @@
 // ── The row of steps ──────────────────────────────────────────────────────────────────────────────────────────
 
+// The family's stepper draws the steps themselves (narrow, their marks alone - its own container query); the
+// wizard only parts it from the step under it.
 .steps {
-  display: flex;
-  gap: 0.25rem;
+  display: block;
   margin: 0 0 1.25rem;
   padding: 0 0 1rem;
   border-bottom: 1px solid var(--anotoki-border);
-  list-style: none;
-  counter-reset: none;
-}
-
-.step {
-  display: flex;
-  flex: 1 1 0;
-  align-items: center;
-  justify-content: center;
-  gap: 0.5rem;
-  min-width: 0;
-  min-height: 2.75rem;
-  padding: 0 0.25rem;
-  color: var(--anotoki-muted);
-  font-weight: 650;
-
-  &.step--current {
-    color: var(--anotoki-text);
-  }
-}
-
-// A step done: a way back to it, as a step header of the linear stepper it replaced was.
-.step-button {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.5rem;
-  min-height: 2.75rem;
-  padding: 0 0.6rem;
-  border: 0;
-  border-radius: 999px;
-  background: transparent;
-  color: var(--anotoki-text);
-  font: inherit;
-  cursor: pointer;
-
-  &:hover {
-    background: var(--anotoki-surface-3);
-  }
-
-  &:disabled {
-    cursor: default;
-    opacity: 0.6;
-  }
-}
-
-.step-mark {
-  display: inline-grid;
-  flex: none;
-  place-items: center;
-  width: 1.75rem;
-  height: 1.75rem;
-  border: 1.5px solid var(--anotoki-border-strong);
-  border-radius: 50%;
-  font-size: 0.8125rem;
-  font-weight: 700;
-
-  .step--current & {
-    border-color: var(--anotoki-primary);
-    background: var(--anotoki-primary);
-    color: var(--anotoki-primary-contrast);
-  }
-
-  .step--done & {
-    border-color: var(--anotoki-primary-soft);
-    background: var(--anotoki-primary-soft);
-    color: var(--anotoki-primary-soft-text);
-  }
-}
-
-.step-label {
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-// On a phone the steps are their numbers, and the step in hand its name too.
-@media (max-width: 760px) {
-  .step:not(.step--current) {
-    flex: none;
-
-    .step-label {
-      position: absolute;
-      width: 1px;
-      height: 1px;
-      overflow: hidden;
-      clip: rect(0, 0, 0, 0);
-      white-space: nowrap;
-    }
-  }
-
-  .step.step--current {
-    justify-content: flex-start;
-  }
 }
 
 // ── A step ───────────────────────────────────────────────────────────────────────────────────────────────────

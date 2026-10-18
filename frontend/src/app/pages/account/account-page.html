@@ -112,14 +112,15 @@
         <anotoki-icon fieldPrefix name="search" [size]="18" />
       </anotoki-text-field>
 
-      <!-- An element's name is the game's. -->
-      <anotoki-select
-        class="element"
-        [label]="'account.elementFilter' | translate"
-        [options]="elementOptions()"
-        [value]="element()"
-        (valueChange)="element.set($event)"
-      />
+      <!-- An element's name is the game's; its colour the mark before it. The label shown as the fields' are, said once. -->
+      <anotoki-labelled-group class="element" [label]="'account.elementFilter' | translate" selfNamed>
+        <anotoki-segmented
+          [label]="'account.elementFilter' | translate"
+          [options]="elementOptions()"
+          [value]="element()"
+          (valueChange)="element.set($event)"
+        />
+      </anotoki-labelled-group>
 
       <anotoki-select
         class="sort"
@@ -138,53 +139,56 @@
 
     <div class="char-grid">
       @for (c of characters(); track c.id) {
-        <a class="tile char-card" [routerLink]="['/accounts', acc.id, 'characters', c.key]">
-          <div class="char-head">
-            <app-avatar [src]="c.icon_url" [alt]="c.name" [rarity]="c.rarity" [element]="c.element" />
-            <div class="char-names">
-              <div class="char-name">{{ c.name }}</div>
-              <!-- "Lv. 90 · C2": the game's notation. -->
-              <div class="muted small">{{ level(c.level) }} · {{ rankLabel(c) }}</div>
+        <!-- The kit's link card: the character's name first (where it goes), nothing to press inside. -->
+        <a anotokiLinkCard class="char-card" [routerLink]="['/accounts', acc.id, 'characters', c.key]">
+          <div class="char-body">
+            <div class="char-head">
+              <app-avatar [src]="c.icon_url" [alt]="c.name" [rarity]="c.rarity" [element]="c.element" />
+              <div class="char-names">
+                <div class="char-name">{{ c.name }}</div>
+                <!-- "Lv. 90 · C2": the game's notation. -->
+                <div class="muted small">{{ level(c.level) }} · {{ rankLabel(c) }}</div>
+              </div>
+              @if (c.best) {
+                <app-grade-badge [grade]="c.best.grade" [score]="c.best.overall" />
+              }
             </div>
-            @if (c.best) {
-              <app-grade-badge [grade]="c.best.grade" [score]="c.best.overall" />
-            }
-          </div>
 
-          @if (c.weapon) {
-            <div class="weapon">
-              <app-avatar [src]="c.weapon.icon_url" [alt]="c.weapon.name" [rarity]="c.weapon.rarity" size="xs" />
-              <span class="small ellipsis">{{ c.weapon.name }} {{ refinement(c.weapon.refinement) }}</span>
-            </div>
-          }
-          <div class="cluster sets">
-            @for (set of c.sets; track set.key) {
-              <anotoki-badge>{{ set.count }}× {{ set.name }}</anotoki-badge>
-            } @empty {
-              <span class="muted small">{{ 'account.noItemsEquipped' | translate: { items: terms.items } }}</span>
-            }
-          </div>
-
-          @if (c.best; as best) {
-            <div class="parts">
-              <app-score-bar [label]="'account.partSets' | translate" [value]="best.parts.sets" />
-              <app-score-bar [label]="buildTerms.mainStats" [value]="best.parts.main_stats" />
-              <app-score-bar [label]="buildTerms.substats" [value]="best.parts.substats" />
-            </div>
-            <div class="muted small best-line">
-              {{ 'account.bestMatch' | translate: { source: best.source, variant: best.variant } }}
-            </div>
-            <!-- The first thing the build recommends: worded from its kind, or the stored English sentence, saying so. -->
-            @if (issues().get(c.id); as issue) {
-              <div class="issue small">
-                <anotoki-icon name="lightbulb" [size]="18" /><span [attr.lang]="issue.lang">{{
-                  issue.text
-                }}</span>
+            @if (c.weapon) {
+              <div class="weapon">
+                <app-avatar [src]="c.weapon.icon_url" [alt]="c.weapon.name" [rarity]="c.weapon.rarity" size="xs" />
+                <span class="small ellipsis">{{ c.weapon.name }} {{ refinement(c.weapon.refinement) }}</span>
               </div>
             }
-          } @else {
-            <div class="muted small">{{ 'account.noBuildsForCharacter' | translate }}</div>
-          }
+            <div class="cluster sets">
+              @for (set of c.sets; track set.key) {
+                <anotoki-badge>{{ set.count }}× {{ set.name }}</anotoki-badge>
+              } @empty {
+                <span class="muted small">{{ 'account.noItemsEquipped' | translate: { items: terms.items } }}</span>
+              }
+            </div>
+
+            @if (c.best; as best) {
+              <div class="parts">
+                <app-score-bar [label]="'account.partSets' | translate" [value]="best.parts.sets" />
+                <app-score-bar [label]="buildTerms.mainStats" [value]="best.parts.main_stats" />
+                <app-score-bar [label]="buildTerms.substats" [value]="best.parts.substats" />
+              </div>
+              <div class="muted small best-line">
+                {{ 'account.bestMatch' | translate: { source: best.source, variant: best.variant } }}
+              </div>
+              <!-- The first thing the build recommends: worded from its kind, or the stored English sentence, saying so. -->
+              @if (issues().get(c.id); as issue) {
+                <div class="issue small">
+                  <anotoki-icon name="lightbulb" [size]="18" /><span [attr.lang]="issue.lang">{{
+                    issue.text
+                  }}</span>
+                </div>
+              }
+            } @else {
+              <div class="muted small">{{ 'account.noBuildsForCharacter' | translate }}</div>
+            }
+          </div>
         </a>
       } @empty {
         <anotoki-empty-state class="no-matches" icon="search" [heading]="'account.noMatches' | translate" />
@@ -196,9 +200,9 @@
     }
 
     @if (history().length > 0) {
-      <details class="disclosure history">
-        <summary>{{ 'account.importHistory' | translate }}</summary>
-        <div class="disclosure-body">
+      <!-- The family's disclosure: the table made only while it is open. -->
+      <anotoki-disclosure class="history" [heading]="'account.importHistory' | translate">
+        <ng-template anotokiDisclosurePanel>
           <table class="table history-table">
             <tbody>
               @for (row of history(); track row.run.id) {
@@ -214,8 +218,8 @@
               }
             </tbody>
           </table>
-        </div>
-      </details>
+        </ng-template>
+      </anotoki-disclosure>
     }
   }
 </div>

@@ -13,7 +13,8 @@
         "A new look, the same as the other anotoki sites: their colours, font, buttons, menus and dialogs - and the first page loads faster",
         "While Build Analyzer is being updated, the page says so in your language instead of showing an error, and comes back by itself when the update is done",
         "When signing in does not work, a page says why in your language, with Try again and Back",
-        "The grade letters and the marks beside each recommendation are easier to read, in the light theme and the dark"
+        "The grade letters and the marks beside each recommendation are easier to read, in the light theme and the dark",
+        "The element filter on your account shows each element's colour, a build's tab shows its score, and the import guide's steps, the import history and the score bars say more to a screen reader"
       ]
     }
   },

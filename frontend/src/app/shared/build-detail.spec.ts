@@ -196,7 +196,7 @@ describe('BuildDetail: a recommended build in the reader’s words, the game’s
     expect(tooltips('.check')).toEqual(['Yours: ATK%', 'Your main stat matches']);
     expect(labels('.check svg')).toEqual(['Yours: ATK%', 'Your main stat matches']);
     expect(text('.target > span')).toEqual(['CRIT Rate', '70.0%+', 'you: 62.0%', 'At least 70% CRIT Rate.']);
-    expect(text('.notes summary')).toEqual(['Notes from Source 1']);
+    expect(text('.notes .anotoki-disclosure__button')).toEqual(['Notes from Source 1']);
     expect(text('footer')).toEqual(['Version 5.2 · Updated at the source 3 days ago · Checked 2 hours ago']);
     expect(warn).not.toHaveBeenCalled();
   });
@@ -211,7 +211,7 @@ describe('BuildDetail: a recommended build in the reader’s words, the game’s
     expect(text('.sets anotoki-badge')).toEqual(['Používaš']);
     expect(tooltips('.check')).toEqual(['Máš: ATK%', 'Main stat sedí s odporúčaním']);
     expect(text('.target > span')).toEqual(['CRIT Rate', '70.0%+', 'máš: 62.0%', 'At least 70% CRIT Rate.']);
-    expect(text('.notes summary')).toEqual(['Poznámky: Source 1']);
+    expect(text('.notes .anotoki-disclosure__button')).toEqual(['Poznámky: Source 1']);
     expect(text('footer')).toEqual(['Verzia 5.2 · V zdroji aktualizované pred 3 dňami · Skontrolované pred 2 hodinami']);
     expect(warn).not.toHaveBeenCalled();
   });

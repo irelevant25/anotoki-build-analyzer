@@ -695,11 +695,16 @@ page's API answers its own: 404 `not_found` (a file that is none of the set's), 
   library palette, a site keeping its look by its tokens and never by re-styling a kit piece; the pieces come
   each from its own entry point (`@anotoki/lib/ui/button`, `/ui/dialog`, `/ui/tabs` ...), never the
   `@anotoki/lib/ui` barrel; a colour is a `--anotoki-*` token, or one of the site's own meanings (`--grade-*`,
-  `--sev-*`, `--rarity-*`, `--el-*`, the same in both themes). What the kit has no piece for stays the site's,
-  drawn from its tokens: `.tile` (a game account, a character, a build, a piece of gear), `.section-head`,
-  `details.disclosure` (the import history, a build's notes, a sync's log), the import wizard's row of steps,
-  the score bars and grade badges. Manrope comes with the kit and is bundled; nothing is loaded from another
-  site.
+  `--sev-*`, `--rarity-*`, `--el-*` and `--el-mark-*`; the grades, severities and marks light and dark apart). The
+  kit's newer pieces (anotoki-lib 0.6.0) stand where the site drew its own: the import wizard's row of steps is
+  the kit's stepper, the import history, a build's notes and the wizard's trouble list and paste box its
+  disclosure, the score bars and a sync's progress its progress bar, a character (the account page, the builds)
+  its link card, a build's tab carries its score as the kit's badge, the account's element filter is its
+  segmented control with each element's mark, and the icons the site drew are the family's. What the kit has no
+  piece for stays the site's, drawn from its tokens: `.tile` (a game account with its actions, a piece of gear,
+  an empty slot), `.section-head`, `details.disclosure` (a sync's log, its summary holding the run's state), the
+  wizard's choice cards and file drop zone, and the grade badges. Manrope comes with the kit and is bundled;
+  nothing is loaded from another site.
 - The dev server (http://localhost:4600) proxies `/api` and `/setup.php` to `http://localhost:8400`
   (`proxy.conf.json`). `ng build` writes `dist/frontend/browser/`, which `router.php` serves in development and
   `backend/tools/build.php` puts into the upload.

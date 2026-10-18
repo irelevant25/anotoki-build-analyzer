@@ -1,7 +1,9 @@
-<div class="head">
-  <span>{{ label() }}</span>
-  <span class="value">{{ value() === null || value() === undefined ? ('item.noScore' | translate) : value() }}</span>
-</div>
-<div class="track" role="progressbar" [attr.aria-valuenow]="value()" aria-valuemin="0" aria-valuemax="100" [attr.aria-label]="label()">
-  <div class="fill" [style.width.%]="value() ?? 0" [style.background]="color()"></div>
-</div>
+<!-- The family's progress bar: the part's name over it, its score beside the name, the fill in the score's grade colour. -->
+<anotoki-progress-bar
+  [label]="label()"
+  [value]="value() ?? 0"
+  [valueText]="valueText()"
+  showLabel
+  showValue
+  [style.--anotoki-progress-color]="color()"
+/>

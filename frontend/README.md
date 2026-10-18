@@ -62,9 +62,13 @@ light and dark - never re-styling a kit piece; the pieces come each from its own
 gives the kit its words and the site's extra icons (`core/icons.ts`), `core/shell.ts` the shell its theme
 (`build-analyzer-theme`, read before the first paint by the kit's `theme-boot.js` in `index.html`) and
 languages. The top bar and the page's frame are the family's (`<anotoki-top-bar>`, `<anotoki-shell>`); the
-kit's question and toasts sit once in `app.html`. What the kit has no piece for stays the site's, from its
-tokens: `.tile`, `.section-head` and `details.disclosure` in `styles.scss`, the import wizard's row of steps,
-the score bars and grade badges.
+kit's question and toasts sit once in `app.html`. The kit's newer pieces stand where the site drew its own: the
+import wizard's stepper and disclosures, the score bars and a sync's progress (its progress bar), the characters'
+link cards, a build's tab with its score as a badge, the element filter's segmented control with each element's
+mark (`--el-mark-*`), and the family's icons in `core/icons.ts`. What the kit has no piece for stays the site's,
+from its tokens: `.tile` (a tile with actions inside, a piece of gear), `.section-head` and `details.disclosure`
+(a sync's run on the Sources page) in `styles.scss`, the wizard's choice cards and file drop zone, and the grade
+badges.
 
 ```text
 src/app/

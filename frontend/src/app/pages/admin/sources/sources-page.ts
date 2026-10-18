@@ -7,6 +7,7 @@ import { ConfirmService } from '@anotoki/lib/ui/dialog';
 import { SwitchComponent } from '@anotoki/lib/ui/forms';
 import { IconComponent } from '@anotoki/lib/ui/icon';
 import { PageHeaderComponent } from '@anotoki/lib/ui/page-header';
+import { ProgressBarComponent } from '@anotoki/lib/ui/progress';
 import { SpinnerComponent } from '@anotoki/lib/ui/spinner';
 import { ToastService } from '@anotoki/lib/ui/toast';
 import { TooltipDirective } from '@anotoki/lib/ui/tooltip';
@@ -34,8 +35,9 @@ const PAUSED_AFTER_MS = 60_000;
  * this one, so nothing here needs to say so.
  *
  * Drawn with the anotoki family's kit (English, as the whole admin panel): its page header, cards (a source each,
- * its switch or its On / Off), buttons, alerts, messages and "Are you sure?"; a run's progress is the native
- * progress bar and its log a disclosure (<details>), in the kit's colours - the kit has neither.
+ * its switch or its On / Off), buttons, alerts, messages, "Are you sure?" and a run's progress bar; a run's log is
+ * a disclosure of the site's own (<details>, in the kit's colours) - its summary holds the run's state dot and a
+ * line of when, how long and what came of it, where the kit's disclosure has a heading of words alone.
  */
 @Component({
   selector: 'app-sources-page',
@@ -46,6 +48,7 @@ const PAUSED_AFTER_MS = 60_000;
     CardComponent,
     IconComponent,
     PageHeaderComponent,
+    ProgressBarComponent,
     SpinnerComponent,
     SwitchComponent,
     TooltipDirective,

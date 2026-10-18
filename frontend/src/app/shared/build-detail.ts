@@ -1,5 +1,6 @@
 import { Component, computed, inject, input } from '@angular/core';
 import { BadgeComponent } from '@anotoki/lib/ui/badge';
+import { DisclosureComponent } from '@anotoki/lib/ui/disclosure';
 import { IconComponent } from '@anotoki/lib/ui/icon';
 import { TooltipDirective } from '@anotoki/lib/ui/tooltip';
 import { GAME_TERMS, SET_KIND_TERMS, pieces } from '../core/game-terms';
@@ -29,7 +30,8 @@ interface SetGroup {
  * is in another language.
  *
  * The build sheet is the site's own; its parts are the kit's: badges for the stats and what the player has, its
- * icons, tooltips for the notes cut to a line, and a disclosure (<details>) for the build's notes.
+ * icons, tooltips for the notes cut to a line, and the kit's disclosure (`@anotoki/lib/ui/disclosure`) for the
+ * build's notes.
  */
 @Component({
   selector: 'app-build-detail',
@@ -40,6 +42,7 @@ interface SetGroup {
     TranslatePipe,
     TranslatePluralPipe,
     BadgeComponent,
+    DisclosureComponent,
     IconComponent,
     TooltipDirective,
   ],

@@ -3,7 +3,7 @@
 Short records of choices that shape the code. Add a new entry (newest first) when you make a similar call.
 Older entries describe the Laravel version as it was; where a setting has since moved, the entry says so.
 
-**2026-10-18 — anotoki-lib 0.6.2, both halves: Terms, Privacy and Contact with this site's facts; every settings file read cleanly or not at all, its first five bytes first; a broken cloudflare.local.php fails closed (the owner's round 3, for every anotoki site; version 0.4.0, unreleased).**
+**2026-10-18 — anotoki-lib 0.6.2, both halves: Terms, Privacy and Contact with this site's facts; every settings file read cleanly or not at all, its first five bytes first; a broken cloudflare.local.php fails closed; the kit's newer pieces where the site drew its own (the owner's round 3, for every anotoki site; version 0.4.0, unreleased).**
 Both halves on 0.6.2 (`anotoki/lib ^0.6.0` - `^0.5.0` never takes a 0.6 -, the 0.6.2 tarball in both lock files;
 package-lock.json's entry given bun.lock's version, address and integrity by hand, as the IAM did).
 - *The legal pages* (the owner's decisions of 2026-10-13, the library's `@anotoki/lib/legal` and `/legal/pages`): on
@@ -41,6 +41,22 @@ package-lock.json's entry given bun.lock's version, address and integrity by han
   (the file is optional: the site keeps running) and never "no secret" (which believes CF-Connecting-IP from every
   Cloudflare customer). A file read cleanly that names no secret - blank, another key, no array - is none, as
   without the file. `tests/settings_files.test.php` holds every case, and PHP's own fatal error without the guard.
+- *The kit's newer pieces where the site drew its own* (anotoki-lib 0.6.0's; this changes what 2026-10-11 below
+  kept as the site's; migration 012): the import guide's row of steps is the kit's stepper - it says which step of
+  how many is in hand and that a step is done, in the library's words, a step done a way back to it; its name is
+  the site's `importWizard.steps`, and the old row's `stepper.completed` goes -; the guide's trouble list and paste
+  box, a build's notes and the account's import history are the kit's disclosure (the history's table made only
+  while it is open); the score bars and a sync's progress are the kit's progress bar (a score as the page writes
+  it, a part not judged "n/a" to the ear too, its fill the grade's colour; a sync before its total is known
+  moving on its own); a character on the account page and in the builds is the kit's link card; a build's tab
+  shows its score as the kit's badge, heard "score 87" after its name (`character.tabScore`), the build closest to
+  the setup with the kit's check icon, a filled badge and its words; the account's element filter is the kit's
+  segmented control in a labelled group, each element's mark before its name, where it was the kit's select -
+  the marks `--el-mark-*`, 3:1 on the control in both themes (ten darker in light; dark's own colours reach it);
+  the site's eight icons are the family's drawings (`@anotoki/lib/ui/icons`). Kept, as the kit has no piece for
+  them: the grade badge (a letter on its grade's tint), a tile with actions inside it or a piece of gear
+  (`.tile`), the guide's choice cards and its file drop zone, and a sync's run on the Sources page (`<details>`:
+  its summary holds the run's state dot and a line of its own, where the kit's disclosure has a heading of words).
 - *Along with it*: the grade letters and a recommendation's mark reach 4.5:1 on every ground of their theme (the
   letter on its 14% tint too) - darker in light, lighter in dark where dark fell short (`styles.scss`,
   `$site-colours`); `@angular/forms` gone (nothing imported it); five key descriptions that told of a snack bar

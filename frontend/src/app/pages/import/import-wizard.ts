@@ -13,10 +13,12 @@ import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { AlertComponent } from '@anotoki/lib/ui/alert';
 import { ButtonComponent } from '@anotoki/lib/ui/button';
 import { CardComponent } from '@anotoki/lib/ui/card';
+import { DisclosureComponent } from '@anotoki/lib/ui/disclosure';
 import { SelectComponent, SelectOption, TextFieldComponent, TextareaComponent } from '@anotoki/lib/ui/forms';
 import { IconComponent } from '@anotoki/lib/ui/icon';
 import { PageHeaderComponent } from '@anotoki/lib/ui/page-header';
 import { SpinnerComponent } from '@anotoki/lib/ui/spinner';
+import { StepItem, StepperComponent } from '@anotoki/lib/ui/stepper';
 import { Api } from '../../core/api';
 import { AuthService } from '../../core/auth';
 import { GAME_LABELS } from '../../core/format';
@@ -58,11 +60,12 @@ const NO_ACCOUNT = '';
  * Importing an account, in five steps: the game, the way in (the in-game Character Showcase by UID, or an
  * inventory file), how to get the data ready (the guides, import-guides.ts), the import itself, and what came in.
  *
- * The wizard is the site's own - its row of steps (the step in hand marked aria-current="step", the steps done
- * buttons that go back to them, as the linear Material stepper it replaced had them), its choice cards, the file's
- * drop zone - drawn with the anotoki family's kit: its card, fields (the UID, the account to import into, the
- * pasted text), buttons, alerts, spinner and icons. A step is shown at a time; going on moves the focus to the
- * new step's heading, so a keyboard and a screen reader follow.
+ * The wizard is drawn with the anotoki family's kit: its row of steps is the family's stepper (anotoki-lib 0.6.0,
+ * `@anotoki/lib/ui/stepper`: the step in hand aria-current="step" and heard "Step 3 of 5: Prepare", the steps done
+ * buttons back to them, heard "Game, done"; on a narrow row their marks alone), and its card, fields (the UID, the
+ * account to import into, the pasted text), buttons, alerts, disclosures, spinner and icons; its choice cards and
+ * the file's drop zone stay the site's own. A step is shown at a time; going on moves the focus to the new step's
+ * heading, so a keyboard and a screen reader follow.
  */
 @Component({
   selector: 'app-import-wizard',
@@ -71,10 +74,12 @@ const NO_ACCOUNT = '';
     AlertComponent,
     ButtonComponent,
     CardComponent,
+    DisclosureComponent,
     IconComponent,
     PageHeaderComponent,
     SelectComponent,
     SpinnerComponent,
+    StepperComponent,
     TextFieldComponent,
     TextareaComponent,
     TranslatePipe,
@@ -125,11 +130,11 @@ export class ImportWizard {
   /** What went wrong, as a key with what fills it - never a sentence: the template words it, so it follows the language. */
   protected readonly error = signal<Wording | null>(null);
 
-  /** The row of steps: each with whether it is done (the step in hand is not, until it is left). */
-  protected readonly steps = computed(() => {
-    const done = [!!this.game(), !!this.method(), this.prepared(), !!this.result(), false];
-    return STEPS.map((step, index) => ({ ...step, done: done[index] }));
-  });
+  /**
+   * The row of steps, as the family's stepper draws them: each by its name in the language on the page - every step
+   * before the one in hand done, a way back to it (the stepper's own rule: a step is left only forwards, once made).
+   */
+  protected readonly stepItems = computed<StepItem[]>(() => STEPS.map((step) => ({ label: this.i18n.t(step.label) })));
 
   protected readonly methods = computed(() => (this.game() ? METHODS[this.game()!] : []));
   protected readonly guide = computed(() => (this.game() && this.method() ? GUIDES[this.game()!][this.method()!] : null));

@@ -1428,6 +1428,130 @@ try {
       }
     }
 
+    // ── The kit's newer pieces ────────────────────────────────────────────────────────────────────────
+    step("The kit's newer pieces in place of the site's own (anotoki-lib 0.6.0): the account's element filter with its marks, its link cards and score bars, its import history; a build's tab with its badge; the import guide's stepper and disclosures; the builds' link cards - at 1280 and 390 px, light and dark");
+    {
+      const monaAccount = sql('SELECT id FROM accounts WHERE user_id = 7')[0].id;
+      const kit = await newContext();
+      const page = await kit.newPage();
+      await open(page, '/?lang=en');
+      await signIn(page, MONA);
+      /** WCAG's contrast of two colours the page computed ("rgb(...)", or a token's "#rrggbb"). */
+      const contrastOf = (page, selector) =>
+        page.evaluate((selector) => {
+          const rgb = (colour) => {
+            const hex = /^#([0-9a-f]{6})$/i.exec(colour.trim());
+            return hex ? [0, 2, 4].map((at) => parseInt(hex[1].slice(at, at + 2), 16)) : (colour.match(/[\d.]+/g) ?? []).slice(0, 3).map(Number);
+          };
+          const luminance = (colour) => {
+            const [r, g, b] = rgb(colour).map((value) => {
+              const channel = value / 255;
+              return channel <= 0.03928 ? channel / 12.92 : ((channel + 0.055) / 1.055) ** 2.4;
+            });
+            return 0.2126 * r + 0.7152 * g + 0.0722 * b;
+          };
+          const ratio = (a, b) => {
+            const [light, dark] = [luminance(a), luminance(b)].sort((x, y) => y - x);
+            return (light + 0.05) / (dark + 0.05);
+          };
+          const root = getComputedStyle(document.documentElement);
+          // A mark stands on the control's ground (surface-2) and, chosen, on its segment's (surface).
+          const grounds = [root.getPropertyValue('--anotoki-surface-2'), root.getPropertyValue('--anotoki-surface')];
+          return [...document.querySelectorAll(selector)].map((mark) => {
+            const colour = getComputedStyle(mark).backgroundColor;
+            return { value: mark.closest('[role=radio]')?.getAttribute('data-value'), lowest: Math.min(...grounds.map((ground) => ratio(colour, ground))) };
+          });
+        }, selector);
+
+      for (const [language, scheme, width] of [['en', 'light', 1280], ['sk', 'dark', 390], ['en', 'dark', 1280], ['sk', 'light', 390]]) {
+        await page.setViewportSize({ width, height: width < 600 ? 844 : 900 });
+        await page.emulateMedia({ colorScheme: scheme });
+        const label = `${language}, ${scheme}, ${width} px`;
+        const fits = async (where) => {
+          const scroll = await page.evaluate(() => document.documentElement.scrollWidth);
+          const keys = await keysShown(page);
+          check(scroll <= width && keys.length === 0, `${where}, ${label}: no sideways scroll (${scroll}), no key where a word should be${keys.length ? ` - ${keys.join(', ')}` : ''}`);
+          if (scheme === 'dark') {
+            check(await darkSurface(page, 'body'), `${where}, ${label}: the dark theme`);
+          }
+        };
+
+        // The account: its element filter (the kit's segmented control, each element's mark), its characters as
+        // link cards with the kit's progress bars, and its import history in the kit's disclosure.
+        await open(page, `/accounts/${monaAccount}?lang=${language}`);
+        await page.waitForSelector('.char-card', { timeout: 15000 });
+        const account = await page.evaluate(() => ({
+          group: document.querySelector('.element [role=radiogroup]')?.getAttribute('aria-label') ?? null,
+          radios: document.querySelectorAll('.element [role=radio]').length,
+          cards: [...document.querySelectorAll('a.char-card')].map((card) => card.classList.contains('anotoki-link-card') && /^\/accounts\/\d+\/characters\//.test(card.getAttribute('href') ?? '')),
+          bars: [...document.querySelectorAll('.char-card [role=progressbar]')].map((bar) => bar.getAttribute('aria-valuetext')),
+        }));
+        check(account.group !== null && account.radios >= 2, `the account, ${label}: the element filter is the kit's radio group "${account.group}" (${account.radios} choices)`);
+        check(account.cards.length > 0 && account.cards.every(Boolean), `the account, ${label}: every character is one link card to its page (${account.cards.length})`);
+        check(account.bars.length > 0 && account.bars.every((text) => text !== null), `the account, ${label}: the score bars are the kit's progress bars, each with its words (${account.bars.slice(0, 3).join(', ')}...)`);
+        const marks = await contrastOf(page, '.element .anotoki-segmented__mark');
+        const faint = marks.filter((mark) => mark.lowest < 3);
+        check(marks.length === account.radios - 1 && faint.length === 0, `the account, ${label}: every element's mark 3:1 on the control (lowest ${Math.min(...marks.map((mark) => mark.lowest)).toFixed(2)}${faint.length ? `; FAINT ${faint.map((mark) => `${mark.value} ${mark.lowest.toFixed(2)}`).join(', ')}` : ''})`);
+        const history = page.locator('.history .anotoki-disclosure__button');
+        check((await history.getAttribute('aria-expanded')) === 'false' && (await page.locator('.history-table tr').count()) === 0, `the account, ${label}: the import history closed, its table not made`);
+        await history.click();
+        await page.waitForSelector('.history-table tr', { timeout: 5000 });
+        check((await history.getAttribute('aria-expanded')) === 'true', `the account, ${label}: opened, the history's runs (${await page.locator('.history-table tr').count()})`);
+        await fits('the account');
+        await shot(page, `24-kit-account-${language}-${width}-${scheme}`, { fullPage: true });
+
+        // A character: a build's tab with its score as the kit's badge, the closest build marked; the score bars.
+        await open(page, `/accounts/${monaAccount}/characters/hutao?lang=${language}`);
+        await page.waitForSelector('[role=tab]', { timeout: 15000 });
+        const tabs = await page.evaluate(() =>
+          [...document.querySelectorAll('[role=tab]')].map((tab) => ({
+            badge: tab.querySelector('.anotoki-tabs__badge')?.textContent?.trim() ?? null,
+            tone: tab.querySelector('.anotoki-tabs__badge')?.getAttribute('data-tone') ?? null,
+            icon: tab.querySelector('anotoki-icon') !== null,
+            heard: tab.querySelector('.anotoki-visually-hidden')?.textContent?.trim() ?? null,
+          })),
+        );
+        check(tabs.length === 1 && /^\d+$/.test(tabs[0].badge ?? '') && tabs[0].tone === 'primary' && tabs[0].icon && (tabs[0].heard ?? '').includes(tabs[0].badge),
+          `the character, ${label}: the build's tab shows its score as the kit's badge, the closest build marked (${JSON.stringify(tabs)})`);
+        check((await page.locator('app-score-bar [role=progressbar]').count()) === 5, `the character, ${label}: the five score bars, the kit's progress bars`);
+        await fits('the character');
+        await shot(page, `24-kit-character-${language}-${width}-${scheme}`, { fullPage: true });
+
+        // The import guide: the kit's stepper, two steps done and a way back to each; the trouble list in the kit's
+        // disclosure; in English on to the file's step and its paste box, in the kit's disclosure too.
+        await open(page, `/import?lang=${language}`);
+        await page.locator('button.choice').first().click();
+        await page.locator('button.choice.method').nth(1).click();
+        const steps = await page.evaluate(() => ({
+          name: document.querySelector('.anotoki-stepper__steps')?.getAttribute('aria-label') ?? null,
+          done: document.querySelectorAll('.anotoki-stepper__step--done .anotoki-stepper__button').length,
+          current: document.querySelector('.anotoki-stepper__step[aria-current=step] .anotoki-stepper__label')?.textContent?.trim() ?? null,
+        }));
+        check(steps.name !== null && steps.done === 2 && steps.current !== null, `the import guide, ${label}: the kit's stepper "${steps.name}", two steps done with a way back, the one in hand "${steps.current}"`);
+        await page.click('.trouble .anotoki-disclosure__button');
+        check((await page.locator('.trouble .anotoki-disclosure__button').getAttribute('aria-expanded')) === 'true' && (await page.locator('.trouble li').count()) > 0, `the import guide, ${label}: what to do when it goes wrong, opened`);
+        await fits('the import guide');
+        await shot(page, `24-kit-import-guide-${language}-${width}-${scheme}`, { fullPage: true });
+        if (language === 'en') {
+          await page.getByRole('button', { name: "I'm ready" }).click();
+          await page.click('.paste .anotoki-disclosure__button');
+          check((await page.locator('.paste textarea').count()) === 1, `the import's file step, ${label}: the paste box in the kit's disclosure, opened`);
+          await shot(page, `24-kit-import-file-${language}-${width}-${scheme}`, { fullPage: true });
+        }
+
+        // The builds: each character one link card.
+        await open(page, `/builds/genshin?lang=${language}`);
+        await page.waitForSelector('a.card', { timeout: 15000 });
+        const builds = await page.evaluate(() => [...document.querySelectorAll('a.card')].map((card) => card.classList.contains('anotoki-link-card')));
+        check(builds.length > 0 && builds.every(Boolean), `the builds, ${label}: every character one link card (${builds.length})`);
+        await fits('the builds');
+        if (width < 600) {
+          await shot(page, `24-kit-builds-${language}-${width}-${scheme}`, { fullPage: true });
+        }
+      }
+      await kit.close();
+    }
+
     // ── The pages' own errors, over the whole check ───────────────────────────────────────────────────
     step("The errors the pages met, over every tour (the family's reporter writes each into the error log): none but the one thrown on purpose");
     const met = pageErrors().filter((line) => line.message !== THROWN_SCRUBBED);

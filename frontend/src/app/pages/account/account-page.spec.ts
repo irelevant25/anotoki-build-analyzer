@@ -161,6 +161,14 @@ describe('the account page', () => {
   const tiles = () => [...host.querySelectorAll('.stat')].map((tile) => [text(tile.querySelector('span')), text(tile.querySelector('strong'))]);
   const cards = () => [...host.querySelectorAll<HTMLElement>('.char-card')];
   const history = () => [...host.querySelectorAll<HTMLElement>('.history-table tr')].map((row) => [...row.querySelectorAll('td')]);
+  /** Opens the kit's disclosure the history is in: its table is made only while it is open. */
+  async function openHistory(): Promise<void> {
+    const button = host.querySelector<HTMLButtonElement>('.history .anotoki-disclosure__button')!;
+    expect(button.getAttribute('aria-expanded')).toBe('false');
+    button.click();
+    await fixture.whenStable();
+    expect(button.getAttribute('aria-expanded')).toBe('true');
+  }
 
   interface Options {
     language?: 'en' | 'sk';
@@ -221,9 +229,13 @@ describe('the account page', () => {
       ['Údaje', 'Len Showcase'],
     ]);
     expect(text(host.querySelector('.note'))).toBe('Známe sú len postavy, ktoré ukazuje Character Showcase.');
-    // The kit's fields: the search, the element (the game's names), the order.
-    expect(texts('.filters .anotoki-field__label')).toEqual(['Hľadať', 'Element', 'Zoradiť']);
-    expect(texts('.element option')).toEqual(['Všetky']);
+    // The kit's fields: the search and the order; between them the element filter - the kit's segmented control
+    // under the kit's labelled group's label, shown as the fields' are and said once (the control's own name).
+    expect(texts('.filters .anotoki-field__label')).toEqual(['Hľadať', 'Zoradiť']);
+    expect(texts('.element .anotoki-labelled-group__label')).toEqual(['Element']);
+    expect(host.querySelector('.element .anotoki-labelled-group__label')?.getAttribute('aria-hidden')).toBe('true');
+    expect(host.querySelector('.element [role="radiogroup"]')?.getAttribute('aria-label')).toBe('Element');
+    expect(texts('.element [role="radio"]')).toEqual(['Všetky']);
     expect(chosen('.sort')).toBe('Najprv tie, ktoré treba zlepšiť');
 
     expect(host.textContent).not.toMatch(A_KEY);
@@ -265,10 +277,20 @@ describe('the account page', () => {
   });
 
   describe('a character’s card', () => {
-    it('labels the score bars: the site’s word for sets, the games’ own for the stats', async () => {
+    it('is the kit’s link card, one link as a whole - its score bars the kit’s progress bars: the site’s word for sets, the games’ own for the stats', async () => {
       await setup();
 
-      expect(texts('app-score-bar .head span:first-child', cards()[0])).toEqual(['Sety', 'Main stats', 'Substats']);
+      expect(cards()[0].tagName).toBe('A');
+      expect(cards()[0].classList).toContain('anotoki-link-card');
+      expect(cards()[0].getAttribute('href')).toBe('/accounts/3/characters/character-1');
+      expect(texts('app-score-bar .anotoki-progress-bar__label', cards()[0])).toEqual(['Sety', 'Main stats', 'Substats']);
+      // Each its part's score, seen beside the name and heard as the bar's value - never "100 %": a score is no share.
+      const bars = [...cards()[0].querySelectorAll('[role="progressbar"]')];
+      expect(bars.map((bar) => [bar.getAttribute('aria-valuenow'), bar.getAttribute('aria-valuetext')])).toEqual([
+        ['100', '100'],
+        ['67', '67'],
+        ['55', '55'],
+      ]);
       expect(text(cards()[0].querySelector('.best-line'))).toBe('Najlepšia zhoda: Source 1 · Burst DPS');
       expect(text(cards()[0].querySelector('.sets'))).toBe('4× Crimson Witch of Flames');
     });
@@ -322,7 +344,7 @@ describe('the account page', () => {
       });
 
       expect(cards().map((card) => card.querySelector('.issue'))).toEqual([null, null]);
-      expect(text(cards()[1].querySelector(':scope > .muted'))).toBe('Pre túto postavu zatiaľ nie sú buildy.');
+      expect(text(cards()[1].querySelector('.char-body > .muted'))).toBe('Pre túto postavu zatiaľ nie sú buildy.');
     });
   });
 
@@ -375,7 +397,10 @@ describe('the account page', () => {
     it('words each run: when, from where, how it ended, and what came in - a count beside the game’s noun as "noun: count"', async () => {
       await setup({ imports: RUNS });
 
-      expect(text(host.querySelector('.history summary'))).toBe('História importov');
+      expect(text(host.querySelector('.history .anotoki-disclosure__button'))).toBe('História importov');
+      // Closed, as the page opens: nothing of the table is made until it is opened.
+      expect(history()).toEqual([]);
+      await openHistory();
       const rows = history();
       expect(rows.map((cells) => text(cells[0]))).toEqual(Array(5).fill('pred 2 hodinami'));
       expect(rows.map((cells) => text(cells[1]))).toEqual(['Súbor s inventárom', 'Showcase (UID)', 'Súbor s inventárom', 'Showcase (UID)', 'Súbor s inventárom']);
@@ -398,6 +423,7 @@ describe('the account page', () => {
     it('reads English on an English page, with nothing marked', async () => {
       await setup({ language: 'en', imports: RUNS });
 
+      await openHistory();
       const rows = history();
       expect(rows.map((cells) => text(cells[1]))).toEqual(['Inventory file', 'Showcase (UID)', 'Inventory file', 'Showcase (UID)', 'Inventory file']);
       expect(rows.map((cells) => text(cells[2]))).toEqual(['success', 'partial', 'partial', 'failed', 'failed']);
@@ -421,6 +447,7 @@ describe('the account page', () => {
         ],
       });
 
+      await openHistory();
       expect(history().map((cells) => text(cells[3]))).toEqual(['An older failure, as it was stored.', '']);
     });
 

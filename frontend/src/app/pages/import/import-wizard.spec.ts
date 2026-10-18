@@ -5,6 +5,7 @@ import { provideRouter } from '@angular/router';
 import { of, throwError } from 'rxjs';
 import { provideTestTranslations } from '@anotoki/lib/translations/testing';
 import { IconComponent } from '@anotoki/lib/ui/icon';
+import { STEPPER_LIBRARY_WORDS } from '@anotoki/lib/words/stepper';
 import { By } from '@angular/platform-browser';
 import { Api } from '../../core/api';
 import { AuthService } from '../../core/auth';
@@ -15,8 +16,12 @@ import { VisitorKey } from '../../core/visitor-key';
 import { ImportWizard } from './import-wizard';
 import { provideKit } from '../../core/kit';
 
-/** Every string of the site, marked: what a page shows without these marks did not come from a key. */
-const MARKED: Record<string, string> = Object.fromEntries(Object.entries(en).map(([key, value]) => [key, `«${value}»`]));
+/**
+ * Every string of the site, marked: what a page shows without these marks did not come from a key. The kit's
+ * stepper's words too - the library's, which a site reads from its database's rows -, around which the stepper sets
+ * only its punctuation ("Step 2 of 5: ", ", done").
+ */
+const MARKED: Record<string, string> = Object.fromEntries(Object.entries({ ...en, ...STEPPER_LIBRARY_WORDS.en }).map(([key, value]) => [key, `«${value}»`]));
 
 /** The informal Slovak of what these tests read; everything else is the marked English. */
 const SLOVAK: Record<string, string> = {
@@ -58,7 +63,9 @@ const SLOVAK: Record<string, string> = {
   'error.too_many_imports': 'To je veľa importov za jednu minútu. Chvíľu počkaj a skús to znova.',
   'error.http': 'Požiadavka zlyhala (HTTP {status}).',
   'error.unknown': 'Niečo sa pokazilo.',
-  'stepper.completed': 'Dokončené',
+  'importWizard.steps': 'Kroky importu',
+  // The library's own words, as its migration writes them to a site's database.
+  ...STEPPER_LIBRARY_WORDS.sk,
 };
 
 /** What the server would say in English: a member must never read it. */
@@ -164,7 +171,7 @@ describe('the import wizard', () => {
 
   /** Back to a step done, by its button in the row of steps (0 the game, 1 the way in, 2 the guide). */
   async function backTo(step: number): Promise<void> {
-    host.querySelectorAll<HTMLButtonElement>('.step-button')[step].click();
+    host.querySelectorAll<HTMLButtonElement>('.anotoki-stepper__button')[step].click();
     await settle();
   }
 
@@ -195,8 +202,11 @@ describe('the import wizard', () => {
     return found;
   }
 
-  /** What may stand on the page without having come from a key: the games' own words, names, and plain numbers. */
-  const notFromAKey = (allowed: string[]) => [...new Set(shown())].filter((value) => !/^«.*»$/.test(value) && !/^\d+$/.test(value) && !allowed.includes(value));
+  /**
+   * What may stand on the page without having come from a key: the games' own words, names, and plain numbers - and
+   * the punctuation the kit's stepper sets around its words ("«Step 4 of 5»:", ", «done»").
+   */
+  const notFromAKey = (allowed: string[]) => [...new Set(shown())].filter((value) => !/^,? ?«.*»:?$/.test(value) && !/^\d+$/.test(value) && !allowed.includes(value));
 
   afterEach(() => vi.restoreAllMocks());
 
@@ -206,17 +216,20 @@ describe('the import wizard', () => {
     await wizard();
 
     expect(text(host.querySelector('h1'))).toBe('Importuj svoj účet');
-    expect([...host.querySelectorAll('.step-label')].map(text)).toEqual(['Hra', 'Spôsob', 'Príprava', 'Import', 'Hotovo']);
-    expect([...host.querySelectorAll('.step')].map((step) => step.getAttribute('aria-current'))).toEqual(['step', null, null, null, null]);
+    // The kit's stepper: a list named for a screen reader, the step in hand marked and heard as which of how many.
+    expect(host.querySelector('.anotoki-stepper__steps')?.getAttribute('aria-label')).toBe('Kroky importu');
+    expect([...host.querySelectorAll('.anotoki-stepper__label')].map(text)).toEqual(['Hra', 'Spôsob', 'Príprava', 'Import', 'Hotovo']);
+    expect([...host.querySelectorAll('.anotoki-stepper__step')].map((step) => step.getAttribute('aria-current'))).toEqual(['step', null, null, null, null]);
+    expect(text(host.querySelector('.anotoki-stepper__step--current'))).toBe('1 Krok 1 z 5: Hra');
 
     document.body.appendChild(host);
     host.querySelector<HTMLButtonElement>('button.choice')!.click();
     await settle();
-    expect([...host.querySelectorAll('.step')].map((step) => step.getAttribute('aria-current'))).toEqual([null, 'step', null, null, null]);
+    expect([...host.querySelectorAll('.anotoki-stepper__step')].map((step) => step.getAttribute('aria-current'))).toEqual([null, 'step', null, null, null]);
     // The step done: a button back to it, its name and that it is done for a screen reader.
-    const done = host.querySelector<HTMLButtonElement>('.step-button')!;
-    expect(text(done)).toBe('Hra Dokončené');
-    expect(text(done.querySelector('.visually-hidden'))).toBe('Dokončené');
+    const done = host.querySelector<HTMLButtonElement>('.anotoki-stepper__button')!;
+    expect(text(done)).toBe('Hra, hotovo');
+    expect(text(done.querySelector('.anotoki-visually-hidden'))).toBe(', hotovo');
     // The focus on the new step's heading: a keyboard and a screen reader follow.
     expect(document.activeElement?.classList.contains('step-title')).toBe(true);
     expect(text(document.activeElement)).toBe(text(host.querySelector('.step-panel h2')));
@@ -225,13 +238,14 @@ describe('the import wizard', () => {
     expect(await i18n.setLanguage('en', { remember: false })).toBe(true);
     await settle();
     expect(text(host.querySelector('h1'))).toBe('Import your account');
-    expect([...host.querySelectorAll('.step-label')].map(text)).toEqual(['Game', 'Method', 'Prepare', 'Import', 'Done']);
-    expect(text(host.querySelector('.step-button .visually-hidden'))).toBe('Completed');
+    expect([...host.querySelectorAll('.anotoki-stepper__label')].map(text)).toEqual(['Game', 'Method', 'Prepare', 'Import', 'Done']);
+    expect(host.querySelector('.anotoki-stepper__steps')?.getAttribute('aria-label')).toBe("The import's steps");
+    expect(text(host.querySelector('.anotoki-stepper__button .anotoki-visually-hidden'))).toBe(', done');
 
     // Back to the step done.
-    host.querySelector<HTMLButtonElement>('.step-button')!.click();
+    host.querySelector<HTMLButtonElement>('.anotoki-stepper__button')!.click();
     await settle();
-    expect(host.querySelector('.step')?.getAttribute('aria-current')).toBe('step');
+    expect(host.querySelector('.anotoki-stepper__step')?.getAttribute('aria-current')).toBe('step');
     expect(host.querySelectorAll('button.choice:not(.method)')).toHaveLength(2);
   });
 

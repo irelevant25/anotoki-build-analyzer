@@ -7,29 +7,16 @@
   />
 
   <anotoki-card class="wizard">
-    <!-- The row of steps: the one in hand marked, the ones done a way back to them. -->
-    <ol class="steps">
-      @for (item of steps(); track item.key; let i = $index) {
-        <li
-          class="step"
-          [class.step--done]="i < step()"
-          [class.step--current]="i === step()"
-          [attr.aria-current]="i === step() ? 'step' : null"
-        >
-          @if (i < step()) {
-            <button type="button" class="step-button" [disabled]="busy()" (click)="goTo(i)">
-              <span class="step-mark"><anotoki-icon name="check" [size]="14" /></span>
-              <span class="step-label">{{ item.label | translate }}</span>
-              <!-- Said after the step's name: done. -->
-              <span class="visually-hidden"> {{ 'stepper.completed' | translate }}</span>
-            </button>
-          } @else {
-            <span class="step-mark">{{ i + 1 }}</span>
-            <span class="step-label">{{ item.label | translate }}</span>
-          }
-        </li>
-      }
-    </ol>
+    <!-- The row of steps (the family's stepper): the one in hand marked, the ones done a way back to them. -->
+    <anotoki-stepper
+      class="steps"
+      [label]="'importWizard.steps' | translate"
+      [steps]="stepItems()"
+      [current]="step()"
+      navigable
+      [disabled]="busy()"
+      (choose)="goTo($event)"
+    />
 
     <div #panel class="step-panel">
       @switch (step()) {
@@ -111,16 +98,13 @@
               }
             </ol>
 
-            <details class="disclosure trouble">
-              <summary>{{ 'importWizard.prepare.trouble' | translate }}</summary>
-              <div class="disclosure-body">
-                <ul>
-                  @for (item of g.troubleshooting; track item) {
-                    <li>{{ item | translate }}</li>
-                  }
-                </ul>
-              </div>
-            </details>
+            <anotoki-disclosure class="trouble" [heading]="'importWizard.prepare.trouble' | translate">
+              <ul>
+                @for (item of g.troubleshooting; track item) {
+                  <li>{{ item | translate }}</li>
+                }
+              </ul>
+            </anotoki-disclosure>
           }
           <div class="actions">
             <button anotokiButton variant="ghost" (click)="goTo(1)">
@@ -208,18 +192,15 @@
             </div>
 
             @if (!fileContent()) {
-              <details class="disclosure paste">
-                <summary>{{ 'importWizard.file.paste' | translate }}</summary>
-                <div class="disclosure-body">
-                  <anotoki-textarea
-                    [label]="'importWizard.file.pasteLabel' | translate"
-                    [rows]="6"
-                    [spellcheck]="'false'"
-                    [value]="pasteText()"
-                    (valueChange)="pasteText.set($event)"
-                  />
-                </div>
-              </details>
+              <anotoki-disclosure class="paste" [heading]="'importWizard.file.paste' | translate">
+                <anotoki-textarea
+                  [label]="'importWizard.file.pasteLabel' | translate"
+                  [rows]="6"
+                  [spellcheck]="'false'"
+                  [value]="pasteText()"
+                  (valueChange)="pasteText.set($event)"
+                />
+              </anotoki-disclosure>
             }
 
             <anotoki-select

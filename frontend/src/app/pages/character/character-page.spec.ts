@@ -290,13 +290,23 @@ describe('CharacterPage: the site’s words are keys, the game’s words stay', 
     expect(text('.hero anotoki-badge')).toEqual(['Pyro', 'Polearm', 'Lv. 90', 'C1', 'Elemental Skill 12+3']);
     expect(tooltip('.hero anotoki-badge:last-child')).toBe('+3 from Constellations');
     expect(text('.hero-grade .small')).toEqual(['vs. Source 1 · Main DPS']);
-    // The kit's tabs: a build each, its score beside it; the closest match says so on its build.
-    expect(text('[role="tab"]')).toEqual(['Source 1 · Main DPS 71', 'Source 2 · Main DPS 71']);
+    // The kit's tabs: a build each, its score the tab's badge - seen as the bare number, heard in words after the
+    // name -; the build closest to the setup marked by an icon and a filled badge, and heard so.
+    expect(text('[role="tab"] .anotoki-tabs__label')).toEqual(['Source 1 · Main DPS', 'Source 2 · Main DPS']);
+    expect(text('[role="tab"] .anotoki-tabs__badge')).toEqual(['71', '71']);
+    expect([...host.querySelectorAll('[role="tab"] .anotoki-tabs__badge')].map((badge) => [badge.getAttribute('aria-hidden'), badge.getAttribute('data-tone')])).toEqual([
+      ['true', 'primary'],
+      ['true', 'neutral'],
+    ]);
+    expect(text('[role="tab"] .anotoki-visually-hidden')).toEqual([', score 71, Closest match to your current setup', ', score 71']);
+    expect([...host.querySelectorAll('[role="tab"]')].map((tab) => tab.querySelector('anotoki-icon') !== null)).toEqual([true, false]);
     expect(text('.build-card [cardActions] anotoki-badge')).toEqual(['Closest match to your current setup']);
     expect(text('.top-grid .anotoki-card__title')).toEqual(['Score breakdown', 'What to improve']);
     expect(text('.bottom-grid .anotoki-card__title')).toEqual(['What the sources agree on', 'Stats']);
-    expect(text('app-score-bar .head span:first-child')).toEqual(['Weapon', 'Set bonuses', 'Main stats', 'Substats', 'Stat targets']);
-    expect(text('app-score-bar .value')).toEqual(['80', '50', '66', '70', 'n/a']);
+    expect(text('app-score-bar .anotoki-progress-bar__label')).toEqual(['Weapon', 'Set bonuses', 'Main stats', 'Substats', 'Stat targets']);
+    expect(text('app-score-bar .anotoki-progress-bar__value')).toEqual(['80', '50', '66', '70', 'n/a']);
+    // The kit's progress bar: a part without a score is heard as the page says it, never as a 0.
+    expect([...host.querySelectorAll('app-score-bar [role="progressbar"]')].map((bar) => bar.getAttribute('aria-valuetext'))).toEqual(['80', '50', '66', '70', 'n/a']);
     expect(text('.targets-note')).toEqual(['Stat targets need in-game totals; import this character by UID (Character Showcase) to check them.']);
     expect(text('.weapon-line > *')).toEqual(['Your Weapon:', "Dragon's Bane R5", 'Lv. 90 · option #2 of 5']);
     expect(text('.section-head h2')).toEqual(['Your Artifacts', 'Better pieces you already own']);
@@ -423,7 +433,7 @@ describe('CharacterPage: the site’s words are keys, the game’s words stay', 
 
     expect(text('.hero anotoki-badge').slice(2)).toEqual(['Lv. 90', 'E1', 'Skill 12+3']);
     expect(tooltip('.hero anotoki-badge:last-child')).toBe('Eidolons: +3');
-    expect(text('app-score-bar .head span:first-child')[0]).toBe('Light Cone');
+    expect(text('app-score-bar .anotoki-progress-bar__label')[0]).toBe('Light Cone');
     expect(text('.weapon-line > *')).toEqual(['Light Cone:', "Dragon's Bane S5", 'Lv. 90 · možnosť č. 2 / 5']);
     expect(text('.section-head h2')[0]).toBe('Relics na postave');
     expect(host.querySelector('.crit-value')).toBeNull();

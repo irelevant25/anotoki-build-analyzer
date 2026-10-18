@@ -101,6 +101,12 @@ the site is closed to everybody but its ADMIN on the Migrations page (the site g
   languages, no description of the site's own telling of a snack bar, and the site's own keys (433 + 52 = 485).
   Then the library's `anotoki_translations/005`-`011` (the legal pages' words, the kit's newer pieces', its own
   rewordings of the Privacy page - each only where a key has no string, or nobody saved it).
+- `012_stepper_and_tab_words.sql` (anotoki-lib 0.6.2: the kit's newer pieces where the site drew its own) adds
+  `importWizard.steps` (the name a screen reader hears for the import guide's row of steps, the kit's stepper) and
+  `character.tabScore` (what is heard after a build's tab's name: its score, which the tab shows as the kit's
+  badge), in English and informal Slovak, and deletes `stepper.completed` with its strings - the kit's stepper
+  says a step is done in the library's words (`anotoki.stepper.*`, its 007). Gated: both keys in both languages,
+  the old one gone, and the site's own keys (485 + 2 - 1 = 486).
 
 Rules: never edit a migration that has run somewhere; add `NNN_what.sql`. A migration runs in one transaction
 (PostgreSQL DDL is transactional), so a failing one leaves nothing behind. A migration that changes data ends

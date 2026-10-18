@@ -4,6 +4,7 @@ import { AlertComponent } from '@anotoki/lib/ui/alert';
 import { CardComponent } from '@anotoki/lib/ui/card';
 import { TextFieldComponent } from '@anotoki/lib/ui/forms';
 import { IconComponent } from '@anotoki/lib/ui/icon';
+import { LinkCardComponent } from '@anotoki/lib/ui/link-card';
 import { PageHeaderComponent } from '@anotoki/lib/ui/page-header';
 import { SegmentedComponent, SegmentedOption } from '@anotoki/lib/ui/segmented';
 import { SpinnerComponent } from '@anotoki/lib/ui/spinner';
@@ -19,7 +20,8 @@ import { Avatar } from '../../shared/char-avatar';
 
 /**
  * The recommended builds, for everybody (no account needed): a game at a time (the kit's segmented control), its
- * characters as tiles of the site's own, a search - drawn with the anotoki family's kit.
+ * characters each the kit's link card (anotoki-lib 0.6.0: one link as a whole), a search - drawn with the anotoki
+ * family's kit.
  */
 @Component({
   selector: 'app-builds-page',
@@ -28,6 +30,7 @@ import { Avatar } from '../../shared/char-avatar';
     AlertComponent,
     CardComponent,
     IconComponent,
+    LinkCardComponent,
     PageHeaderComponent,
     SegmentedComponent,
     SpinnerComponent,

@@ -193,12 +193,9 @@
 }
 
 @if (b.notes) {
-  <details class="disclosure notes">
-    <summary>{{ 'buildDetail.notesFrom' | translate: { source: b.source.name } }}</summary>
-    <div class="disclosure-body">
-      <p class="notes-text" [attr.lang]="storedLang()">{{ b.notes }}</p>
-    </div>
-  </details>
+  <anotoki-disclosure class="notes" [heading]="'buildDetail.notesFrom' | translate: { source: b.source.name }">
+    <p class="notes-text" [attr.lang]="storedLang()">{{ b.notes }}</p>
+  </anotoki-disclosure>
 }
 
 <footer class="muted small">

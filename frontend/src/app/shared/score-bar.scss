@@ -1,5 +1,5 @@
-:host { display: block; }
-.head { display: flex; justify-content: space-between; font-size: 0.85rem; margin-bottom: 4px; }
-.value { font-weight: 500; }
-.track { height: 8px; border-radius: 999px; background: var(--anotoki-surface-2); overflow: hidden; }
-.fill { height: 100%; border-radius: 999px; transition: width 300ms ease; }
+// The kit's progress bar draws itself (its head, its track, its fill); the score bar only gives it the part's words,
+// its score and the grade's colour.
+:host {
+  display: block;
+}

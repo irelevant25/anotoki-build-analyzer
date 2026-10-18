@@ -4,10 +4,14 @@ import { AlertComponent } from '@anotoki/lib/ui/alert';
 import { BadgeComponent, BadgeTone } from '@anotoki/lib/ui/badge';
 import { ButtonComponent } from '@anotoki/lib/ui/button';
 import { CardComponent } from '@anotoki/lib/ui/card';
+import { DisclosureComponent, DisclosurePanelDirective } from '@anotoki/lib/ui/disclosure';
 import { EmptyStateComponent } from '@anotoki/lib/ui/empty-state';
 import { SelectComponent, SelectOption, SwitchComponent, TextFieldComponent } from '@anotoki/lib/ui/forms';
 import { IconComponent } from '@anotoki/lib/ui/icon';
+import { LabelledGroupComponent } from '@anotoki/lib/ui/labelled-group';
+import { LinkCardComponent } from '@anotoki/lib/ui/link-card';
 import { PageHeaderComponent } from '@anotoki/lib/ui/page-header';
+import { SegmentedComponent, SegmentedOption } from '@anotoki/lib/ui/segmented';
 import { SpinnerComponent } from '@anotoki/lib/ui/spinner';
 import { ToastService } from '@anotoki/lib/ui/toast';
 import { Api } from '../../core/api';
@@ -63,9 +67,11 @@ const STATUS_TONES: Record<string, BadgeTone> = { success: 'success', partial: '
 
 /**
  * One game account: its head (name, UID, level, last import; renaming it; updating it by UID or from a file), its
- * numbers, its characters - each a tile of the site's own with its grade, gear and first thing to improve -
- * filtered and sorted, and its import history. Drawn with the anotoki family's kit: the page header, cards,
- * fields, a switch, badges, a disclosure, alerts.
+ * numbers, its characters - each the kit's link card (anotoki-lib 0.6.0: one link as a whole, its focus ring round
+ * the card) with its grade, gear and first thing to improve - filtered (the element filter the kit's segmented
+ * control, each element's colour its mark, the label beside it the kit's labelled group) and sorted, and its import
+ * history (the kit's disclosure, its table made only while open). Drawn with the anotoki family's kit: the page
+ * header, cards, fields, a switch, badges, alerts.
  */
 @Component({
   selector: 'app-account-page',
@@ -75,9 +81,14 @@ const STATUS_TONES: Record<string, BadgeTone> = { success: 'success', partial: '
     BadgeComponent,
     ButtonComponent,
     CardComponent,
+    DisclosureComponent,
+    DisclosurePanelDirective,
     EmptyStateComponent,
     IconComponent,
+    LabelledGroupComponent,
+    LinkCardComponent,
     PageHeaderComponent,
+    SegmentedComponent,
     SelectComponent,
     SpinnerComponent,
     SwitchComponent,
@@ -145,10 +156,18 @@ export class AccountPage {
     return (this.gameMeta()?.elements ?? []).filter((element) => present.has(element));
   });
 
-  /** The element filter's choices: all, then each element a character of the account has - by the game's name. */
-  protected readonly elementOptions = computed<SelectOption[]>(() => [
+  /**
+   * The element filter's choices: all, then each element a character of the account has - by the game's name, its
+   * colour the mark before it (`--el-mark-*`, styles.scss: 3:1 on the control in both themes), which the name says
+   * in words.
+   */
+  protected readonly elementOptions = computed<SegmentedOption[]>(() => [
     { value: 'all', label: this.i18n.t('account.allElements') },
-    ...this.elements().map((element) => ({ value: element, label: titleCase(element) })),
+    ...this.elements().map((element) => ({
+      value: element,
+      label: titleCase(element),
+      mark: `var(--el-mark-${element}, var(--anotoki-muted))`,
+    })),
   ]);
 
   /** The orders, worded in the language on the page. */
