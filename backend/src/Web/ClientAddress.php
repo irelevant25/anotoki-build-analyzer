@@ -28,7 +28,8 @@ use Psr\Http\Message\ServerRequestInterface;
  * secret in X-Anotoki-Origin: Cloudflare's ranges are every Cloudflare customer's, and anybody's Worker can open a
  * connection from them and write the CF-Connecting-IP it likes. The owner's zone adds the secret to every request
  * through it (a Transform Rule); a request without it counts as the edge it came from - coarser, never looser.
- * Without the file the trusted proxies alone decide, as before.
+ * Without the file the trusted proxies alone decide, as before; a file there that yields no usable secret is a secret
+ * no request carries (Config::load(): it fails closed).
  *
  * One address, for counting: an IPv4 address as it is, an IPv6 address by its /64 - one household or one server
  * is handed a whole /64 and picks from it at will, so counting single IPv6 addresses would count nothing.

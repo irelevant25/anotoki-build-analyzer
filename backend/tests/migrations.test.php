@@ -600,11 +600,12 @@ const MOVED_SIGN_IN_KEYS = [
  * its sequence), laravel_password_reset_tokens (addresses and reset tokens) and laravel_sessions (the network
  * addresses and browsers sessions came from; its indexes keep Laravel's names, as 001 renamed only the
  * constraints); and its queue's - laravel_jobs and laravel_failed_jobs (each with its sequence) and
- * laravel_job_batches.
+ * laravel_job_batches. In $pdo, an empty database the test made already (one of a collation of its own), else
+ * in one scratchDatabase() makes under $name.
  */
-function installedDatabase(array $server, string $name, int $libraryFiles = 2): PDO
+function installedDatabase(array $server, string $name, int $libraryFiles = 2, ?PDO $pdo = null): PDO
 {
-    $pdo = scratchDatabase($server, $name);
+    $pdo ??= scratchDatabase($server, $name);
     $site = migrationsFolder("migrations-{$name}", array_values(array_filter(allMigrations(), fn (string $file): bool => strcmp($file, '007') < 0)));
     $library = T::$storage.DIRECTORY_SEPARATOR."library-{$name}";
     @mkdir($library, 0777, true);
@@ -879,6 +880,64 @@ test('008\'s gate refuses a file that took more than the six - and nothing of it
     check(str_contains((string) $result['error'], 'Tables whose rows changed: accounts (1 before, 0 now)'), 'the gate says why: '.$result['error']);
     same([LARAVEL_LEFTOVERS, 1], [relationsThere($pdo, LARAVEL_LEFTOVERS), (int) $pdo->query('SELECT count(*) FROM accounts')->fetchColumn()],
         'nothing of the file stays: the six tables, and the account');
+});
+
+/**
+ * CREATE DATABASE's options for a database that sorts text as the live one does. The live database (PostgreSQL 14,
+ * collation en_US.utf8) sorts words without their punctuation, glibc's way: "accounts" before "account_weapons",
+ * "builds" before "build_sources" - where byte by byte, as pg_class.relname (of the type name) always sorts, the
+ * underscore comes first. An ICU collation that shifts punctuation away sorts as it does (PostgreSQL 15 and newer,
+ * built with ICU). Reproduced here, never asked of the live database.
+ */
+const PUNCTUATION_SKIPPING = "TEMPLATE template0 ENCODING 'UTF8' LOCALE_PROVIDER icu ICU_LOCALE 'en-US-u-ka-shifted' LOCALE 'C'";
+
+/** The site's tables whose names sort one way with the underscore and the other way without it. */
+const SORTED_APART = ['account_weapons', 'accounts', 'build_sources', 'builds'];
+
+test('008 applies on a database whose collation skips punctuation, as the live one\'s does - its gate lists the tables in one order on both sides, byte by byte (the first try on the live database refused it: two orders of the same tables)', function () use ($server) {
+    // Where the server cannot make such a database, the test cannot be run: said, and passed over.
+    $version = (int) Db::pdo($server, 'postgres', false)->query('SHOW server_version_num')->fetchColumn();
+    if ($version < 150000) {
+        echo '      (skipped: PostgreSQL '.intdiv($version, 10000)." makes no database with an ICU collation - 15 and newer do)\n";
+
+        return;
+    }
+    try {
+        $pdo = scratchDatabase($server, 'to007icu', PUNCTUATION_SKIPPING);
+    } catch (PDOException $e) {
+        // 0A000, feature not supported: "ICU is not supported in this build".
+        if ($e->getCode() !== '0A000') {
+            throw $e;
+        }
+        echo "      (skipped: this PostgreSQL is built without ICU - no database with an ICU collation)\n";
+
+        return;
+    }
+
+    // The two orders the live database had: its collation's, and pg_class.relname's - or this test proves nothing.
+    $sorted = fn (string $collate): array => json_decode((string) $pdo->query("SELECT array_to_json(array_agg(n ORDER BY n{$collate})) FROM unnest(ARRAY['"
+        .implode("', '", SORTED_APART)."']) AS n")->fetchColumn(), true);
+    same(['accounts', 'account_weapons', 'builds', 'build_sources'], $sorted(''), 'the database\'s collation sorts the names without their underscore');
+    same(SORTED_APART, $sorted(' COLLATE "C"'), 'byte by byte, the underscore first');
+
+    // Installed with 0.3 on it: the site's tables - those four among them -, people, and the Laravel leftovers 008 drops.
+    installedDatabase($server, 'to007icu', pdo: $pdo);
+    same(SORTED_APART, relationsThere($pdo, SORTED_APART), 'the four tables there');
+    same([LARAVEL_LEFTOVERS, LARAVEL_LEFTOVER_SEQUENCES], [relationsThere($pdo, LARAVEL_LEFTOVERS), relationsThere($pdo, LARAVEL_LEFTOVER_SEQUENCES)],
+        'and the six 008 drops, each with a row, with their sequences');
+    $before = rowsOfEveryTable($pdo);
+
+    $result = upTo008($pdo, 'to007icu')->apply();
+    same([null, [siteFile('007_people.sql'), siteFile('008_drop_laravel_leftovers.sql')]], [$result['error'], $result['applied']], '007 and 008 applied');
+    same([], relationsThere($pdo, [...LARAVEL_LEFTOVERS, ...LARAVEL_LEFTOVER_SEQUENCES]), 'the six gone, and their sequences');
+    $after = rowsOfEveryTable($pdo);
+    same($before['migrations'] + 2, $after['migrations'], 'the bookkeeping table: 007 and 008 recorded');
+    unset($before['migrations'], $after['migrations']);
+    same($before, $after, 'every other table still here, with as many rows');
+
+    // And the rest of version 0.4 after it, the library's sets with it, on the same collation.
+    same(null, Migrations::migrator($pdo)->apply()['error'], 'the rest of the files applied too');
+    same([], Migrations::migrator($pdo)->applicable(), 'nothing left to apply');
 });
 
 foreach ([6 => 'the version first committed', 7 => 'with sign-in through the IAM', 8 => 'with resumable syncs'] as $level => $what) {

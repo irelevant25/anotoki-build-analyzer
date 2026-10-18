@@ -58,7 +58,9 @@ Cloudflare's ranges are every Cloudflare customer's, so a Transform Rule of the 
 with a secret to every request; given the same value in the optional `config/cloudflare.local.php`
 (`Config::originSecret()`), the site believes `CF-Connecting-IP` only on a request that carries it - the site's
 counters and the admin tools alike -, any other request from Cloudflare counting as its edge; without the file, as
-before; with one that cannot be read cleanly, a secret no request carries (it fails closed, the site keeps running).
+before; with one that cannot be read cleanly, or that names no usable secret (blank, no array, another key, not a
+string: the owner's "do as you think is the best" of 2026-10-18), a secret no request carries (it fails closed, the
+site keeps running) - only deleting the file switches the secret off.
 And with **anotoki-lib 0.6.2** (2026-10-18, both halves; docs/decisions.md): **Terms, Privacy and Contact** - the
 family's pages (`@anotoki/lib/legal/pages`) on `/terms`, `/privacy`, `/contact`, anybody's, with this site's facts
 (`core/legal-facts.ts`, migration **011**: what it keeps, what for and how long, its browser storage, who else
@@ -126,21 +128,22 @@ ADMIN applies it** - apply at once.
   (optional: defaults in `Config::FETCH_DEFAULTS`; setup writes it with them only when it is missing) -
   gitignored, written by `backend/setup.php`; no `.env`. By hand only, never written or read by setup:
   `client_address.local.php` (the proxies) and `cloudflare.local.php` (the origin secret, the same file in every
-  anotoki site: `['origin_secret' => ...]`, `Config::originSecret()` - a string with something in it, else none).
+  anotoki site: `['origin_secret' => ...]`, `Config::originSecret()` - a string with something in it; none only
+  without the file).
   Every one is read cleanly or not at all (`Config::readLocalFile()`, the family's rule; docs/operations.md,
   "Configuration"): never compiled unless its first five bytes are `<?php` (a BOM or a blank line before
   `declare(strict_types=1)` is a fatal error nothing catches), whatever it prints caught and never sent, one PHP
   cannot read no file - said in PHP's error log once a day by its fault, never its text. Passed over, never looser
   than no file: the database's or the IAM's leaves the site not set up, `fetch.local.php`'s defaults stand in,
   `client_address.local.php` trusts no proxy, and `cloudflare.local.php` fails closed - a secret no request carries,
-  every request from Cloudflare's ranges its edge (the site keeps running; one read cleanly that names no secret is
-  none). Setup reads its files the same way. One environment variable, for the browser check
-  alone: `BUILD_ANALYZER_TEST_CONFIG` names a settings folder that stands in for `config/` and `storage/` -
-  honoured only for a `build_analyzer_test_` database (anything else is "not set up"). Without the two the API
-  answers 503 `not_set_up` (the site gate's: with the setup page only while `storage/installed.lock` is not
-  there). Setup asks for the database and the IAM only (defaults `anotoki_builder`, port
-  5432). Sign-in is the IAM's, always: a `mode` or `local_user_id` left in an older `auth.local.php` is ignored
-  and opens nothing.
+  every request from Cloudflare's ranges its edge (the site keeps running) -, as does one read cleanly that names no
+  usable secret: blank, no array, another key, not a string. Setup reads its files the same way. One environment
+  variable, for the browser check alone: `BUILD_ANALYZER_TEST_CONFIG` names a settings folder that stands in for
+  `config/` and `storage/` - honoured only for a `build_analyzer_test_` database (anything else is "not set up").
+  Without the two the API answers 503 `not_set_up` (the site gate's: with the setup page only while
+  `storage/installed.lock` is not there). Setup asks for the database and the IAM only (defaults
+  `anotoki_builder`, port 5432). Sign-in is the IAM's, always: a `mode` or `local_user_id` left in an older
+  `auth.local.php` is ignored and opens nothing.
 - Database times are UTC (`TIMESTAMPTZ`). Nothing is scheduled.
 - Git Bash: heredocs with apostrophes or backslashes can come out wrong — create files with the editor tools.
 - Git repository on `main` with a GitHub remote (`origin`); commit or push only when the user asks.
@@ -148,8 +151,8 @@ ADMIN applies it** - apply at once.
 ## Commands
 
 ```bash
-cd backend && php tests/run.php                      # backend tests (throwaway databases, 25 files, ~339 tests)
-(cd frontend && npx ng build && npx ng test --watch=false)   # Vitest: 44 spec files, ~340 tests
+cd backend && php tests/run.php                      # backend tests (throwaway databases, 25 files, ~340 tests)
+(cd frontend && npx ng build && npx ng test --watch=false)   # Vitest: 44 spec files, ~343 tests
 node .claude/skills/verify-ui/scripts/run.mjs [--no-build] [--keep]   # the browser check (8590 + 8597, a throwaway database)
 cd backend && composer start                         # API: php -S localhost:8400 router.php (+ setup.php, + the built app)
 cd frontend && npx ng serve                          # http://localhost:4600, proxies /api and /setup.php
@@ -185,8 +188,8 @@ cd backend && php tools/build.php [--skip-frontend]  # ../dist/: what to upload 
 - The site's words, backend (anotoki/lib's `Anotoki\Lib\Translations` on this site's tables): `migrations/003_languages_and_translations.sql` (tables, English + Slovak, every string), `006_strings_through_the_library.sql` (the language button's two strings moved to the library's keys, every rewording kept), `010_top_bar_words_through_the_library.sql` (the top bar's twelve likewise, when the family's bar took the site's place; two words only Material's stepper said retired), the library's set `vendor/anotoki/lib/php/migrations/translations` (its words, `anotoki.*`), `src/Services/Translations/SiteTranslations.php` (what is the site's: `RELEASED` en + sk, the `extraCheck` `namesAnotherSite()`, `keyScanner()`; the container's `Translations`), `api/routes/translations.php` (`TranslationsRoutes::bundle` / `strings` / `languages` behind this site's checks, errors in its `{message, code}`), `translations.php` (→ `src/Commands/Translations.php`: the library's `TranslationsCommand`, the same name and flags)
 - The site's words, frontend `core/i18n/` (on `@anotoki/lib/translations`): `translation.ts` (the typed view of the library's `TranslationService` - the same token, the keys checked at compile time), `translations.config.ts` (`provideTranslations()`: the storage names as before, the compiled English as the fallback, the account, the admin pages' rights and routes), `en.ts` + `en/*.json` (the keys and the compiled English), pipes `translate` / `translatePlural` (typed) / `localDate`, `date-patterns.ts` (the account's date orders and clocks, `chosenMoment()`), `dynamic-keys.ts` (the run-time families), `error-text.ts`, `recommendation-words.ts`, `import-words.ts`, `title-strategy.ts` (`isAdminArea` from the library); specs use `@anotoki/lib/translations/testing`; game terms `core/game-terms.ts`, `shared/build-terms.ts`; the backend test that holds it all together `tests/translation_catalogue.test.php`
 - Translations and Languages pages (editors; the Languages page and adding / deleting a language: admins): the library's `<anotoki-translations-page>` / `<anotoki-languages-page>` (`@anotoki/lib/translations/admin`, a lazy chunk) in `pages/admin/translations/`, `pages/admin/languages/` (the admin panel's `.page`, `canLeave()` handed on), the library's `anotokiUnsavedChangesGuard` on their routes, `core/localization-drafts.ts` (the sign-out question about drafts, loading the admin entry only when the tab holds drafts)
-- Setup / deploy: `setup.php` + `src/Setup/Installer.php` (its files read as every settings file is: `passedOver()` names a broken one on this computer), `tools/build.php` (the upload), `tools/php.sh`
-- The settings files: `src/Config.php` (`load()`, `readLocalFile()` - the first five bytes, then the print guard -, `originSecret()`, the once-a-day lines in PHP's error log), tests `tests/settings_files.test.php` (every way a file is broken, the attacks it stops: a password in a broken database file in no answer, a broken origin secret's file failing closed, a broken proxies' file trusting none, PHP's own fatal error without the guard), `tests/visitors.test.php`
+- Setup / deploy: `setup.php` + `src/Setup/Installer.php` (its files read as every settings file is: `passedOver($local)` names a broken one on this computer, none on a real host), `tools/build.php` (the upload), `tools/php.sh`
+- The settings files: `src/Config.php` (`load()`, `readLocalFile()` - the first five bytes, then the print guard -, `originSecret()`, the once-a-day lines in PHP's error log), tests `tests/settings_files.test.php` (every way a file is broken, the attacks it stops: a password in a broken database file in no answer, a broken origin secret's file - or one naming no usable secret - failing closed, a broken proxies' file trusting none, PHP's own fatal error without the guard, setup naming a broken file on this computer only), `tests/visitors.test.php`
 - The legal pages (anotoki-lib 0.6.2's `@anotoki/lib/legal`, `/legal/pages`): `core/legal.ts` (`provideLegal()` in `app.config.ts`: the page's language, the database's words, `SITE_LEGAL_WORDS` - the site's fan clause in place of the library's -, `LEGAL_PAGE_PATHS`), `core/legal-facts.ts` (`siteLegalFacts()`: every fact derived from the code, each named in its comment; `SITE_LEGAL_UPDATED`; `HOSTING`), `layouts/legal-layout/` (everybody's pages' frame with the facts, out of the first load), the routes `/terms`, `/privacy`, `/contact` in `app.routes.ts` (each a path of its own with the frame as its parent, no guard, before the `**`; `app.routes.spec.ts`), the words `core/i18n/en/legal.json` + `migrations/011_legal_pages.sql` (`legal.*`, `title.terms|privacy|contact`, `footer.fanMade`); specs `core/legal-facts.spec.ts` (the pages drawn for real, every link the code's), the backend's address check in `tests/translation_catalogue.test.php`
 - The frame (the anotoki family's own, `@anotoki/lib/shell`): `layouts/app-layout/` (everybody's pages) and `layouts/admin-layout/` (the admin panel, `lang="en"`: staff / signed out / no role), each `<anotoki-shell>` with the bar, the page and the footer; `layouts/top-bar/` (the family's `<anotoki-top-bar>` told this site's brand - in the admin panel the family's short form "Analyzer" with "admin panel" under it, the app's name in the link's name -, its sections `APP_LINKS` / `ADMIN_LINKS` with the count of new feedback beside Feedback, the person and their menu items, Sign in / Sign out, and its one widget, the sync this tab drives; where it folds, measured with `run.mjs --measure`: `PHONE_BAR_MAX`, the admin panel's `ADMIN_PHONE_BAR_MAX` (the ADMIN's nine sections) and `EDITOR_PHONE_BAR_MAX` (an editor's two); its menus, keys, theme switch and language switcher are the library's; the keys `brand.*`, `topbar.*` and the library's `anotoki.topbar.*`, `anotoki.theme.*` - migration 010), `layouts/footer/` (version, What's new, Feedback; under them the family's `<anotoki-legal-links>` - Terms · Privacy · Contact - and the fan clause `footer.fanMade`), `core/shell.ts` (`provideShell()`: the shell's `ThemeService` - the account's theme while signed in, saved from the bar's switch; else this device's, `build-analyzer-theme`, read before the first paint by the kit's `theme-boot.js` in `index.html` - and the bar's languages); `app.ts` is the router inside the site gate, and what belongs to no page (`app.html` also holds the kit's `<anotoki-confirm-host>` and `<anotoki-toast-host>`); the browser check `.claude/skills/verify-ui/scripts/run.mjs` + `flow.mjs`, its database `tests/tools/browser-db.php`
 - The look (the family's kit, anotoki-lib 0.6.2; no Angular Material, no CDK): `src/styles.scss` (`@anotoki/lib/styles` - its tokens, Manrope, base, utilities, tables - with this site's palette over the family's `--anotoki-*` tokens, light and dark; the site's own meanings `--grade-*`, `--sev-*` (light and dark apart, `$site-colours`: each 4.5:1 on every ground of its theme, a grade's letter on its own tint too), `--rarity-*`, `--el-*`, an element's mark in a control `--el-mark-*` (3:1 on the control in both themes); its own pieces of look `.tile`, `.section-head`, `details.disclosure`), `core/kit.ts` (`provideKit()`: the kit's words through `forKit()` and the site's extra icons, `core/icons.ts` - the family's own drawings, `@anotoki/lib/ui/icons`); the kit's pieces each from its own entry point (`@anotoki/lib/ui/button`, `/ui/dialog`, `/ui/tabs` …), never the `@anotoki/lib/ui` barrel. The kit's newer pieces (0.6.0) stand where the site drew its own: the import guide's row of steps is the kit's stepper (`ui/stepper`, named by `importWizard.steps`), its trouble list and paste box, a build's notes and the account's import history are the kit's disclosure (`ui/disclosure`; the history's table made only while open), the score bars and a sync's progress on the Sources page the kit's progress bar (`shared/score-bar`, `ui/progress`: the score as the page writes it, "n/a" heard too; a sync before its total is known moving on its own), a character on the account page and in the builds a link card (`ui/link-card`), a build's tab shows its score as the kit's badge (`character.tabScore`, the closest build marked), and the account's element filter is the kit's segmented control in a labelled group, each element's mark before its name (`ui/segmented`, `ui/labelled-group`) - migration `012_stepper_and_tab_words.sql`. What the kit has no piece for stays the site's: the grade badge, a tile with actions inside it or a piece of gear (`.tile`), the import guide's choice cards and file drop zone, a sync's run on the Sources page (`details.disclosure`, its summary holds a state's dot and a line of its own)
@@ -223,7 +226,10 @@ cd backend && php tools/build.php [--skip-frontend]  # ../dist/: what to upload 
   one with no role: no check needs it, none refuses it.
 - The UI names no other website, service or tool (labels, links, credits, errors, tooltips, titles, the
   changelog): sources are "Source N", the API never sends a site's name or address, text from elsewhere goes
-  through `Neutral::text()`. Game names are fine. That covers every string in the database, seeded or edited,
+  through `Neutral::text()`. Game names are fine. The one exception is the legal pages, which name who else
+  handles the data, as the law asks - the hosting company WebSupport s.r.o. (`HOSTING`, `core/legal-facts.ts`),
+  Cloudflare and Umami (the library's words) - and still no build source, tool or the showcase service (described
+  there, never named). That covers every string in the database, seeded or edited,
   and a language's two names: `SiteTranslations::namesAnotherSite()` (the library's last check) refuses one that
   names another site or holds a web address (422 `names_another_site`).
 - No request may run long or sleep long: sync work goes through `SyncRunner` steps (bounded by `step_seconds`),
@@ -237,7 +243,10 @@ cd backend && php tools/build.php [--skip-frontend]  # ../dist/: what to upload 
 - Queries are parameterised; table and column names come from literals in the code, never from input.
 - Schema changes are new files in `backend/migrations/`; never edit one that has been applied. Data-changing
   migrations end with a `DO $$` verification gate; a gate's running total of keys (`expected_keys`) counts this
-  site's own only (`name NOT LIKE 'anotoki.%'`) - the library's set adds its words when it likes. A waiting
+  site's own only (`name NOT LIKE 'anotoki.%'`) - the library's set adds its words when it likes. A gate that
+  compares lists compares them as sets, or sorts both sides `COLLATE "C"`: the type `name` (`pg_class.relname`)
+  sorts byte by byte whatever the database's collation, and the live one's, en_US.utf8, skips the underscore -
+  008's first gate refused its Apply there (`tests/migrations.test.php` applies it on such a collation). A waiting
   migration closes the site (the site gate): a route
   the gate leaves open (`siteOpenPaths()`) must answer on a database without that migration's tables - the
   Migrations page's ADMIN check reads the token alone (`requireTokenRole`); each open path is one route

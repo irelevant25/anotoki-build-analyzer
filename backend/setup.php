@@ -224,8 +224,9 @@ if ($post) {
 
 $saved = $installer->saved() !== [];
 // On this computer, a file of setup's own that is there but cannot be read cleanly (a byte-order mark, no <?php line)
-// is said by its fault, never its text: none of its values is shown and its password is not kept.
-$broken = $local ? $installer->passedOver() : [];
+// is said by its fault, never its text: none of its values is shown and its password is not kept. On a real host,
+// none (Installer::passedOver()).
+$broken = $installer->passedOver($local);
 $field = fn (string $name, string $label, string $type = 'text', string $extra = '') => '<label for="'.$name.'">'.h($label).'</label>'
     .'<input id="'.$name.'" name="'.$name.'" type="'.$type.'"'.($type === 'password' ? '' : ' value="'.h($values[$name] ?? '').'"').' '.$extra.'>';
 

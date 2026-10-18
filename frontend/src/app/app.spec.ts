@@ -2,7 +2,8 @@ import { provideHttpClient, withInterceptors } from '@angular/common/http';
 import { provideHttpClientTesting } from '@angular/common/http/testing';
 import { Component, computed, signal } from '@angular/core';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
-import { Router, provideRouter } from '@angular/router';
+import { Router, Routes, provideRouter } from '@angular/router';
+import { FeedbackUnread } from '@anotoki/lib/admin';
 import { SiteStatus, siteStatusInterceptor } from '@anotoki/lib/migrations';
 import { provideTestTranslations } from '@anotoki/lib/translations/testing';
 import { App } from './app';
@@ -12,7 +13,10 @@ import { AnotokiUser } from '@anotoki/lib/auth';
 import { VisitorMove } from './core/models';
 import { provideShell } from './core/shell';
 import { provideSiteStatus } from './core/site-status';
+import { SyncDriver } from './core/sync-driver';
 import { VisitorKey } from './core/visitor-key';
+import { AdminLayout } from './layouts/admin-layout/admin-layout';
+import { AppLayout } from './layouts/app-layout/app-layout';
 
 const ENGLISH = {
   'brand.area': 'Build Analyzer',
@@ -43,9 +47,24 @@ class TestPage {
 /** Who is on the page: nobody, an ordinary member, or the site's ADMIN. */
 type Who = 'nobody' | 'member' | 'admin';
 
-/** Where the site stands, as the server says it: ready, or a 503's code (and whether it was installed). */
+/**
+ * Where the site stands, as the server says it: ready, a 503's code (and whether it was installed), or the status
+ * path's `unavailable` - the database out of reach.
+ */
 type Standing =
-  { code: 'ready' } | { code: 'update_pending' } | { code: 'not_set_up'; installed: boolean };
+  | { code: 'ready' }
+  | { code: 'update_pending' }
+  | { code: 'unavailable' }
+  | { code: 'not_set_up'; installed: boolean };
+
+/**
+ * The page in the site's two real frames, as app.routes.ts nests them: everybody's pages in the AppLayout, the
+ * admin panel in the AdminLayout - each with the family's bar and the site's footer.
+ */
+const FRAMED: Routes = [
+  { path: 'admin', component: AdminLayout, children: [{ path: '**', component: TestPage }] },
+  { path: '', component: AppLayout, children: [{ path: '**', component: TestPage }] },
+];
 
 function person(who: Who): AnotokiUser | null {
   if (who === 'nobody') {
@@ -78,16 +97,24 @@ describe('the shell', () => {
     showIfNew: ReturnType<typeof vi.fn>;
   };
 
+  /** `framed`: the page in the site's real layouts (FRAMED), where it is otherwise the bare page alone. */
   async function setup(
-    options: { who?: Who; key?: string | null; site?: Standing; path?: string } = {},
+    options: {
+      who?: Who;
+      key?: string | null;
+      site?: Standing;
+      path?: string;
+      framed?: boolean;
+    } = {},
   ): Promise<void> {
     user = signal(person(options.who ?? 'member'));
     login = vi.fn(async () => true);
     visitor = { key: signal(options.key ?? null), moved: signal<VisitorMove | null>(null) };
     changelog = { current: signal<string | null>('0.3'), open: vi.fn(), showIfNew: vi.fn() };
+    const roles = () => user()?.roles ?? [];
     TestBed.configureTestingModule({
       providers: [
-        provideRouter([{ path: '**', component: TestPage }]),
+        provideRouter(options.framed ? FRAMED : [{ path: '**', component: TestPage }]),
         provideHttpClient(withInterceptors([siteStatusInterceptor])),
         provideHttpClientTesting(),
         provideSiteStatus(),
@@ -97,16 +124,24 @@ describe('the shell', () => {
           provide: AuthService,
           useValue: {
             user,
+            available: signal(true),
             signedIn: () => user() !== null,
-            isAdmin: computed(() => (user()?.roles ?? []).includes('ADMIN')),
+            displayName: () => user()?.preferred_username ?? null,
+            isAdmin: computed(() => roles().includes('ADMIN')),
+            isStaff: computed(() => roles().includes('ADMIN') || roles().includes('EDITOR')),
+            accountUrl: signal(null),
             preferences: () => null,
             savePreferences: vi.fn(async () => ({})),
             failure: signal(null),
             login,
+            logout: vi.fn(async () => undefined),
           },
         },
         { provide: Changelog, useValue: changelog },
         { provide: VisitorKey, useValue: visitor },
+        // What the layouts' bar asks: the sync this tab drives, and the feedback nobody opened.
+        { provide: SyncDriver, useValue: { driving: signal(false) } },
+        { provide: FeedbackUnread, useValue: { count: signal(null), refresh: vi.fn() } },
       ],
     });
     // What the start asked of the server (app.config.ts): here told, not asked.
@@ -280,6 +315,84 @@ describe('the shell', () => {
     expect(words(statusPage()?.querySelector('h1'))).toBe('Stránka teraz nie je dostupná');
     expect(links()).toEqual([]);
     expect(words(host)).not.toMatch(/setup|nastaven/i);
+  });
+
+  /**
+   * Anything of a frame on the page: the family's shell, the bar, the footer, the legal links - or any banner,
+   * foot or navigation at all.
+   */
+  const frame = () =>
+    [
+      ...host.querySelectorAll(
+        'anotoki-shell, app-top-bar, anotoki-top-bar, app-footer, anotoki-legal-links, header, footer, nav',
+      ),
+    ].map((element) => element.localName);
+
+  it("the gate's page is bare - no bar, no footer, nothing of the frame - while an update waits, the database is out of reach or the site is not set up, in the site's real layouts", async () => {
+    const closed: [string, Who, Standing, string][] = [
+      ['an update waits: a visitor', 'nobody', { code: 'update_pending' }, '/'],
+      ['an update waits: a member', 'member', { code: 'update_pending' }, '/accounts/3'],
+      [
+        'an update waits: the ADMIN off the Migrations page',
+        'admin',
+        { code: 'update_pending' },
+        '/admin/sources',
+      ],
+      ['the database out of reach', 'member', { code: 'unavailable' }, '/builds/genshin'],
+      ['never set up', 'nobody', { code: 'not_set_up', installed: false }, '/'],
+      [
+        'installed once, not set up now',
+        'admin',
+        { code: 'not_set_up', installed: true },
+        '/admin/migrations',
+      ],
+    ];
+    for (const [what, who, site, path] of closed) {
+      TestBed.resetTestingModule();
+      pagesMade = 0;
+      await setup({ who, site, path, framed: true });
+      expect(statusPage(), what).not.toBeNull();
+      expect(frame(), what).toEqual([]);
+      // Nothing on the page but the gate's own words, and no page made behind them.
+      expect(words(host), what).toBe(words(statusPage()));
+      expect(pagesMade, what).toBe(0);
+    }
+  });
+
+  it("the frame comes back with the site: the bar and the footer around everybody's pages and the admin panel - and around the one page the ADMIN reaches while an update waits, Migrations", async () => {
+    const framed = () => ({
+      bar: host.querySelector('anotoki-shell app-top-bar anotoki-top-bar') !== null,
+      page: host.querySelector('anotoki-shell main .the-page') !== null,
+      footer: host.querySelector('anotoki-shell app-footer anotoki-legal-links') !== null,
+      gate: statusPage() !== null,
+    });
+    const whole = { bar: true, page: true, footer: true, gate: false };
+
+    await setup({ who: 'member', path: '/accounts/3', framed: true });
+    expect(framed()).toEqual(whole);
+
+    TestBed.resetTestingModule();
+    await setup({ who: 'admin', path: '/admin/sources', framed: true });
+    expect(framed()).toEqual(whole);
+
+    TestBed.resetTestingModule();
+    await setup({
+      who: 'admin',
+      site: { code: 'update_pending' },
+      path: '/admin/migrations',
+      framed: true,
+    });
+    expect(framed()).toEqual(whole);
+
+    // Closed while a page was open: the frame goes with the page, and comes back with it.
+    TestBed.resetTestingModule();
+    await setup({ who: 'member', path: '/accounts/3', framed: true });
+    TestBed.inject(SiteStatus).report('unavailable');
+    await fixture.whenStable();
+    expect([frame(), framed().gate]).toEqual([[], true]);
+    TestBed.inject(SiteStatus).markReady();
+    await fixture.whenStable();
+    expect(framed()).toEqual(whole);
   });
 
   it("puts the theme chosen on this device on <html> - the family's ThemeService, under the key the site always used", async () => {

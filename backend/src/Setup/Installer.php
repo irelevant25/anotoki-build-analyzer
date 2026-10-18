@@ -214,13 +214,18 @@ final class Installer
     }
 
     /**
-     * The files setup writes that are there but cannot be read cleanly, each by its fault (never its text): on this
-     * computer the page says so, since it shows none of their values and keeps none of their password.
+     * The files setup writes that are there but cannot be read cleanly, each by its fault (never its text) - on this
+     * computer, where the page says so, since it shows none of their values and keeps none of their password. On a
+     * real host none: anybody can open the page there before the token proves who they are, and it says nothing of
+     * the files it finds - neither a value nor what is wrong with one (a fault can count the bytes a file prints).
      *
      * @return list<string> "config/database.local.php does not start with <?php (...)"
      */
-    public function passedOver(): array
+    public function passedOver(bool $local): array
     {
+        if (! $local) {
+            return [];
+        }
         $said = [];
         foreach (['database.local.php', 'auth.local.php'] as $file) {
             $path = $this->root.'/config/'.$file;

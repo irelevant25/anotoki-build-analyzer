@@ -113,11 +113,16 @@ Correctness first:
   (401, nothing written), and reads again under the lock what it found before it (the target account, a
   visitor's account count).
 - A migration's gate checks only what the migration itself guarantees: a string an editor may delete in the
-  browser (a non-English one) is checked for the keys that migration adds, never for every key.
+  browser (a non-English one) is checked for the keys that migration adds, never for every key. Two lists it
+  compares are compared as sets, or both sorted `COLLATE "C"` (a `name` column sorts byte by byte, text by the
+  database's collation - the live one's skips punctuation, and 008's first gate failed there).
 - Neutral names: nothing the UI shows or the API sends for display names or links another website, service or
   tool (labels, tooltips, errors, titles, the changelog, `import-guides.ts`); sources appear as "Source N" with
   API keys `{game}-{n}`; text from elsewhere goes through `Neutral::text()`; icons go through `/api/icons/…`.
-  Game names are fine. The command line and `docs/` may name sites. That covers every string a migration
+  Game names are fine. The command line and `docs/` may name sites. The one exception in the UI is the legal
+  pages, which name who else handles the data, as the law asks - the hosting company WebSupport s.r.o. (`HOSTING`,
+  `core/legal-facts.ts`), Cloudflare and Umami (the library's words) - and no build source, data provider, tool or
+  the showcase service (described there, never named). That covers every string a migration
   seeds or the owner edits: run `cd backend && php tests/translation_catalogue.test.php`, which puts each
   seeded string (every language) through `SiteTranslations::namesAnotherSite()` - no other site's name, no web
   address - the check the library asks last of every save, import and language name.
@@ -159,7 +164,8 @@ Correctness first:
   and line or byte count, never its text (no `$e->getMessage()` of a parse error). Passed over, never looser than no
   file: a required one leaves the site not set up, `fetch.local.php`'s defaults stand in, `client_address.local.php`
   trusts no proxy (never Cloudflare's ranges in its place), `cloudflare.local.php` fails closed (a secret no request
-  carries) - and `tests/settings_files.test.php` holds each with the attack it stops.
+  carries) - as does one read cleanly that names no usable secret (blank, no array, another key, not a string): only
+  deleting the file switches the secret off - and `tests/settings_files.test.php` holds each with the attack it stops.
 - The legal pages: every fact in `core/legal-facts.ts` true of the code (a change to what the site keeps, or for
   how long, changes `legal.*` by a migration and `SITE_LEGAL_UPDATED`); every address the pages link to the code's,
   never a translatable string; the routes each a path of their own with the frame as parent, no guard, before the

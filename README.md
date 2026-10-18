@@ -190,7 +190,8 @@ hosting:
     no blank line before it; a long random value, 32+ characters). With it the site believes `CF-Connecting-IP`
     only on a request that carries the secret - anybody's Cloudflare Worker can connect from Cloudflare's ranges;
     without the file it believes `CF-Connecting-IP` from Cloudflare's ranges alone; with one it cannot read
-    cleanly, from nobody (every visitor counts as their edge until it is mended). Set the rule first, then the file.
+    cleanly, or one that names no secret (blank, a misspelt key), from nobody (every visitor counts as their edge
+    until it is mended) - deleting the file is the way to switch it off. Set the rule first, then the file.
 - **After an upload**: the private folders (`storage/`, `config/`) answer 403 in a browser; the host check's
   "Who connects" says Cloudflare, not a proxy of the host's (behind one, every visitor would share one
   address); pending database updates are applied on the admin panel's Migrations page.

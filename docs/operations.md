@@ -67,11 +67,12 @@ error's message can quote it. What passing over means, never looser than no file
 | `database.local.php`, `auth.local.php` | the site is not set up until it is mended - the problem names the file and its fault ("does not start with <?php (...)", "prints 12 bytes of its own (...)", "could not be read (ParseError on line 3)") |
 | `fetch.local.php` | `Config::FETCH_DEFAULTS` stand in for it |
 | `client_address.local.php` | no proxy is trusted - every request counts its own connection - never Cloudflare's ranges in its place: it may be the very file that said `[]` for a host not behind Cloudflare |
-| `cloudflare.local.php` | a secret no request carries: it fails closed (see "Which address", below) |
+| `cloudflare.local.php` | a secret no request carries: it fails closed - as does one read cleanly that names no usable secret; deleting the file is the way to switch the secret off (see "Which address", below) |
 
 `setup.php` reads its files the same way: on this computer it names a broken one by its fault (never a value), and
 asks for every field again - the password too - since it shows none of that file's values and keeps none of its
-password; on a host it shows nothing of any file.
+password; on a host it shows nothing of any file, neither a value nor a fault (`Installer::passedOver($local)`,
+`tests/settings_files.test.php`).
 
 Run `setup.php` again to change the database or the IAM (on this computer it can be run any number of times
 and shows the saved values, never the password; on a host it shows none), or edit the files. Setup writes
@@ -230,16 +231,17 @@ they import is kept on the server under a row of `users` with a negative id; the
      `<?php return ['origin_secret' => '<the same long random value>'];`. Keep a copy off the server.
 
   Set the rule first, then the file: the other way round, every visitor counts as their edge until the rule is
-  there; changing the secret, likewise. Without the file - or with one read cleanly that names no secret: a value
-  that is not a string with something in it, another key, no array - the site believes `CF-Connecting-IP` from the
-  trusted proxies alone, as before (said in PHP's error log once a day, by the file's name). **A file that is there
-  but cannot be read cleanly fails closed** (the family's rule, as the IAM's `iamOriginSecret()` keeps it; this
-  site's since 2026-10-18): one that does not start with `<?php` (a byte-order mark, a blank line, no `<?php` line - never
-  compiled), one that prints, one PHP cannot read or run stands for a secret no request carries, so every request
-  from Cloudflare's ranges counts as the edge it came from - the file's own value too - until it is mended. The
-  file is optional: the site keeps running either way, and PHP's error log says so once a day, by the file's fault,
-  never its text. Never "no secret" there: that would believe `CF-Connecting-IP` from every Cloudflare customer's
-  Worker. The secret is never shown or logged.
+  there; changing the secret, likewise. Without the file the site believes `CF-Connecting-IP` from the trusted
+  proxies alone, as before: **deleting the file is the one way to switch the secret off.** **A file that is there
+  but yields no usable secret fails closed**: one that cannot be read cleanly (the family's rule, as the IAM's
+  `iamOriginSecret()` keeps it; this site's since 2026-10-18) - one that does not start with `<?php` (a byte-order
+  mark, a blank line, no `<?php` line - never compiled), one that prints, one PHP cannot read or run -, and one read
+  cleanly that names no secret (since the owner's word of 2026-10-18: a value that is not a string with something
+  in it, a misspelt or another key, no array; anything in the file's place, a folder too) stands for a secret no
+  request carries, so every request from Cloudflare's ranges counts as the edge it came from - the file's own value
+  too - until it is mended. The file is optional: the site keeps running either way, and PHP's error log says so
+  once a day, by the file's fault or its name, never its text. Never "no secret" there: that would believe
+  `CF-Connecting-IP` from every Cloudflare customer's Worker. The secret is never shown or logged.
 - **Cloudflare's ranges change rarely.** The committed list is the one https://www.cloudflare.com/ips-v4 and
   https://www.cloudflare.com/ips-v6 published on 2026-10-11 (15 IPv4, 7 IPv6 ranges) - the library's
   `ClientAddress::CLOUDFLARE` of 0.5.0 is the same list, and `tests/visitors.test.php` holds the two to each

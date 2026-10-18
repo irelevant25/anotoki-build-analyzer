@@ -68,7 +68,10 @@ the site is closed to everybody but its ADMIN on the Migrations page (the site g
   `laravel_failed_jobs_id_seq`). Only `laravel_migrations` stays (what that version ran; nobody's data). No
   CASCADE: anything pointing at one of the six makes it fail. Gated: none of them there, every other table still
   there with as many rows (the audit log's may only have grown: the admin tools that stay open during an update
-  write it), nothing new.
+  write it), nothing new - the two lists of tables sorted alike, `COLLATE "C"`, since the live database's first
+  Apply (its collation put them in two orders, and the gate refused it; the one change made to the file before it
+  ever applied there). `tests/migrations.test.php` applies it on a throwaway database whose ICU collation skips
+  punctuation, as the live one's does (PostgreSQL 15 and newer; skipped, and said so, on a server that cannot).
 - `009_sign_in_and_feedback_words.sql` moves the five words of the old sign-in page that the library's sign-in
   screen has under its own keys - `signIn.notCompleted`, `stateMismatch` (→ `anotoki.signIn.expired`),
   `storageUnavailable`, `failed`, `signingIn` → `anotoki.signIn.*` - with every language's string as it is, who
@@ -110,7 +113,11 @@ the site is closed to everybody but its ADMIN on the Migrations page (the site g
 
 Rules: never edit a migration that has run somewhere; add `NNN_what.sql`. A migration runs in one transaction
 (PostgreSQL DDL is transactional), so a failing one leaves nothing behind. A migration that changes data ends
-with a `DO $$ … $$` block that checks the result and raises an exception when it is wrong. A closed set of
+with a `DO $$ … $$` block that checks the result and raises an exception when it is wrong. A check that compares
+two lists compares them as sets (each side's `EXCEPT` the other empty), or sorts both sides `COLLATE "C"`: the
+type `name` (`pg_class.relname`, `pg_attribute.attname`) sorts byte by byte whatever the database's collation,
+while text sorts by it - and the live database's, en_US.utf8, sorts words without their punctuation
+("accounts" before "account_weapons"). A closed set of
 values is a `CHECK (col IN (…))` on the column (`<table>_game_check`, `game_sets_kind_check`,
 `sync_runs_kind_check`), not a lookup table or an enum type. `Migrations::migrator($pdo, $folder, $settings)` can
 pass settings to the migrations (`build_analyzer.<name>`, set in each file's transaction); only the Laravel

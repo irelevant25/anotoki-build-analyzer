@@ -85,7 +85,10 @@ the gate's marked template
 (`<anotoki-site-gate><ng-template anotokiSitePages><router-outlet /></ng-template></anotoki-site-gate>`,
 `SitePagesDirective` in `app.ts`; anotoki-lib 0.1.1 took any template, 0.2.0 only the marked one - an unmarked
 one draws nothing), which the gate makes only while it shows the pages: a page behind the gate's page is not
-made at all, so it sends no request and leaves no error, toast or sync state behind. (0.1.0 took the outlet
+made at all, so it sends no request and leaves no error, toast or sync state behind. The gate's page stands
+bare - no bar, no footer, nothing of the frame - while an update waits, the database is out of reach or the site
+is not set up: the bar and the footer are the layouts', routes inside that template too (`app.spec.ts` holds it
+in every state, with the real layouts). (0.1.0 took the outlet
 as plain content, which Angular made whether it showed or not; `app.ts` kept it out with a condition of its
 own, `pagesMade`, gone since.) Nothing in the boot stops while an update waits: the sign-in (and its callback)
 completes, the words are asked for. The gate's pages and the Migrations, Translations and Languages pages -
@@ -188,8 +191,9 @@ reaches exactly what `requireOwner()` guards - its own accounts and imports, thr
   Cloudflare's ranges - the committed `trusted_proxies`, the owner's decision of 2026-10-11 - its
   `CF-Connecting-IP`, one address or none believed - with the origin secret, `config/cloudflare.local.php`
   (anotoki-lib 0.5.2, the owner's decision of 2026-10-13), only on a request that carries it in
-  `X-Anotoki-Origin`, any other from Cloudflare counted as its edge - and with a file that cannot be read cleanly,
-  on no request at all (it fails closed); IPv6 by /64, `::ffff:` IPv4 as IPv4 - the
+  `X-Anotoki-Origin`, any other from Cloudflare counted as its edge - and with a file there that cannot be read
+  cleanly or names no usable secret, on no request at all (it fails closed; only deleting the file switches the
+  secret off); IPv6 by /64, `::ffff:` IPv4 as IPv4 - the
   admin tools read by the same rule, list and secret) and
   site-wide; a visitor's imports throttled per address; per visitor a few accounts and smaller files (422
   `visitor_limit`; the accounts counted by the route before any work, and again by `AccountImporter` under the
@@ -276,7 +280,10 @@ The anotoki family's people module and admin tools (anotoki-lib 0.5.0; the owner
 ### Neutral names
 
 The UI names no other website, service or tool - not in labels, links, credits, errors, tooltips or the
-changelog. So the API never sends a site's name or address either:
+changelog. The one exception is the legal pages (`/terms`, `/privacy`, `/contact`), which name who else handles
+the data, as the law asks: the hosting company WebSupport s.r.o. (`HOSTING` in `core/legal-facts.ts`, its address
+the code's), Cloudflare and Umami (the library's words) - never a build source, a data provider, a tool or the
+showcase service, which they describe without naming. So the API never sends a site's name or address either:
 
 - Build sources are "Source 1", "Source 2" … per game, numbered in the order of `config/app.php` `sources`
   (add new ones at the end of their game so the numbers stay). Their API key is `{game}-{n}` (`genshin-2`); the

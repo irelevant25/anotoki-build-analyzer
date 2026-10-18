@@ -241,20 +241,40 @@ test('a byte-order mark or a blank line before <?php declare(strict_types=1) in 
     removeTree($root);
 });
 
-test('the attack it stops: a cloudflare.local.php that cannot be read cleanly never makes the site believe a forged CF-Connecting-IP from a Cloudflare address - it fails closed, a secret no request carries (the file\'s own value too), and the site keeps running', function () use ($server) {
+test('the attack it stops: a cloudflare.local.php that cannot be read cleanly, or names no usable secret, never makes the site believe a forged CF-Connecting-IP from a Cloudflare address - it fails closed, a secret no request carries (the file\'s own value too), and the site keeps running; only deleting the file switches the secret off', function () use ($server) {
     $secret = 'origin-'.bin2hex(random_bytes(20));
     $body = returning(['origin_secret' => $secret]);
+    $broken = 'cannot be read cleanly: no request carries its secret';
+    $none = 'holds no origin_secret (a string with something in it): no request carries its secret';
+    // [the file, what the log says of it, and how it says it fails closed]
     $cases = [];
     foreach (BAD_STARTS as $what => [$before, $start]) {
-        $cases[$what] = [$before.$start.$body, Config::NOT_PHP];
+        $cases[$what] = [$before.$start.$body, 'config/cloudflare.local.php '.Config::NOT_PHP, $broken];
     }
     $cases['text after a closing tag'] = ["<?php \$kept = 1; ?>\n{$secret}\n<?php {$body}",
-        'prints '.(strlen($secret) + 1).' bytes of its own (text outside its PHP: text after a closing tag, or something it echoes)'];
-    $cases['a parse error'] = ["<?php return ['origin_secret' => '{$secret}' '{$secret}'];\n", 'could not be read (ParseError on line 1)'];
+        'config/cloudflare.local.php prints '.(strlen($secret) + 1).' bytes of its own (text outside its PHP: text after a closing tag, or something it echoes)', $broken];
+    $cases['a parse error'] = ["<?php return ['origin_secret' => '{$secret}' '{$secret}'];\n", 'config/cloudflare.local.php could not be read (ParseError on line 1)', $broken];
+    // Read cleanly, and still no secret a request could be held to (2026-10-18): blank, no array, a misspelt key, a
+    // value that is not a string - each the owner's slip, never a way to switch the secret off.
+    foreach ([
+        'an empty value' => "<?php return ['origin_secret' => ''];\n",
+        'only spaces' => "<?php return ['origin_secret' => \" \\t\\n\"];\n",
+        'no array: the value alone' => "<?php return '{$secret}';\n",
+        'no array: nothing returned (PHP reads 1)' => "<?php\n",
+        'a misspelt key' => "<?php return ['origin_secrets' => '{$secret}'];\n",
+        'another key' => "<?php return ['secret' => '{$secret}'];\n",
+        'the key in capitals' => "<?php return ['ORIGIN_SECRET' => '{$secret}'];\n",
+        'a number' => "<?php return ['origin_secret' => 123456789012345678];\n",
+        'a list' => "<?php return ['origin_secret' => ['{$secret}']];\n",
+        'null' => "<?php return ['origin_secret' => null];\n",
+        'true' => "<?php return ['origin_secret' => true];\n",
+    ] as $what => $contents) {
+        $cases[$what] = [$contents, 'config/cloudflare.local.php holds no origin_secret', $none];
+    }
 
     T::$app->config->set('visitors.new_per_hour_per_address', 1);
     $edgeAt = 10;
-    foreach ($cases as $what => [$contents, $fault]) {
+    foreach ($cases as $what => [$contents, $fault, $closed]) {
         $root = settingsRoot(['cloudflare.local.php' => $contents] + setUpFiles($server));
         [$config, $printed, $log] = watched($root, fn (): Config => Config::load($root));
         same('', $printed, "{$what}: nothing of the file printed");
@@ -265,12 +285,12 @@ test('the attack it stops: a cloudflare.local.php that cannot be read cleanly ne
         foreach ([
             'without X-Anotoki-Origin' => [CLOUDFLARE_EDGE, ['CF-Connecting-IP' => FORGED], CLOUDFLARE_EDGE],
             'with the file\'s own value' => [CLOUDFLARE_EDGE, ['CF-Connecting-IP' => FORGED, 'X-Anotoki-Origin' => $secret], CLOUDFLARE_EDGE],
+            'with an empty X-Anotoki-Origin' => [CLOUDFLARE_EDGE, ['CF-Connecting-IP' => FORGED, 'X-Anotoki-Origin' => ''], CLOUDFLARE_EDGE],
             'from outside Cloudflare\'s ranges' => [ELSEWHERE, ['CF-Connecting-IP' => FORGED], ELSEWHERE],
         ] as $how => [$connection, $headers, $counted]) {
             same($counted, ClientAddress::counted(requestFrom($connection, $headers), $config), "{$what}, {$how}: fails closed - the connection counted, never the address it claims");
         }
-        check(str_contains($log, "config/cloudflare.local.php {$fault}") && str_contains($log, 'cannot be read cleanly: no request carries its secret'),
-            "{$what}: said in PHP's error log by its fault, and that it fails closed: {$log}");
+        check(str_contains($log, $fault) && str_contains($log, $closed), "{$what}: said in PHP's error log by its fault, and that it fails closed: {$log}");
         check(! str_contains($log, $secret) && ! str_contains($log, 'strict_types'), "{$what}: never the secret, nor PHP's words");
 
         // Through the API, with what load() made of the file: each new address a Worker writes in is the one edge,
@@ -284,15 +304,22 @@ test('the attack it stops: a cloudflare.local.php that cannot be read cleanly ne
         removeTree($root);
     }
 
-    // A file read cleanly that names no secret is no secret, as without the file - said in the log, by its name.
-    foreach (['an empty value' => "<?php return ['origin_secret' => ''];\n", 'another key' => "<?php return ['secret' => '{$secret}'];\n", 'no array' => "<?php return '{$secret}';\n"] as $what => $contents) {
-        $root = settingsRoot(['cloudflare.local.php' => $contents] + setUpFiles($server));
-        [$config, , $log] = watched($root, fn (): Config => Config::load($root));
-        same([[], null], [$config->problems(), $config->originSecret()], "{$what}: no secret, the site set up");
-        same(FORGED, ClientAddress::counted(requestFrom(CLOUDFLARE_EDGE, ['CF-Connecting-IP' => FORGED]), $config), "{$what}: CF-Connecting-IP from Cloudflare's ranges alone, as with no file");
-        check(str_contains($log, 'config/cloudflare.local.php holds no origin_secret') && ! str_contains($log, $secret), "{$what}: said by the file's name, never the value: {$log}");
-        removeTree($root);
-    }
+    // Anything in the file's place counts as the file: a folder fails closed too (PHP may not open it, or reads nothing).
+    $root = settingsRoot(setUpFiles($server));
+    mkdir($root.'/config/cloudflare.local.php');
+    [$config, , $log] = watched($root, fn (): Config => Config::load($root));
+    check(preg_match('/^[0-9a-f]{64}$/D', (string) $config->originSecret()) === 1, 'a folder in its place: a secret no request carries');
+    same(CLOUDFLARE_EDGE, ClientAddress::counted(requestFrom(CLOUDFLARE_EDGE, ['CF-Connecting-IP' => FORGED]), $config), 'a folder in its place: the edge counted');
+    check(str_contains($log, $broken), 'a folder in its place: said: '.$log);
+
+    // Switched off the one way there is: the file deleted - CF-Connecting-IP from Cloudflare's ranges alone, as before
+    // the secret, and nothing said.
+    rmdir($root.'/config/cloudflare.local.php');
+    [$config, , $log] = watched($root, fn (): Config => Config::load($root));
+    same([[], null], [$config->problems(), $config->originSecret()], 'no file: no secret, the site set up');
+    same(FORGED, ClientAddress::counted(requestFrom(CLOUDFLARE_EDGE, ['CF-Connecting-IP' => FORGED]), $config), 'no file: the visitor Cloudflare names');
+    same(false, str_contains($log, 'cloudflare'), 'no file: nothing said of it');
+    removeTree($root);
 });
 
 test('a client_address.local.php that cannot be read cleanly trusts no proxy - every request counts its own connection - never Cloudflare\'s ranges in its place; a fetch.local.php falls back to the defaults; the site keeps running', function () use ($server) {
@@ -316,25 +343,37 @@ test('a client_address.local.php that cannot be read cleanly trusts no proxy - e
     removeTree($root);
 });
 
-test('setup reads its files the same way: a database.local.php that cannot be read cleanly shows no value, keeps no password, prints nothing - and the page names it by its fault; a broken token file is no token', function () use ($server) {
+test('setup reads its files the same way: a database.local.php that cannot be read cleanly shows no value, keeps no password, prints nothing - and the page names it by its fault on this computer, never on a real host; a broken token file is no token', function () use ($server) {
     $password = 'pw-'.bin2hex(random_bytes(8));
+    $cases = [];
     foreach (BAD_STARTS as $what => [$before, $start]) {
+        $cases[$what] = [$before.$start, Config::NOT_PHP];
+    }
+    // A file that prints: its fault counts the bytes - something about the file, which a real host never says.
+    $cases['text after a closing tag'] = ["<?php \$kept = 1; ?>\nby hand\n<?php ", 'prints 8 bytes of its own (text outside its PHP: text after a closing tag, or something it echoes)'];
+    foreach ($cases as $what => [$start, $fault]) {
         $root = settingsRoot([
-            'database.local.php' => $before.$start.returning(['host' => 'db.example.test', 'port' => '5432', 'database' => 'anotoki_builder', 'username' => 'me', 'password' => $password]),
+            'database.local.php' => $start.returning(['host' => 'db.example.test', 'port' => '5432', 'database' => 'anotoki_builder', 'username' => 'me', 'password' => $password]),
             'auth.local.php' => '<?php '.returning(['issuer' => TEST_ISSUER, 'client_id' => TEST_CLIENT]),
-            'setup-token.local.php' => $before.$start.returning(['token' => str_repeat('a', 48)]),
+            'setup-token.local.php' => $start.returning(['token' => str_repeat('a', 48)]),
         ]);
         $installer = new Installer($root);
         ob_start();
         try {
-            $read = [$installer->saved(), $installer->savedPassword(), $installer->passedOver(), $installer->token()];
+            $read = [$installer->saved(), $installer->savedPassword(), $installer->passedOver(true), $installer->token()];
+            // On a real host the page is anybody's until the token proves who it is: it names no file, and it starts
+            // from the host's own values, never a file's.
+            $host = [$installer->passedOver(false), $installer->defaults(false, 'https://builder.example.test')];
         } finally {
             $printed = (string) ob_get_clean();
         }
         same('', $printed, "{$what}: nothing printed");
-        same([['issuer' => TEST_ISSUER, 'client_id' => TEST_CLIENT], null, ['config/database.local.php '.Config::NOT_PHP], null], $read,
-            "{$what}: the IAM's values alone, no password, the database's file named by its fault, no token");
-        check(! str_contains(json_encode($read), $password), "{$what}: never the password");
+        same([['issuer' => TEST_ISSUER, 'client_id' => TEST_CLIENT], null, ["config/database.local.php {$fault}"], null], $read,
+            "{$what}: the IAM's values alone, no password, the database's file named by its fault on this computer, no token");
+        same([], $host[0], "{$what}: on a real host, no file named");
+        same(['db_host' => '127.0.0.1', 'db_port' => '5432', 'db_database' => 'anotoki_builder', 'db_username' => '', 'issuer' => 'https://iam.example.test', 'client_id' => 'build-analyzer'],
+            $host[1], "{$what}: on a real host, the host's own values - nothing of a file");
+        check(! str_contains(json_encode([$read, $host]), $password), "{$what}: never the password");
         removeTree($root);
     }
 });

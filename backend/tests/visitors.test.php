@@ -496,7 +496,7 @@ test('with the origin secret (config/cloudflare.local.php), CF-Connecting-IP fro
     }
 });
 
-test('config/cloudflare.local.php: its origin_secret alone, a string with something in it - in a file read cleanly anything else is no secret; one that cannot be read cleanly fails closed, a secret no request carries - the site set up either way (the file is optional), its value in no problem', function () {
+test('config/cloudflare.local.php: its origin_secret alone, a string with something in it - a file there that cannot be read cleanly, or names no such string, fails closed, a secret no request carries; no secret only without the file - the site set up either way (the file is optional), its value in no problem', function () {
     $secret = 'origin-'.bin2hex(random_bytes(20));
     // A secret written bare is a constant PHP does not know, whose error quotes it; two strings side by side are a
     // parse error quoting the second.
@@ -520,6 +520,8 @@ test('config/cloudflare.local.php: its origin_secret alone, a string with someth
         $loaded = $load("<?php return ['origin_secret' => \" \\t{$secret}\\n\", 'other' => 'x'];\n");
         same([$secret, null, false], [$loaded->originSecret(), $loaded->get('cloudflare.other'), $named($loaded)],
             'the secret, spaces around it no part of it - and nothing else of the file taken');
+        // Read cleanly but naming no secret (2026-10-18): a slip in the file, never a way to switch the secret off -
+        // a secret no request carries, never the file's value.
         foreach ([
             'an empty value' => "<?php return ['origin_secret' => ''];\n",
             'only spaces' => "<?php return ['origin_secret' => '   '];\n",
@@ -529,7 +531,9 @@ test('config/cloudflare.local.php: its origin_secret alone, a string with someth
             'no array returned' => "<?php return '{$secret}';\n",
         ] as $what => $contents) {
             $loaded = $load($contents);
-            same([null, false], [$loaded->originSecret(), $named($loaded)], "{$what}: read cleanly, no secret - the site as before");
+            $read = $loaded->originSecret();
+            check(is_string($read) && preg_match('/^[0-9a-f]{64}$/D', $read) === 1 && $read !== $secret, "{$what}: read cleanly, no secret named - fails closed, a secret no request carries");
+            same(false, $named($loaded), "{$what}: and the site keeps running - the file is optional");
         }
         foreach ([
             'a parse error' => "<?php return ['origin_secret' => 'x' '{$secret}'];\n",

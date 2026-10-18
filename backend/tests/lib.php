@@ -256,15 +256,17 @@ function resetDatabase(): void
 
 /**
  * Another throwaway database of this file's own, empty: <the file's database>_<suffix>; dropped at the end.
+ * $options are CREATE DATABASE's own, after the name - a collation of the test's choosing (tests/migrations.test.php);
+ * literals of the test's, never input.
  *
  * @param  array<string, mixed>  $server  config/database.local.php
  */
-function scratchDatabase(array $server, string $suffix): PDO
+function scratchDatabase(array $server, string $suffix, string $options = ''): PDO
 {
     $name = T::$database.'_'.$suffix;
     $postgres = Db::pdo($server, 'postgres', false);
     $postgres->exec('DROP DATABASE IF EXISTS "'.$name.'" WITH (FORCE)');
-    $postgres->exec('CREATE DATABASE "'.$name.'"');
+    $postgres->exec('CREATE DATABASE "'.$name.'"'.($options === '' ? '' : ' '.$options));
     register_shutdown_function(static function () use ($server, $name): void {
         try {
             Db::pdo($server, 'postgres', false)->exec('DROP DATABASE IF EXISTS "'.$name.'" WITH (FORCE)');

@@ -3,6 +3,34 @@
 Short records of choices that shape the code. Add a new entry (newest first) when you make a similar call.
 Older entries describe the Laravel version as it was; where a setting has since moved, the entry says so.
 
+**2026-10-18 — After the deploy: a cloudflare.local.php that names no usable secret fails closed too; 008's regression test and a rule for every gate; setup's notice decided by the installer; the neutral-names rule's one exception; the status page bare (the owner's round 3; version 0.4.0, unreleased).**
+- *A present cloudflare.local.php without a usable secret fails closed* (the owner's "do as you think is the best"
+  of 2026-10-18, asked whether to tighten the rule after the deploy; this changes the entry below): a file read
+  cleanly that names no secret - blank, no array, a misspelt or another key, a value that is not a string - is a
+  secret no request carries now (`Config::unmatchableSecret()`), as a broken one is, never "no secret": each is a
+  slip in the file, and "no secret" believes `CF-Connecting-IP` from every Cloudflare customer's Worker. Deleting
+  the file is the one way to switch the secret off; anything in its place, a folder too, counts as the file. Said in
+  PHP's error log once a day by the file's name, never its value. `tests/settings_files.test.php` runs the attack on
+  every case (a Worker's forged address from Cloudflare's ranges - with the file's own value, or an empty header -
+  is the edge, for the visitors' limit and the admin tools alike), and the file deleted.
+- *008's regression test, and a rule for every gate*: `tests/migrations.test.php` applies 008 - and the rest of 0.4
+  after it - on a throwaway database whose ICU collation skips punctuation (`en-US-u-ka-shifted`: "accounts" before
+  "account_weapons", "builds" before "build_sources", as the live database's en_US.utf8 sorts them), with the
+  Laravel leftovers 008 drops; on the file as it was before the fix (c021d6d) it fails with the live Apply's very
+  error. Skipped, and said so, where the server cannot make such a database (before PostgreSQL 15, or without ICU).
+  The rule (CLAUDE.md, data-model.md, the reviewer): a gate that compares two lists compares them as sets, or sorts
+  both sides `COLLATE "C"`.
+- *Setup's broken-file notice, decided by the installer*: `Installer::passedOver($local)` names a broken file on this
+  computer and none on a real host (anybody may open the page there before the token), where setup.php alone
+  decided it, untested; `tests/settings_files.test.php` holds both.
+- *The neutral-names rule's one exception* (CLAUDE.md, architecture.md, the reviewer): the legal pages name who else
+  handles the data, as the law asks - WebSupport s.r.o., Cloudflare, Umami - and still no build source, tool or
+  the showcase service.
+- *The status page is bare*: while an update waits, the database is out of reach or the site is not set up, the
+  gate's page stands alone - no bar, no footer, nothing of the frame -, since the layouts that draw them are routes
+  inside the gate's template, never made behind its page. It was so already; `app.spec.ts` now holds it with the
+  real layouts, the frame back with the site and on the one page the ADMIN reaches meanwhile, Migrations.
+
 **2026-10-18 — anotoki-lib 0.6.2, both halves: Terms, Privacy and Contact with this site's facts; every settings file read cleanly or not at all, its first five bytes first; a broken cloudflare.local.php fails closed; the kit's newer pieces where the site drew its own (the owner's round 3, for every anotoki site; version 0.4.0, unreleased).**
 Both halves on 0.6.2 (`anotoki/lib ^0.6.0` - `^0.5.0` never takes a 0.6 -, the 0.6.2 tarball in both lock files;
 package-lock.json's entry given bun.lock's version, address and integrity by hand, as the IAM did).
@@ -40,7 +68,8 @@ package-lock.json's entry given bun.lock's version, address and integrity by han
   its edge, a Worker's forged `CF-Connecting-IP` the edge's even with the file's own value -, never "not set up"
   (the file is optional: the site keeps running) and never "no secret" (which believes CF-Connecting-IP from every
   Cloudflare customer). A file read cleanly that names no secret - blank, another key, no array - is none, as
-  without the file. `tests/settings_files.test.php` holds every case, and PHP's own fatal error without the guard.
+  without the file (since the entry above, it fails closed too). `tests/settings_files.test.php` holds every case,
+  and PHP's own fatal error without the guard.
 - *The kit's newer pieces where the site drew its own* (anotoki-lib 0.6.0's; this changes what 2026-10-11 below
   kept as the site's; migration 012): the import guide's row of steps is the kit's stepper - it says which step of
   how many is in hand and that a step is done, in the library's words, a step done a way back to it; its name is
@@ -79,7 +108,8 @@ came from - coarser, a Worker's made-up visitors sharing the edge's one bucket, 
   file that returns no array is a problem, as for every other file here ("not set up" until mended) - read apart
   from them, so that what PHP throws while running it (a parse error's message can quote the file) is never
   repeated: the problem names the file alone. The secret is never shown or logged. (Since 2026-10-18, above: one
-  that cannot be read cleanly fails closed and the site keeps running; one read cleanly with no array is no secret.)
+  that cannot be read cleanly, or names no usable secret, fails closed and the site keeps running; only deleting the
+  file switches the secret off.)
 - *Every reading of an address takes it*: `App\Web\ClientAddress::counted()` (the site's counters) and
   `AdminTools::context()`'s `originSecret` (the feedback's limits, the error log's client hash). The audit log
   keeps no address, so it needs none.
