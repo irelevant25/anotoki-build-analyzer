@@ -26,7 +26,12 @@ which every anotoki site shares; a visitor's stay this device's - `core/shell.ts
 
 The People page and the admin tools (the error log, the audit log, feedback, backups) are the family's pages
 (`@anotoki/lib/people/page`, `@anotoki/lib/admin/*`, lazy, routed in `app.routes.ts`, set up in `app.config.ts`);
-the bar counts the new feedback beside Feedback (`FeedbackUnread`). The visitors' feedback form
+the bar counts the new feedback beside Feedback (`FeedbackUnread`). Terms, Privacy and Contact are the family's
+pages too (`@anotoki/lib/legal/pages`, lazy, on `/terms`, `/privacy`, `/contact` - anybody's, no guard), in
+`layouts/legal-layout/` - everybody's pages' frame giving them this site's facts (`core/legal-facts.ts`, every fact
+named with the code it rests on; the words `legal.*`, migration 011) -, set up in `core/legal.ts`
+(`provideLegal()`: the language, the database's words, the site's own fan clause); the footer links to them
+(`<anotoki-legal-links>`) above the fan clause. The visitors' feedback form
 (`@anotoki/lib/feedback/form`) opens from the footer in a dialog (`shared/feedback-dialog/`, set up in
 `core/feedback.ts`), loaded with the first press. `public/robots.txt` keeps search engines off `/auth/`. The
 errors the pages meet go to the server's error log: `provideAnotokiErrorReport()` (`@anotoki/lib/error-report`,
@@ -50,7 +55,7 @@ its page runs; the interceptor that hears the server say so; and the admin panel
 (`pages/admin/migrations/`, from `@anotoki/lib/migrations/page`). `core/site-status.ts` wires them to this site
 (who is ADMIN, how to sign in, the language on the page, the account's dates).
 
-Every page is drawn with the family's kit (0.5.0): `src/styles.scss` takes `@anotoki/lib/styles` (the tokens,
+Every page is drawn with the family's kit (0.6.2): `src/styles.scss` takes `@anotoki/lib/styles` (the tokens,
 Manrope, the base, utilities and tables) and sets this site's colours over the family's `--anotoki-*` tokens,
 light and dark - never re-styling a kit piece; the pieces come each from its own entry point
 (`@anotoki/lib/ui/button`, `/ui/dialog`, `/ui/forms` ...), never the `@anotoki/lib/ui` barrel; `core/kit.ts`
@@ -65,7 +70,8 @@ the score bars and grade badges.
 src/app/
   core/        api.ts (the family's ISSUED_AS: whose each request is), models.ts, auth.ts (the family's
                AnotokiAuth under the pages' names) + auth.guards.ts (sitePagesGuard) + sign-in.ts,
-               feedback.ts (the family's form set up for this site),
+               feedback.ts (the family's form set up for this site), legal.ts + legal-facts.ts (the family's
+               legal pages set up here, and this site's facts),
                visitor-key.ts (somebody not signed in: the key, the move at sign-in), sign-in-kind.ts (whether
                the present sign-in was the IAM's hint's silent hop: the move asks with it), storage.ts, download.ts,
                meta-store.ts, changelog.ts, sync-driver.ts, kit.ts + icons.ts (the family's kit set up here),
@@ -75,7 +81,8 @@ src/app/
                order and clock), localization-drafts.ts (the sign-out question about unsaved strings)
   layouts/     top-bar/ (the anotoki family's bar, @anotoki/lib/shell, told this site's brand, sections and
                person: a phone's menu up to PHONE_BAR_MAX - in the admin panel the ADMIN's and an editor's rows
-               each their own), footer/ (version, What's new, Feedback), app-layout/ (everybody's pages),
+               each their own), footer/ (version, What's new, Feedback; Terms · Privacy · Contact and the fan clause),
+               app-layout/ (everybody's pages), legal-layout/ (the legal pages: everybody's frame with the facts),
                admin-layout/ (the admin panel: staff / signed out / no role) - both in the family's <anotoki-shell>
   shared/      visitor-notice/, visitor-hero/, data-card/ ("Your data"), feedback-dialog/, build-detail,
                item-card, changelog-dialog, grade-badge, score-bar, char-avatar, ...

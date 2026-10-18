@@ -50,6 +50,29 @@ all of them, without it) is `Config::FETCH_DEFAULTS`'.
 | `auth.local.php` | `issuer` (the IAM's address), `client_id` (`build-analyzer`); optional `jwks_file` (a key set on disk instead of the IAM's, for offline work) and `leeway` (seconds, 60). A `mode` or `local_user_id` an older setup wrote is ignored: sign-in is the IAM's, always |
 | `fetch.local.php` (optional) | `user_agent` (how requests identify the app; `build-analyzer/1.0`, and setup writes the site's address into it), `delay_ms` (between two requests to one site, 1200), `cache_hours` (the page cache, 12), `step_seconds` (one sync step, 20, at least 12), `stale_hours` ("Sync all" skips sources synced within it, 20); `timeout` (30), `browser_user_agent` |
 
+**Every one of them is read cleanly or not at all** (`App\Config::readLocalFile()` - the anotoki family's rule of
+2026-10-13, and its first five bytes since 2026-10-18; [decisions.md](decisions.md)), the ones written by hand -
+`client_address.local.php`, `cloudflare.local.php` (below) - and the committed `app.php` too: a file that does not
+start with `<?php` (saved with a byte-order mark, a blank line or a space before it, or without that line) is
+passed over without being compiled - required, it would print what comes before it (all of it, the database's
+password included, where the line is missing) ahead of every answer, and with `declare(strict_types=1)` after such
+a start PHP could not even compile it: a fatal error nothing catches, every request a 500. Whatever a file that
+does start with `<?php` prints (text after a closing tag, an echo) is caught and never sent, and that file is
+passed over too; so is one PHP cannot read or run. A file passed over is said in PHP's error log at most once a day
+(a stamp in `storage/cache/config-said-*.stamp`), by its fault and byte count alone - never its text: a parse
+error's message can quote it. What passing over means, never looser than no file:
+
+| File | Passed over |
+| --- | --- |
+| `database.local.php`, `auth.local.php` | the site is not set up until it is mended - the problem names the file and its fault ("does not start with <?php (...)", "prints 12 bytes of its own (...)", "could not be read (ParseError on line 3)") |
+| `fetch.local.php` | `Config::FETCH_DEFAULTS` stand in for it |
+| `client_address.local.php` | no proxy is trusted - every request counts its own connection - never Cloudflare's ranges in its place: it may be the very file that said `[]` for a host not behind Cloudflare |
+| `cloudflare.local.php` | a secret no request carries: it fails closed (see "Which address", below) |
+
+`setup.php` reads its files the same way: on this computer it names a broken one by its fault (never a value), and
+asks for every field again - the password too - since it shows none of that file's values and keeps none of its
+password; on a host it shows nothing of any file.
+
 Run `setup.php` again to change the database or the IAM (on this computer it can be run any number of times
 and shows the saved values, never the password; on a host it shows none), or edit the files. Setup writes
 `fetch.local.php` with the defaults only when there is none, and leaves one that is there as it is: edit it by
@@ -190,7 +213,8 @@ they import is kept on the server under a row of `users` with a negative id; the
   it here and build again. An installation that is not behind Cloudflare overrides the proxies - and nothing
   else - in `config/client_address.local.php` (by hand, gitignored): `<?php return ['trusted_proxies' => []];`.
   A range wider than /8 (IPv6: /16) there is refused - believed, a forged `CF-Connecting-IP` from anywhere in
-  it would walk past every limit - and the site answers "not set up" until it is narrowed.
+  it would walk past every limit - and the site answers "not set up" until it is narrowed. One that cannot be read
+  cleanly (above, "Configuration") trusts no proxy at all until it is mended - coarser, never looser.
 - **The origin secret** (anotoki-lib PHP 0.5.2, the owner's decision of 2026-10-13): Cloudflare's ranges are
   every Cloudflare customer's, not the owner's zone alone - anybody's Worker can open a connection to the host
   from them and write the `CF-Connecting-IP` it likes, a new address every time, past every limit here. So the
@@ -206,11 +230,16 @@ they import is kept on the server under a row of `users` with a negative id; the
      `<?php return ['origin_secret' => '<the same long random value>'];`. Keep a copy off the server.
 
   Set the rule first, then the file: the other way round, every visitor counts as their edge until the rule is
-  there; changing the secret, likewise. Without the file, or with a value that is not a string with something in
-  it, the site believes `CF-Connecting-IP` from the trusted proxies alone, as before. A file that returns no array
-  (one PHP cannot run among them) is a problem, as for the other files: the site answers "not set up" until it
-  is mended, and the problem names the file - never its contents, nor what PHP said of it. The secret is never
-  shown or logged.
+  there; changing the secret, likewise. Without the file - or with one read cleanly that names no secret: a value
+  that is not a string with something in it, another key, no array - the site believes `CF-Connecting-IP` from the
+  trusted proxies alone, as before (said in PHP's error log once a day, by the file's name). **A file that is there
+  but cannot be read cleanly fails closed** (the family's rule, as the IAM's `iamOriginSecret()` keeps it; this
+  site's since 2026-10-18): one that does not start with `<?php` (a byte-order mark, a blank line, no `<?php` line - never
+  compiled), one that prints, one PHP cannot read or run stands for a secret no request carries, so every request
+  from Cloudflare's ranges counts as the edge it came from - the file's own value too - until it is mended. The
+  file is optional: the site keeps running either way, and PHP's error log says so once a day, by the file's fault,
+  never its text. Never "no secret" there: that would believe `CF-Connecting-IP` from every Cloudflare customer's
+  Worker. The secret is never shown or logged.
 - **Cloudflare's ranges change rarely.** The committed list is the one https://www.cloudflare.com/ips-v4 and
   https://www.cloudflare.com/ips-v6 published on 2026-10-11 (15 IPv4, 7 IPv6 ranges) - the library's
   `ClientAddress::CLOUDFLARE` of 0.5.0 is the same list, and `tests/visitors.test.php` holds the two to each
@@ -511,6 +540,18 @@ map, are in [DEV.md](../DEV.md) ("Deploying"); in short:
      (one made on this computer, or before 0.5.0, cannot: it is read offline); `https://builder.anotoki.eu/robots.txt`
      says `Disallow: /auth/`. A token that does not verify now answers 401 `invalid_token` (it was
      `sign_in_required`).
+   - **Version 0.4.0: Terms, Privacy and Contact (anotoki-lib 0.6.2 in `vendor/` and in the app; migration 011,
+     then the library's `anotoki_translations` 005-011)**: with the files above, in the same Apply, or on their own
+     after them - **Export** each language first, upload with `vendor/`, and **Apply pending** at once: 011 adds the
+     legal pages' facts (the site's own words: what it keeps, what for and how long, its browser storage, who else
+     handles data), their tabs' titles and the footer's fan clause, in English and Slovak, and rewords five
+     descriptions that still told of a snack bar; the library's 005 writes the pages' shared words and the footer's
+     links', 006-009 the kit's newer pieces' and 010-011 its own rewordings of the Privacy page - each only where
+     a key has no string, or where nobody saved it. Then check: the foot of every page has Terms · Privacy ·
+     Contact and the fan clause; `/privacy` reads the site's parts and its storage, and links "your anotoki account"
+     to the IAM's own Privacy page (`https://iam.anotoki.eu/privacy`); `/contact` opens the feedback form. The
+     facts are the code's (`frontend/src/app/core/legal-facts.ts`): a change to what the site keeps, or for how
+     long, changes their `legal.*` strings by a migration and `SITE_LEGAL_UPDATED`.
    - **Version 0.3: visitors and the family's bar (migration 004, IAM migration 007)**, in this
      order: (1) before uploading, make sure an account that can sign in holds **ADMIN on `build-analyzer` now**
      (the IAM's admin panel; IAM 007 is what later gives every IAM administrator ADMIN here); (2) upload;

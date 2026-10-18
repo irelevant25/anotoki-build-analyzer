@@ -18,7 +18,7 @@ export interface ChangelogEntry {
 }
 
 /** The last version this browser was shown, so "what's new" opens once per release. */
-const SEEN_KEY = 'build-analyzer-version-seen';
+export const CHANGELOG_SEEN_KEY = 'build-analyzer-version-seen';
 
 /**
  * The version and its changelog (public/changelog.json, shipped with the frontend). What's new at the foot of
@@ -61,7 +61,7 @@ export class Changelog {
    */
   showIfNew(): void {
     const current = this.current();
-    const seen = read(SEEN_KEY);
+    const seen = read(CHANGELOG_SEEN_KEY);
     if (!current || (seen !== null && seenAlready(seen, current))) {
       return;
     }
@@ -76,7 +76,7 @@ export class Changelog {
     const current = this.current();
     if (current) {
       try {
-        localStorage.setItem(SEEN_KEY, current);
+        localStorage.setItem(CHANGELOG_SEEN_KEY, current);
       } catch {
         // Storage can be unavailable (private mode); the list then shows again on the next visit.
       }

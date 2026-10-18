@@ -37,6 +37,12 @@ $server = require __DIR__.'/../config/database.local.php';
 /** The file that moved this site's two words of the library's under the library's keys. */
 const ADOPTION_FILE = '006_strings_through_the_library.sql';
 
+/** The file of the legal pages' words (and the toasts' descriptions), the last of version 0.4. */
+const LEGAL_PAGES_FILE = '011_legal_pages.sql';
+
+/** How many keys of the site's own 011 adds (the legal pages' facts, their tabs' titles, the footer's fan clause). */
+const LEGAL_PAGES_KEYS = 52;
+
 /** Every column, constraint and index of the app's tables, as comparable lines. */
 function schemaOf(PDO $pdo): array
 {
@@ -508,8 +514,9 @@ test('006 moves the two words of the library\'s under its keys with every reword
     // The library's own words came with its 002: its descriptions on the moved keys, its words on its other keys.
     check(str_starts_with((string) $pdo->query("SELECT description FROM translation_keys WHERE name = 'anotoki.language.button'")->fetchColumn(), 'The anotoki library\'s language switcher'), 'the library\'s description');
     same('Jazyk sa nepodarilo uložiť do tvojho anotoki účtu - platí len počas tejto návštevy.', $row('anotoki.language.notSaved', 'sk')['value'] ?? null, 'a word of the library\'s this site did not have, in Slovak');
-    // 006 moved two of the site's keys; 009 moved five more, retired three and added five; 010 moved twelve and retired two.
-    same(['the site\'s' => $keys - 2 - 8 + 5 - 14, 'the library\'s' => 94], [
+    // 006 moved two of the site's keys; 009 moved five more, retired three and added five; 010 moved twelve and retired
+    // two; 011 added the legal pages' words. The library's keys are every key of its words file (257 with 0.6.2).
+    same(['the site\'s' => $keys - 2 - 8 + 5 - 14 + LEGAL_PAGES_KEYS, 'the library\'s' => libraryKeyCount()], [
         'the site\'s' => (int) $pdo->query("SELECT count(*) FROM translation_keys WHERE name NOT LIKE 'anotoki.%'")->fetchColumn(),
         'the library\'s' => (int) $pdo->query("SELECT count(*) FROM translation_keys WHERE name LIKE 'anotoki.%'")->fetchColumn(),
     ], 'the site\'s keys less the two that moved, and the library\'s');
@@ -529,12 +536,20 @@ test('006\'s gate refuses a database whose keys are not the ones it expects - an
     check(str_contains((string) $result['error'], 'There are 451 keys of the site\'s own, and 005 with this file leave 450'), 'the gate says why: '.$result['error']);
     same(2, (int) $pdo->query("SELECT count(*) FROM translation_keys WHERE name IN ('language.button', 'language.notLoaded')")->fetchColumn(), 'the keys did not move');
     same(0, (int) $pdo->query("SELECT count(*) FROM translation_keys WHERE name LIKE 'anotoki.%'")->fetchColumn(), 'and the library\'s files did not run');
-    same([ADOPTION_FILE, '007_people.sql', '008_drop_laravel_leftovers.sql', '009_sign_in_and_feedback_words.sql', '010_top_bar_words_through_the_library.sql', ...array_column(libraryFiles(), 'name'), ...array_column(peopleFiles(), 'name')],
+    same([ADOPTION_FILE, '007_people.sql', '008_drop_laravel_leftovers.sql', '009_sign_in_and_feedback_words.sql', '010_top_bar_words_through_the_library.sql', LEGAL_PAGES_FILE, ...array_column(libraryFiles(), 'name'), ...array_column(peopleFiles(), 'name')],
         array_column(Migrations::migrator($pdo)->status()['pending'], 'name'), 'they all still wait');
 });
 
-/** Version 0.4's files of this site's: the people's column, what Laravel left behind gone, the sign-in's and feedback's words, the top bar's words. */
-const VERSION_04_FILES = ['007_people.sql', '008_drop_laravel_leftovers.sql', '009_sign_in_and_feedback_words.sql', '010_top_bar_words_through_the_library.sql'];
+/** Version 0.4's files of this site's: the people's column, what Laravel left behind gone, the sign-in's and feedback's words, the top bar's words, the legal pages' words. */
+const VERSION_04_FILES = ['007_people.sql', '008_drop_laravel_leftovers.sql', '009_sign_in_and_feedback_words.sql', '010_top_bar_words_through_the_library.sql', LEGAL_PAGES_FILE];
+
+/** How many keys the library's set writes in all: every key of its words file (anotoki-lib's php/resources/library-words.json). */
+function libraryKeyCount(): int
+{
+    $words = json_decode((string) file_get_contents(dirname(__DIR__).'/vendor/anotoki/lib/php/resources/library-words.json'), true);
+
+    return count((array) ($words['keys'] ?? []));
+}
 
 /** The Laravel version's login and queue tables, as 001 kept them where they had rows - 008 takes them. */
 const LARAVEL_LEFTOVERS = ['laravel_failed_jobs', 'laravel_job_batches', 'laravel_jobs', 'laravel_password_reset_tokens', 'laravel_sessions', 'laravel_users'];
@@ -677,7 +692,7 @@ test('version 0.4 on a database as its owner left it: 007 adds the scrub\'s colu
     same(0, (int) $pdo->query("SELECT count(*) FROM translation_keys WHERE name LIKE 'signIn.%'")->fetchColumn(), 'the old sign-in page\'s keys are gone');
     same(0, (int) $pdo->query("SELECT count(*) FROM translations WHERE key_name LIKE 'signIn.%'")->fetchColumn(), 'with their strings');
     same([['en', 'Feedback'], ['sk', 'Spätná väzba']], array_map(fn ($row) => [$row['language_code'], $row['value']], stringsOf($pdo, 'footer.feedback')), 'the feedback button\'s words');
-    same($keys - 8 + 5 - 14, (int) $pdo->query("SELECT count(*) FROM translation_keys WHERE name NOT LIKE 'anotoki.%'")->fetchColumn(), 'the site\'s keys: eight gone and five new (009), fourteen gone (010)');
+    same($keys - 8 + 5 - 14 + LEGAL_PAGES_KEYS, (int) $pdo->query("SELECT count(*) FROM translation_keys WHERE name NOT LIKE 'anotoki.%'")->fetchColumn(), 'the site\'s keys: eight gone and five new (009), fourteen gone (010), the legal pages\' words (011)');
     same([], Migrations::migrator($pdo)->applicable(), 'nothing left to apply');
 });
 
@@ -690,7 +705,7 @@ test('009 where the library\'s sign-in words went in first: the site\'s words ta
 
     $result = Migrations::migrator($pdo)->apply();
     same(null, $result['error'], 'no error');
-    same([...adminFiles(), ...array_map('siteFile', VERSION_04_FILES), ...peopleFiles()], $result['applied'], 'the rest');
+    same([...adminFiles(), ...array_map('siteFile', VERSION_04_FILES), ...array_slice(libraryFiles(), 4), ...peopleFiles()], $result['applied'], 'the rest - and the library\'s later words');
 
     same($site, stringsOf($pdo, 'anotoki.signIn.expired'), 'the site\'s words, by whom and when, in place of the library\'s');
     same([['en', 'Signing in failed: {code}', 9], ['sk', 'Prihlásenie sa nedokončilo: {code}', null]],
@@ -708,7 +723,7 @@ test('009\'s gate refuses a database whose keys are not the ones it expects - no
     check(str_contains((string) $result['error'], 'There are 448 keys of the site\'s own, and 006 with this file leave 447'), 'the gate says why: '.$result['error']);
     same(8, (int) $pdo->query("SELECT count(*) FROM translation_keys WHERE name LIKE 'signIn.%'")->fetchColumn(), 'the old keys stay');
     same(0, (int) $pdo->query("SELECT count(*) FROM translation_keys WHERE name LIKE 'anotoki.signIn.%' OR name LIKE 'feedback.%'")->fetchColumn(), 'nothing of 009, nor the library\'s 003');
-    same(['009_sign_in_and_feedback_words.sql', '010_top_bar_words_through_the_library.sql', ...array_column(array_slice(libraryFiles(), 2), 'name'), ...array_column(peopleFiles(), 'name')],
+    same(['009_sign_in_and_feedback_words.sql', '010_top_bar_words_through_the_library.sql', LEGAL_PAGES_FILE, ...array_column(array_slice(libraryFiles(), 2), 'name'), ...array_column(peopleFiles(), 'name')],
         array_column(Migrations::migrator($pdo)->status()['pending'], 'name'), 'they still wait');
 });
 
@@ -789,7 +804,7 @@ test('010\'s gate refuses a database whose keys are not the ones it expects - no
     same([[], siteFile('010_top_bar_words_through_the_library.sql')], [$result['applied'], $result['failed']], 'stopped at 010');
     check(str_contains((string) $result['error'], 'There are 434 keys of the site\'s own, and 009 with this file leave 433'), 'the gate says why: '.$result['error']);
     same(14, (int) $pdo->query("SELECT count(*) FROM translation_keys WHERE name IN ('topbar.phoneMenu', 'topbar.menuButton', 'topbar.menu', 'topbar.roleAdmin', 'topbar.roleEditor', 'topbar.account', 'topbar.admin', 'common.signOut', 'theme.label', 'theme.light', 'theme.dark', 'theme.system', 'stepper.optional', 'stepper.editable')")->fetchColumn(), 'the keys stay');
-    same(['010_top_bar_words_through_the_library.sql'], array_column(Migrations::migrator($pdo)->status()['pending'], 'name'), 'it still waits');
+    same(['010_top_bar_words_through_the_library.sql', LEGAL_PAGES_FILE], array_column(Migrations::migrator($pdo)->status()['pending'], 'name'), 'it still waits, and 011 after it');
 });
 
 /**

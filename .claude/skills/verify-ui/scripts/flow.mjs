@@ -1317,6 +1317,17 @@ try {
     await iamState({ deny: false });
     await stranger.close();
 
+    // What the site keeps is said before anybody signs in: the legal pages are anybody's, also now.
+    const reader = await newContext();
+    const readerTab = await reader.newPage();
+    await iamState({ deny: true });
+    await open(readerTab, '/privacy?lang=en');
+    check(new URL(readerTab.url()).pathname === '/privacy' && (await readerTab.locator('anotoki-privacy-page h1').innerText()).trim() === 'Privacy policy',
+      `while sign-in is required, /privacy is read without going to the IAM (${new URL(readerTab.url()).pathname})`);
+    check((await readerTab.locator(SIGN_IN).count()) === 1, 'with the bar\'s Sign in, nobody signed in');
+    await iamState({ deny: false });
+    await reader.close();
+
     step('Sign-in no longer required: visitors are welcome again');
     await iamState({ login_required: false });
     forgetSwitch();
@@ -1358,6 +1369,64 @@ try {
     }
     const back = await (await fetch(`${SITE}/api/site-status`)).json();
     check(back.state === 'ready', `set up again: ${JSON.stringify(back)}`);
+
+    // ── The legal pages ────────────────────────────────────────────────────────────────────────────────
+    step('Terms, Privacy and Contact: the family\'s pages with this site\'s facts, from the footer, at 1280 and 390 px, light and dark, English and Slovak');
+    {
+      const legal = await newContext();
+      const tab = await legal.newPage();
+      await open(tab, '/?lang=en');
+      const links = await tab.locator('app-footer anotoki-legal-links a').evaluateAll((all) => all.map((link) => `${link.textContent.trim()} -> ${link.getAttribute('href')}`));
+      check(links.join('|') === 'Terms -> /terms|Privacy -> /privacy|Contact -> /contact', `the footer's links: ${links.join(', ')}`);
+      check((await tab.locator('app-footer .footer__fan').innerText()).includes('not affiliated with or endorsed by HoYoverse'), 'and the fan clause under them');
+      await tab.click('app-footer anotoki-legal-links a[href="/privacy"]');
+      await tab.waitForSelector('anotoki-privacy-page h1', { timeout: 15000 });
+      check(new URL(tab.url()).pathname === '/privacy' && (await tab.title()) === 'Privacy policy · Build Analyzer', `the footer's Privacy opens the page in the site's frame, titled "${await tab.title()}"`);
+      check((await tab.locator('app-footer anotoki-legal-links a[aria-current="page"]').innerText()).trim() === 'Privacy', 'the open page marked in the footer');
+      // The Contact page's form: the family's feedback form in the kit's dialog.
+      await open(tab, '/contact?lang=en');
+      await tab.click('anotoki-contact-page [data-open-feedback]');
+      await tab.waitForSelector(`${DIALOG} dialog[open] anotoki-feedback-form`, { timeout: 10000 });
+      check(true, 'Contact\'s Send feedback opens the family\'s form in a dialog');
+      await tab.keyboard.press('Escape');
+      await legal.close();
+
+      for (const [language, scheme, width] of [['en', 'light', 1280], ['en', 'dark', 390], ['sk', 'dark', 1280], ['sk', 'light', 390]]) {
+        const context = await newContext({ width, scheme, height: width < 600 ? 844 : 900 });
+        const page = await context.newPage();
+        for (const name of ['terms', 'privacy', 'contact']) {
+          await open(page, `/${name}?lang=${language}`);
+          await page.waitForSelector(`anotoki-${name}-page h1`, { timeout: 15000 });
+          const facts = await page.evaluate((name) => ({
+            title: document.querySelector(`anotoki-${name}-page h1`)?.textContent?.trim(),
+            lang: document.documentElement.lang,
+            scroll: document.documentElement.scrollWidth,
+            width: window.innerWidth,
+            fan: document.querySelector('[data-fan]')?.textContent?.trim() ?? null,
+            kept: document.querySelectorAll('[data-kept]').length,
+            stored: [...document.querySelectorAll('[data-stored] code')].map((code) => code.textContent.trim()),
+            recipients: [...document.querySelectorAll('[data-recipient] .anotoki-legal-page__item-name')].map((item) => item.textContent.trim()),
+            accountPrivacy: document.querySelector('[data-account-privacy]')?.getAttribute('href') ?? null,
+          }), name);
+          const label = `${name}, ${language}, ${scheme}, ${width} px`;
+          check(facts.lang === language && facts.title && facts.scroll <= facts.width, `${label}: "${facts.title}", <html lang="${facts.lang}">, no sideways scroll (${facts.scroll}/${facts.width})`);
+          const keys = await keysShown(page);
+          check(keys.length === 0, `${label}: no key where a word should be${keys.length ? ` - ${keys.join(', ')}` : ''}`);
+          if (name !== 'privacy') {
+            check(facts.fan !== null && facts.fan.includes('Honkai: Star Rail'), `${label}: the site's fan clause, naming both games`);
+          } else {
+            check(facts.kept === 11 && facts.stored.includes('build-analyzer-visitor') && facts.recipients.length === 3 && facts.recipients[0] === 'WebSupport s.r.o.'
+              && facts.accountPrivacy === `${IAM}/privacy`,
+              `${label}: the site's six parts with visitors, feedback and the three logs (${facts.kept}), its storage (${facts.stored.length}), ${facts.recipients.join(', ')}, the account's own Privacy page ${facts.accountPrivacy}`);
+          }
+          if (scheme === 'dark') {
+            check(await darkSurface(page, 'body'), `${label}: the dark theme`);
+          }
+          await shot(page, `23-legal-${name}-${language}-${width}-${scheme}`, { fullPage: name === 'privacy' });
+        }
+        await context.close();
+      }
+    }
 
     // ── The pages' own errors, over the whole check ───────────────────────────────────────────────────
     step("The errors the pages met, over every tour (the family's reporter writes each into the error log): none but the one thrown on purpose");

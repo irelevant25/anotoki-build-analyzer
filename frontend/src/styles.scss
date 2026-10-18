@@ -1,3 +1,4 @@
+@use 'sass:map';
 @use '@anotoki/lib/styles' as anotoki;
 
 // The anotoki family's kit (@anotoki/lib/styles): its tokens, Manrope, its base, utilities and tables - with this
@@ -98,19 +99,47 @@
 @include anotoki.tables;
 
 // The site's own colours: what the games and the analysis mean by them (grades, how much a recommendation
-// matters, rarity, elements) - the same in both themes, drawn by the site's own pieces (the grade badge, the
-// score bars, the character pictures, a recommendation's mark).
+// matters, rarity, elements), drawn by the site's own pieces (the grade badge, the score bars, the character
+// pictures, a recommendation's mark).
+//
+// The grades and how much a recommendation matters are light and dark apart: a grade's letter is drawn in its
+// colour on a 14% tint of it (shared/grade-badge), and a recommendation's icon in its own, so each reaches 4.5:1 on
+// every ground of its theme - bg, surface, surface-2 and surface-3, the letter on its tint too (measured 2026-10-18:
+// 4.6 to 4.7 in light, 4.6 to 4.8 in dark; the light ones were 1.6 to 2.8, the dark ones 3.0 to 4.8). The same
+// hues, darker in light, lighter in dark; a severity is its grade's colour (high D, medium C, low B).
+$site-colours: (
+  light: (
+    grade-s: #735410,
+    grade-a: #25653e,
+    grade-b: #1b5f8b,
+    grade-c: #884a14,
+    grade-d: #a62824,
+    sev-high: #a62824,
+    sev-medium: #884a14,
+    sev-low: #1b5f8b,
+  ),
+  dark: (
+    grade-s: #e0a526,
+    grade-a: #4dbf79,
+    grade-b: #6ab2e2,
+    grade-c: #e69956,
+    grade-d: #e79592,
+    sev-high: #e79592,
+    sev-medium: #e69956,
+    sev-low: #6ab2e2,
+  ),
+);
+
+@mixin site-colours($theme) {
+  @each $name, $value in map.get($site-colours, $theme) {
+    --#{$name}: #{$value};
+  }
+}
+
 :root {
-  --grade-s: #e0a526;
-  --grade-a: #3fae6a;
-  --grade-b: #3b9ad9;
-  --grade-c: #e0802c;
-  --grade-d: #d9534f;
+  @include site-colours(light);
 
-  --sev-high: #d9534f;
-  --sev-medium: #e0802c;
-  --sev-low: #3b9ad9;
-
+  // The same in both themes: what only colours a picture's edge, or an icon or a dot beside the words that say it.
   --rarity-5: #d39a3c;
   --rarity-4: #9a6fd3;
   --rarity-3: #4f8fd0;
@@ -131,6 +160,17 @@
   --el-wind: #3fbf8f;
   --el-quantum: #6f5fd8;
   --el-imaginary: #d8b53a;
+}
+
+// Dark as the family's tokens are: under prefers-color-scheme unless data-theme="light", and under data-theme="dark".
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme='light']) {
+    @include site-colours(dark);
+  }
+}
+
+:root[data-theme='dark'] {
+  @include site-colours(dark);
 }
 
 // A substat the build values most, and one it does not value at all (the item cards, the legend above them).

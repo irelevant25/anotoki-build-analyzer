@@ -1,0 +1,68 @@
+{
+  "title.terms": "Terms of use",
+  "title.privacy": "Privacy policy",
+  "title.contact": "Contact",
+
+  "footer.fanMade": "This site is a fan-made project and is not affiliated with or endorsed by HoYoverse.",
+
+  "legal.about": "Build Analyzer compares your Genshin Impact and Honkai: Star Rail characters with the builds community sites recommend, and shows what to improve. You import a game account by its UID or from an inventory file - with your anotoki account, or without one.",
+  "legal.fanClause": "This site is a fan-made project and is not affiliated with or endorsed by HoYoverse. Genshin Impact, Honkai: Star Rail and their names, images and content belong to their respective owners.",
+
+  "legal.record.name": "Your record",
+  "legal.record.what": "Your anotoki account's id and the name it gives (copied from each sign-in), and when you first and last used the site.",
+  "legal.record.why": "To keep your game accounts under your account, and show them to you alone.",
+  "legal.record.kept": "Until an administrator deletes your data here - signing in again makes a new, empty record. When your anotoki account is deleted, it stays without your name.",
+
+  "legal.accounts.name": "Your game accounts",
+  "legal.accounts.what": "What you import: each game account's UID, its in-game nickname (or the name you give it), level, world level, signature and region; its characters, weapons or light cones, and artifacts or relics, with their stats; and your imports - when, by UID or from a file, the file's name, and what could not be read.",
+  "legal.accounts.why": "To compare your characters with the recommended builds, and keep them for your next visit - on every device you sign in on.",
+  "legal.accounts.kept": "Until you delete the game account, or an administrator deletes your data here; a new import replaces what it brings again. When your anotoki account is deleted, your game accounts stay - with their UIDs and in-game nicknames, but no longer tied to your name.",
+
+  "legal.staff.name": "If you run syncs or keep the site's words",
+  "legal.staff.what": "Editors and administrators sync the builds and reword the site's words in its admin panel: each sync keeps who started it and who stopped it, and each word who saved it last, and when.",
+  "legal.staff.why": "So that the people who look after the site know who did what.",
+  "legal.staff.kept": "With no set time limit. When your anotoki account is deleted, the syncs' notes no longer name you; when an administrator deletes your data here, the syncs and words stay, by nobody.",
+
+  "legal.limits.name": "Limits against floods",
+  "legal.limits.what": "How many imports each person or address makes, how many people start without an account from one address, and how many feedback messages and error reports each sender sends - counted by the account, or by a code made from the IP address with a secret key, never the address itself.",
+  "legal.limits.why": "To keep the site working for everybody when somebody sends too much.",
+  "legal.limits.kept": "A minute, an hour or a day each. Counts that have run out are deleted the next time the site tidies up - with the next count, or when an editor's next sync of the builds ends.",
+
+  "legal.showcase.name": "Showcase answers",
+  "legal.showcase.what": "When you import by UID: a copy of the showcase service's answer for that UID - what the game shows everybody (the in-game nickname, level, signature and the showcase characters with their gear) and what the service itself says of the UID. Nothing of who asked.",
+  "legal.showcase.why": "So that the site does not ask the service for the same UID twice within a few minutes.",
+  "legal.showcase.kept": "As long as the service asks - a few minutes -, then deleted the next time the site tidies up (when an editor's next sync of the builds ends).",
+
+  "legal.log.name": "The site's own log",
+  "legal.log.what": "Lines about what the site does by itself: visitors' data deleted, updates applied, a setting it could not read - and, rarely, an anotoki account's id where taking a deleted account's name out went wrong. Never an IP address or what you imported.",
+  "legal.log.why": "To see what the site did, and put right what went wrong.",
+  "legal.log.kept": "Until newer lines push them out: at most about 10 MB of lines are kept.",
+
+  "legal.visitors.what": "While Build Analyzer lets you use it without signing in: the game accounts and imports you make, as listed above, under a random key this browser keeps (the site keeps only a hash of it), and when it was made and last used.",
+  "legal.visitors.why": "So that you can use the site without an account - and take your game accounts into your account when you sign in.",
+  "legal.visitors.kept": "Until a sign-in moves them into your account, or until {days} days have passed since your last visit, when they are deleted.",
+
+  "legal.feedback.what": "What you send with the form at the foot of every page: your message (and its subject, if you give one), its kind and the part of the site it is about, the page's address without anything after ? or #, the page's language and your browser's name; your account's id, unless you send it without your name; and an address to answer you at, only if you leave one (signed in, the form writes your account's in - you may change it or clear it).",
+  "legal.feedback.kept": "Until an administrator deletes it - a message marked as spam goes 30 days later, a resolved one a year later (with the first message sent after that day). When your anotoki account is deleted, or an administrator deletes your data here, the reply address and the browser go from your messages; the words stay.",
+
+  "legal.auditLog.what": "What the site's editors and administrators do in its admin panel - syncs started and stopped, sources switched on or off, builds brought in from a file, the words and languages saved, a person's data deleted, an update applied, the backups, the error log and feedback handled: who, what and when. Never an IP address.",
+
+  "legal.backups.what": "A copy of the site's whole database: one on each day the site is used, one before every update and every restore, and one whenever an administrator makes it. Each copy holds what the site kept when it was made.",
+
+  "legal.showcaseService.name": "The showcase service",
+  "legal.showcaseService.role": "When you import an account by its UID, the site's server asks this public service for that UID's in-game Character Showcase. It gets the UID from our server - never your IP address or anything that names you.",
+
+  "legal.storage.signIn.purpose": "Your sign-in to this site: the keys your anotoki account gave it, and whose they are.",
+  "legal.storage.hintTried.purpose": "When this site last tried to sign you in without a click, and with which value from the anotoki account, so that it tries each one once.",
+  "legal.storage.hintTried.kept": "Until the next try, or until you clear the site's data in your browser.",
+  "legal.storage.signInUnderWay.purpose": "A sign-in on its way: the one-time values it is checked with, and the anotoki account's public settings.",
+  "legal.storage.signInUnderWay.kept": "Until the sign-in comes back - the settings an hour -, and never longer than the tab is open.",
+  "legal.storage.signInKind.purpose": "How your present sign-in began - by itself, or with your click -, so that an account that has data here takes in what this browser imported without an account only after a click.",
+  "legal.storage.signInKind.kept": "Until your next sign-in in this browser, or until you clear the site's data in your browser.",
+  "legal.storage.tabLanguage.purpose": "The language a link with ?lang= chose, for this tab alone.",
+  "legal.storage.untilTabClosed": "Until the tab is closed.",
+  "legal.storage.visitorKey.kept": "Until a sign-in moves your imports into your account, the site no longer knows the key, or you clear the site's data in your browser.",
+  "legal.storage.whatsNew.purpose": "The last version whose news this browser showed (What's new), so that it opens once a version.",
+  "legal.storage.whatsNew.kept": "Until a newer version is shown, or until you clear the site's data in your browser.",
+  "legal.storage.wordDrafts.purpose": "For editors and administrators: the words typed on the Translations and Languages pages and not saved yet."
+}

@@ -3,6 +3,51 @@
 Short records of choices that shape the code. Add a new entry (newest first) when you make a similar call.
 Older entries describe the Laravel version as it was; where a setting has since moved, the entry says so.
 
+**2026-10-18 — anotoki-lib 0.6.2, both halves: Terms, Privacy and Contact with this site's facts; every settings file read cleanly or not at all, its first five bytes first; a broken cloudflare.local.php fails closed (the owner's round 3, for every anotoki site; version 0.4.0, unreleased).**
+Both halves on 0.6.2 (`anotoki/lib ^0.6.0` - `^0.5.0` never takes a 0.6 -, the 0.6.2 tarball in both lock files;
+package-lock.json's entry given bun.lock's version, address and integrity by hand, as the IAM did).
+- *The legal pages* (the owner's decisions of 2026-10-13, the library's `@anotoki/lib/legal` and `/legal/pages`): on
+  `/terms`, `/privacy` and `/contact`, each a lazy route of its own whose parent is the frame `layouts/legal-layout`
+  - never one parent with an empty path holding the three, which the router would take for "/" with no guard (the
+  survey's lesson of 2026-10-17, `app.routes.spec.ts`) -, before everybody's pages and the "**" at the end. The
+  frame is everybody's pages' frame (`<app-app-layout>`, its router outlet draws the page) with this site's facts
+  (`core/legal-facts.ts`), so the facts load with the pages, out of the first load. No guard: what the site keeps
+  is said before anybody signs in, also while the IAM requires signing in here. The operator is the library's
+  default (Code Hero s.r.o.); the hosting company WebSupport s.r.o. (the owner, 2026-10-18), Cloudflare, and the
+  public showcase service a UID import asks - described, never named (the site names no other service).
+- *The facts are the code's* (migration 011, English and informal Slovak): the record of a person, the game accounts
+  and imports (they stay, tied to nobody's name, when the anotoki account is deleted - the owner's rule: the data
+  stays), the editors' traces (who synced, who saved a word), the limits, the showcase answers kept a few minutes,
+  the site's own log (`storage/logs/app.log`), visitors (30 days), feedback, the audit log (the editors' too, so in
+  the site's words), the backups (one on each day the site is used, plain, the library's keeping), every cookie and
+  stored item by name, Umami. The library's fan clause names Genshin Impact alone: Terms and Contact read the site's
+  `legal.fanClause`, naming both games, in its place (`SITE_LEGAL_WORDS`, `core/legal.ts`), and the footer says its
+  first sentence (`footer.fanMade`, genshin's words). Every address is the code's, never a string (the 0.6.0
+  review): `tests/translation_catalogue.test.php` holds 011's strings free of any, `legal-facts.spec.ts` shows a
+  rewording changing a link's words, never its address. Terms · Privacy · Contact are the family's
+  `<anotoki-legal-links>` in the site's own footer, under the version's row, on every page - the admin panel's too,
+  in English there.
+- *Every settings file is read cleanly or not at all* (`Config::readLocalFile()`; the family's lesson of 2026-10-13,
+  Japanese Academy's review of 2026-10-18): a file that does not start with `<?php` is passed over uncompiled - a
+  byte-order mark or a blank line before `<?php declare(strict_types=1);` was a compile-time fatal nothing catches,
+  every request a 500 -, what a file prints is caught and never sent, one PHP cannot read is no file; each said in
+  PHP's error log once a day, by its fault and byte count, never its text. The required files' leave the site not
+  set up (the database's password never in any answer, the status's included); `fetch.local.php`'s defaults stand
+  in; `client_address.local.php` trusts no proxy - never Cloudflare's ranges in its place; setup reads its files the
+  same way (on this computer it names a broken one, never a value, and keeps none of its password).
+- *A broken cloudflare.local.php fails closed* (this changes the rule of 2026-10-13 below, the IAM's since that
+  day): a file that cannot be read cleanly is a secret no request carries - every request from Cloudflare's ranges
+  its edge, a Worker's forged `CF-Connecting-IP` the edge's even with the file's own value -, never "not set up"
+  (the file is optional: the site keeps running) and never "no secret" (which believes CF-Connecting-IP from every
+  Cloudflare customer). A file read cleanly that names no secret - blank, another key, no array - is none, as
+  without the file. `tests/settings_files.test.php` holds every case, and PHP's own fatal error without the guard.
+- *Along with it*: the grade letters and a recommendation's mark reach 4.5:1 on every ground of their theme (the
+  letter on its 14% tint too) - darker in light, lighter in dark where dark fell short (`styles.scss`,
+  `$site-colours`); `@angular/forms` gone (nothing imported it); five key descriptions that told of a snack bar
+  describe the kit's toasts (011); the library's 0.6.0 changes in the site's tests - a restore's
+  `after_restore_error` in the library's fixed words, the error log saying what failed; a badged link heard
+  "Feedback, 3 new".
+
 **2026-10-13 — anotoki-lib PHP 0.5.2 (Angular 0.5.0): CF-Connecting-IP believed only through the owner's zone - the origin secret (the owner's decision, for every anotoki site).**
 Cloudflare's published ranges are every Cloudflare customer's, not the owner's zone alone: anybody's Worker can open
 a connection to the host from them and write a `CF-Connecting-IP` of its choosing - a new address for every request,
@@ -17,7 +62,8 @@ came from - coarser, a Worker's made-up visitors sharing the edge's one bucket, 
   something in it is a secret (`Config::originSecret()`, trimmed) - anything else is none, the site as before. A
   file that returns no array is a problem, as for every other file here ("not set up" until mended) - read apart
   from them, so that what PHP throws while running it (a parse error's message can quote the file) is never
-  repeated: the problem names the file alone. The secret is never shown or logged.
+  repeated: the problem names the file alone. The secret is never shown or logged. (Since 2026-10-18, above: one
+  that cannot be read cleanly fails closed and the site keeps running; one read cleanly with no array is no secret.)
 - *Every reading of an address takes it*: `App\Web\ClientAddress::counted()` (the site's counters) and
   `AdminTools::context()`'s `originSecret` (the feedback's limits, the error log's client hash). The audit log
   keeps no address, so it needs none.

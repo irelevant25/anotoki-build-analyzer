@@ -1,29 +1,34 @@
 <footer class="footer">
-  @if (changelog.current(); as version) {
-    <span class="version">{{ 'footer.version' | translate: { version: version } }}</span>
-    <span class="dot" aria-hidden="true">·</span>
+  <div class="footer__row">
+    @if (changelog.current(); as version) {
+      <span class="version">{{ 'footer.version' | translate: { version: version } }}</span>
+      <span class="dot" aria-hidden="true">·</span>
+      <button
+        anotokiButton
+        variant="link"
+        size="sm"
+        class="whats-new"
+        aria-haspopup="dialog"
+        (click)="changelog.open()"
+      >
+        {{ 'whatsNew.title' | translate }}
+      </button>
+      <span class="dot" aria-hidden="true">·</span>
+    }
     <button
       anotokiButton
       variant="link"
       size="sm"
-      class="whats-new"
+      class="whats-new feedback"
       aria-haspopup="dialog"
-      (click)="changelog.open()"
+      (click)="feedbackOpen.set(true)"
     >
-      {{ 'whatsNew.title' | translate }}
+      {{ 'footer.feedback' | translate }}
     </button>
-    <span class="dot" aria-hidden="true">·</span>
-  }
-  <button
-    anotokiButton
-    variant="link"
-    size="sm"
-    class="whats-new feedback"
-    aria-haspopup="dialog"
-    (click)="feedbackOpen.set(true)"
-  >
-    {{ 'footer.feedback' | translate }}
-  </button>
+  </div>
+  <!-- Terms · Privacy · Contact: the family's links to the legal pages (their own navigation, the open one marked). -->
+  <anotoki-legal-links class="footer__legal" />
+  <p class="footer__fan">{{ 'footer.fanMade' | translate }}</p>
 </footer>
 
 <!-- The form and its dialog come with the first press (their own chunk), and go when it closes. -->

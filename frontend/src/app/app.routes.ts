@@ -22,8 +22,55 @@ import { AppLayout } from './layouts/app-layout/app-layout';
  * personOrVisitorGuard). The admin panel always asks for a sign-in (personGuard); its layout tells editors and
  * admins from the rest, the ADMIN pages are ADMIN's (adminGuard: an editor goes to the Sources page), and the
  * server decides.
+ *
+ * The legal pages - Terms, Privacy, Contact: the anotoki family's (@anotoki/lib/legal/pages) with this site's
+ * facts, which their frame gives them (layouts/legal-layout: everybody's pages' frame) - are anybody's, also while
+ * the IAM requires signing in here: no guard, nothing of anybody's game accounts on them. Each is a path of its own
+ * with the frame as its parent - never one parent with an empty path holding the three: the router takes an address
+ * it has read whole ("/") for such a parent when none of its children match, and would draw the empty frame at "/"
+ * with no guard (the survey's lesson, 2026-10-17; app.routes.spec.ts). They come before everybody's pages and the
+ * "**" at the end, which would take them. Their paths are the library's (DEFAULT_LEGAL_PATHS, core/legal.ts), the
+ * footer's links go there.
  */
+
+/** The legal pages' frame, loaded with the first of them that is opened (and the site's facts with it, out of the first load). */
+const legalFrame = () => import('./layouts/legal-layout/legal-layout').then((m) => m.LegalLayout);
+
 export const routes: Routes = [
+  // The legal pages: anybody's, each a path of its own in the frame that gives them the site's facts (see above).
+  {
+    path: 'terms',
+    loadComponent: legalFrame,
+    children: [
+      {
+        path: '',
+        title: 'title.terms',
+        loadComponent: () => import('@anotoki/lib/legal/pages').then((m) => m.TermsPageComponent),
+      },
+    ],
+  },
+  {
+    path: 'privacy',
+    loadComponent: legalFrame,
+    children: [
+      {
+        path: '',
+        title: 'title.privacy',
+        loadComponent: () => import('@anotoki/lib/legal/pages').then((m) => m.PrivacyPageComponent),
+      },
+    ],
+  },
+  {
+    path: 'contact',
+    loadComponent: legalFrame,
+    children: [
+      {
+        path: '',
+        title: 'title.contact',
+        loadComponent: () => import('@anotoki/lib/legal/pages').then((m) => m.ContactPageComponent),
+      },
+    ],
+  },
   {
     // Everybody's pages: the top bar with the app's sections, the page, the footer.
     path: '',

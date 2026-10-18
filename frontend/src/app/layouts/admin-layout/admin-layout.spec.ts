@@ -113,9 +113,13 @@ describe("the admin panel's frame", () => {
       [...host.querySelectorAll<HTMLAnchorElement>('.anotoki-top-bar__nav a')].find(
         (link) => link.getAttribute('href') === '/admin/feedback',
       )!;
-    // The family's badge beside the words: "Feedback 3" to a screen reader too.
+    // The family's badge beside the words, seen alone - and heard after the link's name: "Feedback, 3 new"
+    // (anotoki-lib 0.6.0: the number aria-hidden, the kit's topbar.linkCount visually hidden after it).
     expect(feedback().querySelector('.anotoki-top-bar__badge')?.textContent?.trim()).toBe('3');
-    expect(text(feedback())).toBe('Feedback 3');
+    expect(feedback().querySelector('.anotoki-top-bar__badge')?.getAttribute('aria-hidden')).toBe(
+      'true',
+    );
+    expect(text(feedback())).toBe('Feedback 3, 3 new');
 
     // The Feedback page opened them all.
     unread.count.set(0);

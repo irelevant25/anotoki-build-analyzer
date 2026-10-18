@@ -6,12 +6,14 @@
       "added": [
         "When you are signed in, the theme, the language and the way dates are written follow your anotoki account, the same on every anotoki site - and the theme and the language you choose at the top of the page are saved to your account",
         "Signed in to your anotoki account on another anotoki site, you are signed in here too as soon as you open Build Analyzer - without a click",
-        "Feedback at the foot of every page: tell us what does not work, an idea or anything else - with your name, or without it"
+        "Feedback at the foot of every page: tell us what does not work, an idea or anything else - with your name, or without it",
+        "Terms, Privacy and Contact at the foot of every page: what Build Analyzer keeps about you, what for and how long, and how to reach us"
       ],
       "updated": [
         "A new look, the same as the other anotoki sites: their colours, font, buttons, menus and dialogs - and the first page loads faster",
         "While Build Analyzer is being updated, the page says so in your language instead of showing an error, and comes back by itself when the update is done",
-        "When signing in does not work, a page says why in your language, with Try again and Back"
+        "When signing in does not work, a page says why in your language, with Try again and Back",
+        "The grade letters and the marks beside each recommendation are easier to read, in the light theme and the dark"
       ]
     }
   },

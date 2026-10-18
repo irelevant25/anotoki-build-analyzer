@@ -1,6 +1,7 @@
 import builds from './en/builds.json';
 import core from './en/core.json';
 import imports from './en/import.json';
+import legal from './en/legal.json';
 import shell from './en/shell.json';
 
 /**
@@ -29,9 +30,9 @@ import shell from './en/shell.json';
  * or stand before a colon (core/game-terms.ts). A plural family is three keys - name.one, name.few,
  * name.other - asked for by its name, and inside it the number is {count}; English .few reads as .other.
  */
-export const EN_PARTS = { core, shell, import: imports, builds } as const;
+export const EN_PARTS = { core, shell, import: imports, builds, legal } as const;
 
-export const en = { ...core, ...shell, ...imports, ...builds };
+export const en = { ...core, ...shell, ...imports, ...builds, ...legal };
 
 /** A key of the site's own words. */
 export type TranslationKey = keyof typeof en;

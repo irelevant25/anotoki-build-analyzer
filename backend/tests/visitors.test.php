@@ -496,12 +496,11 @@ test('with the origin secret (config/cloudflare.local.php), CF-Connecting-IP fro
     }
 });
 
-test('config/cloudflare.local.php: its origin_secret alone, a string with something in it - anything else is no secret; a file that returns no array (PHP cannot run it, say) is a problem by its name alone, never by what PHP said of it', function () {
+test('config/cloudflare.local.php: its origin_secret alone, a string with something in it - in a file read cleanly anything else is no secret; one that cannot be read cleanly fails closed, a secret no request carries - the site set up either way (the file is optional), its value in no problem', function () {
     $secret = 'origin-'.bin2hex(random_bytes(20));
     // A secret written bare is a constant PHP does not know, whose error quotes it; two strings side by side are a
     // parse error quoting the second.
     $bare = 'secret_'.bin2hex(random_bytes(16));
-    $problem = 'config/cloudflare.local.php does not return an array';
     $root = T::$storage.DIRECTORY_SEPARATOR.'cloudflare-root';
     @mkdir($root.'/config', 0777, true);
     copy(dirname(__DIR__).'/config/app.php', $root.'/config/app.php');
@@ -511,11 +510,15 @@ test('config/cloudflare.local.php: its origin_secret alone, a string with someth
 
         return App\Config::load($root);
     };
+    // Not set up for want of the database's and the IAM's files, as every root here - but never for this file.
+    $named = fn (App\Config $config): bool => str_contains(implode("\n", $config->problems()), 'cloudflare');
+    $log = ini_get('error_log');
+    ini_set('error_log', $root.'/php-errors.log');
     try {
         $loaded = $load(null);
-        same([null, false], [$loaded->originSecret(), in_array($problem, $loaded->problems(), true)], 'no file: no secret, and nothing wrong');
+        same([null, false], [$loaded->originSecret(), $named($loaded)], 'no file: no secret, and nothing wrong');
         $loaded = $load("<?php return ['origin_secret' => \" \\t{$secret}\\n\", 'other' => 'x'];\n");
-        same([$secret, null, false], [$loaded->originSecret(), $loaded->get('cloudflare.other'), in_array($problem, $loaded->problems(), true)],
+        same([$secret, null, false], [$loaded->originSecret(), $loaded->get('cloudflare.other'), $named($loaded)],
             'the secret, spaces around it no part of it - and nothing else of the file taken');
         foreach ([
             'an empty value' => "<?php return ['origin_secret' => ''];\n",
@@ -523,12 +526,12 @@ test('config/cloudflare.local.php: its origin_secret alone, a string with someth
             'a number' => "<?php return ['origin_secret' => 123456789012345678];\n",
             'a list' => "<?php return ['origin_secret' => ['{$secret}']];\n",
             'another key' => "<?php return ['secret' => '{$secret}'];\n",
+            'no array returned' => "<?php return '{$secret}';\n",
         ] as $what => $contents) {
             $loaded = $load($contents);
-            same([null, false], [$loaded->originSecret(), in_array($problem, $loaded->problems(), true)], "{$what}: no secret - the site as before");
+            same([null, false], [$loaded->originSecret(), $named($loaded)], "{$what}: read cleanly, no secret - the site as before");
         }
         foreach ([
-            'no array returned' => "<?php return '{$secret}';\n",
             'a parse error' => "<?php return ['origin_secret' => 'x' '{$secret}'];\n",
             'a word without its quotes' => "<?php return ['origin_secret' => {$bare}];\n",
             // Written by hand without its first line, or saved with a BOM: PHP would print the file before every answer.
@@ -542,11 +545,14 @@ test('config/cloudflare.local.php: its origin_secret alone, a string with someth
                 $printed = (string) ob_get_clean();
             }
             same('', $printed, "{$what}: nothing of the file printed");
-            $said = implode("\n", $loaded->problems());
-            same([null, true], [$loaded->originSecret(), in_array($problem, $loaded->problems(), true)], "{$what}: no secret, and the site not set up until it is mended");
-            check(! str_contains($said, $secret) && ! str_contains($said, $bare), "{$what}: the problems never hold the value - {$said}");
+            $read = $loaded->originSecret();
+            check(is_string($read) && preg_match('/^[0-9a-f]{64}$/D', $read) === 1 && $read !== $secret, "{$what}: fails closed - a secret no request carries, never the file's, never none");
+            same(false, $named($loaded), "{$what}: and the site keeps running - the file is optional");
         }
+        $said = (string) @file_get_contents($root.'/php-errors.log');
+        check(! str_contains($said, $secret) && ! str_contains($said, $bare), 'PHP\'s error log never holds the value: '.$said);
     } finally {
+        ini_set('error_log', $log === false ? '' : $log);
         removeTree($root);
     }
 });

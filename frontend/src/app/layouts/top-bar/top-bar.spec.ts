@@ -416,7 +416,8 @@ describe("the top bar: the family's bar, told what is this site's", () => {
       expect(phoneButton()?.getAttribute('aria-label')).toBe('Menu: 4 new feedback');
       await openMenu();
       const item = items().find((one) => one.getAttribute('href') === '/admin/feedback')!;
-      expect(words(item)).toBe('Feedback 4');
+      // The number seen alone, and heard after the item's name (anotoki-lib 0.6.0: the kit's topbar.linkCount).
+      expect(words(item)).toBe('Feedback 4, 4 new');
       fixture.destroy();
       host.remove();
 

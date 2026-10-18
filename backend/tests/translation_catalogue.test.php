@@ -393,6 +393,21 @@ test('a string names no other site and holds no web address - checked last, in a
     same('Deutsch', StringCheck::languageName('  Deutsch ', 'The name', 'name', $config, 'de'), 'a name that names nobody');
 });
 
+test('the legal pages\' strings (011) hold no address of any kind: where a link goes is the code\'s, never a string an administrator rewords', function () {
+    // The 0.6.0 review of the library: the anotoki account's pages, the hosting company's, the operator's - every
+    // address the pages link to is given by the code (core/legal-facts.ts); a string only words what is around it.
+    $strings = db()->all("SELECT key_name, language_code, value FROM translations
+        WHERE key_name LIKE 'legal.%' OR key_name LIKE 'title.%' OR key_name = 'footer.fanMade' ORDER BY key_name, language_code");
+    check(count($strings) >= 104, 'the legal pages\' strings are there, in both languages: '.count($strings));
+    $addresses = [];
+    foreach ($strings as $row) {
+        if (preg_match('~://|\bwww\.|@|\bmailto:|\b[a-z0-9-]+\.(?:eu|sk|com|net|org|io|gg|moe|network)\b~i', (string) $row['value']) === 1) {
+            $addresses[] = "{$row['key_name']} ({$row['language_code']}): {$row['value']}";
+        }
+    }
+    same([], $addresses, 'a string that holds an address');
+});
+
 // ── The scan ─────────────────────────────────────────────────────────────────────────────────────
 
 test('the scan reads the real frontend: only the files it should, and the library\'s keys it leaves to the library', function () {

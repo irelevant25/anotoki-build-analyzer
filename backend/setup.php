@@ -223,11 +223,15 @@ if ($post) {
 // ── The form ───────────────────────────────────────────────────────────────────────────────────────
 
 $saved = $installer->saved() !== [];
+// On this computer, a file of setup's own that is there but cannot be read cleanly (a byte-order mark, no <?php line)
+// is said by its fault, never its text: none of its values is shown and its password is not kept.
+$broken = $local ? $installer->passedOver() : [];
 $field = fn (string $name, string $label, string $type = 'text', string $extra = '') => '<label for="'.$name.'">'.h($label).'</label>'
     .'<input id="'.$name.'" name="'.$name.'" type="'.$type.'"'.($type === 'password' ? '' : ' value="'.h($values[$name] ?? '').'"').' '.$extra.'>';
 
 $intro = $local
     ? '<p>This writes the configuration of this copy and builds its database.'.($saved ? ' It is set up already: these are the saved values (the password is not shown), and saving replaces them.' : '').'</p>'
+        .implode('', array_map(fn (string $file) => '<div class="err">'.h($file).': it is passed over, nothing in it read. Fill in every field, the password too - saving writes the file anew.</div>', $broken))
     : '<p>This writes the configuration and builds the database. Do it once, on a PostgreSQL database made in the hosting panel.</p>'
         .'<div class="note">A token was written to <code>config/setup-token.local.php</code>. Open that file over FTP, copy the token and paste it below: that is how setup knows it is you.</div>';
 

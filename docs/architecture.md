@@ -30,7 +30,7 @@ other anotoki sites (the genshin site, the IAM).
 | Routes | `api/routes/{meta,icons,accounts,imports,visitor,me,builds,sources,sync,admin,admin_tools,translations,people,feedback}.php` | each returns `function (Slim\App $slim, App $app)`; the sign-in or role check sits on each route group |
 | Middleware | `api/middleware/errors.php` (JSON errors; an exception into the error log), `security.php` (headers), `site_gate.php` (the site gate - anotoki-lib's `SiteState` and `SiteGate`: 503 `not_set_up` / `update_pending`, its open paths), `upkeep.php` (after an answer: the people's scrub, the day's backup), `auth.php` (`requireSignIn()`, `requireOwner()`, `requireRole()`, `requireTokenRole()`, `optionalSignIn()` - each the library's `Identify` and checks in order, `App\Web\Pipeline` -, `makeVisitor()`, `currentUser()`, `currentUserOrNull()`, `throttle()`); the library's `ErrorLogMiddleware::outer` around them all | Slim runs the last one added first |
 | Wiring | `src/App.php` (a small container: `get()` builds a class once per request scope, `resetScope()`), `src/Config.php` | `Db` and the HTTP client last the whole process; everything else is per request |
-| Configuration | `config/app.php` (committed: sources, catalog, showcase, aliases), `config/{database,auth}.local.php` (per installation, written by `setup.php`; required) and `fetch.local.php` (optional, `Config::FETCH_DEFAULTS` without it) | no `.env`; one environment variable, `BUILD_ANALYZER_TEST_CONFIG`, for the browser check alone (a settings folder standing in for `config/` and `storage/`, honoured only for a `build_analyzer_test_` database) |
+| Configuration | `config/app.php` (committed: sources, catalog, showcase, aliases), `config/{database,auth}.local.php` (per installation, written by `setup.php`; required) and `fetch.local.php` (optional, `Config::FETCH_DEFAULTS` without it); by hand `client_address.local.php` and `cloudflare.local.php` - each read cleanly or not at all (`Config::readLocalFile()`: never compiled unless it starts with `<?php`, nothing it prints sent), one passed over never read looser than none ([operations.md](operations.md), "Configuration") | no `.env`; one environment variable, `BUILD_ANALYZER_TEST_CONFIG`, for the browser check alone (a settings folder standing in for `config/` and `storage/`, honoured only for a `build_analyzer_test_` database) |
 | Database | `src/Db/Db.php` (PDO helpers: `one`, `all`, `value`, `insert`, `update`, `run`, `transaction`; `ensureDatabase()`), `src/Db/Migrations.php` (this site's files and bookkeeping table on the anotoki family's engine, anotoki-lib's `Migrator`) | always parameterised; identifiers are literals in the code |
 | Rows | `src/Models/*` (plain classes made from rows), `src/Repositories/*` (the queries) | `Accounts::findOwned()` / `owned()` scope every account query to its owner |
 | Domain basics | `src/Enums/Game.php`, `src/Support/{Stats,Talents,Key,MainStatValues}.php` | slots, stat keys, label parsing; see [stats-and-slots.md](stats-and-slots.md) |
@@ -188,7 +188,8 @@ reaches exactly what `requireOwner()` guards - its own accounts and imports, thr
   Cloudflare's ranges - the committed `trusted_proxies`, the owner's decision of 2026-10-11 - its
   `CF-Connecting-IP`, one address or none believed - with the origin secret, `config/cloudflare.local.php`
   (anotoki-lib 0.5.2, the owner's decision of 2026-10-13), only on a request that carries it in
-  `X-Anotoki-Origin`, any other from Cloudflare counted as its edge; IPv6 by /64, `::ffff:` IPv4 as IPv4 - the
+  `X-Anotoki-Origin`, any other from Cloudflare counted as its edge - and with a file that cannot be read cleanly,
+  on no request at all (it fails closed); IPv6 by /64, `::ffff:` IPv4 as IPv4 - the
   admin tools read by the same rule, list and secret) and
   site-wide; a visitor's imports throttled per address; per visitor a few accounts and smaller files (422
   `visitor_limit`; the accounts counted by the route before any work, and again by `AccountImporter` under the
@@ -617,7 +618,19 @@ page's API answers its own: 404 `not_found` (a file that is none of the set's), 
   newest entry of `public/changelog.json` (`core/changelog.ts`). What's new opens by itself with the releases
   after the one this browser saw last (`build-analyzer-version-seen`), compared by their numbers
   (`compareVersions()`: MAJOR.MINOR.PATCH, a missing part 0 - so "0.3", kept from before the versions had
-  three numbers, is 0.3.0).
+  three numbers, is 0.3.0). Under that row Terms · Privacy · Contact (the family's `<anotoki-legal-links>`) and the
+  fan clause (`footer.fanMade`).
+- The legal pages (anotoki-lib 0.6's `@anotoki/lib/legal` and `/legal/pages`; the owner's decisions of
+  2026-10-13): Terms, Privacy and Contact on `/terms`, `/privacy`, `/contact`, each a lazy route of its own whose
+  parent is `layouts/legal-layout/` - everybody's pages' frame (`<app-app-layout>`, whose router outlet draws the
+  page) giving the pages this site's facts, so the facts and their code load with the pages, out of the first
+  load. No guard: anybody may read them, also while the IAM requires signing in here. `core/legal.ts`
+  (`provideLegal()`): the page's language, the database's words - the site's own fan clause, `legal.fanClause`,
+  in place of the library's, which names Genshin Impact alone. `core/legal-facts.ts` (`siteLegalFacts()`): what
+  the site keeps, what for and how long, its cookies and stored items by name, who else handles data (the hosting
+  company, Cloudflare, the public showcase service a UID import asks - described, never named), the anotoki
+  account's pages at the IAM's address `/api/meta` names - each fact with the code it rests on in its comment;
+  the words are the site's `legal.*` (migration 011), every address the code's, never a string.
 - The top bar (`layouts/top-bar/`) is the anotoki family's own, `<anotoki-top-bar>` from `@anotoki/lib/shell`
   (since 0.4.0; before, a copy of it built from Angular Material's pieces), told what is this site's: the brand
   (the anotoki mark, "anotoki" and `brand.area`; on a phone and in the admin panel the family's short form,

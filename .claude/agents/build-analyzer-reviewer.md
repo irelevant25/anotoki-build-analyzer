@@ -153,7 +153,17 @@ Correctness first:
 - Configuration: only `backend/config/app.php` (committed) and `config/*.local.php` (written by `setup.php`);
   no `.env`, no committed defaults for the database or the IAM; the one environment variable,
   `BUILD_ANALYZER_TEST_CONFIG` (the browser check's settings folder), is honoured only for a
-  `build_analyzer_test_` database (`App\Config::load()`) and nothing on a host sets it.
+  `build_analyzer_test_` database (`App\Config::load()`) and nothing on a host sets it. Every settings file -
+  setup's reads and the token's too - goes through `Config::readLocalFile()`, never a plain `require`: its first
+  five bytes `<?php` or it is never compiled, whatever it prints caught and never sent, a failure said by its kind
+  and line or byte count, never its text (no `$e->getMessage()` of a parse error). Passed over, never looser than no
+  file: a required one leaves the site not set up, `fetch.local.php`'s defaults stand in, `client_address.local.php`
+  trusts no proxy (never Cloudflare's ranges in its place), `cloudflare.local.php` fails closed (a secret no request
+  carries) - and `tests/settings_files.test.php` holds each with the attack it stops.
+- The legal pages: every fact in `core/legal-facts.ts` true of the code (a change to what the site keeps, or for
+  how long, changes `legal.*` by a migration and `SITE_LEGAL_UPDATED`); every address the pages link to the code's,
+  never a translatable string; the routes each a path of their own with the frame as parent, no guard, before the
+  `**`.
 - The IAM's SDKs are not vendored here any more: signing in, people and the admin tools come from anotoki-lib
   (`backend/vendor/anotoki/lib`, `@anotoki/lib` - one version for both halves), never edited in place.
 - Deploy: `backend/tools/build.php` output never contains `*.local.php`, logs, tests or command-line scripts, and

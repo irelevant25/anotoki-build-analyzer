@@ -129,15 +129,16 @@ longer read and can be deleted.
 
 What the anotoki sites share lives in one library, [irelevant25/anotoki-lib](https://github.com/irelevant25/anotoki-lib),
 in two halves with one version: the Composer package `anotoki/lib` (`backend/composer.json`: a `vcs` repository
-entry and `"anotoki/lib": "^0.5.0"`; installed into `backend/vendor/`, which the upload carries) and the npm
-package `@anotoki/lib` (`frontend/package.json`: the release's tarball). The PHP half is 0.5.2, the Angular half 0.5.0 -
-0.5.1 and 0.5.2 changed only PHP (0.5.1: a restore moves a sequence that counts down, such as `visitor_ids`, further
-down; 0.5.2: the origin secret, `config/cloudflare.local.php` - docs/operations.md, "Which address"). 0.5.0 is a minor version:
-`^0.4.1` never took it by itself; never 0.4.0, whose Feedback page fails on PHP 8.2. Besides the translations
+entry and `"anotoki/lib": "^0.6.0"`; installed into `backend/vendor/`, which the upload carries) and the npm
+package `@anotoki/lib` (`frontend/package.json`: the release's tarball). Both halves are 0.6.2 (0.6.0: the legal
+pages - Terms, Privacy, Contact - and the kit's newer pieces; 0.6.1 and 0.6.2: the Privacy page's sentences made
+true on every site). A minor version is taken by hand while the version is 0.x: `^0.5.0` never took 0.6 by itself;
+never 0.4.0, whose Feedback page fails on PHP 8.2. Besides the translations
 module, the auth module (signing in through the anotoki IAM: the token check, the IAM's switch, the browser's
 client, interceptor, guards and the sign-in hint), the people module (the People page, the scrub of the accounts
-the IAM deleted, what a restore does again) and the admin tools (the error log - the browser's errors too -, the
-audit log, feedback, sealed backups, one reading of a request's address) - each set up for this site where it is
+the IAM deleted, what a restore does again), the admin tools (the error log - the browser's errors too -, the
+audit log, feedback, sealed backups, one reading of a request's address) and the legal pages (with this site's
+facts: `frontend/src/app/core/legal-facts.ts`) - each set up for this site where it is
 used - they hold the migrations module, one behaviour for every anotoki site while its database is not ready:
 
 - the engine (`Anotoki\Lib\Migrations\Migrator`), on this site's files and bookkeeping table through
@@ -208,9 +209,10 @@ stand-in IAM, on a throwaway database - nobody, a visitor's import and the move 
 data, an editor and an admin, the top bar at 360-1280 px in light and dark with a real Tab press, Slovak at
 390 px with no key on the page, the account's theme, dates and language saved from the bar to the
 stand-in IAM, the automatic sign-in by the IAM's hint, the screen of a sign-in that failed, the feedback form,
-the People page and the admin tools (light and dark, 1280 and 390 px), and the site while an update waits and
-while it is not set up (the site gate's pages with no page made behind them, the Migrations page, Sign in from
-the waiting page):
+the People page and the admin tools (light and dark, 1280 and 390 px), Terms, Privacy and Contact from the
+footer (1280 and 390 px, light and dark, English and Slovak; read while sign-in is required too), and the site
+while an update waits and while it is not set up (the site gate's pages with no page made behind them, the
+Migrations page, Sign in from the waiting page):
 
 ```bash
 node .claude/skills/verify-ui/scripts/run.mjs [--no-build] [--keep] [--measure]   # from the root; ports 8590 and 8597
@@ -315,6 +317,13 @@ one (the Backups page, "before an update"). `config/*.local.php` and `storage/` 
   "before-migration" backup on the Backups page once the site works: it still holds those tables. Nothing on disk
   is deleted by the update (`storage/logs/app.log` stays; the error log and the backups are new beside it).
   [docs/operations.md](docs/operations.md), "Deploying".
+- **Terms, Privacy and Contact** (version 0.4.0: anotoki-lib 0.6.2, migration 011 and the library's
+  `anotoki_translations` 005-011): in the same Apply as the files above, or after them - Export each language
+  first, upload with `vendor/`, Apply at once. 011 adds the site's facts (`legal.*`), the pages' tab titles and
+  the footer's fan clause, in English and Slovak; the library's files add the pages' own words. Then the foot of
+  every page has Terms · Privacy · Contact and the fan clause, and `/privacy` links "your anotoki account" to the
+  IAM's own Privacy page. A change to what the site keeps, or for how long, changes the facts' strings (a
+  migration) and `SITE_LEGAL_UPDATED` (`frontend/src/app/core/legal-facts.ts`). [docs/operations.md](docs/operations.md), "Deploying".
 - **The IAM's sign-in switch** (now the library's `SignInRule`): upload only once the IAM answers
   `https://iam.anotoki.eu/api/public/applications/build-analyzer` with 200 - before that the site requires
   sign-in (fail closed) and turns visitors away. [docs/operations.md](docs/operations.md), "Deploying".

@@ -32,6 +32,8 @@ const ADMIN = 1;
 const EDITOR = 4;
 const MEMBER = 7;
 const SOME_BACKUP = '20261011-120000Z-manual-0123456789abcdef0123456789abcdef';
+/** A restore's after_restore_error, in the library's fixed words (anotoki-lib 0.6.0): the error log says what failed. */
+const AFTER_RESTORE_FAILED = 'What this site does after a restore did not all go through. The error log says what.';
 
 function admin(array $claims = []): Client
 {
@@ -437,11 +439,14 @@ test('a restore checks the IAM\'s deleted accounts again at once: whoever it del
     @mkdir(dirname($stamp), 0777, true);
     file_put_contents($stamp, (string) time());
     $unchecked = $restore();
-    check(str_contains((string) $unchecked->json('after_restore_error'), 'The accounts the IAM deleted were not checked again'), 'the restore says so: '.$unchecked->json('after_restore_error'));
+    // The answer says that it did not all go through, in the library's fixed words (anotoki-lib 0.6.0: no answer
+    // carries a failure's own words); what did not, the error log says.
+    same(AFTER_RESTORE_FAILED, $unchecked->json('after_restore_error'), 'the restore says so');
     same('klee', db()->value('SELECT name FROM users WHERE id = 9'), 'named again, until the next check');
     check(! is_file($stamp), 'the hour no longer claimed: the next request checks again');
-    $said = array_values(array_filter(errorLines(), fn (array $line): bool => str_contains((string) $line['message'], 'The accounts the IAM deleted were not checked again')));
-    same(1, count($said), 'the error log has it too: '.json_encode(array_column(errorLines(), 'message')));
+    $said = array_values(array_filter(errorLines(), fn (array $line): bool => str_contains((string) $line['message'], 'The accounts the IAM deleted were not checked again')
+        && str_contains((string) $line['message'], 'the check runs again with the next request')));
+    same(1, count($said), 'the error log says what: '.json_encode(array_column(errorLines(), 'message')));
     T::$iam->anonymized(['9' => '2026-11-06T10:00:00Z']);
     admin()->post('/api/admin/people/sync')->status(200);
     same('deleted-9', db()->value('SELECT name FROM users WHERE id = 9'), 'and the next check takes it');
@@ -476,8 +481,14 @@ test('a restore on the command line that cannot check the IAM\'s deleted account
         file_put_contents($stamp, (string) time());
         [$code, $output] = $backupPhp('--restore='.$id[1], '--confirm='.substr($id[1], -6));
         same(1, $code, 'restored, and the work after it not all done: '.$output);
-        check(str_contains($output, 'Restored ') && str_contains($output, 'The accounts the IAM deleted were not checked again')
-            && str_contains($output, 'the check runs again with the next request'), 'it says so: '.$output);
+        check(str_contains($output, 'Restored ') && str_contains($output, "The site's work after the restore failed: ".AFTER_RESTORE_FAILED), 'it says so: '.$output);
+        // What did not go through is the error log's - in the settings folder's storage, where that command writes it.
+        $logged = '';
+        foreach (glob($settings.'/storage/logs/errors-*.jsonl') ?: [] as $file) {
+            $logged .= (string) file_get_contents($file);
+        }
+        check(str_contains($logged, 'The accounts the IAM deleted were not checked again') && str_contains($logged, 'the check runs again with the next request'),
+            'and the error log says what: '.substr($logged, 0, 600));
         check(! is_file($stamp), 'and it is so: the hour given back once the command ended (what it left for "after the answer" ran)');
         same('klee', db()->value('SELECT name FROM users WHERE id = 9'), 'the database as the backup has it');
     } finally {

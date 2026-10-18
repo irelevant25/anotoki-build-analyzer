@@ -213,16 +213,40 @@ final class Installer
         return [['database' => $database, 'auth' => ['issuer' => $issuer, 'client_id' => $clientId]], $errors];
     }
 
-    /** @return array<string, mixed> a config file's values, or none */
+    /**
+     * The files setup writes that are there but cannot be read cleanly, each by its fault (never its text): on this
+     * computer the page says so, since it shows none of their values and keeps none of their password.
+     *
+     * @return list<string> "config/database.local.php does not start with <?php (...)"
+     */
+    public function passedOver(): array
+    {
+        $said = [];
+        foreach (['database.local.php', 'auth.local.php'] as $file) {
+            $path = $this->root.'/config/'.$file;
+            if (is_file($path) && ($problem = Config::readLocalFile($path)['problem']) !== null) {
+                $said[] = "config/{$file} {$problem}";
+            }
+        }
+
+        return $said;
+    }
+
+    /**
+     * A config file's values, or none - read cleanly or not at all (Config::readLocalFile()): one saved with a
+     * byte-order mark or without its <?php line is never compiled, and nothing a file prints reaches the page.
+     *
+     * @return array<string, mixed>
+     */
     private function readConfig(string $file): array
     {
         $path = $this->root.'/config/'.$file;
         if (! is_file($path)) {
             return [];
         }
-        $data = (static fn (string $path) => require $path)($path);
+        $read = Config::readLocalFile($path);
 
-        return is_array($data) ? $data : [];
+        return $read['problem'] === null && is_array($read['value']) ? $read['value'] : [];
     }
 
     // ── the files ─────────────────────────────────────────────────────────────────────────────────
@@ -309,7 +333,9 @@ final class Installer
         if (! is_file($this->tokenFile())) {
             return null;
         }
-        $data = (static fn (string $path) => require $path)($this->tokenFile());
+        // Read as every settings file is (a broken one is no token: a new one is made in its place).
+        $read = Config::readLocalFile($this->tokenFile());
+        $data = $read['problem'] === null ? $read['value'] : null;
         $token = is_array($data) ? ($data['token'] ?? null) : null;
 
         return is_string($token) && strlen($token) >= 32 ? $token : null;

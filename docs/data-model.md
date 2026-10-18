@@ -90,6 +90,17 @@ the site is closed to everybody but its ADMIN on the Migrations page (the site g
   library keys in English, the fourteen gone, `common.signIn` and `stepper.completed` there, and the site's own
   keys (447 - 14 = 433). Then the library's `anotoki_translations/003` (the sign-in screen's words) and `004`
   (the feedback form's), and `anotoki_people/001`.
+- `011_legal_pages.sql` (anotoki-lib 0.6.2: the family's Terms, Privacy and Contact pages) adds this site's facts
+  on them - `legal.*`: what it is, the record of a person, the game accounts, the editors' traces, the limits, the
+  showcase answers, its own log, visitors, feedback, the audit log, the backups, the browser storage the library
+  has no words for, the showcase service, and `legal.fanClause` (the fan clause naming both games, read in place of
+  the library's) -, the pages' tab titles (`title.terms|privacy|contact`) and the footer's fan clause
+  (`footer.fanMade`), in English and informal Slovak; and rewords the descriptions of five keys that still told of a
+  snack bar (`common.close`, `dashboard.deleted`, `data.exported`, `visitor.moved.one`, `visitor.kept.one`: the
+  kit's toasts). No string holds an address (`tests/translation_catalogue.test.php`). Gated: every new key in both
+  languages, no description of the site's own telling of a snack bar, and the site's own keys (433 + 52 = 485).
+  Then the library's `anotoki_translations/005`-`011` (the legal pages' words, the kit's newer pieces', its own
+  rewordings of the Privacy page - each only where a key has no string, or nobody saved it).
 
 Rules: never edit a migration that has run somewhere; add `NNN_what.sql`. A migration runs in one transaction
 (PostgreSQL DDL is transactional), so a failing one leaves nothing behind. A migration that changes data ends

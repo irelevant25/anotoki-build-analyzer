@@ -105,7 +105,8 @@ describe('the builds pages: the list of characters and one character’s builds'
     await open(BuildsPage, 'en', { buildCharacters: () => of(CHARACTERS) }, { game: 'genshin' });
 
     expect(text('h1')).toEqual(['Recommended builds']);
-    expect(text('.anotoki-page-header__lead')).toEqual(['Everything the build syncs collected, per character and source.']);
+    // The plain lead (the kit's own lead with markup, `[pageLead]`, is a sibling of it - empty here).
+    expect(text('p.anotoki-page-header__lead')).toEqual(['Everything the build syncs collected, per character and source.']);
     // The kit's segmented control: one choice of two, by the games' own names.
     expect(host.querySelector('anotoki-segmented [role="radiogroup"]')?.getAttribute('aria-label')).toBe('Game');
     expect(text('anotoki-segmented [role="radio"]')).toEqual(['Genshin Impact', 'Honkai: Star Rail']);

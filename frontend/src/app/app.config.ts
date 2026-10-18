@@ -28,6 +28,7 @@ import { SIGN_IN_FAILED_PATH } from './core/auth.guards';
 import { Changelog } from './core/changelog';
 import { provideFeedback } from './core/feedback';
 import { provideKit } from './core/kit';
+import { provideLegal } from './core/legal';
 import { AppTitleStrategy } from './core/i18n/title-strategy';
 import { TranslationService } from './core/i18n/translation';
 import { provideTranslations } from './core/i18n/translations.config';
@@ -141,6 +142,9 @@ export const appConfig: ApplicationConfig = {
     }),
     // The visitors' feedback form, opened from the foot of every page (core/feedback.ts).
     provideFeedback(),
+    // The anotoki family's legal pages - Terms, Privacy, Contact on /terms, /privacy, /contact - and the footer's
+    // links to them (core/legal.ts); the site's facts come with the pages' frame (layouts/legal-layout).
+    provideLegal(),
     // Words a route's title in the language on the page, and tells the translation service where the page is.
     { provide: TitleStrategy, useClass: AppTitleStrategy },
     provideAppInitializer(async () => {

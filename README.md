@@ -39,6 +39,10 @@ Setting it up, running, testing, building and deploying: **[DEV.md](DEV.md)**.
   it. Without signing in, each browser keeps its own.
 - **What's new**: the version at the foot of every page, and its button, open the changelog
   (`frontend/public/changelog.json`).
+- **Terms, Privacy and Contact**: the anotoki family's pages, linked at the foot of every page above the fan
+  clause (a fan-made project, not affiliated with or endorsed by HoYoverse) - what the site keeps, what for and how
+  long, its browser storage and who else handles data, true of the code as it is
+  (`frontend/src/app/core/legal-facts.ts`); Contact opens the feedback form.
 
 ## Quick start
 
@@ -182,10 +186,11 @@ hosting:
     published ranges (the anotoki library's list), and counts every limit by it.
   - Rules -> Transform Rules -> **Modify Request Header**: "Set static" `X-Anotoki-Origin` to the origin
     secret, for every request of the zone - and the same value in `backend/config/cloudflare.local.php`
-    (`return ['origin_secret' => '...'];`, put there by hand; a long random value, 32+ characters). With it the
-    site believes `CF-Connecting-IP` only on a request that carries the secret - anybody's Cloudflare Worker
-    can connect from Cloudflare's ranges; without the file it believes `CF-Connecting-IP` from Cloudflare's
-    ranges alone. Set the rule first, then the file.
+    (`<?php return ['origin_secret' => '...'];`, put there by hand, starting with `<?php` - no byte-order mark,
+    no blank line before it; a long random value, 32+ characters). With it the site believes `CF-Connecting-IP`
+    only on a request that carries the secret - anybody's Cloudflare Worker can connect from Cloudflare's ranges;
+    without the file it believes `CF-Connecting-IP` from Cloudflare's ranges alone; with one it cannot read
+    cleanly, from nobody (every visitor counts as their edge until it is mended). Set the rule first, then the file.
 - **After an upload**: the private folders (`storage/`, `config/`) answer 403 in a browser; the host check's
   "Who connects" says Cloudflare, not a proxy of the host's (behind one, every visitor would share one
   address); pending database updates are applied on the admin panel's Migrations page.
@@ -216,7 +221,8 @@ frontend/src/app/
                         visitor key, sync driver, i18n/ (the site's words on anotoki-lib's service: typed keys,
                         pipes, the compiled English), game
                         terms, site-status (anotoki-lib's site gate and Migrations page, wired to this site)
-  layouts/              top-bar, footer (version, What's new, Feedback), app-layout, admin-layout (the admin panel's frame)
+  layouts/              top-bar, footer (version, What's new, Feedback; Terms · Privacy · Contact), app-layout,
+                        legal-layout (the legal pages with the site's facts), admin-layout (the admin panel's frame)
   shared/               build detail, item card, grade badge, changelog dialog, confirm dialog, the visitor notice,
                         the ways in for somebody new, the "Your data" card, the feedback form's dialog, ...
   pages/                dashboard, import wizard, account, character analysis, builds;
