@@ -376,8 +376,8 @@ try {
     check(!asked.some((path) => path.startsWith('/api/accounts')), 'no /api/accounts request');
     check((await page.locator(BAR_LINK).allInnerTexts()).join('|') === 'Dashboard|Import|Builds', 'the bar links Dashboard, Import, Builds');
     check((await page.locator(SIGN_IN).innerText()).includes('Sign in'), 'Sign in in the bar');
-    check((await page.locator('app-footer').innerText()).includes(`Version ${version}`), `the footer says Version ${version}`);
-    await page.click('app-footer .whats-new:not(.feedback)');
+    check((await page.locator('anotoki-site-footer').innerText()).includes(`Version ${version}`), `the footer says Version ${version}`);
+    await page.click('anotoki-site-footer [data-whats-new]');
     await page.waitForSelector(`${DIALOG} dialog[open] .release`, { timeout: 10000 });
     check(await page.locator(`${DIALOG} dialog[open]`).isVisible(), "the footer's What's new opens the notes");
     await shot(page, '01-nobody-whats-new');
@@ -607,8 +607,8 @@ try {
       const writer = await newContext({ width: 390, height: 860 });
       const page = await writer.newPage();
       await open(page, '/import?lang=sk');
-      check((await page.locator('app-footer .feedback').innerText()).trim() === 'Spätná väzba', 'the foot of the page: Spätná väzba');
-      await page.click('app-footer .feedback');
+      check((await page.locator('anotoki-site-footer [data-open-feedback]').innerText()).trim() === 'Spätná väzba', 'the foot of the page: Spätná väzba');
+      await page.click('anotoki-site-footer [data-open-feedback]');
       await page.waitForSelector(`${DIALOG} anotoki-feedback-form [data-message] textarea`, { timeout: 15000 });
       const heading = page.locator(`${DIALOG} h2`);
       // The language of its words is said on the dialog, round the heading.
@@ -633,7 +633,7 @@ try {
       await page.setViewportSize({ width: 1280, height: 900 });
       for (const scheme of ['light', 'dark']) {
         await page.emulateMedia({ colorScheme: scheme });
-        await page.click('app-footer .feedback');
+        await page.click('anotoki-site-footer [data-open-feedback]');
         await page.waitForSelector(`${DIALOG} anotoki-feedback-form [data-message] textarea`);
         await shot(page, `22-feedback-form-1280-${scheme}`);
         await page.keyboard.press('Escape');
@@ -641,7 +641,7 @@ try {
       }
       // Signed in: their account's address written in for an answer, and "send it without my name" offered.
       await open(tab, '/?lang=en');
-      await tab.click('app-footer .feedback');
+      await tab.click('anotoki-site-footer [data-open-feedback]');
       await tab.waitForSelector(`${DIALOG} anotoki-feedback-form [data-anonymous]`, { timeout: 15000 });
       check((await tab.locator(`${DIALOG} [data-email] input`).inputValue()) === 'mona@example.test', "mona: her account's address written in, and Send without my name offered");
       await tab.keyboard.press('Escape');
@@ -675,7 +675,7 @@ try {
       check((await theme()) === 'dark/dark', `signed in: the account's dark theme, though this device had none (${await theme()})`);
       check((await kept.evaluate(() => localStorage.getItem('build-analyzer-theme'))) === 'dark', 'kept on this device for the next page load');
 
-      await kept.click('app-footer .whats-new:not(.feedback)');
+      await kept.click('anotoki-site-footer [data-whats-new]');
       // The dialog's frame comes before its releases: wait for their dates, not only the dialog.
       await kept.waitForSelector(`${DIALOG} .release-head .date`);
       const days = (await kept.locator(`${DIALOG} .release-head .date`).allInnerTexts()).map((day) => day.trim());
@@ -1335,6 +1335,14 @@ try {
     check(new URL(readerTab.url()).pathname === '/privacy' && (await readerTab.locator('anotoki-privacy-page h1').innerText()).trim() === 'Privacy policy',
       `while sign-in is required, /privacy is read without going to the IAM (${new URL(readerTab.url()).pathname})`);
     check((await readerTab.locator(SIGN_IN).count()) === 1, 'with the bar\'s Sign in, nobody signed in');
+    // No message can be sent now by somebody signed out (the server refuses it): no Feedback at the foot, nor on Contact.
+    check((await readerTab.locator('anotoki-site-footer [data-open-feedback]').count()) === 0 && (await readerTab.locator('anotoki-site-footer [data-whats-new]').count()) === 1,
+      "the footer offers no Feedback to somebody signed out now - What's new all the same");
+    await shot(readerTab, '18b-required-privacy', { fullPage: true });
+    await open(readerTab, '/contact?lang=en');
+    await readerTab.waitForSelector('anotoki-contact-page h1', { timeout: 15000 });
+    check((await readerTab.locator('anotoki-contact-page [data-open-feedback]').count()) === 0 && (await readerTab.locator('anotoki-contact-page [data-section="email"]').count()) === 1,
+      'and Contact gives the address alone');
     await iamState({ deny: false });
     await reader.close();
 
@@ -1386,13 +1394,13 @@ try {
       const legal = await newContext();
       const tab = await legal.newPage();
       await open(tab, '/?lang=en');
-      const links = await tab.locator('app-footer anotoki-legal-links a').evaluateAll((all) => all.map((link) => `${link.textContent.trim()} -> ${link.getAttribute('href')}`));
+      const links = await tab.locator('anotoki-site-footer anotoki-legal-links a').evaluateAll((all) => all.map((link) => `${link.textContent.trim()} -> ${link.getAttribute('href')}`));
       check(links.join('|') === 'Terms -> /terms|Privacy -> /privacy|Contact -> /contact', `the footer's links: ${links.join(', ')}`);
-      check((await tab.locator('app-footer .footer__fan').innerText()).includes('not affiliated with or endorsed by HoYoverse'), 'and the fan clause under them');
-      await tab.click('app-footer anotoki-legal-links a[href="/privacy"]');
+      check((await tab.locator('anotoki-site-footer [data-fan]').innerText()).includes('not affiliated with or endorsed by HoYoverse'), 'and the fan clause under them');
+      await tab.click('anotoki-site-footer anotoki-legal-links a[href="/privacy"]');
       await tab.waitForSelector('anotoki-privacy-page h1', { timeout: 15000 });
       check(new URL(tab.url()).pathname === '/privacy' && (await tab.title()) === 'Privacy policy · Build Analyzer', `the footer's Privacy opens the page in the site's frame, titled "${await tab.title()}"`);
-      check((await tab.locator('app-footer anotoki-legal-links a[aria-current="page"]').innerText()).trim() === 'Privacy', 'the open page marked in the footer');
+      check((await tab.locator('anotoki-site-footer anotoki-legal-links a[aria-current="page"]').innerText()).trim() === 'Privacy', 'the open page marked in the footer');
       // The Contact page's form: the family's feedback form in the kit's dialog.
       await open(tab, '/contact?lang=en');
       await tab.click('anotoki-contact-page [data-open-feedback]');
