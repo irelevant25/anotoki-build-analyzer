@@ -191,6 +191,7 @@ never from a local copy. Then run the tests, the production build and the browse
 cd backend && php tests/run.php            # every backend test file (or one: php tests/auth.test.php)
 cd frontend && npx ng test --watch=false   # frontend unit tests (Vitest)
 cd frontend && npx ng build                # the production build must pass too
+bun run format:check                       # Prettier on every file of both halves, at the root (bun install there first)
 ```
 
 The backend tests need `config/database.local.php` (run setup first): each test file creates its own

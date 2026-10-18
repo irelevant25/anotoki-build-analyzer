@@ -1,0 +1,41 @@
+**/node_modules/
+**/vendor/
+**/dist/
+**/.angular/
+coverage/
+bun.lock
+package-lock.json
+composer.lock
+*.md
+*.sql
+**/storage/
+**/config/*.local.php
+
+# The PHP plugin drops the parentheses of (require $file)($slim, $app): PHP would then call the file's name, and require what that returns.
+backend/api/app.php
+# The PHP plugin drops the parentheses of $a ? $b : (($c ?? null) ?? $d): the same value, but compiled to other opcodes.
+backend/src/Services/Import/AccountImporter.php
+# The PHP plugin's parser (php-parser 3.7) refuses a named argument after an unpacked one, new self(...self::common($row), kind: ...), which PHP 8.1 allows.
+backend/src/Models/GameCharacter.php
+backend/src/Models/GameSet.php
+backend/src/Models/GameWeapon.php
+# Prettier puts a text's start or end on a line of its own (htmlWhitespaceSensitivity ignore) and Angular keeps a space there: these pages would
+# gain spaces - between a button's icon and its word ("<anotoki-icon ... />Sign in"), and inside a stat target's "120+" or an item's "+16 / +20".
+frontend/src/app/layouts/admin-layout/admin-layout.html
+frontend/src/app/pages/account/account-page.html
+frontend/src/app/pages/admin/sources/sources-page.html
+frontend/src/app/pages/builds/build-character-page.html
+frontend/src/app/pages/builds/builds-page.html
+frontend/src/app/pages/character/character-page.html
+frontend/src/app/pages/dashboard/dashboard-page.html
+frontend/src/app/pages/import/import-wizard.html
+frontend/src/app/shared/build-detail.html
+frontend/src/app/shared/changelog-dialog.html
+frontend/src/app/shared/data-card/data-card.html
+frontend/src/app/shared/item-card.html
+frontend/src/app/shared/visitor-hero/visitor-hero.html
+frontend/src/app/shared/visitor-notice/visitor-notice.html
+# The build copies it as it is: Prettier's four-space indent would make the built index.html differ from the one before.
+frontend/src/index.html
+# Runs on PHP 5.6 and up, so an old host still gets an answer: the PHP plugin would add PHP 7.3's trailing commas.
+tools/host-check.php

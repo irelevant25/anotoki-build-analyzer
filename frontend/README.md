@@ -9,6 +9,7 @@ bun ci                     # the packages, from bun.lock (npm start runs it firs
 npm start                  # http://localhost:4600 (proxies /api and /setup.php to http://localhost:8400)
 npx ng test --watch=false  # unit tests (Vitest)
 npx ng build               # production build into dist/frontend/browser (backend/tools/build.php uses it)
+cd .. && bun run format:check  # Prettier on every file of both halves, at the root (bun install there first)
 ```
 
 With npm, `npx -y npm@11 ci` installs from `package-lock.json` (npm 10.9.x has a resolver bug here); a change

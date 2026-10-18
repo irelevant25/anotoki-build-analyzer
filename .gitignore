@@ -1,6 +1,9 @@
 # What backend/tools/build.php assembles for the upload
 /dist/
 
+# The root's Prettier (package.json: the anotoki family's one formatting setup).
+/node_modules/
+
 # OS / editor noise
 .DS_Store
 Thumbs.db
