@@ -765,7 +765,12 @@ try {
     await ad.keyboard.press('Escape');
     await ad.setViewportSize({ width: ADMIN_PHONE_BAR_MAX + 201, height: 900 });
     await open(ad, '/admin/people');
-    check((await ad.locator(BAR_LINK).allInnerTexts()).map((words) => words.replace(/\s*\d+$/, '').trim()).join('|') === 'Sources|Translations|Languages|People|Migrations|Errors|Audit|Feedback|Backups', "an admin's sections: all nine - the family's admin tools too");
+    // Each section by its own words: a count beside one (Feedback's badge, and what it counts for the ear) is not
+    // its name.
+    const sections = await ad.locator(BAR_LINK).evaluateAll((links) =>
+      links.map((link) => [...link.childNodes].filter((node) => node.nodeType === Node.TEXT_NODE).map((node) => node.textContent).join('').trim()),
+    );
+    check(sections.join('|') === 'Sources|Translations|Languages|People|Migrations|Errors|Audit|Feedback|Backups', `an admin's sections: all nine - the family's admin tools too (${sections.join(', ')})`);
     // The family's brand of an admin panel, short at every width beside nine sections: the site's short name with
     // "admin panel" under it; the app's whole name in the link's accessible name.
     const wordmark = (await ad.locator('app-top-bar anotoki-brand .anotoki-brand__wordmark').innerText()).replace(/\s+/g, ' ').trim();
@@ -922,9 +927,10 @@ try {
         `the error log has it as the browser's - scrubbed, by ada, on its page (${JSON.stringify(pageErrors().map((line) => [line.message, line.user_id, line.path]))})`);
       await ad.waitForSelector('app-top-bar a[href="/admin/feedback"] .anotoki-top-bar__badge', { timeout: 15000 });
       const count = (await ad.locator('app-top-bar a[href="/admin/feedback"] .anotoki-top-bar__badge').innerText()).trim();
-      // The family's bar names a section by its words and its count ("Feedback 1"): it has no words of a count's own.
-      const named = (await ad.locator('app-top-bar a[href="/admin/feedback"]').innerText()).replace(/\s+/g, ' ').trim();
-      check(count === '1' && named === 'Feedback 1', `the new feedback counted beside Feedback (${named})`);
+      // The family's bar (anotoki-lib 0.6.0): the number seen beside Feedback, and what it counts heard after the
+      // name - "Feedback, 1 new", never "Feedback 1".
+      const heard = (await ad.locator('app-top-bar a[href="/admin/feedback"] .anotoki-visually-hidden').innerText()).replace(/\s+/g, ' ').trim();
+      check(count === '1' && heard === ', 1 new', `the new feedback counted beside Feedback (seen ${count}, heard "Feedback${heard}")`);
       await shot(ad, '19-admin-bar-feedback-count', { clip: { x: 0, y: 0, width: wide, height: 120 } });
 
       const tools = [
@@ -1003,7 +1009,10 @@ try {
       await ad.waitForLoadState('networkidle');
       check(Number(made()) === before + 1, 'Back up now: a backup made by the ADMIN, in the audit log');
       check((await ad.locator('[data-backups] [data-backup]').count()) >= 1, 'listed on the page');
-      // Its maker by name (AdminContext's names: the site's copy of the IAM's), and sealed - restorable here.
+      // Its maker by name (AdminContext's names: the site's copy of the IAM's), and sealed - restorable here. The
+      // list is read again after the outcome shows, so it is waited for: the day's own backup, made by itself when
+      // the check began, stands first until then.
+      await ad.waitForFunction(() => (document.querySelector('[data-backups] [data-backup]')?.textContent ?? '').includes('ada'), null, { timeout: 10000 }).catch(() => {});
       check((await ad.locator('[data-backups] [data-backup]').first().innerText()).includes('ada'), `listed with its maker's name (${(await ad.locator('[data-backups] [data-backup]').first().innerText()).replace(/\s+/g, ' ')})`);
       await shot(ad, '19-admin-backups-made', { fullPage: true });
 
@@ -1036,7 +1045,8 @@ try {
     const migrationFiles = [...library('anotoki_admin', 'admin'), ...sqlFiles(join(backend, 'migrations')), ...library('anotoki_translations', 'translations'), ...library('anotoki_people', 'people')];
     check(appliedFiles.join('|') === migrationFiles.join('|'), `every file applied, in order - the admin tools' first, the translations' and the people's after the site's: ${appliedFiles.join(', ')}`);
     check(await ad.locator('[data-apply]').isDisabled(), 'Apply pending cannot be pressed with nothing pending');
-    await ad.locator('[data-applied] li', { hasText: '005_' }).getByRole('button', { name: /^View/ }).click();
+    // The site's 005 by its whole name: the library's translations set has a 005 of its own since 0.6.0.
+    await ad.locator('[data-applied]').getByRole('button', { name: 'View 005_retire_not_set_up_page.sql', exact: true }).click();
     await ad.waitForSelector('anotoki-dialog[data-sql] pre');
     check((await ad.locator('anotoki-dialog[data-sql] pre').innerText()).includes("DELETE FROM translation_keys"), 'View shows a file\'s SQL (005)');
     await shot(ad, '11-admin-migrations-file');
@@ -1498,6 +1508,8 @@ try {
         await page.waitForSelector('.history-table tr', { timeout: 5000 });
         check((await history.getAttribute('aria-expanded')) === 'true', `the account, ${label}: opened, the history's runs (${await page.locator('.history-table tr').count()})`);
         await fits('the account');
+        // From the top: the bar stays put over a page scrolled to the history, and would stand over the filters.
+        await page.evaluate(() => window.scrollTo(0, 0));
         await shot(page, `24-kit-account-${language}-${width}-${scheme}`, { fullPage: true });
 
         // A character: a build's tab with its score as the kit's badge, the closest build marked; the score bars.
@@ -1522,20 +1534,30 @@ try {
         await open(page, `/import?lang=${language}`);
         await page.locator('button.choice').first().click();
         await page.locator('button.choice.method').nth(1).click();
+        // The guide's step is drawn a moment after the choice (the page draws on its next turn, zoneless).
+        const settled = (condition, argument) => page.waitForFunction(condition, argument, { timeout: 10000 }).then(() => true, () => false);
+        await settled(() => document.querySelectorAll('.anotoki-stepper__step--done').length === 2);
         const steps = await page.evaluate(() => ({
           name: document.querySelector('.anotoki-stepper__steps')?.getAttribute('aria-label') ?? null,
           done: document.querySelectorAll('.anotoki-stepper__step--done .anotoki-stepper__button').length,
           current: document.querySelector('.anotoki-stepper__step[aria-current=step] .anotoki-stepper__label')?.textContent?.trim() ?? null,
         }));
         check(steps.name !== null && steps.done === 2 && steps.current !== null, `the import guide, ${label}: the kit's stepper "${steps.name}", two steps done with a way back, the one in hand "${steps.current}"`);
+        /** A disclosure of the kit opened, its panel shown (the attribute and the panel follow on the page's next turn). */
+        const opened = (selector) =>
+          settled((selector) => {
+            const button = document.querySelector(`${selector} .anotoki-disclosure__button`);
+            const panel = document.querySelector(`${selector} .anotoki-disclosure__panel`);
+            return button?.getAttribute('aria-expanded') === 'true' && panel !== null && !panel.hidden;
+          }, selector);
         await page.click('.trouble .anotoki-disclosure__button');
-        check((await page.locator('.trouble .anotoki-disclosure__button').getAttribute('aria-expanded')) === 'true' && (await page.locator('.trouble li').count()) > 0, `the import guide, ${label}: what to do when it goes wrong, opened`);
+        check((await opened('.trouble')) && (await page.locator('.trouble li').count()) > 0, `the import guide, ${label}: what to do when it goes wrong, opened (${await page.locator('.trouble li').count()} points)`);
         await fits('the import guide');
         await shot(page, `24-kit-import-guide-${language}-${width}-${scheme}`, { fullPage: true });
         if (language === 'en') {
           await page.getByRole('button', { name: "I'm ready" }).click();
           await page.click('.paste .anotoki-disclosure__button');
-          check((await page.locator('.paste textarea').count()) === 1, `the import's file step, ${label}: the paste box in the kit's disclosure, opened`);
+          check((await opened('.paste')) && (await page.locator('.paste textarea').count()) === 1, `the import's file step, ${label}: the paste box in the kit's disclosure, opened`);
           await shot(page, `24-kit-import-file-${language}-${width}-${scheme}`, { fullPage: true });
         }
 
