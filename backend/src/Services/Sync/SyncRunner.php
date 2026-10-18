@@ -78,7 +78,7 @@ class SyncRunner
         return $this->locks->lock(self::START_LOCK, 10)->block(5, function () use ($sources, $options, $by) {
             $started = [];
             $skipped = [];
-            $partial = ! empty($options['only']) || ($options['limit'] ?? null) !== null;
+            $partial = !empty($options['only']) || ($options['limit'] ?? null) !== null;
 
             foreach ($sources as $source) {
                 $model = $this->registry->model($source);
@@ -90,13 +90,13 @@ class SyncRunner
 
                     continue;
                 }
-                if (! $model->enabled) {
+                if (!$model->enabled) {
                     $skipped[] = ['key' => $key, 'name' => $name, 'reason' => 'switched off'];
 
                     continue;
                 }
-                if (! ($options['force'] ?? false) && ! $partial && $this->builds->isFresh($model)) {
-                    $skipped[] = ['key' => $key, 'name' => $name, 'reason' => 'synced '.Clock::ago($model->last_synced_at)];
+                if (!($options['force'] ?? false) && !$partial && $this->builds->isFresh($model)) {
+                    $skipped[] = ['key' => $key, 'name' => $name, 'reason' => 'synced ' . Clock::ago($model->last_synced_at)];
 
                     continue;
                 }
@@ -105,13 +105,23 @@ class SyncRunner
                     $this->startCatalogRun($source->game(), $by);
                 }
 
-                $started[] = $this->create(SyncRun::BUILDS, $source->game(), $model, [
-                    'options' => array_filter([
-                        'force' => (bool) ($options['force'] ?? false),
-                        'only' => array_values($options['only'] ?? []),
-                        'limit' => $options['limit'] ?? null,
-                    ], fn ($value) => $value !== null && $value !== []),
-                ], $by, $this->builds);
+                $started[] = $this->create(
+                    SyncRun::BUILDS,
+                    $source->game(),
+                    $model,
+                    [
+                        'options' => array_filter(
+                            [
+                                'force' => (bool) ($options['force'] ?? false),
+                                'only' => array_values($options['only'] ?? []),
+                                'limit' => $options['limit'] ?? null,
+                            ],
+                            fn($value) => $value !== null && $value !== [],
+                        ),
+                    ],
+                    $by,
+                    $this->builds,
+                );
             }
 
             return compact('started', 'skipped');
@@ -130,7 +140,7 @@ class SyncRunner
             $started = [];
             $skipped = [];
             foreach ($games as $game) {
-                if (! $force && ! $this->runs->activeRun(SyncRun::CATALOG, $game) && ! $this->catalog->isStale($game)) {
+                if (!$force && !$this->runs->activeRun(SyncRun::CATALOG, $game) && !$this->catalog->isStale($game)) {
                     $skipped[] = ['key' => "catalog.{$game->value}", 'name' => "{$game->label()} catalog", 'reason' => 'up to date'];
 
                     continue;
@@ -155,7 +165,7 @@ class SyncRunner
             if ($run->isActive()) {
                 $done = $run->state['done'] ?? 0;
                 $total = $run->state['total'] ?? null;
-                (new RunLog($run))->add('Cancelled'.($by ? " by {$by->name}" : '').($total !== null ? " after {$done} of {$total}." : '.'));
+                (new RunLog($run))->add('Cancelled' . ($by ? " by {$by->name}" : '') . ($total !== null ? " after {$done} of {$total}." : '.'));
                 $run->status = 'cancelled';
                 $run->finished_at = Clock::now();
                 $run->state = null;
@@ -193,7 +203,7 @@ class SyncRunner
     public function step(): StepResult
     {
         $lock = $this->locks->lock(self::STEP_LOCK, $this->budget() + 60);
-        if (! $lock->get()) {
+        if (!$lock->get()) {
             $active = $this->active();
 
             return new StepResult(true, null, [], $active, $active === [] ? null : 1000);
@@ -225,7 +235,7 @@ class SyncRunner
                 $output && $output($line);
             }
 
-            $waitMs = $result->busy ? 1000 : ($result->waitMs ?? 0);
+            $waitMs = $result->busy ? 1000 : $result->waitMs ?? 0;
             if ($waitMs > 0 || $result->run === null) {
                 usleep(1000 * max(200, min($waitMs, 60_000)));
             }
@@ -254,7 +264,7 @@ class SyncRunner
             return $active === [] ? null : 1000;
         }
 
-        $next = min(array_map(fn (SyncRun $run) => $run->next_step_at ? Clock::ms($run->next_step_at) : 0, $eligible));
+        $next = min(array_map(fn(SyncRun $run) => $run->next_step_at ? Clock::ms($run->next_step_at) : 0, $eligible));
 
         return (int) max(0, $next - Clock::ms(Clock::now()));
     }
@@ -283,7 +293,7 @@ class SyncRunner
             // Something the handler could not deal with (a source removed from the configuration, the
             // database): the run cannot go on.
             Log::exception($e, "Sync run {$run->id}");
-            $log->add('Stopped: '.Text::limit($e->getMessage(), 300));
+            $log->add('Stopped: ' . Text::limit($e->getMessage(), 300));
             $run->status = 'failed';
             $run->finished_at = Clock::now();
             $run->state = null;
@@ -293,7 +303,7 @@ class SyncRunner
 
         $this->runs->save($run);
 
-        if (! $run->isActive() && $run->kind === SyncRun::BUILDS) {
+        if (!$run->isActive() && $run->kind === SyncRun::BUILDS) {
             $this->pruneHttpCache();
             // Expired entries (a failing page's retry counter, a showcase answer) are only ever overwritten by
             // the same key; nothing else would remove them.
@@ -312,8 +322,8 @@ class SyncRunner
     private function due(array $active): ?SyncRun
     {
         $now = Clock::now();
-        $due = array_filter($this->eligible($active), fn (SyncRun $run) => $run->next_step_at === null || $run->next_step_at <= $now);
-        usort($due, fn (SyncRun $a, SyncRun $b) => [($a->last_step_at ?? $a->started_at)->getTimestamp(), $a->id] <=> [($b->last_step_at ?? $b->started_at)->getTimestamp(), $b->id]);
+        $due = array_filter($this->eligible($active), fn(SyncRun $run) => $run->next_step_at === null || $run->next_step_at <= $now);
+        usort($due, fn(SyncRun $a, SyncRun $b) => [($a->last_step_at ?? $a->started_at)->getTimestamp(), $a->id] <=> [($b->last_step_at ?? $b->started_at)->getTimestamp(), $b->id]);
 
         return $due[0] ?? null;
     }
@@ -333,7 +343,7 @@ class SyncRunner
             }
         }
 
-        return array_values(array_filter($active, fn (SyncRun $run) => ! ($run->kind === SyncRun::BUILDS && in_array($run->game, $refreshing, true))));
+        return array_values(array_filter($active, fn(SyncRun $run) => !($run->kind === SyncRun::BUILDS && in_array($run->game, $refreshing, true))));
     }
 
     private function startCatalogRun(Game $game, ?User $by): SyncRun

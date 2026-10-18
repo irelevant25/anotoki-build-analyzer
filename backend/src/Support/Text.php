@@ -16,7 +16,7 @@ final class Text
             return $text;
         }
 
-        return rtrim(mb_strimwidth($text, 0, $limit, '', 'UTF-8')).$end;
+        return rtrim(mb_strimwidth($text, 0, $limit, '', 'UTF-8')) . $end;
     }
 
     /**

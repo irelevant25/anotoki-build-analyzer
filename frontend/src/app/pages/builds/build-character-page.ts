@@ -68,9 +68,7 @@ export class BuildCharacterPage {
     const chosen = this.chosen();
     return tabs.some((tab) => tab.id === chosen) ? chosen! : (tabs[0]?.id ?? '');
   });
-  protected readonly build = computed(
-    () => this.data()?.builds.find((build) => String(build.id) === this.activeTab()) ?? null,
-  );
+  protected readonly build = computed(() => this.data()?.builds.find((build) => String(build.id) === this.activeTab()) ?? null);
 
   constructor() {
     effect(() => {

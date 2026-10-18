@@ -19,11 +19,7 @@ final class Lock
 {
     private ?string $owner = null;
 
-    public function __construct(
-        private readonly Db $db,
-        public readonly string $name,
-        private readonly int $seconds,
-    ) {}
+    public function __construct(private readonly Db $db, public readonly string $name, private readonly int $seconds) {}
 
     /** True when this call took the lock. */
     public function get(): bool
@@ -31,12 +27,13 @@ final class Lock
         $owner = bin2hex(random_bytes(12));
         $now = Clock::timestamp();
 
-        $taken = $this->db->run(
-            'INSERT INTO cache_locks (key, owner, expiration) VALUES (?, ?, ?)
+        $taken =
+            $this->db->run(
+                'INSERT INTO cache_locks (key, owner, expiration) VALUES (?, ?, ?)
              ON CONFLICT (key) DO UPDATE SET owner = EXCLUDED.owner, expiration = EXCLUDED.expiration
              WHERE cache_locks.expiration <= ?',
-            [$this->name, $owner, $now + max(1, $this->seconds), $now],
-        ) === 1;
+                [$this->name, $owner, $now + max(1, $this->seconds), $now],
+            ) === 1;
 
         if ($taken) {
             $this->owner = $owner;
@@ -58,7 +55,7 @@ final class Lock
     public function block(int $seconds, callable $work): mixed
     {
         $until = microtime(true) + $seconds;
-        while (! $this->get()) {
+        while (!$this->get()) {
             if (microtime(true) >= $until) {
                 throw new LockTimeout("The {$this->name} lock is held elsewhere.");
             }

@@ -16,24 +16,33 @@
  * /setup.php here.
  */
 
-require_once __DIR__.'/vendor/autoload.php';
+require_once __DIR__ . '/vendor/autoload.php';
 
 $path = rawurldecode((string) parse_url($_SERVER['REQUEST_URI'] ?? '/', PHP_URL_PATH));
-[$kind, $file] = App\DevRouter::resolve($path, __DIR__.'/../frontend/dist/frontend/browser');
+[$kind, $file] = App\DevRouter::resolve($path, __DIR__ . '/../frontend/dist/frontend/browser');
 
 switch ($kind) {
     case 'api':
-        require __DIR__.'/api/index.php';
+        require __DIR__ . '/api/index.php';
         break;
 
     case 'setup':
-        require __DIR__.'/setup.php';
+        require __DIR__ . '/setup.php';
         break;
 
     case 'file':
-        $types = ['js' => 'text/javascript', 'css' => 'text/css', 'html' => 'text/html; charset=utf-8', 'json' => 'application/json',
-            'ico' => 'image/x-icon', 'png' => 'image/png', 'svg' => 'image/svg+xml', 'woff2' => 'font/woff2', 'txt' => 'text/plain; charset=utf-8'];
-        header('Content-Type: '.($types[strtolower(pathinfo((string) $file, PATHINFO_EXTENSION))] ?? 'application/octet-stream'));
+        $types = [
+            'js' => 'text/javascript',
+            'css' => 'text/css',
+            'html' => 'text/html; charset=utf-8',
+            'json' => 'application/json',
+            'ico' => 'image/x-icon',
+            'png' => 'image/png',
+            'svg' => 'image/svg+xml',
+            'woff2' => 'font/woff2',
+            'txt' => 'text/plain; charset=utf-8',
+        ];
+        header('Content-Type: ' . ($types[strtolower(pathinfo((string) $file, PATHINFO_EXTENSION))] ?? 'application/octet-stream'));
         readfile((string) $file);
         break;
 
@@ -50,8 +59,8 @@ switch ($kind) {
     default:
         http_response_code(404);
         header('Content-Type: text/plain; charset=utf-8');
-        echo "The API is at /api and the installer at /setup.php. The app itself is served by the Angular dev server\n"
-            ."(cd frontend && npm start, then http://localhost:4600), or here after `ng build`.\n";
+        echo "The API is at /api and the installer at /setup.php. The app itself is served by the Angular dev server\n" .
+            "(cd frontend && npm start, then http://localhost:4600), or here after `ng build`.\n";
 }
 
 return true;

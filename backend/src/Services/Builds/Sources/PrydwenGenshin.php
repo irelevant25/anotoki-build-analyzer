@@ -24,11 +24,7 @@ use RuntimeException;
  */
 class PrydwenGenshin implements BuildSource
 {
-    public function __construct(
-        protected readonly Fetcher $fetcher,
-        protected readonly SetBonusGroups $setGroups,
-        protected readonly Config $config,
-    ) {}
+    public function __construct(protected readonly Fetcher $fetcher, protected readonly SetBonusGroups $setGroups, protected readonly Config $config) {}
 
     public function key(): string
     {
@@ -57,9 +53,8 @@ class PrydwenGenshin implements BuildSource
 
     public function listCharacters(): array
     {
-        $html = $this->fetch($this->baseUrl().'/genshin-impact/characters');
-        $props = NextFlight::findProps($html, 'characters')
-            ?? throw new RuntimeException('The character list was not found in the page data');
+        $html = $this->fetch($this->baseUrl() . '/genshin-impact/characters');
+        $props = NextFlight::findProps($html, 'characters') ?? throw new RuntimeException('The character list was not found in the page data');
 
         $refs = [];
         foreach ($props['characters'] as $character) {
@@ -69,7 +64,7 @@ class PrydwenGenshin implements BuildSource
             $refs[] = new CharacterRef(
                 slug: $character['slug'],
                 name: $character['name'],
-                url: $this->baseUrl().'/genshin-impact/characters/'.$character['slug'],
+                url: $this->baseUrl() . '/genshin-impact/characters/' . $character['slug'],
                 released: empty($character['isUpcoming']),
                 meta: ['element' => isset($character['element']) ? strtolower($character['element']) : null],
             );
@@ -82,7 +77,7 @@ class PrydwenGenshin implements BuildSource
     {
         $html = $this->fetch($character->url);
         $info = NextFlight::findProps($html, 'profile_type');
-        if (! $info) {
+        if (!$info) {
             return [];
         }
 
@@ -94,11 +89,11 @@ class PrydwenGenshin implements BuildSource
         ];
 
         $build = $info['build'] ?? null;
-        if (($info['profile_type'] ?? null) === 'full-build' && is_array($build) && ! empty($build['weaponsData'])) {
+        if (($info['profile_type'] ?? null) === 'full-build' && is_array($build) && !empty($build['weaponsData'])) {
             return $this->curated($build, $common);
         }
 
-        if (is_array($info['usage'] ?? null) && ! empty($info['usage']['weapons'])) {
+        if (is_array($info['usage'] ?? null) && !empty($info['usage']['weapons'])) {
             return [$this->fromUsage($info['usage'], $common)];
         }
 
@@ -136,8 +131,8 @@ class PrydwenGenshin implements BuildSource
             if (in_array($slot, Game::Genshin->variableSlots(), true) && $parsed !== []) {
                 $mainStats[$slot] = $parsed;
             }
-            if (! empty($row['comment'])) {
-                $statComments[] = ucfirst($slot).': '.trim($row['comment']);
+            if (!empty($row['comment'])) {
+                $statComments[] = ucfirst($slot) . ': ' . trim($row['comment']);
             }
         }
 
@@ -145,20 +140,23 @@ class PrydwenGenshin implements BuildSource
         $talents = Talents::parsePriority(Game::Genshin, (string) ($build['substatsTalents']['talents'] ?? ''));
         $energy = $this->energyTarget($build['energyConfig'] ?? [], $build['energyData'] ?? []);
 
-        $notes = array_values(array_filter([
-            $this->plain($build['weaponsConfig']['introNote'] ?? null),
-            $this->plain($build['substatsTalents']['statsComments'] ?? null),
-            $this->plain($build['substatsTalents']['talentsComments'] ?? null),
-            $statComments ? implode("\n", $statComments) : null,
-            $energy['text'] ?? null,
-        ]));
+        $notes = array_values(
+            array_filter([
+                $this->plain($build['weaponsConfig']['introNote'] ?? null),
+                $this->plain($build['substatsTalents']['statsComments'] ?? null),
+                $this->plain($build['substatsTalents']['talentsComments'] ?? null),
+                $statComments ? implode("\n", $statComments) : null,
+                $energy['text'] ?? null,
+            ]),
+        );
 
         $builds = [];
         for ($group = 0; $group < $variantCount; $group++) {
             $label = $perGroup ? trim((string) ($weaponGroups[$group]['label'] ?? '')) : $type;
-            $context = ! $perGroup && count($weaponGroups) > 1
-                ? 'Weapon ranking for "'.($weaponGroups[0]['label'] ?? '').'" (other teams: '.implode(', ', array_map(fn ($g) => $g['label'] ?? '', array_slice($weaponGroups, 1))).')'
-                : null;
+            $context =
+                !$perGroup && count($weaponGroups) > 1
+                    ? 'Weapon ranking for "' . ($weaponGroups[0]['label'] ?? '') . '" (other teams: ' . implode(', ', array_map(fn($g) => $g['label'] ?? '', array_slice($weaponGroups, 1))) . ')'
+                    : null;
 
             $builds[] = new ScrapedBuild(
                 variant: $label !== '' ? $label : 'Build',
@@ -197,14 +195,21 @@ class PrydwenGenshin implements BuildSource
                 continue;
             }
             $refinement = preg_match('/R(\d)/i', (string) ($row['dupes'] ?? ''), $m) ? (int) $m[1] : null;
-            $raw = $row['cells'][$group]['team'] ?? $row['cells'][$group]['solo'] ?? '';
+            $raw = $row['cells'][$group]['team'] ?? ($row['cells'][$group]['solo'] ?? '');
             $entries[] = [
                 'name' => $name,
                 'refinement' => $refinement,
-                'note' => trim(implode(' ', array_filter([
-                    str_ends_with((string) $raw, '%') ? "Relative damage {$raw}".($refinement ? " at R{$refinement}" : '').'.' : null,
-                    $this->plain($row['cells'][$group]['notes'] ?? null),
-                ]))) ?: null,
+                'note' =>
+                    trim(
+                        implode(
+                            ' ',
+                            array_filter([
+                                str_ends_with((string) $raw, '%') ? "Relative damage {$raw}" . ($refinement ? " at R{$refinement}" : '') . '.' : null,
+                                $this->plain($row['cells'][$group]['notes'] ?? null),
+                            ]),
+                        ),
+                    ) ?:
+                    null,
                 'score' => $score,
                 'order' => $order,
             ];
@@ -238,9 +243,10 @@ class PrydwenGenshin implements BuildSource
 
             $note = $this->plain($row['cells'][$group]['notes'] ?? null);
             $name = trim((string) ($row['ref'] ?? ''));
-            $option = $name !== ''
-                ? ['kind' => 'artifact', 'choose' => null, 'pieces' => [['names' => [$name], 'label' => $name, 'count' => 4]], 'note' => $note]
-                : $this->customSetOption((string) ($row['custom'] ?? ''), $note);
+            $option =
+                $name !== ''
+                    ? ['kind' => 'artifact', 'choose' => null, 'pieces' => [['names' => [$name], 'label' => $name, 'count' => 4]], 'note' => $note]
+                    : $this->customSetOption((string) ($row['custom'] ?? ''), $note);
 
             if ($option) {
                 $entries[] = $option + ['score' => $score, 'order' => $order];
@@ -261,7 +267,7 @@ class PrydwenGenshin implements BuildSource
     {
         $pieces = [];
         foreach (preg_split('/\s*\+\s*/', $text) ?: [] as $part) {
-            if (! preg_match('/2\s*-?\s*p(?:c|iece)?\s+(.+)$/i', trim($part), $m)) {
+            if (!preg_match('/2\s*-?\s*p(?:c|iece)?\s+(.+)$/i', trim($part), $m)) {
                 continue;
             }
             $label = trim(preg_replace('/\bcombinations?\b/i', '', $m[1]) ?? $m[1]);
@@ -279,7 +285,7 @@ class PrydwenGenshin implements BuildSource
             $pieces[] = $pieces[0]; // "2PC ATK% Combinations" = two different ATK% sets
         }
 
-        return ['kind' => 'artifact', 'choose' => null, 'pieces' => $pieces, 'note' => trim($text.($note ? ". {$note}" : ''))];
+        return ['kind' => 'artifact', 'choose' => null, 'pieces' => $pieces, 'note' => trim($text . ($note ? ". {$note}" : ''))];
     }
 
     /**
@@ -287,7 +293,7 @@ class PrydwenGenshin implements BuildSource
      */
     private function cellScore(?array $cell): ?float
     {
-        $raw = trim((string) ($cell['team'] ?? $cell['solo'] ?? ''));
+        $raw = trim((string) ($cell['team'] ?? ($cell['solo'] ?? '')));
         if ($raw === '' || $raw === '-' || str_starts_with($raw, '$')) {
             return null;
         }
@@ -300,7 +306,7 @@ class PrydwenGenshin implements BuildSource
 
     private function sortByScore(array $entries): array
     {
-        usort($entries, fn ($a, $b) => [$a['score'], $a['order']] <=> [$b['score'], $b['order']]);
+        usort($entries, fn($a, $b) => [$a['score'], $a['order']] <=> [$b['score'], $b['order']]);
 
         return $entries;
     }
@@ -323,13 +329,13 @@ class PrydwenGenshin implements BuildSource
                 if ($value === '' || $value === '-') {
                     continue;
                 }
-                $values[] = (isset($columns[$index]) ? $columns[$index].': ' : '').$value;
-                if (preg_match('/^(\d{2,3})(?:\s*[-–]\s*\d{2,3})?\s*%/', $value, $m) && ! preg_match('/don.t build|not recommended/i', $value)) {
+                $values[] = (isset($columns[$index]) ? $columns[$index] . ': ' : '') . $value;
+                if (preg_match('/^(\d{2,3})(?:\s*[-–]\s*\d{2,3})?\s*%/', $value, $m) && !preg_match('/don.t build|not recommended/i', $value)) {
                     $minimum = $minimum === null ? (float) $m[1] : min($minimum, (float) $m[1]);
                 }
             }
             if ($values !== []) {
-                $lines[] = trim((string) ($row['label'] ?? '')).' - '.implode('; ', $values);
+                $lines[] = trim((string) ($row['label'] ?? '')) . ' - ' . implode('; ', $values);
             }
         }
 
@@ -337,7 +343,7 @@ class PrydwenGenshin implements BuildSource
             return null;
         }
 
-        return ['min' => $minimum, 'text' => "Energy Recharge requirements:\n".implode("\n", $lines)];
+        return ['min' => $minimum, 'text' => "Energy Recharge requirements:\n" . implode("\n", $lines)];
     }
 
     /**
@@ -347,7 +353,7 @@ class PrydwenGenshin implements BuildSource
     {
         $weapons = [];
         foreach (array_slice($usage['weapons'] ?? [], 0, 8) as $weapon) {
-            if (! empty($weapon['name'])) {
+            if (!empty($weapon['name'])) {
                 $weapons[] = ['name' => $weapon['name'], 'refinement' => null, 'note' => sprintf('Used by %.1f%% of players.', (float) ($weapon['percentage'] ?? 0))];
             }
         }
@@ -359,22 +365,20 @@ class PrydwenGenshin implements BuildSource
             if ($a === '' || $b === '') {
                 continue; // "rainbow" / incomplete combinations
             }
-            $pieces = $a === $b
-                ? [['names' => [$a], 'label' => $a, 'count' => 4]]
-                : [['names' => [$a], 'label' => $a, 'count' => 2], ['names' => [$b], 'label' => $b, 'count' => 2]];
+            $pieces = $a === $b ? [['names' => [$a], 'label' => $a, 'count' => 4]] : [['names' => [$a], 'label' => $a, 'count' => 2], ['names' => [$b], 'label' => $b, 'count' => 2]];
             $sets[] = ['kind' => 'artifact', 'choose' => null, 'pieces' => $pieces, 'note' => sprintf('Used by %.1f%% of players.', (float) ($combo['percentage'] ?? 0))];
         }
 
         $mainStats = [];
         foreach (['sands', 'goblet', 'circlet'] as $slot) {
             $priority = 1;
-            foreach ($usage[$slot.'MainStats'] ?? [] as $row) {
+            foreach ($usage[$slot . 'MainStats'] ?? [] as $row) {
                 // Only main stats a meaningful share of players use.
                 if ((float) ($row['percentage'] ?? 0) < 15) {
                     continue;
                 }
                 $stat = Stats::parse(Game::Genshin, str_replace('_', ' ', (string) ($row['statType'] ?? '')))[0] ?? null;
-                if ($stat && ! in_array($stat, array_column($mainStats[$slot] ?? [], 'stat'), true)) {
+                if ($stat && !in_array($stat, array_column($mainStats[$slot] ?? [], 'stat'), true)) {
                     $mainStats[$slot][] = ['stat' => $stat, 'priority' => $priority++];
                 }
             }
@@ -392,14 +396,14 @@ class PrydwenGenshin implements BuildSource
             statTargets: [],
             notes: sprintf('This source has no curated build for this character yet. Built from %s tracked players.', number_format((int) ($usage['totalCount'] ?? 0))),
             sourceUrl: $common['sourceUrl'],
-            updatedAt: ! empty($usage['syncedAt']) ? Clock::parse($usage['syncedAt']) : $common['updatedAt'],
+            updatedAt: !empty($usage['syncedAt']) ? Clock::parse($usage['syncedAt']) : $common['updatedAt'],
             gameVersion: $common['gameVersion'],
         );
     }
 
     private function value(mixed $value): ?string
     {
-        return is_string($value) && $value !== '' && ! str_starts_with($value, '$') ? $value : null;
+        return is_string($value) && $value !== '' && !str_starts_with($value, '$') ? $value : null;
     }
 
     private function plain(?string $html): ?string

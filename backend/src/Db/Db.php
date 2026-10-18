@@ -44,7 +44,7 @@ final class Db
      */
     public static function pdo(array $config, string $database, ?bool $persistent = null, int $timeout = 5): PDO
     {
-        $persistent ??= ! empty($config['persistent']);
+        $persistent ??= !empty($config['persistent']);
         $dsn = sprintf('pgsql:host=%s;port=%s;dbname=%s', $config['host'], $config['port'], $database);
         $options = [PDO::ATTR_TIMEOUT => $timeout];
         if ($persistent) {
@@ -54,7 +54,7 @@ final class Db
         $pdo = new PDO($dsn, (string) $config['username'], (string) ($config['password'] ?? ''), $options);
         $pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
         $pdo->setAttribute(PDO::ATTR_DEFAULT_FETCH_MODE, PDO::FETCH_ASSOC);
-        $pdo->exec(($persistent ? 'ROLLBACK; SELECT pg_advisory_unlock_all(); ' : '')."SET TIME ZONE 'UTC'; SET client_encoding = 'UTF8'");
+        $pdo->exec(($persistent ? 'ROLLBACK; SELECT pg_advisory_unlock_all(); ' : '') . "SET TIME ZONE 'UTC'; SET client_encoding = 'UTF8'");
 
         return $pdo;
     }
@@ -78,7 +78,7 @@ final class Db
 
         // The name is the installation's own configuration, never anything a request reaches, and CREATE
         // DATABASE takes no parameters: quoting it as an identifier is the whole of what can be done.
-        $server->exec('CREATE DATABASE "'.str_replace('"', '""', $name).'"');
+        $server->exec('CREATE DATABASE "' . str_replace('"', '""', $name) . '"');
 
         return true;
     }
@@ -147,9 +147,13 @@ final class Db
         $columns = array_keys($row);
         array_map([self::class, 'identifier'], $columns);
 
-        $sql = sprintf('INSERT INTO %s (%s) VALUES (%s) RETURNING %s', $table,
-            implode(', ', array_map(fn (string $column) => '"'.$column.'"', $columns)),
-            implode(', ', array_fill(0, count($columns), '?')), $returning);
+        $sql = sprintf(
+            'INSERT INTO %s (%s) VALUES (%s) RETURNING %s',
+            $table,
+            implode(', ', array_map(fn(string $column) => '"' . $column . '"', $columns)),
+            implode(', ', array_fill(0, count($columns), '?')),
+            $returning,
+        );
 
         return $this->value($sql, array_values($row));
     }
@@ -167,8 +171,8 @@ final class Db
         self::identifier($table);
         $columns = array_keys($rows[0]);
         array_map([self::class, 'identifier'], $columns);
-        $tuple = '('.implode(', ', array_fill(0, count($columns), '?')).')';
-        $quoted = implode(', ', array_map(fn (string $column) => '"'.$column.'"', $columns));
+        $tuple = '(' . implode(', ', array_fill(0, count($columns), '?')) . ')';
+        $quoted = implode(', ', array_map(fn(string $column) => '"' . $column . '"', $columns));
 
         foreach (array_chunk($rows, $chunk) as $part) {
             $params = [];
@@ -177,7 +181,7 @@ final class Db
                     $params[] = $row[$column] ?? null;
                 }
             }
-            $this->run("INSERT INTO {$table} ({$quoted}) VALUES ".implode(', ', array_fill(0, count($part), $tuple)), $params);
+            $this->run("INSERT INTO {$table} ({$quoted}) VALUES " . implode(', ', array_fill(0, count($part), $tuple)), $params);
         }
     }
 
@@ -196,11 +200,11 @@ final class Db
         $assignments = [];
         foreach (array_keys($set) as $column) {
             self::identifier($column);
-            $assignments[] = '"'.$column.'" = ?';
+            $assignments[] = '"' . $column . '" = ?';
         }
         [$condition, $params] = self::where($where);
 
-        return $this->run("UPDATE {$table} SET ".implode(', ', $assignments)." WHERE {$condition}", [...array_values($set), ...$params]);
+        return $this->run("UPDATE {$table} SET " . implode(', ', $assignments) . " WHERE {$condition}", [...array_values($set), ...$params]);
     }
 
     /** @param  array<string, mixed>  $where */
@@ -223,7 +227,7 @@ final class Db
      */
     public function transaction(callable $work): mixed
     {
-        $savepoint = 'sp'.($this->depth + 1);
+        $savepoint = 'sp' . ($this->depth + 1);
         if ($this->depth === 0) {
             $this->pdo->beginTransaction();
         } else {
@@ -316,9 +320,9 @@ final class Db
         foreach ($where as $column => $value) {
             self::identifier($column);
             if ($value === null) {
-                $conditions[] = '"'.$column.'" IS NULL';
+                $conditions[] = '"' . $column . '" IS NULL';
             } else {
-                $conditions[] = '"'.$column.'" = ?';
+                $conditions[] = '"' . $column . '" = ?';
                 $params[] = $value;
             }
         }
@@ -328,7 +332,7 @@ final class Db
 
     private static function identifier(string $name): void
     {
-        if (! preg_match('/^[a-z_][a-z0-9_]*$/', $name)) {
+        if (!preg_match('/^[a-z_][a-z0-9_]*$/', $name)) {
             throw new InvalidArgumentException("Not a plain identifier: {$name}");
         }
     }

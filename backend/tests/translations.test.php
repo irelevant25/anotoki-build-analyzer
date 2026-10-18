@@ -19,7 +19,7 @@
 
 declare(strict_types=1);
 
-require __DIR__.'/lib.php';
+require __DIR__ . '/lib.php';
 
 use Anotoki\Lib\Migrations\Migrator;
 use Anotoki\Lib\Translations\TranslationFile;
@@ -34,11 +34,11 @@ use Tests\Support\Client;
 
 bootTests();
 
-$server = require __DIR__.'/../config/database.local.php';
+$server = require __DIR__ . '/../config/database.local.php';
 
-const OWNER = 1;   // ADMIN
-const MONA = 2;    // signed in, no role here
-const EDITOR_ID = 3;   // EDITOR
+const OWNER = 1; // ADMIN
+const MONA = 2; // signed in, no role here
+const EDITOR_ID = 3; // EDITOR
 
 const ENGLISH = ['code' => 'en', 'name' => 'English', 'native_name' => 'English'];
 const SLOVAK = ['code' => 'sk', 'name' => 'Slovak', 'native_name' => 'Slovenčina'];
@@ -62,17 +62,17 @@ beforeEach(function () use ($left): void {
 
 function owner(): Client
 {
-    return (new Client)->asIam(OWNER, [Role::ADMIN]);
+    return (new Client())->asIam(OWNER, [Role::ADMIN]);
 }
 
 function mona(): Client
 {
-    return (new Client)->asIam(MONA, []);
+    return (new Client())->asIam(MONA, []);
 }
 
 function editor(): Client
 {
-    return (new Client)->asIam(EDITOR_ID, [Role::EDITOR]);
+    return (new Client())->asIam(EDITOR_ID, [Role::EDITOR]);
 }
 
 /** The site's words, on this file's database. */
@@ -105,12 +105,12 @@ function language(string $code, string $name, int $sortOrder = 500): void
 /** A save of the grid's changed strings, as the Translations page sends it ({} for none, never []). */
 function save(array $values, ?Client $as = null): Answer
 {
-    return ($as ?? owner())->request('PUT', '/api/admin/translations', ['values' => $values === [] ? new stdClass : $values]);
+    return ($as ?? owner())->request('PUT', '/api/admin/translations', ['values' => $values === [] ? new stdClass() : $values]);
 }
 
 function import(string $code, array $strings, ?Client $as = null): Answer
 {
-    return ($as ?? owner())->request('PUT', "/api/admin/translations/{$code}/import", null, ['body' => json_encode($strings === [] ? new stdClass : $strings)]);
+    return ($as ?? owner())->request('PUT', "/api/admin/translations/{$code}/import", null, ['body' => json_encode($strings === [] ? new stdClass() : $strings)]);
 }
 
 /** One string as the database has it: [value, updated_by, updated_at] - or null. */
@@ -139,11 +139,11 @@ function languageRows(): array
  */
 function refused(Answer $answer, int $status, string $code, string $what = ''): Answer
 {
-    $about = ($what === '' ? $code : $what).' ('.substr($answer->body, 0, 300).')';
+    $about = ($what === '' ? $code : $what) . ' (' . substr($answer->body, 0, 300) . ')';
     same([$status, $code], [$answer->status, $answer->json('code')], $about);
     same(['message', 'code'], array_slice(array_keys($answer->json() ?? []), 0, 2), "{$about}: the sentence and the code first");
     same('application/json; charset=utf-8', $answer->header('Content-Type'), "{$about}: JSON");
-    if (! in_array($code, ['sign_in_required', 'editor_only', 'admin_only'], true)) {
+    if (!in_array($code, ['sign_in_required', 'editor_only', 'admin_only'], true)) {
         same('no-store', $answer->header('Cache-Control'), "{$about}: never kept");
     }
 
@@ -167,7 +167,7 @@ function cli(string ...$arguments): array
     } finally {
         rewind($out);
         rewind($err);
-        $output = str_replace("\r\n", "\n", stream_get_contents($out).stream_get_contents($err));
+        $output = str_replace("\r\n", "\n", stream_get_contents($out) . stream_get_contents($err));
         fclose($out);
         fclose($err);
     }
@@ -178,7 +178,7 @@ function cli(string ...$arguments): array
 /** A small frontend for --status to read: $files as relative path => contents. */
 function frontend(array $files): string
 {
-    $root = T::$storage.DIRECTORY_SEPARATOR.'frontend-'.bin2hex(random_bytes(3));
+    $root = T::$storage . DIRECTORY_SEPARATOR . 'frontend-' . bin2hex(random_bytes(3));
     foreach ($files as $relative => $contents) {
         @mkdir(dirname("{$root}/{$relative}"), 0777, true);
         file_put_contents("{$root}/{$relative}", $contents);
@@ -190,30 +190,31 @@ function frontend(array $files): string
 /** A database that answers nothing at all: a PDO whose every use fails with $failure. */
 function brokenDatabase(Throwable $failure): Db
 {
-    return new Db(new class($failure) extends PDO
-    {
-        public function __construct(private readonly Throwable $failure) {}
+    return new Db(
+        new class ($failure) extends PDO {
+            public function __construct(private readonly Throwable $failure) {}
 
-        public function getAttribute(int $attribute): mixed
-        {
-            throw $this->failure;
-        }
+            public function getAttribute(int $attribute): mixed
+            {
+                throw $this->failure;
+            }
 
-        public function prepare(string $query, array $options = []): PDOStatement|false
-        {
-            throw $this->failure;
-        }
+            public function prepare(string $query, array $options = []): PDOStatement|false
+            {
+                throw $this->failure;
+            }
 
-        public function query(string $query, ?int $fetchMode = null, mixed ...$fetchModeArgs): PDOStatement|false
-        {
-            throw $this->failure;
-        }
+            public function query(string $query, ?int $fetchMode = null, mixed ...$fetchModeArgs): PDOStatement|false
+            {
+                throw $this->failure;
+            }
 
-        public function exec(string $statement): int|false
-        {
-            throw $this->failure;
-        }
-    });
+            public function exec(string $statement): int|false
+            {
+                throw $this->failure;
+            }
+        },
+    );
 }
 
 /**
@@ -242,56 +243,63 @@ test('the bundle: a language\'s strings with English underneath, the same for ev
     $english = ['test.bye' => 'Goodbye', 'test.count' => '{count} of {total}', 'test.hello' => 'Hello, {name}!'];
     $inSlovak = ['test.bye' => 'Goodbye', 'test.count' => '{count} of {total}', 'test.hello' => 'Dobrý deň, {name}!'];
 
-    $slovak = (new Client)->get('/api/translations/sk')->status(200);
+    $slovak = (new Client())->get('/api/translations/sk')->status(200);
     same('application/json; charset=utf-8', $slovak->header('Content-Type'), 'JSON');
     same(['language', 'languages', 'values', 'english'], array_keys($slovak->json()), 'the fields - snake_case, the family\'s one wire format');
     same('sk', $slovak->json('language'), 'which language it is');
     same([ENGLISH, SLOVAK], $slovak->json('languages'), 'the languages on offer, with only what a chooser shows');
     same($inSlovak, $slovak->json('values'), 'a key with no Slovak string comes in English, and the keys are in their order');
     same($english, $slovak->json('english'), 'English itself, for the pages that are always English');
-    check(! array_key_exists('test.new', $slovak->json('values')), 'a key with no string at all is not there: the page shows the key');
+    check(!array_key_exists('test.new', $slovak->json('values')), 'a key with no string at all is not there: the page shows the key');
 
-    $own = (new Client)->get('/api/translations/en')->status(200);
+    $own = (new Client())->get('/api/translations/en')->status(200);
     same(['language', 'languages', 'values'], array_keys($own->json()), 'no second copy of English');
     same($english, $own->json('values'), 'English');
 
     // A language the site does not have: answered in English, and told so.
-    $unknown = (new Client)->get('/api/translations/de')->status(200)->path('language', 'en');
+    $unknown = (new Client())->get('/api/translations/de')->status(200)->path('language', 'en');
     same($own->body, $unknown->body, 'the English bundle itself');
-    same($own->body, (new Client)->get('/api/translations/pt-br')->body, 'with a region too');
+    same($own->body, (new Client())->get('/api/translations/pt-br')->body, 'with a region too');
 
     // A code with a region that is not offered itself is answered by its language, when that one is: a
     // Slovak browser's first wish is "sk-sk", and it gets Slovak at once - not English and a second request.
-    $regional = (new Client)->get('/api/translations/sk-sk')->status(200)->path('language', 'sk');
+    $regional = (new Client())->get('/api/translations/sk-sk')->status(200)->path('language', 'sk');
     same($slovak->body, $regional->body, 'the Slovak bundle itself');
     same($slovak->header('ETag'), $regional->header('ETag'), 'under the same tag');
-    same($own->body, (new Client)->get('/api/translations/en-gb')->body, 'and English by English');
-    (new Client)->get('/api/translations/de-at')->status(200)->path('language', 'en');
+    same($own->body, (new Client())->get('/api/translations/en-gb')->body, 'and English by English');
+    (new Client())->get('/api/translations/de-at')->status(200)->path('language', 'en');
 
     // Nobody is asked who they are: a token is not looked at - not a good one, not a bad one.
-    same($slovak->body, (new Client)->asIam(555, [])->get('/api/translations/sk')->body, 'with a token');
+    same($slovak->body, (new Client())->asIam(555, [])->get('/api/translations/sk')->body, 'with a token');
     same(0, (int) db()->value('SELECT count(*) FROM users WHERE id = 555'), 'nobody was recorded as having been here');
-    same($slovak->body, (new Client)->withToken('not.a.token')->get('/api/translations/sk')->status(200)->body, 'a sign-in that ran out still reads in its language');
-    same($slovak->body, (new Client)->asIam(7, [])->get('/api/translations/sk')->status(200)->body, 'and somebody with no role here');
-    same($slovak->body, (new Client('203.0.113.9'))->withHeaders(['Origin' => 'https://elsewhere.example'])->get('/api/translations/sk')->status(200)->body, 'from anywhere');
+    same($slovak->body, (new Client())->withToken('not.a.token')->get('/api/translations/sk')->status(200)->body, 'a sign-in that ran out still reads in its language');
+    same($slovak->body, (new Client())->asIam(7, [])->get('/api/translations/sk')->status(200)->body, 'and somebody with no role here');
+    same(
+        $slovak->body,
+        (new Client('203.0.113.9'))
+            ->withHeaders(['Origin' => 'https://elsewhere.example'])
+            ->get('/api/translations/sk')
+            ->status(200)->body,
+        'from anywhere',
+    );
 
     // A language with no string of its own reads in English - and says which language it is.
     language('de', 'German');
-    $german = (new Client)->get('/api/translations/de')->status(200)->path('language', 'de');
+    $german = (new Client())->get('/api/translations/de')->status(200)->path('language', 'de');
     same($german->json('english'), $german->json('values'), 'English under nothing');
     same(['en', 'sk', 'de'], array_column($german->json('languages'), 'code'), 'offered');
-    same('de', (new Client)->get('/api/translations/de-at')->json('language'), 'and it answers for its regions');
-    same('"'.md5($german->body).'"', $german->header('ETag'), 'the tag is the body\'s');
+    same('de', (new Client())->get('/api/translations/de-at')->json('language'), 'and it answers for its regions');
+    same('"' . md5($german->body) . '"', $german->header('ETag'), 'the tag is the body\'s');
 });
 
 test('the bundle has the library\'s words too, and the two keys this site had of them under the library\'s names', function () {
-    $english = (new Client)->get('/api/translations/en')->status(200)->json('values');
-    $slovak = (new Client)->get('/api/translations/sk')->status(200)->json('values');
+    $english = (new Client())->get('/api/translations/en')->status(200)->json('values');
+    $slovak = (new Client())->get('/api/translations/sk')->status(200)->json('values');
     same('Language: {name} ({code})', $english['anotoki.language.button'] ?? null, 'the language button\'s name (006 moved it)');
     same('Jazyk: {name} ({code})', $slovak['anotoki.language.button'] ?? null, 'in Slovak');
     same('Jazyk sa nepodarilo načítať. Skús to znova.', $slovak['anotoki.language.notLoaded'] ?? null, 'a language not loaded');
     check(isset($slovak['anotoki.siteStatus.updatingTitle'], $slovak['anotoki.ui.close']), 'the status page\'s and the kit\'s words (anotoki_translations/002)');
-    check(! isset($english['language.button']) && ! isset($english['language.notLoaded']), 'the site\'s own keys of them are gone');
+    check(!isset($english['language.button']) && !isset($english['language.notLoaded']), 'the site\'s own keys of them are gone');
 });
 
 test('a code that is not one is 404, and the database never hears of it', function () {
@@ -301,14 +309,21 @@ test('a code that is not one is 404, and the database never hears of it', functi
     // With a database that fails on any use: a wrong address is answered without one.
     withDatabase(brokenDatabase(new LogicException('the database was asked')), function () use ($codes) {
         foreach ($codes as $code) {
-            same(['message' => 'There is no such language.', 'code' => 'not_found'], (new Client)->get("/api/translations/{$code}")->status(404)->json(), $code);
+            same(
+                ['message' => 'There is no such language.', 'code' => 'not_found'],
+                (new Client())
+                    ->get("/api/translations/{$code}")
+                    ->status(404)
+                    ->json(),
+                $code,
+            );
         }
     });
 
-    (new Client)->get('/api/translations/en/more')->status(404);
-    (new Client)->get('/api/translations')->status(404); // there is no list of its own: the bundle carries it
-    (new Client)->get('/api/languages')->status(404);
-    (new Client)->request('PUT', '/api/translations/sk', ['values' => ['test.bye' => 'x']])->status(405); // nothing is written here
+    (new Client())->get('/api/translations/en/more')->status(404);
+    (new Client())->get('/api/translations')->status(404); // there is no list of its own: the bundle carries it
+    (new Client())->get('/api/languages')->status(404);
+    (new Client())->request('PUT', '/api/translations/sk', ['values' => ['test.bye' => 'x']])->status(405); // nothing is written here
 
     // The admin routes: a code that is not one is no language, before the body is read. Bytes that are not
     // text in a query would be the database's refusal and a 500.
@@ -323,7 +338,10 @@ test('a code that is not one is 404, and the database never hears of it', functi
     // The same for whoever calls the library itself: no query for what is not a code at all (one with these
     // bytes would be refused by the database, not answered 404).
     $words = words();
-    foreach ([fn () => $words->updateLanguage("\xFF", []), fn () => $words->deleteLanguage("\xFF"), fn () => $words->export("\xFF"), fn () => $words->import("\xFF", [], null), fn () => $words->bundle("\xFF")] as $call) {
+    foreach (
+        [fn() => $words->updateLanguage("\xFF", []), fn() => $words->deleteLanguage("\xFF"), fn() => $words->export("\xFF"), fn() => $words->import("\xFF", [], null), fn() => $words->bundle("\xFF")]
+        as $call
+    ) {
         $answer = $call();
         same([404, 'not_found'], [$answer->status ?? null, $answer->code ?? null], 'bytes that are not text: no such language');
     }
@@ -331,16 +349,16 @@ test('a code that is not one is 404, and the database never hears of it', functi
 
 test('asked again: 304 for the tag the browser holds - with the headers a cache needs', function () {
     ownStrings();
-    $ask = fn (string $held, string $code = 'sk'): Answer => (new Client)->withHeaders(['If-None-Match' => $held])->get("/api/translations/{$code}");
+    $ask = fn(string $held, string $code = 'sk'): Answer => (new Client())->withHeaders(['If-None-Match' => $held])->get("/api/translations/{$code}");
 
-    $first = (new Client)->get('/api/translations/sk')->status(200);
+    $first = (new Client())->get('/api/translations/sk')->status(200);
     $etag = $first->header('ETag');
-    same('"'.md5($first->body).'"', $etag, 'the tag');
+    same('"' . md5($first->body) . '"', $etag, 'the tag');
     same('no-cache', $first->header('Cache-Control'), 'kept, and asked about every time');
 
     // As the tag comes back from behind a server that compressed the answer: weakened (a proxy), or marked
     // inside the quotes (a web server that compresses) - without the second the 304 would never be answered there.
-    foreach ([$etag, "W/{$etag}", "\"other\", W/{$etag}", '*', substr($etag, 0, -1).'-gzip"'] as $held) {
+    foreach ([$etag, "W/{$etag}", "\"other\", W/{$etag}", '*', substr($etag, 0, -1) . '-gzip"'] as $held) {
         $again = $ask($held);
         same([304, ''], [$again->status, $again->body], $held);
         same([$etag, 'no-cache'], [$again->header('ETag'), $again->header('Cache-Control')], "the 304's own headers ({$held}): never no-store");
@@ -348,7 +366,7 @@ test('asked again: 304 for the tag the browser holds - with the headers a cache 
     foreach (['"other"', 'W/"other"', trim($etag, '"')] as $held) {
         same([200, $first->body], [$ask($held)->status, $ask($held)->body], $held);
     }
-    check($etag !== (new Client)->get('/api/translations/en')->header('ETag'), 'another language, another tag');
+    check($etag !== (new Client())->get('/api/translations/en')->header('ETag'), 'another language, another tag');
 
     // A string changes: the tag the browser holds is no longer the answer's.
     db()->run("UPDATE translations SET value = 'Bye' WHERE key_name = 'test.bye' AND language_code = 'en'");
@@ -356,7 +374,7 @@ test('asked again: 304 for the tag the browser holds - with the headers a cache 
     same('Bye', $changed->json('values')['test.bye'], 'the new string');
     check($changed->header('ETag') !== $etag, 'a new tag');
     db()->run("UPDATE translations SET value = 'Goodbye' WHERE key_name = 'test.bye' AND language_code = 'en'");
-    same($etag, (new Client)->get('/api/translations/sk')->header('ETag'), 'the same strings, the same tag');
+    same($etag, (new Client())->get('/api/translations/sk')->header('ETag'), 'the same strings, the same tag');
 });
 
 test('no English string to fall back to, or no database: the bundle is 503 translations_unavailable - never a 500', function () {
@@ -364,8 +382,12 @@ test('no English string to fall back to, or no database: the bundle is 503 trans
     // English compiled into them. The admin pages work on the tables as they are.
     db()->run('DELETE FROM translation_keys');
     foreach (['en', 'sk', 'sk-sk'] as $code) {
-        $answer = refused((new Client)->get("/api/translations/{$code}"), 503, 'translations_unavailable', "no string at all: {$code}");
-        same(['message' => 'The words are not in the database yet. An administrator applies the waiting database update on the Migrations page.', 'code' => 'translations_unavailable'], $answer->json(), 'the whole answer');
+        $answer = refused((new Client())->get("/api/translations/{$code}"), 503, 'translations_unavailable', "no string at all: {$code}");
+        same(
+            ['message' => 'The words are not in the database yet. An administrator applies the waiting database update on the Migrations page.', 'code' => 'translations_unavailable'],
+            $answer->json(),
+            'the whole answer',
+        );
         same('60', $answer->header('Retry-After'), 'when to ask again');
     }
     same([], owner()->get('/api/admin/translations')->status(200)->json('keys'), 'the grid: no key');
@@ -373,17 +395,17 @@ test('no English string to fall back to, or no database: the bundle is 503 trans
 
     db()->run("INSERT INTO translation_keys (name) VALUES ('test.only')");
     db()->run("INSERT INTO translations (key_name, language_code, value) VALUES ('test.only', 'sk', 'Len po slovensky')");
-    refused((new Client)->get('/api/translations/sk'), 503, 'translations_unavailable', 'no English string');
+    refused((new Client())->get('/api/translations/sk'), 503, 'translations_unavailable', 'no English string');
 
     // One English string, and they are.
     db()->run("INSERT INTO translations (key_name, language_code, value) VALUES ('test.only', 'en', 'English only')");
-    (new Client)->get('/api/translations/sk')->status(200)->path('language', 'sk');
+    (new Client())->get('/api/translations/sk')->status(200)->path('language', 'sk');
 
     // A database that cannot be asked: the page's strings answer 503 too - the app has its compiled English,
     // and a failure on every page load would fill the log.
     withDatabase(brokenDatabase(new PDOException('SQLSTATE[08006] the server closed the connection')), function () {
         foreach (['en', 'sk', 'de-at'] as $code) {
-            $answer = (new Client)->get("/api/translations/{$code}");
+            $answer = (new Client())->get("/api/translations/{$code}");
             same([503, 'translations_unavailable', '60'], [$answer->status, $answer->json('code'), $answer->header('Retry-After')], $code);
         }
     });
@@ -410,12 +432,19 @@ test('the strings are for editors, the languages themselves for admins; the toke
     foreach ([...$strings, ...$languages] as [$method, $url, $body]) {
         $admins = in_array([$method, $url, $body], $languages, true);
         $notAllowed = $admins ? 'admin_only' : 'editor_only';
-        refused((new Client)->request($method, $url, $body), 401, 'sign_in_required', "{$method} {$url}, signed out");
+        refused((new Client())->request($method, $url, $body), 401, 'sign_in_required', "{$method} {$url}, signed out");
         refused(mona()->request($method, $url, $body), 403, $notAllowed, "{$method} {$url}, a person with no role");
-        refused((new Client)->asIam(7, ['MEMBER'])->request($method, $url, $body), 403, $notAllowed, "{$method} {$url}, MEMBER - every account's");
-        refused((new Client)->withToken(iamToken(OWNER, [Role::ADMIN], ['exp' => time() - 120]))->request($method, $url, $body), 401, 'invalid_token', "{$method} {$url}, a token that ran out");
+        refused((new Client())->asIam(7, ['MEMBER'])->request($method, $url, $body), 403, $notAllowed, "{$method} {$url}, MEMBER - every account's");
+        refused((new Client())->withToken(iamToken(OWNER, [Role::ADMIN], ['exp' => time() - 120]))->request($method, $url, $body), 401, 'invalid_token', "{$method} {$url}, a token that ran out");
         // A role in the address or a header of the request is nobody's role.
-        refused(mona()->withHeaders(['X-Roles' => 'ADMIN'])->request($method, $url.'?role=ADMIN', $body), 403, $notAllowed, "{$method} {$url}, a role in the request");
+        refused(
+            mona()
+                ->withHeaders(['X-Roles' => 'ADMIN'])
+                ->request($method, $url . '?role=ADMIN', $body),
+            403,
+            $notAllowed,
+            "{$method} {$url}, a role in the request",
+        );
         // Refused for who it is, before anything of the request is looked at: a body that would be refused too.
         refused(mona()->request($method, $url, null, ['body' => 'not JSON', 'type' => 'text/plain']), 403, $notAllowed, "{$method} {$url}, before its body");
         if ($admins) {
@@ -429,7 +458,9 @@ test('the strings are for editors, the languages themselves for admins; the toke
     owner()->get('/api/admin/translations/sk/export')->status(200);
 
     // Who saved a string is the token's person, whatever the body says.
-    owner()->request('PUT', '/api/admin/translations', ['values' => ['test.bye' => ['sk' => 'Dovidenia']], 'user_id' => 42, 'updated_by' => 42])->status(200);
+    owner()
+        ->request('PUT', '/api/admin/translations', ['values' => ['test.bye' => ['sk' => 'Dovidenia']], 'user_id' => 42, 'updated_by' => 42])
+        ->status(200);
     same(['Dovidenia', OWNER], array_slice(stored('test.bye', 'sk'), 0, 2), 'by the owner');
 });
 
@@ -439,10 +470,14 @@ test('an editor rewords the strings and moves a language\'s strings out and back
 
     same(['en', 'sk', 'de'], array_column(editor()->get('/api/admin/languages')->status(200)->json('languages'), 'code'), 'the languages, to translate into');
     editor()->get('/api/admin/translations')->status(200);
-    editor()->request('PUT', '/api/admin/translations', ['values' => ['test.bye' => ['sk' => 'Dovidenia']]])->status(200);
+    editor()
+        ->request('PUT', '/api/admin/translations', ['values' => ['test.bye' => ['sk' => 'Dovidenia']]])
+        ->status(200);
     same(['Dovidenia', EDITOR_ID], array_slice(stored('test.bye', 'sk'), 0, 2), 'saved by the editor');
     same(['test.bye' => 'Dovidenia', 'test.hello' => 'Dobrý deň, {name}!'], editor()->get('/api/admin/translations/sk/export')->status(200)->json(), 'out as a file');
-    editor()->request('PUT', '/api/admin/translations/de/import', ['test.bye' => 'Auf Wiedersehen'])->status(200);
+    editor()
+        ->request('PUT', '/api/admin/translations/de/import', ['test.bye' => 'Auf Wiedersehen'])
+        ->status(200);
     same(['Auf Wiedersehen', EDITOR_ID], array_slice(stored('test.bye', 'de'), 0, 2), 'and in');
 
     $languages = languageRows();
@@ -459,8 +494,7 @@ test('every write takes JSON and nothing else: a form is 415, a body that is not
     ownStrings();
     $before = everyString();
 
-    $form = fn (string $method, string $url, string $body, string $type = 'application/x-www-form-urlencoded'): Answer
-        => owner()->request($method, $url, null, ['body' => $body, 'type' => $type]);
+    $form = fn(string $method, string $url, string $body, string $type = 'application/x-www-form-urlencoded'): Answer => owner()->request($method, $url, null, ['body' => $body, 'type' => $type]);
     refused($form('POST', '/api/admin/languages', 'code=xx&name=Test&native_name=Test'), 415, 'unsupported_media_type', 'a form adding a language');
     refused($form('POST', '/api/admin/languages', '--b--', 'multipart/form-data; boundary=b'), 415, 'unsupported_media_type', 'a multipart form');
     refused($form('PUT', '/api/admin/languages/sk', 'enabled=0'), 415, 'unsupported_media_type', 'a form changing one');
@@ -475,40 +509,56 @@ test('every write takes JSON and nothing else: a form is 415, a body that is not
     same(['en', 'sk'], array_column(languageRows(), 'code'), 'nor a language added or deleted');
 
     // JSON is the admin's own - with a charset too.
-    owner()->request('POST', '/api/admin/languages', null, ['body' => '{"code": "xx", "name": "Test", "native_name": "Test"}', 'type' => 'application/json; charset=utf-8'])->status(201);
+    owner()
+        ->request('POST', '/api/admin/languages', null, ['body' => '{"code": "xx", "name": "Test", "native_name": "Test"}', 'type' => 'application/json; charset=utf-8'])
+        ->status(201);
     owner()->delete('/api/admin/languages/xx')->status(200);
 
     // The strings a page reads are everybody's, as ever.
-    (new Client('203.0.113.9'))->withHeaders(['Origin' => 'https://elsewhere.example'])->get('/api/translations/sk')->status(200)->path('language', 'sk');
+    (new Client('203.0.113.9'))
+        ->withHeaders(['Origin' => 'https://elsewhere.example'])
+        ->get('/api/translations/sk')
+        ->status(200)
+        ->path('language', 'sk');
 });
 
 test('a body is measured before anything in it is looked at: an empty one is 422, one over 1 MiB 413', function () {
     ownStrings();
     $before = everyString();
-    $put = fn (string $url, string $body): Answer => owner()->request('PUT', $url, null, ['body' => $body]);
+    $put = fn(string $url, string $body): Answer => owner()->request('PUT', $url, null, ['body' => $body]);
 
     foreach (['/api/admin/translations', '/api/admin/translations/sk/import'] as $url) {
         // What PHP makes of a body larger than the server accepts: nothing arrives.
-        same(['message' => 'Nothing arrived. A body larger than the server accepts arrives empty.', 'code' => 'empty_body'],
-            refused($put($url, ''), 422, 'empty_body', $url)->json(), 'the whole answer');
+        same(
+            ['message' => 'Nothing arrived. A body larger than the server accepts arrives empty.', 'code' => 'empty_body'],
+            refused($put($url, ''), 422, 'empty_body', $url)->json(),
+            'the whole answer',
+        );
 
         // One byte over: refused for its size, whatever it holds - here not even JSON.
         $over = refused($put($url, str_repeat('x', BODY_LIMIT + 1)), 413, 'too_large', $url);
         same(['message' => 'That is more than this route takes (1 MB).', 'code' => 'too_large'], $over->json(), 'the whole answer');
-        $padded = '{"test.bye": "Dovidenia"'.str_repeat(' ', BODY_LIMIT - 24).'}';
+        $padded = '{"test.bye": "Dovidenia"' . str_repeat(' ', BODY_LIMIT - 24) . '}';
         same(BODY_LIMIT + 1, strlen($padded), 'one byte more than the limit');
         refused($put($url, $padded), 413, 'too_large', "{$url}: a good body, one byte too long");
         // Said by its Content-Length before a byte of it is read.
-        refused(owner()->withHeaders(['Content-Length' => (string) (BODY_LIMIT + 1)])->request('PUT', $url, null, ['body' => '{}']), 413, 'too_large', "{$url}: by what it says it is");
+        refused(
+            owner()
+                ->withHeaders(['Content-Length' => (string) (BODY_LIMIT + 1)])
+                ->request('PUT', $url, null, ['body' => '{}']),
+            413,
+            'too_large',
+            "{$url}: by what it says it is",
+        );
     }
     same($before, everyString(), 'nothing was written');
 
     // Exactly the limit is taken: a good body of that size is a save.
-    $exact = '{"test.bye": "Dovidenia"'.str_repeat(' ', BODY_LIMIT - 25).'}';
+    $exact = '{"test.bye": "Dovidenia"' . str_repeat(' ', BODY_LIMIT - 25) . '}';
     same(BODY_LIMIT, strlen($exact), 'the limit itself');
     $put('/api/admin/translations/sk/import', $exact)->status(200);
     same('Dovidenia', stored('test.bye', 'sk')[0], 'kept');
-    $put('/api/admin/translations', '{"values": {"test.bye": {"sk": "Zbohom"}}'.str_repeat(' ', BODY_LIMIT - 42).'}')->status(200);
+    $put('/api/admin/translations', '{"values": {"test.bye": {"sk": "Zbohom"}}' . str_repeat(' ', BODY_LIMIT - 42) . '}')->status(200);
     same('Zbohom', stored('test.bye', 'sk')[0], 'and the grid\'s save of that size');
 });
 
@@ -516,25 +566,56 @@ test('a body is measured before anything in it is looked at: an empty one is 422
 
 test('languages: added after the others, offered at once or hidden as the body says; renamed, reordered, switched off - English never', function () {
     ownStrings();
-    $admin = fn (array $language, bool $enabled, int $sortOrder, bool $seeded, int $strings): array => $language + ['enabled' => $enabled, 'sort_order' => $sortOrder, 'seeded' => $seeded, 'strings' => $strings];
+    $admin = fn(array $language, bool $enabled, int $sortOrder, bool $seeded, int $strings): array => $language + [
+        'enabled' => $enabled,
+        'sort_order' => $sortOrder,
+        'seeded' => $seeded,
+        'strings' => $strings,
+    ];
 
-    same(['languages' => [$admin(ENGLISH, true, 1, true, 3), $admin(SLOVAK, true, 2, true, 1)]], owner()->get('/api/admin/languages')->status(200)->json(), 'the two the site is released in, with how many strings each has');
+    same(
+        ['languages' => [$admin(ENGLISH, true, 1, true, 3), $admin(SLOVAK, true, 2, true, 1)]],
+        owner()->get('/api/admin/languages')->status(200)->json(),
+        'the two the site is released in, with how many strings each has',
+    );
 
     // What a new language is: last, and offered unless the body says otherwise - whatever else the body says.
-    $made = owner()->post('/api/admin/languages', ['code' => 'pt-br', 'name' => "  Portuguese\x07 (Brazil) ", 'native_name' => str_repeat('ç', 50), 'sort_order' => 0, 'seeded' => true, 'strings' => 9])->status(201);
-    same(['language' => ['code' => 'pt-br', 'name' => 'Portuguese (Brazil)', 'native_name' => str_repeat('ç', 50), 'enabled' => true, 'sort_order' => 3, 'seeded' => false, 'strings' => 0]], $made->json(), 'the new language');
-    same('pt-br', (new Client)->get('/api/translations/pt-br')->json('language'), 'offered, a code with a region answers itself');
+    $made = owner()
+        ->post('/api/admin/languages', ['code' => 'pt-br', 'name' => "  Portuguese\x07 (Brazil) ", 'native_name' => str_repeat('ç', 50), 'sort_order' => 0, 'seeded' => true, 'strings' => 9])
+        ->status(201);
+    same(
+        ['language' => ['code' => 'pt-br', 'name' => 'Portuguese (Brazil)', 'native_name' => str_repeat('ç', 50), 'enabled' => true, 'sort_order' => 3, 'seeded' => false, 'strings' => 0]],
+        $made->json(),
+        'the new language',
+    );
+    same('pt-br', (new Client())->get('/api/translations/pt-br')->json('language'), 'offered, a code with a region answers itself');
 
     // Hidden from the start when the body says so (the Languages page does): there for its strings to be
     // written, offered to nobody until somebody switches it on.
-    $hidden = owner()->post('/api/admin/languages', ['code' => 'fr', 'name' => 'French', 'native_name' => 'Français', 'enabled' => false])->status(201);
+    $hidden = owner()
+        ->post('/api/admin/languages', ['code' => 'fr', 'name' => 'French', 'native_name' => 'Français', 'enabled' => false])
+        ->status(201);
     same(['language' => ['code' => 'fr', 'name' => 'French', 'native_name' => 'Français', 'enabled' => false, 'sort_order' => 4, 'seeded' => false, 'strings' => 0]], $hidden->json(), 'hidden');
-    $french = (new Client)->get('/api/translations/fr')->status(200);
+    $french = (new Client())->get('/api/translations/fr')->status(200);
     same(['en', ['en', 'sk', 'pt-br']], [$french->json('language'), array_column($french->json('languages'), 'code')], 'nobody is offered it');
     check(in_array('fr', array_column(owner()->get('/api/admin/languages')->json('languages'), 'code'), true), 'the owner\'s page has it');
-    same(true, owner()->request('PUT', '/api/admin/languages/fr', ['enabled' => true])->status(200)->json('language.enabled'), 'switched on');
-    same('fr', (new Client)->get('/api/translations/fr-ca')->json('language'), 'switched on, it is offered - and answers for its regions');
-    same(true, owner()->post('/api/admin/languages', ['code' => 'it', 'name' => 'Italian', 'native_name' => 'Italiano', 'enabled' => true])->status(201)->json('language.enabled'), 'and true is what it is without saying');
+    same(
+        true,
+        owner()
+            ->request('PUT', '/api/admin/languages/fr', ['enabled' => true])
+            ->status(200)
+            ->json('language.enabled'),
+        'switched on',
+    );
+    same('fr', (new Client())->get('/api/translations/fr-ca')->json('language'), 'switched on, it is offered - and answers for its regions');
+    same(
+        true,
+        owner()
+            ->post('/api/admin/languages', ['code' => 'it', 'name' => 'Italian', 'native_name' => 'Italiano', 'enabled' => true])
+            ->status(201)
+            ->json('language.enabled'),
+        'and true is what it is without saying',
+    );
     db()->run("DELETE FROM languages WHERE code IN ('fr', 'it')");
 
     refused(owner()->post('/api/admin/languages', ['code' => 'pt-br', 'name' => 'Portuguese', 'native_name' => 'Português']), 409, 'language_exists');
@@ -544,7 +625,8 @@ test('languages: added after the others, offered at once or hidden as the body s
         'enabled as nothing' => ['code' => 'fr', 'name' => 'French', 'native_name' => 'Français', 'enabled' => null],
         'a name nobody can see' => ['code' => 'fr', 'name' => "\u{200B}\u{2060}", 'native_name' => 'Français'],
         'a native name that is a soft hyphen' => ['code' => 'fr', 'name' => 'French', 'native_name' => " \u{00AD} "],
-        'a list' => ['de'], 'no code' => ['name' => 'French', 'native_name' => 'Français'],
+        'a list' => ['de'],
+        'no code' => ['name' => 'French', 'native_name' => 'Français'],
         'a code in capitals' => ['code' => 'FR', 'name' => 'French', 'native_name' => 'Français'],
         'three letters' => ['code' => 'fra', 'name' => 'French', 'native_name' => 'Français'],
         'a code that is a number' => ['code' => 12, 'name' => 'French', 'native_name' => 'Français'],
@@ -563,46 +645,113 @@ test('languages: added after the others, offered at once or hidden as the body s
     same(3, (int) db()->value('SELECT count(*) FROM languages'), 'none of them was added');
 
     // Changed: only what is sent.
-    $renamed = owner()->request('PUT', '/api/admin/languages/pt-br', ['name' => ' Portuguese ', 'sort_order' => 0, 'code' => 'xx', 'seeded' => true])->status(200);
-    same(['language' => ['code' => 'pt-br', 'name' => 'Portuguese', 'native_name' => str_repeat('ç', 50), 'enabled' => true, 'sort_order' => 0, 'seeded' => false, 'strings' => 0]], $renamed->json(), 'renamed and moved');
-    same(['pt-br', 'en', 'sk'], array_column((new Client)->get('/api/translations/en')->json('languages'), 'code'), 'in its new place');
-    same('Portuguese', owner()->request('PUT', '/api/admin/languages/pt-br', null, ['body' => '{}'])->status(200)->json('language.name'), 'nothing sent, nothing changed');
-    same('Português', owner()->request('PUT', '/api/admin/languages/pt-br', ['native_name' => 'Português'])->status(200)->json('language.native_name'), 'its own name');
+    $renamed = owner()
+        ->request('PUT', '/api/admin/languages/pt-br', ['name' => ' Portuguese ', 'sort_order' => 0, 'code' => 'xx', 'seeded' => true])
+        ->status(200);
+    same(
+        ['language' => ['code' => 'pt-br', 'name' => 'Portuguese', 'native_name' => str_repeat('ç', 50), 'enabled' => true, 'sort_order' => 0, 'seeded' => false, 'strings' => 0]],
+        $renamed->json(),
+        'renamed and moved',
+    );
+    same(['pt-br', 'en', 'sk'], array_column((new Client())->get('/api/translations/en')->json('languages'), 'code'), 'in its new place');
+    same(
+        'Portuguese',
+        owner()
+            ->request('PUT', '/api/admin/languages/pt-br', null, ['body' => '{}'])
+            ->status(200)
+            ->json('language.name'),
+        'nothing sent, nothing changed',
+    );
+    same(
+        'Português',
+        owner()
+            ->request('PUT', '/api/admin/languages/pt-br', ['native_name' => 'Português'])
+            ->status(200)
+            ->json('language.native_name'),
+        'its own name',
+    );
     $changes = [
-        'enabled as text' => ['enabled' => 'false'], 'enabled as a number' => ['enabled' => 0], 'half an order' => ['sort_order' => 1.5], 'an order as text' => ['sort_order' => '3'],
-        'an order below 0' => ['sort_order' => -1], 'an order above 1000' => ['sort_order' => 1001], 'an empty name' => ['name' => ''], 'a long native name' => ['native_name' => str_repeat('x', 51)],
-        'a list' => ['name'], 'an empty list - [] is not {}' => [],
+        'enabled as text' => ['enabled' => 'false'],
+        'enabled as a number' => ['enabled' => 0],
+        'half an order' => ['sort_order' => 1.5],
+        'an order as text' => ['sort_order' => '3'],
+        'an order below 0' => ['sort_order' => -1],
+        'an order above 1000' => ['sort_order' => 1001],
+        'an empty name' => ['name' => ''],
+        'a long native name' => ['native_name' => str_repeat('x', 51)],
+        'a list' => ['name'],
+        'an empty list - [] is not {}' => [],
     ];
     foreach ($changes as $what => $body) {
         refused(owner()->request('PUT', '/api/admin/languages/pt-br', $body), 422, 'invalid_language', $what);
     }
-    same(1000, owner()->request('PUT', '/api/admin/languages/pt-br', ['sort_order' => 1000])->status(200)->json('language.sort_order'), 'the last place there is');
+    same(
+        1000,
+        owner()
+            ->request('PUT', '/api/admin/languages/pt-br', ['sort_order' => 1000])
+            ->status(200)
+            ->json('language.sort_order'),
+        'the last place there is',
+    );
     refused(owner()->request('PUT', '/api/admin/languages/fr', ['name' => 'French']), 404, 'not_found', 'a language there is not');
 
     // Switched off: no longer offered, and asked for by name it reads in English. Never refused - but for English.
-    same(false, owner()->request('PUT', '/api/admin/languages/sk', ['enabled' => false])->status(200)->json('language.enabled'), 'Slovak too: it keeps its strings');
-    $slovak = (new Client)->get('/api/translations/sk')->status(200);
+    same(
+        false,
+        owner()
+            ->request('PUT', '/api/admin/languages/sk', ['enabled' => false])
+            ->status(200)
+            ->json('language.enabled'),
+        'Slovak too: it keeps its strings',
+    );
+    $slovak = (new Client())->get('/api/translations/sk')->status(200);
     same(['en', ['en', 'pt-br']], [$slovak->json('language'), array_column($slovak->json('languages'), 'code')], 'read in English');
-    check(! array_key_exists('english', $slovak->json()), 'as the English bundle is');
-    same('en', (new Client)->get('/api/translations/sk-sk')->json('language'), 'nor does it answer for its regions');
+    check(!array_key_exists('english', $slovak->json()), 'as the English bundle is');
+    same('en', (new Client())->get('/api/translations/sk-sk')->json('language'), 'nor does it answer for its regions');
     same(['en', 'sk', 'pt-br'], array_column(owner()->get('/api/admin/languages')->json('languages'), 'code'), 'the owner\'s page sees the hidden ones');
     same(1, owner()->get('/api/admin/languages')->json('languages.1.strings'), 'with its strings');
-    same(true, owner()->request('PUT', '/api/admin/languages/sk', ['enabled' => true])->status(200)->json('language.enabled'), 'and on again');
+    same(
+        true,
+        owner()
+            ->request('PUT', '/api/admin/languages/sk', ['enabled' => true])
+            ->status(200)
+            ->json('language.enabled'),
+        'and on again',
+    );
 
     $english = refused(owner()->request('PUT', '/api/admin/languages/en', ['enabled' => false, 'name' => 'Changed']), 409, 'fallback_language');
     same('English cannot be switched off: every other language falls back to it.', $english->json('message'), 'the sentence');
     same('English', db()->value("SELECT name FROM languages WHERE code = 'en'"), 'and nothing of that change was kept');
-    same($admin(ENGLISH, true, 5, true, 3), owner()->request('PUT', '/api/admin/languages/en', ['enabled' => true, 'sort_order' => 5])->status(200)->json('language'), 'on is what it is; its place is anybody\'s to choose');
+    same(
+        $admin(ENGLISH, true, 5, true, 3),
+        owner()
+            ->request('PUT', '/api/admin/languages/en', ['enabled' => true, 'sort_order' => 5])
+            ->status(200)
+            ->json('language'),
+        'on is what it is; its place is anybody\'s to choose',
+    );
 
     // At most 20.
     for ($i = 0; $i < 17; $i++) {
-        language('x'.chr(97 + $i), "Filler {$i}");
+        language('x' . chr(97 + $i), "Filler {$i}");
     }
     $full = refused(owner()->post('/api/admin/languages', ['code' => 'fr', 'name' => 'French', 'native_name' => 'Français']), 422, 'too_many_languages');
     same('The site keeps at most 20 languages. Delete one that is not used first.', $full->json('message'), 'the sentence');
-    refused(owner()->post('/api/admin/languages', ['code' => 'pt-br', 'name' => 'Portuguese', 'native_name' => 'Português']), 409, 'language_exists', 'one that is there is said to be there, full or not');
+    refused(
+        owner()->post('/api/admin/languages', ['code' => 'pt-br', 'name' => 'Portuguese', 'native_name' => 'Português']),
+        409,
+        'language_exists',
+        'one that is there is said to be there, full or not',
+    );
     db()->run("DELETE FROM languages WHERE name LIKE 'Filler %'");
-    same(1000, owner()->post('/api/admin/languages', ['code' => 'fr', 'name' => 'French', 'native_name' => 'Français'])->status(201)->json('language.sort_order'), 'last - and never past what an order may be');
+    same(
+        1000,
+        owner()
+            ->post('/api/admin/languages', ['code' => 'fr', 'name' => 'French', 'native_name' => 'Français'])
+            ->status(201)
+            ->json('language.sort_order'),
+        'last - and never past what an order may be',
+    );
 });
 
 test('two people adding the last language the site keeps: one waits for the other, and the most holds', function () use ($server) {
@@ -610,7 +759,7 @@ test('two people adding the last language the site keeps: one waits for the othe
     $most = SiteTranslations::config()->languagesMax;
     same(20, $most, 'twenty languages at most');
     for ($i = 0; $i < $most - 3; $i++) {
-        language('q'.chr(97 + $i), "Filler {$i}");
+        language('q' . chr(97 + $i), "Filler {$i}");
     }
     same($most - 1, (int) db()->value('SELECT count(*) FROM languages'), 'room for one more');
 
@@ -623,8 +772,8 @@ test('two people adding the last language the site keeps: one waits for the othe
     $oneTooMany = ['code' => 'qy', 'name' => 'One too many', 'native_name' => 'One too many'];
     try {
         db()->run("SET lock_timeout = '300ms'");
-        $waited = throws(PDOException::class, fn () => words()->createLanguage($oneTooMany), 'it waits for whoever is adding one');
-        same('55P03', $waited->getCode(), 'and gave up waiting for the lock: '.$waited->getMessage());
+        $waited = throws(PDOException::class, fn() => words()->createLanguage($oneTooMany), 'it waits for whoever is adding one');
+        same('55P03', $waited->getCode(), 'and gave up waiting for the lock: ' . $waited->getMessage());
         db()->run('RESET lock_timeout');
 
         $other->commit();
@@ -635,7 +784,7 @@ test('two people adding the last language the site keeps: one waits for the othe
         $other->beginTransaction();
         $other->exec('LOCK TABLE languages IN SHARE ROW EXCLUSIVE MODE');
         db()->run("SET lock_timeout = '300ms'");
-        (new Client)->get('/api/translations/sk')->status(200);
+        (new Client())->get('/api/translations/sk')->status(200);
         owner()->get('/api/admin/translations')->status(200);
         save(['test.hello' => ['sk' => 'Ahoj, {name}!']])->status(200); // a save of strings holds the languages' rows, not the table
         same('Ahoj, {name}!', stored('test.hello', 'sk')[0], 'the save went through');
@@ -668,8 +817,8 @@ test('deleting a language: never English, never one the site is released in - an
     $other->query('SELECT code FROM languages FOR SHARE')->fetchAll();
     try {
         db()->run("SET lock_timeout = '300ms'");
-        $waited = throws(PDOException::class, fn () => words()->deleteLanguage('de'), 'it waits for the save');
-        same('55P03', $waited->getCode(), 'and gave up waiting for the row: '.$waited->getMessage());
+        $waited = throws(PDOException::class, fn() => words()->deleteLanguage('de'), 'it waits for the save');
+        same('55P03', $waited->getCode(), 'and gave up waiting for the row: ' . $waited->getMessage());
     } finally {
         $other->rollBack();
         db()->run('RESET lock_timeout');
@@ -679,8 +828,10 @@ test('deleting a language: never English, never one the site is released in - an
     // And it counts after the wait. Somebody else (another process: a request cannot be waited beside) holds
     // the languages, writes a third German string and keeps it a moment later; the delete that was waiting
     // says three strings went - not the two it would have counted before it waited.
-    $script = T::$storage.DIRECTORY_SEPARATOR.'somebody-else.php';
-    file_put_contents($script, '<?php
+    $script = T::$storage . DIRECTORY_SEPARATOR . 'somebody-else.php';
+    file_put_contents(
+        $script,
+        '<?php
         require $argv[1]."/vendor/autoload.php";
         $pdo = App\Db\Db::pdo(require $argv[1]."/config/database.local.php", $argv[2], false);
         $pdo->beginTransaction();
@@ -689,12 +840,14 @@ test('deleting a language: never English, never one the site is released in - an
         fwrite(STDOUT, "holding\n"); // said at once, whatever this PHP buffers of its output
         usleep(700000);
         $pdo->commit();
-    ');
-    $somebody = proc_open([PHP_BINARY, $script, (string) realpath(__DIR__.'/..'), T::$database], [1 => ['pipe', 'w'], 2 => ['pipe', 'w']], $pipes);
+    ',
+    );
+    $somebody = proc_open([PHP_BINARY, $script, (string) realpath(__DIR__ . '/..'), T::$database], [1 => ['pipe', 'w'], 2 => ['pipe', 'w']], $pipes);
     try {
         $said = fgets($pipes[1]);
-        if ($said !== "holding\n") { // what went wrong is read only then: reading it waits for the process to end
-            throw new AssertionFailed('somebody else could not hold the languages: '.json_encode($said).' '.stream_get_contents($pipes[2]));
+        if ($said !== "holding\n") {
+            // what went wrong is read only then: reading it waits for the process to end
+            throw new AssertionFailed('somebody else could not hold the languages: ' . json_encode($said) . ' ' . stream_get_contents($pipes[2]));
         }
         db()->run("SET lock_timeout = '15s'");
         $started = microtime(true);
@@ -712,7 +865,7 @@ test('deleting a language: never English, never one the site is released in - an
     same(0, (int) db()->value("SELECT count(*) FROM translations WHERE language_code = 'de'"), 'and its strings');
     same(4, (int) db()->value('SELECT count(*) FROM translation_keys'), 'the keys are the code\'s, and stay');
     refused(owner()->delete('/api/admin/languages/de'), 404, 'not_found', 'once');
-    same('en', (new Client)->get('/api/translations/de')->json('language'), 'it reads in English now');
+    same('en', (new Client())->get('/api/translations/de')->json('language'), 'it reads in English now');
     same(['strings' => 0], owner()->delete('/api/admin/languages/pt-br')->status(200)->json(), 'one with no strings');
     same(['en', 'sk'], array_column(owner()->get('/api/admin/translations')->json('languages'), 'code'), 'the two are left');
 });
@@ -721,18 +874,22 @@ test('deleting a language: never English, never one the site is released in - an
 
 test('saving strings: the changed ones, by whoever saved them; a string sent as it is stays as it was; the last save is kept', function () {
     ownStrings();
-    $second = fn (): Client => (new Client)->asIam(3, [Role::ADMIN]);
+    $second = fn(): Client => (new Client())->asIam(3, [Role::ADMIN]);
 
     $grid = owner()->get('/api/admin/translations')->status(200);
     same(['languages', 'keys'], array_keys($grid->json()), 'the fields');
     same('no-store', $grid->header('Cache-Control'), 'never kept');
     same(owner()->get('/api/admin/languages')->json('languages'), $grid->json('languages'), 'every language, hidden or not');
-    same([
-        ['name' => 'test.bye', 'description' => '', 'values' => ['en' => 'Goodbye']],
-        ['name' => 'test.count', 'description' => 'How far; {count} of {total}', 'values' => ['en' => '{count} of {total}']],
-        ['name' => 'test.hello', 'description' => 'A greeting; {name} is who is greeted', 'values' => ['en' => 'Hello, {name}!', 'sk' => 'Dobrý deň, {name}!']],
-        ['name' => 'test.new', 'description' => 'A key with no string yet', 'values' => []],
-    ], $grid->json('keys'), 'by name');
+    same(
+        [
+            ['name' => 'test.bye', 'description' => '', 'values' => ['en' => 'Goodbye']],
+            ['name' => 'test.count', 'description' => 'How far; {count} of {total}', 'values' => ['en' => '{count} of {total}']],
+            ['name' => 'test.hello', 'description' => 'A greeting; {name} is who is greeted', 'values' => ['en' => 'Hello, {name}!', 'sk' => 'Dobrý deň, {name}!']],
+            ['name' => 'test.new', 'description' => 'A key with no string yet', 'values' => []],
+        ],
+        $grid->json('keys'),
+        'by name',
+    );
     check(str_contains($grid->body, '{"name":"test.new","description":"A key with no string yet","values":{}}'), 'no strings is {} and not []');
 
     $untouched = stored('test.bye', 'en');
@@ -761,12 +918,12 @@ test('saving strings: the changed ones, by whoever saved them; a string sent as 
     // English reworded: its placeholders stay. A string for a key that had none: English first.
     save(['test.hello' => ['en' => 'Hi, {name}!'], 'test.new' => ['en' => 'New: {what}', 'sk' => 'Nové: {what}']])->status(200);
     same(['Hi, {name}!', OWNER], array_slice(stored('test.hello', 'en'), 0, 2), 'English, reworded');
-    same('Nové: {what}', (new Client)->get('/api/translations/sk')->json('values')['test.new'], 'the new key, in Slovak');
+    same('Nové: {what}', (new Client())->get('/api/translations/sk')->json('values')['test.new'], 'the new key, in Slovak');
 
     // An empty string: that language has none of its own again, and reads in English.
     save(['test.hello' => ['sk' => "  \t"]])->status(200);
     same(null, stored('test.hello', 'sk'), 'the string is gone');
-    same('Hi, {name}!', (new Client)->get('/api/translations/sk')->json('values')['test.hello'], 'and the key reads in English');
+    same('Hi, {name}!', (new Client())->get('/api/translations/sk')->json('values')['test.hello'], 'and the key reads in English');
     save(['test.hello' => ['sk' => ' ']])->status(200); // and once more, when there is none
     save(['test.hello' => ['sk' => 'Vitaj, {name}!']])->status(200);
 
@@ -801,13 +958,20 @@ test('saving strings: all of it is checked before any of it is written, and each
     same('The English string of "test.hello" must keep {name}: the page puts a value there.', save(['test.hello' => ['en' => 'Hi!']])->json('message'), 'and the one it must keep');
     same('The Slovak string of "test.hello" uses {meno}, which its English string does not have.', save(['test.hello' => ['sk' => '{meno}']])->json('message'), 'in another language');
     $braces = refused(save(['test.hello' => ['en' => 'Hi, {{name}}!']]), 422, 'invalid_placeholder', 'in English too');
-    same('The English string of "test.hello" has a { or } that is not part of a placeholder. A placeholder is written exactly as the English string has it, like {name}: no spaces, and its name is not translated.',
-        $braces->json('message'), 'it says how a placeholder is written, with the key\'s own');
+    same(
+        'The English string of "test.hello" has a { or } that is not part of a placeholder. A placeholder is written exactly as the English string has it, like {name}: no spaces, and its name is not translated.',
+        $braces->json('message'),
+        'it says how a placeholder is written, with the key\'s own',
+    );
 
     $invalid = [
-        'no values' => ['strings' => []], 'values as text' => ['values' => 'test.bye'], 'values as a list' => ['values' => [['test.bye' => ['en' => 'x']]]],
-        'a key with a text' => ['values' => ['test.bye' => 'Bye']], 'a string that is a number' => ['values' => ['test.bye' => ['sk' => 5]]],
-        'a string that is an object' => ['values' => ['test.bye' => ['sk' => ['one' => 'x']]]], 'a string that is null' => ['values' => ['test.bye' => ['sk' => null]]],
+        'no values' => ['strings' => []],
+        'values as text' => ['values' => 'test.bye'],
+        'values as a list' => ['values' => [['test.bye' => ['en' => 'x']]]],
+        'a key with a text' => ['values' => ['test.bye' => 'Bye']],
+        'a string that is a number' => ['values' => ['test.bye' => ['sk' => 5]]],
+        'a string that is an object' => ['values' => ['test.bye' => ['sk' => ['one' => 'x']]]],
+        'a string that is null' => ['values' => ['test.bye' => ['sk' => null]]],
         '2001 characters' => ['values' => ['test.bye' => ['sk' => str_repeat('ž', 2001)]]],
     ];
     foreach ($invalid as $what => $body) {
@@ -821,7 +985,7 @@ test('saving strings: all of it is checked before any of it is written, and each
 
     // A text with more spaces inside it than can be trimmed (and still under the body's limit) is too long -
     // never an empty one: that would delete the stored string with a 200, or pass it over in an import.
-    $spaces = 'Ahoj'.str_repeat(' ', 1040000).'{name}';
+    $spaces = 'Ahoj' . str_repeat(' ', 1040000) . '{name}';
     foreach (['sk', 'en'] as $code) {
         refused(save(['test.hello' => [$code => $spaces]]), 422, 'invalid_value', "a million spaces inside the \"{$code}\" string");
     }
@@ -842,9 +1006,27 @@ test('no string and no language names another site or holds a web address - in t
     $address = refused(save(['test.bye' => ['en' => 'Goodbye - see https://elsewhere.example/builds']]), 422, 'names_another_site', 'an address');
     same(['key' => 'test.bye', 'language' => 'en', 'found' => ['a web address']], about($address), 'an address is said to be one');
     same('The English string of "test.bye" holds a web address. Nothing the site shows names or links another website, service or tool.', $address->json('message'), 'the sentence');
-    same(['a web address'], save(['test.bye' => ['sk' => 'Pozri www.elsewhere.example']])->status(422)->json('found'), 'without a scheme too');
-    same(['enka.network'], save(['test.bye' => ['sk' => 'Údaje: https://enka.network/u/1']])->status(422)->json('found'), 'a named site\'s address is its name');
-    same(['genshin optimizer', 'github'], save(['test.bye' => ['de' => 'Genshin Optimizer, GitHub und GITHUB']])->status(422)->json('found'), 'every name found, once, in small letters');
+    same(
+        ['a web address'],
+        save(['test.bye' => ['sk' => 'Pozri www.elsewhere.example']])
+            ->status(422)
+            ->json('found'),
+        'without a scheme too',
+    );
+    same(
+        ['enka.network'],
+        save(['test.bye' => ['sk' => 'Údaje: https://enka.network/u/1']])
+            ->status(422)
+            ->json('found'),
+        'a named site\'s address is its name',
+    );
+    same(
+        ['genshin optimizer', 'github'],
+        save(['test.bye' => ['de' => 'Genshin Optimizer, GitHub und GITHUB']])
+            ->status(422)
+            ->json('found'),
+        'every name found, once, in small letters',
+    );
     // After the library's own checks: what is wrong with the text itself is said first.
     refused(save(['test.bye' => ['sk' => 'Pozri Prydwen {kde}']]), 422, 'unknown_placeholder', 'a placeholder first');
     refused(save(['test.bye' => ['sk' => str_repeat('Prydwen ', 300)]]), 422, 'invalid_value', 'the length first');
@@ -968,7 +1150,7 @@ test('the command line: --export and --import on the same strings, by nobody', f
     same($before['test.new de'], everyString()['test.new de'], 'a string as it was is still whose it was');
     [$code, $out] = cli('--import', 'de', "{$dir}/de.json");
     same(0, $code, $out);
-    check((bool) preg_match('/4 strings in .*: 0 changed in "de"/', $out), 'the code may stand apart here too, and the same file again changes nothing: '.$out);
+    check((bool) preg_match('/4 strings in .*: 0 changed in "de"/', $out), 'the code may stand apart here too, and the same file again changes nothing: ' . $out);
 
     // Checked as a save is, and all of it or none of it.
     $before = everyString();
@@ -980,7 +1162,7 @@ test('the command line: --export and --import on the same strings, by nobody', f
     [$code, $out] = cli('--import=de', "{$dir}/unknown.json");
     same(1, $code, $out);
     check(str_contains($out, 'Refused (unknown_key)'), $out);
-    check((bool) preg_match('/^\s+no\.such$/m', $out) && (bool) preg_match('/^\s+nor\.this$/m', $out), 'the keys, one a line: '.$out);
+    check((bool) preg_match('/^\s+no\.such$/m', $out) && (bool) preg_match('/^\s+nor\.this$/m', $out), 'the keys, one a line: ' . $out);
     file_put_contents("{$dir}/list.json", '["a"]');
     same(1, cli('--import=de', "{$dir}/list.json")[0], 'a list');
     same(1, cli('--import=de', "{$dir}/nothing.json")[0], 'no such file');
@@ -989,7 +1171,10 @@ test('the command line: --export and --import on the same strings, by nobody', f
     same(1, cli('--nonsense')[0], 'no such command');
     $twice = cli('--export=de', '--import=de', "{$dir}/de.json");
     same(1, $twice[0], 'one thing at a time');
-    check(str_contains($twice[1], 'One command at a time') && ! is_file('--import=de') && ! is_file(dirname(__DIR__).'/--import=de'), 'and the second is never taken for a file to write: '.$twice[1]);
+    check(
+        str_contains($twice[1], 'One command at a time') && !is_file('--import=de') && !is_file(dirname(__DIR__) . '/--import=de'),
+        'and the second is never taken for a file to write: ' . $twice[1],
+    );
     same($before, everyString(), 'nothing refused was kept');
 });
 
@@ -1011,12 +1196,12 @@ test('the command line: --status reads a frontend against the database, and exit
     $page = "<h1>{{ 'test.hello' | translate: { name: name() } }}</h1>\n<p>{{ 'test.bye' | translate }} {{ 'test.count' | translate }} {{ 'test.new' | translate }}</p>\n";
     [$code, $out] = $status(['pages/home/home-page.html' => $page]);
     same(0, $code, $out);
-    check(str_contains($out, '== build analyzer ('.T::$database.'): the site\'s own strings'), 'it says which database it read: '.$out);
+    check(str_contains($out, '== build analyzer (' . T::$database . '): the site\'s own strings'), 'it says which database it read: ' . $out);
     check((bool) preg_match('/the database has\s+4 keys/', $out) && (bool) preg_match('/the frontend uses\s+4 of them/', $out), $out);
-    check((bool) preg_match('/^  en\s+English\s+4 \/ 4$/m', $out) && (bool) preg_match('/^  sk\s+Slovak\s+1 \/ 4$/m', $out), 'how much of each language there is: '.$out);
-    check((bool) preg_match('/^  de\s+German\s+1 \/ 4   \(not offered\)$/m', $out), 'a hidden one is said to be: '.$out);
+    check((bool) preg_match('/^  en\s+English\s+4 \/ 4$/m', $out) && (bool) preg_match('/^  sk\s+Slovak\s+1 \/ 4$/m', $out), 'how much of each language there is: ' . $out);
+    check((bool) preg_match('/^  de\s+German\s+1 \/ 4   \(not offered\)$/m', $out), 'a hidden one is said to be: ' . $out);
     check(str_contains($out, 'No English string, so nothing to fall back to:') === false, $out);
-    check(str_ends_with(rtrim($out), 'Clean.') && ! str_contains($out, 'Not clean.'), $out);
+    check(str_ends_with(rtrim($out), 'Clean.') && !str_contains($out, 'Not clean.'), $out);
 
     // A key no page asks for: said, and still clean - a migration deletes it.
     [$code, $out] = $status(['pages/home/home-page.html' => "<h1>{{ 'test.hello' | translate }}</h1>\n<p>{{ 'test.bye' | translate }}</p>\n"]);
@@ -1024,11 +1209,11 @@ test('the command line: --status reads a frontend against the database, and exit
     check((bool) preg_match('/In the database, used nowhere.*\n\s+test\.count\n\s+test\.new\n/', $out), $out);
 
     // A key a page asks for that is not there: exit 1, named with the file and the line.
-    [$code, $out] = $status(['pages/home/home-page.html' => $page."<em>{{ 'test.missing' | translate }}</em>\n", 'pages/home/home-page.ts' => "const notOurs = 'other.key';\n"]);
+    [$code, $out] = $status(['pages/home/home-page.html' => $page . "<em>{{ 'test.missing' | translate }}</em>\n", 'pages/home/home-page.ts' => "const notOurs = 'other.key';\n"]);
     same(1, $code, $out);
     check((bool) preg_match('/Used by the frontend, not in the database.*\n\s+test\.missing\n\s+pages\/home\/home-page\.html:3\n/', $out), $out);
-    check(str_contains($out, 'Not clean.') && ! str_contains($out, '  Clean.'), $out);
-    check(! str_contains($out, 'other.key'), 'a namespace the database does not have is nobody\'s key: '.$out);
+    check(str_contains($out, 'Not clean.') && !str_contains($out, '  Clean.'), $out);
+    check(!str_contains($out, 'other.key'), 'a namespace the database does not have is nobody\'s key: ' . $out);
 
     // The keys put together at run time are declared, and must be there.
     [$code, $out] = $status(['pages/home/home-page.html' => $page, 'core/i18n/dynamic-keys.ts' => "export const DYNAMIC_KEYS = {\n  'test.kind.': ['one_thing'],\n};\n"]);
@@ -1036,21 +1221,21 @@ test('the command line: --status reads a frontend against the database, and exit
     check((bool) preg_match('/not in the database.*\n\s+test\.kind\.one_thing\n\s+core\/i18n\/dynamic-keys\.ts\n/', $out), $out);
 
     // What the scan does not let through: exit 1.
-    [$code, $out] = $status(['pages/home/home-page.html' => $page."<p [innerHTML]=\"'test.bye' | translate\"></p>\n"]);
+    [$code, $out] = $status(['pages/home/home-page.html' => $page . "<p [innerHTML]=\"'test.bye' | translate\"></p>\n"]);
     same(1, $code, $out);
     check(str_contains($out, 'What the scan does not let through:') && str_contains($out, 'pages/home/home-page.html:3: innerHTML is given a translated string'), $out);
 
     // The library's own keys are the library's to ask for: never missing, never unused here.
     db()->run("INSERT INTO translation_keys (name) VALUES ('anotoki.test.word')");
     db()->run("INSERT INTO translations (key_name, language_code, value) VALUES ('anotoki.test.word', 'en', 'A word')");
-    [$code, $out] = $status(['pages/home/home-page.html' => $page."<em>{{ 'anotoki.other.word' | translate }}</em>\n"]);
+    [$code, $out] = $status(['pages/home/home-page.html' => $page . "<em>{{ 'anotoki.other.word' | translate }}</em>\n"]);
     same(0, $code, $out);
-    check(! str_contains($out, 'anotoki.'), 'nothing said of them: '.$out);
+    check(!str_contains($out, 'anotoki.'), 'nothing said of them: ' . $out);
     db()->run("DELETE FROM translation_keys WHERE name = 'anotoki.test.word'");
 
     // A key with no English string: nothing to fall back to.
     db()->run("INSERT INTO translation_keys (name) VALUES ('test.noEnglish')");
-    [$code, $out] = $status(['pages/home/home-page.html' => $page."<em>{{ 'test.noEnglish' | translate }}</em>\n"]);
+    [$code, $out] = $status(['pages/home/home-page.html' => $page . "<em>{{ 'test.noEnglish' | translate }}</em>\n"]);
     same(1, $code, $out);
     check((bool) preg_match('/No English string.*\n\s+test\.noEnglish\n/', $out), $out);
 
@@ -1062,7 +1247,7 @@ test('the command line: --status reads a frontend against the database, and exit
     check((bool) preg_match('/Stored as a save would not take them.*\n\s+test\.hello \(sk\): names_another_site/', $out), $out);
 
     // No frontend to read.
-    $GLOBALS['frontend'] = T::$storage.'/no-such-frontend';
+    $GLOBALS['frontend'] = T::$storage . '/no-such-frontend';
     try {
         [$code, $out] = cli('--status');
     } finally {

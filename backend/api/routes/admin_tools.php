@@ -58,18 +58,13 @@ return function (Slim\App $slim, App $app): void {
     $context = $app->get(AdminContext::class);
     $audit = $app->get(AuditLog::class);
 
-    ErrorLogRoutes::admin($slim, '/api/admin/errors', $app->get(ErrorLog::class), $context, $audit)
-        ->add(requireTokenRole($app, Role::ADMIN));
-    ErrorLogRoutes::client($slim, '/api/client-errors', $app->get(ErrorLog::class), $context)
-        ->add(optionalSignIn($app));
+    ErrorLogRoutes::admin($slim, '/api/admin/errors', $app->get(ErrorLog::class), $context, $audit)->add(requireTokenRole($app, Role::ADMIN));
+    ErrorLogRoutes::client($slim, '/api/client-errors', $app->get(ErrorLog::class), $context)->add(optionalSignIn($app));
 
-    BackupsRoutes::admin($slim, '/api/admin/backups', $app->get(Backups::class), $context)
-        ->add(requireTokenRole($app, Role::ADMIN));
+    BackupsRoutes::admin($slim, '/api/admin/backups', $app->get(Backups::class), $context)->add(requireTokenRole($app, Role::ADMIN));
     BackupsRoutes::file($slim, '/api/admin/backups', $app->get(Backups::class), $context);
 
-    AuditRoutes::admin($slim, '/api/admin/audit', $audit, $context)
-        ->add(requireRole($app, Role::ADMIN));
+    AuditRoutes::admin($slim, '/api/admin/audit', $audit, $context)->add(requireRole($app, Role::ADMIN));
 
-    FeedbackRoutes::admin($slim, '/api/admin/feedback', $app->get(Feedback::class), $context, $audit)
-        ->add(requireRole($app, Role::ADMIN));
+    FeedbackRoutes::admin($slim, '/api/admin/feedback', $app->get(Feedback::class), $context, $audit)->add(requireRole($app, Role::ADMIN));
 };

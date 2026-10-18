@@ -27,7 +27,7 @@ function securityHeaders(): Closure
             'Cache-Control' => 'no-store',
         ];
         foreach ($defaults as $name => $value) {
-            if (! $response->hasHeader($name)) {
+            if (!$response->hasHeader($name)) {
                 $response = $response->withHeader($name, $value);
             }
         }

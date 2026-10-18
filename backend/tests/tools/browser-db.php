@@ -19,7 +19,7 @@
 
 declare(strict_types=1);
 
-require __DIR__.'/../../vendor/autoload.php';
+require __DIR__ . '/../../vendor/autoload.php';
 
 use App\Config;
 use App\Db\Db;
@@ -27,10 +27,10 @@ use App\Db\Migrations;
 use App\Support\Clock;
 use App\Support\Json;
 
-const BROWSER_DATABASE = Config::TEST_DATABASE_PREFIX.'browser';
+const BROWSER_DATABASE = Config::TEST_DATABASE_PREFIX . 'browser';
 
 [$command, $dir] = [$argv[1] ?? '', rtrim(str_replace('\\', '/', $argv[2] ?? ''), '/')];
-if (! in_array($command, ['make', 'sql', 'drop'], true) || $dir === '') {
+if (!in_array($command, ['make', 'sql', 'drop'], true) || $dir === '') {
     fwrite(STDERR, "usage: php tests/tools/browser-db.php make <dir> <issuer> | sql <dir> <query> [<params>] | drop <dir>\n");
     exit(2);
 }
@@ -38,8 +38,8 @@ if (! in_array($command, ['make', 'sql', 'drop'], true) || $dir === '') {
 /** The server of this checkout's settings, without its database. */
 function browserServer(): array
 {
-    $local = __DIR__.'/../../config/database.local.php';
-    if (! is_file($local)) {
+    $local = __DIR__ . '/../../config/database.local.php';
+    if (!is_file($local)) {
         fwrite(STDERR, "The browser check needs the PostgreSQL server of config/database.local.php. Run setup.php first (see DEV.md).\n");
         exit(1);
     }
@@ -53,8 +53,8 @@ function browserServer(): array
 function browserSettings(string $dir): array
 {
     $settings = is_file("{$dir}/database.local.php") ? require "{$dir}/database.local.php" : null;
-    if (! is_array($settings) || ! str_starts_with((string) ($settings['database'] ?? ''), Config::TEST_DATABASE_PREFIX)) {
-        fwrite(STDERR, "{$dir} holds no settings of a ".Config::TEST_DATABASE_PREFIX." database.\n");
+    if (!is_array($settings) || !str_starts_with((string) ($settings['database'] ?? ''), Config::TEST_DATABASE_PREFIX)) {
+        fwrite(STDERR, "{$dir} holds no settings of a " . Config::TEST_DATABASE_PREFIX . " database.\n");
         exit(1);
     }
 
@@ -63,10 +63,10 @@ function browserSettings(string $dir): array
 
 function browserDrop(array $server, string $name): void
 {
-    if (! str_starts_with($name, Config::TEST_DATABASE_PREFIX)) {
+    if (!str_starts_with($name, Config::TEST_DATABASE_PREFIX)) {
         throw new RuntimeException("Not a throwaway database: {$name}");
     }
-    Db::pdo($server, 'postgres', false)->exec('DROP DATABASE IF EXISTS "'.$name.'" WITH (FORCE)');
+    Db::pdo($server, 'postgres', false)->exec('DROP DATABASE IF EXISTS "' . $name . '" WITH (FORCE)');
 }
 
 if ($command === 'drop') {
@@ -80,13 +80,13 @@ if ($command === 'sql') {
     $settings = browserSettings($dir);
     $db = new Db(Db::pdo($settings, (string) $settings['database'], false));
     $params = isset($argv[4]) ? json_decode($argv[4], true, flags: JSON_THROW_ON_ERROR) : [];
-    echo json_encode($db->all($argv[3] ?? 'SELECT 1', $params), JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE)."\n";
+    echo json_encode($db->all($argv[3] ?? 'SELECT 1', $params), JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE) . "\n";
     exit(0);
 }
 
 // make
 $issuer = rtrim((string) ($argv[3] ?? ''), '/');
-if (! preg_match('#^http://127\.0\.0\.1:\d+$#', $issuer)) {
+if (!preg_match('#^http://127\.0\.0\.1:\d+$#', $issuer)) {
     fwrite(STDERR, "make needs the stand-in IAM's address (http://127.0.0.1:<port>).\n");
     exit(2);
 }
@@ -96,7 +96,7 @@ Db::ensureDatabase($server, BROWSER_DATABASE);
 $pdo = Db::pdo($server, BROWSER_DATABASE, false);
 $result = Migrations::migrator($pdo)->apply();
 if ($result['busy'] || $result['error'] !== null) {
-    fwrite(STDERR, $result['busy'] ? "the migrations' lock is held: nothing was applied\n" : 'migration '.($result['failed']['name'] ?? '')." failed: {$result['error']}\n");
+    fwrite(STDERR, $result['busy'] ? "the migrations' lock is held: nothing was applied\n" : 'migration ' . ($result['failed']['name'] ?? '') . " failed: {$result['error']}\n");
     exit(1);
 }
 
@@ -106,20 +106,39 @@ function db(): Db
 {
     return $GLOBALS['db'];
 }
-require __DIR__.'/../support/seed.php';
+require __DIR__ . '/../support/seed.php';
 seedGenshinCatalog();
 seedHsrCatalog();
 $now = Clock::now();
-$source = (int) $db->insert('build_sources', ['key' => 'prydwen.genshin', 'game' => 'genshin', 'name' => 'Source 1', 'base_url' => 'https://example.invalid',
-    'enabled' => true, 'last_synced_at' => $now, 'last_status' => 'success', 'created_at' => $now, 'updated_at' => $now]);
+$source = (int) $db->insert('build_sources', [
+    'key' => 'prydwen.genshin',
+    'game' => 'genshin',
+    'name' => 'Source 1',
+    'base_url' => 'https://example.invalid',
+    'enabled' => true,
+    'last_synced_at' => $now,
+    'last_status' => 'success',
+    'created_at' => $now,
+    'updated_at' => $now,
+]);
 $db->insert('builds', [
-    'build_source_id' => $source, 'game_character_id' => idOf('game_characters', 'hutao'), 'variant' => 'DPS', 'recommended' => true, 'position' => 0,
+    'build_source_id' => $source,
+    'game_character_id' => idOf('game_characters', 'hutao'),
+    'variant' => 'DPS',
+    'recommended' => true,
+    'position' => 0,
     'weapons' => Json::encode([
         ['key' => 'staffofhoma', 'name' => 'Staff of Homa', 'rank' => 1, 'refinement' => null, 'note' => null, 'known' => true],
         ['key' => 'dragonsbane', 'name' => "Dragon's Bane", 'rank' => 2, 'refinement' => 5, 'note' => null, 'known' => true],
     ]),
     'sets' => Json::encode([
-        ['rank' => 1, 'kind' => 'artifact', 'choose' => null, 'note' => null, 'pieces' => [['label' => 'Crimson Witch of Flames', 'count' => 4, 'keys' => ['crimsonwitchofflames'], 'names' => ['Crimson Witch of Flames']]]],
+        [
+            'rank' => 1,
+            'kind' => 'artifact',
+            'choose' => null,
+            'note' => null,
+            'pieces' => [['label' => 'Crimson Witch of Flames', 'count' => 4, 'keys' => ['crimsonwitchofflames'], 'names' => ['Crimson Witch of Flames']]],
+        ],
     ]),
     'main_stats' => Json::encode([
         'sands' => [['stat' => 'hp_', 'priority' => 1]],
@@ -127,10 +146,14 @@ $db->insert('builds', [
         'circlet' => [['stat' => 'critRate_', 'priority' => 1], ['stat' => 'critDMG_', 'priority' => 1]],
     ]),
     'substats' => Json::encode([['stat' => 'critRate_', 'priority' => 1], ['stat' => 'critDMG_', 'priority' => 1], ['stat' => 'hp_', 'priority' => 2]]),
-    'content_hash' => str_repeat('b', 64), 'fetched_at' => $now, 'changed_at' => $now, 'created_at' => $now, 'updated_at' => $now,
+    'content_hash' => str_repeat('b', 64),
+    'fetched_at' => $now,
+    'changed_at' => $now,
+    'created_at' => $now,
+    'updated_at' => $now,
 ]);
 
 @mkdir("{$dir}/storage", 0777, true);
-file_put_contents("{$dir}/database.local.php", '<?php return '.var_export(['database' => BROWSER_DATABASE, 'persistent' => false] + $server, true).";\n");
-file_put_contents("{$dir}/auth.local.php", '<?php return '.var_export(['issuer' => $issuer, 'client_id' => 'build-analyzer'], true).";\n");
-echo 'made '.BROWSER_DATABASE.' with '.count($result['applied'])." migrations\n";
+file_put_contents("{$dir}/database.local.php", '<?php return ' . var_export(['database' => BROWSER_DATABASE, 'persistent' => false] + $server, true) . ";\n");
+file_put_contents("{$dir}/auth.local.php", '<?php return ' . var_export(['issuer' => $issuer, 'client_id' => 'build-analyzer'], true) . ";\n");
+echo 'made ' . BROWSER_DATABASE . ' with ' . count($result['applied']) . " migrations\n";

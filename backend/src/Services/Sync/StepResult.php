@@ -16,11 +16,5 @@ final readonly class StepResult
      * @param  list<SyncRun>  $active  the runs still going
      * @param  int|null  $waitMs  when the next step has work to do (0 = now), null when nothing is left
      */
-    public function __construct(
-        public bool $busy,
-        public ?SyncRun $run,
-        public array $lines,
-        public array $active,
-        public ?int $waitMs,
-    ) {}
+    public function __construct(public bool $busy, public ?SyncRun $run, public array $lines, public array $active, public ?int $waitMs) {}
 }

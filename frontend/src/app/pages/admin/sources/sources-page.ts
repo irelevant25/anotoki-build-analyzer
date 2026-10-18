@@ -41,19 +41,7 @@ const PAUSED_AFTER_MS = 60_000;
  */
 @Component({
   selector: 'app-sources-page',
-  imports: [
-    AlertComponent,
-    BadgeComponent,
-    ButtonComponent,
-    CardComponent,
-    IconComponent,
-    PageHeaderComponent,
-    ProgressBarComponent,
-    SpinnerComponent,
-    SwitchComponent,
-    TooltipDirective,
-    TimeAgoPipe,
-  ],
+  imports: [AlertComponent, BadgeComponent, ButtonComponent, CardComponent, IconComponent, PageHeaderComponent, ProgressBarComponent, SpinnerComponent, SwitchComponent, TooltipDirective, TimeAgoPipe],
   templateUrl: './sources-page.html',
   styleUrl: './sources-page.scss',
 })
@@ -191,9 +179,7 @@ export class SourcesPage {
       return;
     }
     if (file.size > BUILD_FILE_MAX_BYTES) {
-      this.toasts.error(
-        `This file is larger than ${BUILD_FILE_MAX_BYTES / 1048576} MB: more than the server may accept, and far more than the builds of a source take. Is it the right file?`,
-      );
+      this.toasts.error(`This file is larger than ${BUILD_FILE_MAX_BYTES / 1048576} MB: more than the server may accept, and far more than the builds of a source take. Is it the right file?`);
       return;
     }
 
@@ -314,9 +300,10 @@ export class SourcesPage {
         this.starting.set(false);
         this.sync.adopt(result);
         const skipped = result.skipped.map((skip) => `${skip.name} (${skip.reason})`).join(', ');
-        const message = result.started.length > 0
-          ? `Syncing ${result.started.length} run(s). Keep this tab open; closing it pauses the sync.${skipped ? ` Skipped: ${skipped}.` : ''}`
-          : `Nothing to sync. Skipped: ${skipped || 'everything is up to date'}.`;
+        const message =
+          result.started.length > 0
+            ? `Syncing ${result.started.length} run(s). Keep this tab open; closing it pauses the sync.${skipped ? ` Skipped: ${skipped}.` : ''}`
+            : `Nothing to sync. Skipped: ${skipped || 'everything is up to date'}.`;
         this.toasts.show(message, result.started.length > 0 ? 'success' : 'info', 8000);
       },
       error: (err) => {

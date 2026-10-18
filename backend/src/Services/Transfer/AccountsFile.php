@@ -83,8 +83,22 @@ final class AccountsFile
     /** The fields, in the order the export writes them. */
     private const FIELDS = ['format', 'format_version', 'exported_at', 'app_version', 'accounts'];
 
-    private const ACCOUNT_FIELDS = ['game', 'uid', 'nickname', 'level', 'world_level', 'signature', 'has_full_inventory',
-        'last_import_at', 'created_at', 'meta', 'characters', 'weapons', 'items', 'imports'];
+    private const ACCOUNT_FIELDS = [
+        'game',
+        'uid',
+        'nickname',
+        'level',
+        'world_level',
+        'signature',
+        'has_full_inventory',
+        'last_import_at',
+        'created_at',
+        'meta',
+        'characters',
+        'weapons',
+        'items',
+        'imports',
+    ];
 
     private const CHARACTER_FIELDS = ['key', 'level', 'ascension', 'rank', 'talents', 'final_stats', 'source', 'synced_at'];
 
@@ -167,49 +181,62 @@ final class AccountsFile
             'last_import_at' => self::time(Clock::parse($account['last_import_at'] ?? null)),
             'created_at' => self::time(Clock::parse($account['created_at'] ?? null)),
             'meta' => (object) self::writeMeta(Json::decode($account['meta'] ?? null) ?? []),
-            'characters' => array_map(fn (array $row) => [
-                'key' => (string) $row['character_key'],
-                'level' => self::smallint($row['level'] ?? null) ?? 1,
-                'ascension' => self::smallint($row['ascension'] ?? null),
-                'rank' => self::smallint($row['rank'] ?? null) ?? 0,
-                'talents' => self::writeTalents(Json::decode($row['talents'] ?? null)),
-                'final_stats' => self::writeNumbers(Json::decode($row['final_stats'] ?? null), wholeOnly: false),
-                'source' => CharacterAnalyzer::importKind((string) $row['source']),
-                'synced_at' => self::time(Clock::parse($row['synced_at'] ?? null)),
-            ], $characters),
-            'weapons' => array_map(fn (array $row) => [
-                'key' => (string) $row['weapon_key'],
-                'level' => self::smallint($row['level'] ?? null) ?? 1,
-                'ascension' => self::smallint($row['ascension'] ?? null),
-                'refinement' => max(1, min(5, (int) ($row['refinement'] ?? 1))),
-                'equipped' => isset($row['equipped_key']) ? (string) $row['equipped_key'] : null,
-                'locked' => (bool) ($row['locked'] ?? false),
-                'external_uid' => self::neutral($row['external_uid'] ?? null, self::MAX_EXTERNAL_UID),
-                'source' => CharacterAnalyzer::importKind((string) $row['source']),
-            ], $weapons),
-            'items' => array_values(array_map(fn (array $row) => [
-                'set' => (string) $row['set_key'],
-                'slot' => (string) $row['slot'],
-                'rarity' => self::smallint($row['rarity'] ?? null) ?? 5,
-                'level' => self::smallint($row['level'] ?? null) ?? 0,
-                'main_stat' => (string) $row['main_stat'],
-                'main_value' => isset($row['main_value']) && is_numeric($row['main_value']) ? self::numeric($row['main_value']) : null,
-                'substats' => self::writeSubstats(Json::decode($row['substats'] ?? null) ?? []),
-                'equipped' => isset($row['equipped_key']) ? (string) $row['equipped_key'] : null,
-                'locked' => (bool) ($row['locked'] ?? false),
-                'external_uid' => self::neutral($row['external_uid'] ?? null, self::MAX_EXTERNAL_UID),
-                'source' => CharacterAnalyzer::importKind((string) $row['source']),
-                // An item of a slot the game does not have cannot be read back; none is ever stored.
-            ], array_filter($items, fn (array $row) => in_array((string) $row['slot'], $game->slots(), true)
-                && preg_match(self::STAT_KEY, (string) $row['main_stat']) === 1))),
-            'imports' => array_map(fn (array $row) => [
-                'source' => CharacterAnalyzer::importKind((string) $row['source']),
-                'status' => in_array($row['status'] ?? null, self::STATUSES, true) ? (string) $row['status'] : 'failed',
-                'file_name' => self::neutral($row['file_name'] ?? null, self::MAX_FILE_NAME),
-                'summary' => self::writeSummary(Json::decode($row['summary'] ?? null)),
-                'error' => self::neutral($row['error'] ?? null, self::MAX_ERROR),
-                'created_at' => self::time(Clock::parse($row['created_at'] ?? null)),
-            ], array_slice($runs, -self::MAX_IMPORTS)),
+            'characters' => array_map(
+                fn(array $row) => [
+                    'key' => (string) $row['character_key'],
+                    'level' => self::smallint($row['level'] ?? null) ?? 1,
+                    'ascension' => self::smallint($row['ascension'] ?? null),
+                    'rank' => self::smallint($row['rank'] ?? null) ?? 0,
+                    'talents' => self::writeTalents(Json::decode($row['talents'] ?? null)),
+                    'final_stats' => self::writeNumbers(Json::decode($row['final_stats'] ?? null), wholeOnly: false),
+                    'source' => CharacterAnalyzer::importKind((string) $row['source']),
+                    'synced_at' => self::time(Clock::parse($row['synced_at'] ?? null)),
+                ],
+                $characters,
+            ),
+            'weapons' => array_map(
+                fn(array $row) => [
+                    'key' => (string) $row['weapon_key'],
+                    'level' => self::smallint($row['level'] ?? null) ?? 1,
+                    'ascension' => self::smallint($row['ascension'] ?? null),
+                    'refinement' => max(1, min(5, (int) ($row['refinement'] ?? 1))),
+                    'equipped' => isset($row['equipped_key']) ? (string) $row['equipped_key'] : null,
+                    'locked' => (bool) ($row['locked'] ?? false),
+                    'external_uid' => self::neutral($row['external_uid'] ?? null, self::MAX_EXTERNAL_UID),
+                    'source' => CharacterAnalyzer::importKind((string) $row['source']),
+                ],
+                $weapons,
+            ),
+            'items' => array_values(
+                array_map(
+                    fn(array $row) => [
+                        'set' => (string) $row['set_key'],
+                        'slot' => (string) $row['slot'],
+                        'rarity' => self::smallint($row['rarity'] ?? null) ?? 5,
+                        'level' => self::smallint($row['level'] ?? null) ?? 0,
+                        'main_stat' => (string) $row['main_stat'],
+                        'main_value' => isset($row['main_value']) && is_numeric($row['main_value']) ? self::numeric($row['main_value']) : null,
+                        'substats' => self::writeSubstats(Json::decode($row['substats'] ?? null) ?? []),
+                        'equipped' => isset($row['equipped_key']) ? (string) $row['equipped_key'] : null,
+                        'locked' => (bool) ($row['locked'] ?? false),
+                        'external_uid' => self::neutral($row['external_uid'] ?? null, self::MAX_EXTERNAL_UID),
+                        'source' => CharacterAnalyzer::importKind((string) $row['source']),
+                        // An item of a slot the game does not have cannot be read back; none is ever stored.
+                    ],
+                    array_filter($items, fn(array $row) => in_array((string) $row['slot'], $game->slots(), true) && preg_match(self::STAT_KEY, (string) $row['main_stat']) === 1),
+                ),
+            ),
+            'imports' => array_map(
+                fn(array $row) => [
+                    'source' => CharacterAnalyzer::importKind((string) $row['source']),
+                    'status' => in_array($row['status'] ?? null, self::STATUSES, true) ? (string) $row['status'] : 'failed',
+                    'file_name' => self::neutral($row['file_name'] ?? null, self::MAX_FILE_NAME),
+                    'summary' => self::writeSummary(Json::decode($row['summary'] ?? null)),
+                    'error' => self::neutral($row['error'] ?? null, self::MAX_ERROR),
+                    'created_at' => self::time(Clock::parse($row['created_at'] ?? null)),
+                ],
+                array_slice($runs, -self::MAX_IMPORTS),
+            ),
         ];
     }
 
@@ -227,7 +254,7 @@ final class AccountsFile
             return $text;
         }
 
-        return rtrim(mb_substr($text, 0, $max - 1)).'…';
+        return rtrim(mb_substr($text, 0, $max - 1)) . '…';
     }
 
     private static function smallint(mixed $value): ?int
@@ -239,7 +266,7 @@ final class AccountsFile
     {
         $number = is_int($value) || is_float($value) ? $value : (float) $value;
 
-        return is_float($number) && ! is_finite($number) ? 0 : $number;
+        return is_float($number) && !is_finite($number) ? 0 : $number;
     }
 
     /** @return array<string, mixed> */
@@ -262,7 +289,7 @@ final class AccountsFile
     {
         $out = [];
         foreach ($values ?? [] as $key => $value) {
-            if (is_string($key) && preg_match(self::STAT_KEY, $key) === 1 && (is_int($value) || (! $wholeOnly && is_float($value) && is_finite($value)))) {
+            if (is_string($key) && preg_match(self::STAT_KEY, $key) === 1 && (is_int($value) || (!$wholeOnly && is_float($value) && is_finite($value)))) {
                 $out[$key] = $wholeOnly ? max(0, min(self::SMALLINT, $value)) : $value;
             }
         }
@@ -275,7 +302,7 @@ final class AccountsFile
     {
         $out = [];
         foreach ($talents ?? [] as $key => $value) {
-            if (! is_string($key) || preg_match(self::STAT_KEY, $key) !== 1) {
+            if (!is_string($key) || preg_match(self::STAT_KEY, $key) !== 1) {
                 continue;
             }
             if (is_int($value)) {
@@ -293,8 +320,12 @@ final class AccountsFile
     {
         $out = [];
         foreach ($substats as $substat) {
-            if (is_array($substat) && is_string($substat['key'] ?? null) && preg_match(self::STAT_KEY, $substat['key']) === 1
-                && (is_int($substat['value'] ?? null) || (is_float($substat['value'] ?? null) && is_finite($substat['value'])))) {
+            if (
+                is_array($substat) &&
+                is_string($substat['key'] ?? null) &&
+                preg_match(self::STAT_KEY, $substat['key']) === 1 &&
+                (is_int($substat['value'] ?? null) || (is_float($substat['value'] ?? null) && is_finite($substat['value'])))
+            ) {
                 $rolls = $substat['rolls'] ?? null;
                 $out[] = ['key' => $substat['key'], 'value' => $substat['value'], 'rolls' => is_int($rolls) ? max(0, min(self::SMALLINT, $rolls)) : null];
             }
@@ -319,21 +350,19 @@ final class AccountsFile
             $out['full_inventory'] = $summary['full_inventory'];
         }
         if (is_array($summary['warnings'] ?? null) && array_is_list($summary['warnings'])) {
-            $out['warnings'] = array_slice(array_map(fn ($warning) => self::neutral(is_string($warning) ? $warning : '', self::MAX_WARNING),
-                $summary['warnings']), 0, self::MAX_WARNINGS);
+            $out['warnings'] = array_slice(array_map(fn($warning) => self::neutral(is_string($warning) ? $warning : '', self::MAX_WARNING), $summary['warnings']), 0, self::MAX_WARNINGS);
         }
         if (is_array($summary['warning_kinds'] ?? null) && array_is_list($summary['warning_kinds'])) {
-            $kinds = array_map(fn ($kind) => self::writeKind($kind), $summary['warning_kinds']);
-            if (! in_array(null, $kinds, true)) {
+            $kinds = array_map(fn($kind) => self::writeKind($kind), $summary['warning_kinds']);
+            if (!in_array(null, $kinds, true)) {
                 $out['warning_kinds'] = array_slice($kinds, 0, self::MAX_WARNINGS);
             }
         }
-        if (is_array($summary['unmatched'] ?? null) && $summary['unmatched'] !== [] && ! array_is_list($summary['unmatched'])) {
+        if (is_array($summary['unmatched'] ?? null) && $summary['unmatched'] !== [] && !array_is_list($summary['unmatched'])) {
             $buckets = [];
             foreach ($summary['unmatched'] as $bucket => $names) {
                 if (is_string($bucket) && preg_match(self::CODE, $bucket) === 1 && is_array($names) && array_is_list($names)) {
-                    $buckets[$bucket] = array_slice(array_values(array_map(fn ($name) => self::neutral((string) $name, self::MAX_NAME),
-                        array_filter($names, 'is_string'))), 0, self::MAX_UNMATCHED);
+                    $buckets[$bucket] = array_slice(array_values(array_map(fn($name) => self::neutral((string) $name, self::MAX_NAME), array_filter($names, 'is_string'))), 0, self::MAX_UNMATCHED);
                 }
             }
             if ($buckets !== []) {
@@ -350,12 +379,12 @@ final class AccountsFile
     /** @return array{code: string, params: object}|null */
     private static function writeKind(mixed $kind): ?array
     {
-        if (! is_array($kind) || ! is_string($kind['code'] ?? null) || preg_match(self::CODE, $kind['code']) !== 1) {
+        if (!is_array($kind) || !is_string($kind['code'] ?? null) || preg_match(self::CODE, $kind['code']) !== 1) {
             return null;
         }
         $params = [];
         foreach (is_array($kind['params'] ?? null) ? $kind['params'] : [] as $name => $value) {
-            if (! is_string($name) || preg_match(self::STAT_KEY, $name) !== 1) {
+            if (!is_string($name) || preg_match(self::STAT_KEY, $name) !== 1) {
                 continue;
             }
             if (is_string($value)) {
@@ -380,18 +409,21 @@ final class AccountsFile
      */
     public static function read(mixed $file): array
     {
-        return (new self)->check($file);
+        return (new self())->check($file);
     }
 
     private function check(mixed $file): array
     {
-        if (! is_array($file) || $file === [] || array_is_list($file) || ($file['format'] ?? null) !== self::FORMAT) {
+        if (!is_array($file) || $file === [] || array_is_list($file) || ($file['format'] ?? null) !== self::FORMAT) {
             throw new AccountsFileException('not_a_data_file', [], 'This is not a file of game accounts exported by the build analyzer.');
         }
         $version = $file['format_version'] ?? null;
         if (is_int($version) && $version > self::VERSION) {
-            throw new AccountsFileException('newer_version', ['version' => $version],
-                "This file was written by a newer version of the build analyzer (format version {$version}); this copy reads version ".self::VERSION.'.');
+            throw new AccountsFileException(
+                'newer_version',
+                ['version' => $version],
+                "This file was written by a newer version of the build analyzer (format version {$version}); this copy reads version " . self::VERSION . '.',
+            );
         }
         $this->fields($file, '(file)', self::FIELDS);
         if ($version !== self::VERSION) {
@@ -405,7 +437,7 @@ final class AccountsFile
         foreach ($this->list($file['accounts'], 'accounts', self::MAX_ACCOUNTS) as $index => $entry) {
             $account = $this->checkAccount($entry, "accounts[{$index}]");
             if ($account['uid'] !== null) {
-                $same = $account['game']->value.':'.$account['uid'];
+                $same = $account['game']->value . ':' . $account['uid'];
                 if (isset($uids[$same])) {
                     $this->fail("accounts[{$index}]", "the same game and UID as accounts[{$uids[$same]}]");
                 }
@@ -426,7 +458,7 @@ final class AccountsFile
             $this->fail("{$path}.game", 'not a game of this site');
         }
         $uid = $entry['uid'];
-        if ($uid !== null && (! is_string($uid) || preg_match(self::UID, $uid) !== 1)) {
+        if ($uid !== null && (!is_string($uid) || preg_match(self::UID, $uid) !== 1)) {
             $this->fail("{$path}.uid", 'not a UID');
         }
 
@@ -472,8 +504,8 @@ final class AccountsFile
         foreach ($this->list($entry['items'], "{$path}.items", self::MAX_ITEMS) as $index => $item) {
             $at = "{$path}.items[{$index}]";
             $this->fields($item, $at, self::ITEM_FIELDS);
-            if (! is_string($item['slot']) || ! in_array($item['slot'], $game->slots(), true)) {
-                $this->fail("{$at}.slot", 'not a slot of '.$game->label());
+            if (!is_string($item['slot']) || !in_array($item['slot'], $game->slots(), true)) {
+                $this->fail("{$at}.slot", 'not a slot of ' . $game->label());
             }
             $substats = [];
             foreach ($this->list($item['substats'], "{$at}.substats", self::MAX_SUBSTATS) as $n => $substat) {
@@ -503,7 +535,7 @@ final class AccountsFile
         foreach ($this->list($entry['imports'], "{$path}.imports", self::MAX_IMPORTS) as $index => $run) {
             $at = "{$path}.imports[{$index}]";
             $this->fields($run, $at, self::IMPORT_FIELDS);
-            if (! in_array($run['status'], self::STATUSES, true)) {
+            if (!in_array($run['status'], self::STATUSES, true)) {
                 $this->fail("{$at}.status", 'not success, partial or failed');
             }
             $imports[] = [
@@ -540,7 +572,7 @@ final class AccountsFile
         $meta = $this->map($meta, $path, count(AccountPresenter::META_KEYS));
         $out = [];
         foreach ($meta as $key => $value) {
-            if (! in_array($key, AccountPresenter::META_KEYS, true)) {
+            if (!in_array($key, AccountPresenter::META_KEYS, true)) {
                 $this->fail("{$path}.{$key}", 'not a detail an account keeps');
             }
             $out[$key] = $this->scalar($value, "{$path}.{$key}", self::MAX_META);
@@ -574,7 +606,7 @@ final class AccountsFile
         foreach ($this->map($talents, $path, self::MAX_STATS) as $key => $value) {
             $this->statKey($key, "{$path} (a key)");
             $out[$key] = is_array($value)
-                ? ($this->numbers($value, "{$path}.{$key}", wholeOnly: true) ?? $this->fail("{$path}.{$key}", 'an empty object'))
+                ? $this->numbers($value, "{$path}.{$key}", wholeOnly: true) ?? $this->fail("{$path}.{$key}", 'an empty object')
                 : $this->int($value, "{$path}.{$key}", 0, self::SMALLINT);
         }
 
@@ -594,10 +626,13 @@ final class AccountsFile
             $out[$key] = match ($key) {
                 'characters', 'weapons', 'items' => $this->int($value, $at, 0, PHP_INT_MAX),
                 'full_inventory' => $this->bool($value, $at),
-                'warnings' => array_map(fn ($warning) => is_string($warning) && mb_strlen($warning) <= self::MAX_WARNING
-                    ? self::neutral($warning, self::MAX_WARNING) : $this->fail($at, 'a warning that is not a short text'),
-                    $this->list($value, $at, self::MAX_WARNINGS)),
-                'warning_kinds' => array_map(fn ($kind) => $this->kind($kind, $at), $this->list($value, $at, self::MAX_WARNINGS)),
+                'warnings' => array_map(
+                    fn($warning) => is_string($warning) && mb_strlen($warning) <= self::MAX_WARNING
+                        ? self::neutral($warning, self::MAX_WARNING)
+                        : $this->fail($at, 'a warning that is not a short text'),
+                    $this->list($value, $at, self::MAX_WARNINGS),
+                ),
+                'warning_kinds' => array_map(fn($kind) => $this->kind($kind, $at), $this->list($value, $at, self::MAX_WARNINGS)),
                 'unmatched' => $this->unmatched($value, $at),
                 'error' => $this->kind($value, $at),
                 default => $this->fail($at, 'unknown field'),
@@ -615,9 +650,10 @@ final class AccountsFile
             if (preg_match(self::CODE, $bucket) !== 1) {
                 $this->fail($path, 'not a list of names');
             }
-            $out[$bucket] = array_map(fn ($name) => is_string($name) && mb_strlen($name) <= self::MAX_NAME
-                ? self::neutral($name, self::MAX_NAME) : $this->fail("{$path}.{$bucket}", 'a name that is not a short text'),
-                $this->list($names, "{$path}.{$bucket}", self::MAX_UNMATCHED));
+            $out[$bucket] = array_map(
+                fn($name) => is_string($name) && mb_strlen($name) <= self::MAX_NAME ? self::neutral($name, self::MAX_NAME) : $this->fail("{$path}.{$bucket}", 'a name that is not a short text'),
+                $this->list($names, "{$path}.{$bucket}", self::MAX_UNMATCHED),
+            );
         }
 
         return $out;
@@ -627,7 +663,7 @@ final class AccountsFile
     private function kind(mixed $kind, string $path): array
     {
         $this->fields($kind, $path, self::KIND_FIELDS);
-        if (! is_string($kind['code']) || preg_match(self::CODE, $kind['code']) !== 1) {
+        if (!is_string($kind['code']) || preg_match(self::CODE, $kind['code']) !== 1) {
             $this->fail("{$path}.code", 'not a code');
         }
         $params = [];
@@ -649,16 +685,16 @@ final class AccountsFile
     /** An object with exactly these fields. */
     private function fields(mixed $value, string $path, array $fields): void
     {
-        if (! is_array($value) || ($value !== [] && array_is_list($value))) {
+        if (!is_array($value) || ($value !== [] && array_is_list($value))) {
             $this->fail($path, 'not an object');
         }
         foreach (array_keys($value) as $field) {
-            if (! in_array($field, $fields, true)) {
+            if (!in_array($field, $fields, true)) {
                 $this->fail($path, "an unknown field \"{$field}\"");
             }
         }
         foreach ($fields as $field) {
-            if (! array_key_exists($field, $value)) {
+            if (!array_key_exists($field, $value)) {
                 $this->fail($path, "no field \"{$field}\"");
             }
         }
@@ -667,14 +703,14 @@ final class AccountsFile
     /** An object of any keys (an empty one decodes as a list). @return array<string, mixed> */
     private function map(mixed $value, string $path, int $max): array
     {
-        if (! is_array($value) || ($value !== [] && array_is_list($value))) {
+        if (!is_array($value) || ($value !== [] && array_is_list($value))) {
             $this->fail($path, 'not an object');
         }
         if (count($value) > $max) {
             $this->fail($path, "more than {$max} entries");
         }
         foreach (array_keys($value) as $key) {
-            if (! is_string($key)) {
+            if (!is_string($key)) {
                 $this->fail($path, 'a key that is a number');
             }
         }
@@ -685,7 +721,7 @@ final class AccountsFile
     /** @return list<mixed> */
     private function list(mixed $value, string $path, int $max): array
     {
-        if (! is_array($value) || ! array_is_list($value)) {
+        if (!is_array($value) || !array_is_list($value)) {
             $this->fail($path, 'not a list');
         }
         if (count($value) > $max) {
@@ -700,7 +736,7 @@ final class AccountsFile
         if ($value === null && $nullable) {
             return null;
         }
-        if (! is_int($value) || $value < $min || $value > $max) {
+        if (!is_int($value) || $value < $min || $value > $max) {
             $this->fail($path, "not a whole number from {$min} to {$max}");
         }
 
@@ -709,7 +745,7 @@ final class AccountsFile
 
     private function checkNumber(mixed $value, string $path): int|float
     {
-        if (! is_int($value) && ! (is_float($value) && is_finite($value))) {
+        if (!is_int($value) && !(is_float($value) && is_finite($value))) {
             $this->fail($path, 'not a number');
         }
 
@@ -718,7 +754,7 @@ final class AccountsFile
 
     private function bool(mixed $value, string $path): bool
     {
-        if (! is_bool($value)) {
+        if (!is_bool($value)) {
             $this->fail($path, 'not true or false');
         }
 
@@ -731,7 +767,7 @@ final class AccountsFile
         if ($value === null) {
             return null;
         }
-        if (! is_string($value) || mb_strlen($value) > $max) {
+        if (!is_string($value) || mb_strlen($value) > $max) {
             $this->fail($path, "not a text of at most {$max} characters");
         }
 
@@ -751,7 +787,7 @@ final class AccountsFile
 
     private function catalogKey(mixed $value, string $path): string
     {
-        if (! is_string($value) || preg_match(self::CATALOG_KEY, $value) !== 1) {
+        if (!is_string($value) || preg_match(self::CATALOG_KEY, $value) !== 1) {
             $this->fail($path, 'not a key of the game catalog');
         }
 
@@ -760,7 +796,7 @@ final class AccountsFile
 
     private function statKey(mixed $value, string $path, int $max = 40): string
     {
-        if (! is_string($value) || preg_match(self::STAT_KEY, $value) !== 1 || strlen($value) > $max) {
+        if (!is_string($value) || preg_match(self::STAT_KEY, $value) !== 1 || strlen($value) > $max) {
             $this->fail($path, 'not a stat key');
         }
 
@@ -769,7 +805,7 @@ final class AccountsFile
 
     private function source(mixed $value, string $path): string
     {
-        if (! in_array($value, self::SOURCES, true)) {
+        if (!in_array($value, self::SOURCES, true)) {
             $this->fail($path, 'not "showcase" or "file"');
         }
 

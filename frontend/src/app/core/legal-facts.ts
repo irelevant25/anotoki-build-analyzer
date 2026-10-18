@@ -1,12 +1,7 @@
 import { inject } from '@angular/core';
 import { ActivatedRoute } from '@angular/router';
 import { AnotokiAuth } from '@anotoki/lib/auth';
-import {
-  ANOTOKI_LEGAL_CONFIG,
-  AnotokiLegalConfig,
-  DEFAULT_LEGAL_PATHS,
-  LegalFacts,
-} from '@anotoki/lib/legal';
+import { ANOTOKI_LEGAL_CONFIG, AnotokiLegalConfig, DEFAULT_LEGAL_PATHS, LegalFacts } from '@anotoki/lib/legal';
 import { CHANGELOG_SEEN_KEY } from './changelog';
 import { feedbackOffered } from './feedback';
 import { BRAND } from './i18n/title-strategy';
@@ -49,8 +44,7 @@ export function legalPagesConfig(): AnotokiLegalConfig {
   const i18n = inject(TranslationService);
   const auth = inject(AnotokiAuth);
   const meta = inject(MetaStore);
-  const contact =
-    `/${inject(ActivatedRoute).snapshot.routeConfig?.path ?? ''}` === DEFAULT_LEGAL_PATHS.contact;
+  const contact = `/${inject(ActivatedRoute).snapshot.routeConfig?.path ?? ''}` === DEFAULT_LEGAL_PATHS.contact;
   const form = contact ? feedbackOffered() : () => true;
   return { ...root, facts: () => siteLegalFacts(i18n, auth, meta.visitorDays(), form()) };
 }
@@ -118,12 +112,7 @@ export function legalPagesConfig(): AnotokiLegalConfig {
  * Cloudflare in the library -, never a string's: a rewording on the Translations page can never change where a link
  * goes (the 0.6.0 review). So are the cookie's and the stored items' names.
  */
-export function siteLegalFacts(
-  i18n: TranslationService,
-  auth: AnotokiAuth,
-  visitorDays: number,
-  feedbackForm = true,
-): LegalFacts {
+export function siteLegalFacts(i18n: TranslationService, auth: AnotokiAuth, visitorDays: number, feedbackForm = true): LegalFacts {
   const iam = auth.issuer().replace(/\/+$/, '');
   const client = auth.clientId() || 'build-analyzer';
   // Each key written whole: the key scan (php translations.php --status) reads the keys a page asks for as they are written.
@@ -176,9 +165,7 @@ export function siteLegalFacts(
       kept: i18n.t('legal.visitors.kept', { days: visitorDays }),
     },
     // What a message holds and how long it is kept; false, the Contact page gives the address alone.
-    feedback: feedbackForm
-      ? { what: i18n.t('legal.feedback.what'), kept: i18n.t('legal.feedback.kept') }
-      : false,
+    feedback: feedbackForm ? { what: i18n.t('legal.feedback.what'), kept: i18n.t('legal.feedback.kept') } : false,
     // The editors' and administrators' changes - the library's words say the administrators' alone.
     auditLog: { what: i18n.t('legal.auditLog.what') },
     // One on each day the site is used - the library's first sentence says "every day"; its keeping (by count) as it is.

@@ -75,7 +75,7 @@ final class Talents
             foreach (preg_split('/\s*(?:=|\/|,|&|\bor\b)\s*/iu', $group) ?: [] as $label) {
                 $label = trim(preg_replace('/\s*[\[(].*$/', '', $label) ?? $label);
                 $talent = $label === '' ? null : self::parse($game, $label);
-                if ($talent && ! in_array($talent, array_column($result, 'talent'), true)) {
+                if ($talent && !in_array($talent, array_column($result, 'talent'), true)) {
                     $result[] = ['talent' => $talent, 'priority' => $priority];
                     $added = true;
                 }
@@ -100,7 +100,7 @@ final class Talents
         $priority = 1;
         foreach ($labels as $label) {
             $talent = self::parse($game, (string) $label);
-            if ($talent && ! in_array($talent, array_column($result, 'talent'), true)) {
+            if ($talent && !in_array($talent, array_column($result, 'talent'), true)) {
                 $result[] = ['talent' => $talent, 'priority' => $priority++];
             }
         }

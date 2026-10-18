@@ -45,7 +45,7 @@ describe('errorKey(): a failed request in the reader’s words', () => {
     expect(errorKey(answered(400, 'sign_in_required'))).toBe('error.sign_in_required');
   });
 
-  it('words a visitor\'s two limits, each with its {max} - and nothing for a limit nobody listed', () => {
+  it("words a visitor's two limits, each with its {max} - and nothing for a limit nobody listed", () => {
     const accounts = answered(422, 'visitor_limit', { limit: 'accounts', max: 5 });
     expect(errorKey(accounts)).toBe('error.visitor_limit_accounts');
     expect(errorParams(accounts)).toEqual({ status: 422, max: 5 });
@@ -106,7 +106,9 @@ describe('errorKey(): a failed request in the reader’s words', () => {
       answered(401, 'visitor_unknown'),
       answered(422, 'visitor_limit', { limit: 'accounts', max: 5 }),
       answered(422, 'visitor_limit', { limit: 'file_size', max: 5120 }),
-      ...['editor_only', 'admin_only', 'too_many_visitors', 'visitors_unavailable', 'too_many_imports', 'not_found', 'server_error', 'not_set_up', 'invalid', 'nothing'].map((code) => answered(400, code)),
+      ...['editor_only', 'admin_only', 'too_many_visitors', 'visitors_unavailable', 'too_many_imports', 'not_found', 'server_error', 'not_set_up', 'invalid', 'nothing'].map((code) =>
+        answered(400, code),
+      ),
       answered(502),
     ].map((error) => errorKey(error));
     expect([...new Set<string>(answers)].sort()).toEqual([...declared].sort());

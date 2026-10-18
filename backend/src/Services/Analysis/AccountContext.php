@@ -46,7 +46,7 @@ final class AccountContext
             if ($weapon->equipped_character_id) {
                 // Keep the highest-level copy if an import ever produced duplicates.
                 $current = $this->equippedWeapons[$weapon->equipped_character_id] ?? null;
-                if (! $current || $weapon->level > $current->level) {
+                if (!$current || $weapon->level > $current->level) {
                     $this->equippedWeapons[$weapon->equipped_character_id] = $weapon;
                 }
                 $characterIds[] = $weapon->equipped_character_id;
@@ -92,7 +92,7 @@ final class AccountContext
 
     public function characterName(?int $characterId): ?string
     {
-        return $characterId ? ($this->characterNames[$characterId] ?? null) : null;
+        return $characterId ? $this->characterNames[$characterId] ?? null : null;
     }
 
     /**

@@ -31,8 +31,7 @@ describe('the What’s-new dialog: a frame in the reader’s language around ent
   const stable = () => TestBed.inject(ApplicationRef).whenStable();
   /** The kit's dialog the changelog opened (AnotokiDialog puts it at the end of <body>). */
   const dialog = () => document.querySelector<HTMLElement>('anotoki-dialog')!;
-  const texts = (selector: string) =>
-    [...dialog().querySelectorAll<HTMLElement>(selector)].map((element) => element.textContent?.replace(/\s+/g, ' ').trim());
+  const texts = (selector: string) => [...dialog().querySelectorAll<HTMLElement>(selector)].map((element) => element.textContent?.replace(/\s+/g, ' ').trim());
 
   async function open(language: 'en' | 'sk'): Promise<void> {
     TestBed.configureTestingModule({

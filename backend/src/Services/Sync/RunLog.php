@@ -28,10 +28,10 @@ final class RunLog
         $line = (string) Neutral::text($line);
         $this->written[] = $line;
 
-        $log = ($this->run->log ?? '') === '' ? $line : $this->run->log."\n".$line;
+        $log = ($this->run->log ?? '') === '' ? $line : $this->run->log . "\n" . $line;
         if (strlen($log) > self::LIMIT) {
             // mb_strcut counts bytes but never splits a character.
-            $log = mb_strcut($log, 0, self::HEAD)."\n…\n".mb_strcut($log, -(self::LIMIT - self::HEAD - 8));
+            $log = mb_strcut($log, 0, self::HEAD) . "\n…\n" . mb_strcut($log, -(self::LIMIT - self::HEAD - 8));
         }
         $this->run->log = $log;
     }

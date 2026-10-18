@@ -22,8 +22,7 @@ use App\Config;
  */
 final class Iam
 {
-    private const OPTIONAL = ['jwks_url', 'jwks_file', 'cache_ttl', 'leeway', 'http_timeout', 'application_ttl',
-        'application_timeout', 'application_file', 'anonymized_timeout', 'anonymized_file'];
+    private const OPTIONAL = ['jwks_url', 'jwks_file', 'cache_ttl', 'leeway', 'http_timeout', 'application_ttl', 'application_timeout', 'application_file', 'anonymized_timeout', 'anonymized_file'];
 
     public static function client(Config $config): IamClient
     {
@@ -33,7 +32,7 @@ final class Iam
             'cache_dir' => $config->storage('cache/iam'),
         ];
         foreach (self::OPTIONAL as $key) {
-            $value = $config->get('auth.'.$key);
+            $value = $config->get('auth.' . $key);
             if ($value !== null && $value !== '') {
                 $settings[$key] = $value;
             }

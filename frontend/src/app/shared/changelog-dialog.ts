@@ -1,11 +1,7 @@
 import { Component, effect, inject } from '@angular/core';
 import { BadgeComponent } from '@anotoki/lib/ui/badge';
 import { ButtonComponent } from '@anotoki/lib/ui/button';
-import {
-  ANOTOKI_DIALOG_DATA,
-  AnotokiDialogRef,
-  DialogFooterDirective,
-} from '@anotoki/lib/ui/dialog';
+import { ANOTOKI_DIALOG_DATA, AnotokiDialogRef, DialogFooterDirective } from '@anotoki/lib/ui/dialog';
 import { IconComponent } from '@anotoki/lib/ui/icon';
 import type { ChangelogEntry } from '../core/changelog';
 import { LocalDatePipe } from '../core/i18n/local-date';
@@ -23,14 +19,7 @@ import { TranslationService } from '../core/i18n/translation';
  */
 @Component({
   selector: 'app-changelog-dialog',
-  imports: [
-    BadgeComponent,
-    ButtonComponent,
-    DialogFooterDirective,
-    IconComponent,
-    TranslatePipe,
-    LocalDatePipe,
-  ],
+  imports: [BadgeComponent, ButtonComponent, DialogFooterDirective, IconComponent, TranslatePipe, LocalDatePipe],
   templateUrl: './changelog-dialog.html',
   styleUrl: './changelog-dialog.scss',
 })

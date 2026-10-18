@@ -23,16 +23,11 @@ class GoodParser
 
     public function parse(array $json): ParsedAccount
     {
-        if (! self::matches($json)) {
+        if (!self::matches($json)) {
             throw new ImportException('This is not a GOOD file (missing "format": "GOOD").', 'good_not_good');
         }
 
-        $account = new ParsedAccount(
-            game: Game::Genshin,
-            source: 'good',
-            fullInventory: true,
-            meta: ['tool' => $json['source'] ?? 'unknown', 'format_version' => $json['version'] ?? null],
-        );
+        $account = new ParsedAccount(game: Game::Genshin, source: 'good', fullInventory: true, meta: ['tool' => $json['source'] ?? 'unknown', 'format_version' => $json['version'] ?? null]);
 
         $travelerKeys = [];
         foreach ($json['characters'] ?? [] as $character) {
@@ -93,7 +88,7 @@ class GoodParser
         foreach ($json['artifacts'] ?? [] as $artifact) {
             $slot = $artifact['slotKey'] ?? null;
             $main = $artifact['mainStatKey'] ?? null;
-            if (empty($artifact['setKey']) || ! in_array($slot, self::SLOTS, true) || ! is_string($main) || $main === '') {
+            if (empty($artifact['setKey']) || !in_array($slot, self::SLOTS, true) || !is_string($main) || $main === '') {
                 $skipped++;
 
                 continue;

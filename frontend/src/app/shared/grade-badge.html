@@ -1,5 +1,4 @@
-<span class="badge" [class.lg]="size() === 'lg'" [class.sm]="size() === 'sm'" [style.--grade-color]="color()"
-  [attr.aria-label]="'item.grade' | translate: { grade: grade() }">{{ grade() }}</span>
+<span class="badge" [class.lg]="size() === 'lg'" [class.sm]="size() === 'sm'" [style.--grade-color]="color()" [attr.aria-label]="'item.grade' | translate: { grade: grade() }">{{ grade() }}</span>
 @if (score() !== null && score() !== undefined) {
-  <span class="score">{{ score() }}</span>
+    <span class="score">{{ score() }}</span>
 }

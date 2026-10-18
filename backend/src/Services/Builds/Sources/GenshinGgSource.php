@@ -95,9 +95,9 @@ abstract class GenshinGgSource implements BuildSource
     protected function bundle(): array
     {
         $options = ['browser' => true, 'delay_ms' => $this->delayMs(), 'cache_hours' => (int) $this->config->get('fetch.cache_hours', 12)];
-        $manifest = $this->fetcher->getJson($this->baseUrl().'/asset-manifest.json', $options);
+        $manifest = $this->fetcher->getJson($this->baseUrl() . '/asset-manifest.json', $options);
         $path = $manifest['files']['main.js'] ?? throw new RuntimeException('The asset manifest names no main bundle');
-        $url = str_starts_with($path, 'http') ? $path : $this->baseUrl().'/'.ltrim($path, '/');
+        $url = str_starts_with($path, 'http') ? $path : $this->baseUrl() . '/' . ltrim($path, '/');
 
         return self::$bundles[$url] ??= self::decodeBundle($this->fetcher->get($url, $options));
     }
@@ -145,22 +145,26 @@ abstract class GenshinGgSource implements BuildSource
      */
     private static function jsStringToJson(string $literal): string
     {
-        return preg_replace_callback('/\\\\(x[0-9a-fA-F]{2}|u[0-9a-fA-F]{4}|\r\n|[\s\S])/', function (array $m) {
-            $escape = $m[1];
+        return preg_replace_callback(
+            '/\\\\(x[0-9a-fA-F]{2}|u[0-9a-fA-F]{4}|\r\n|[\s\S])/',
+            function (array $m) {
+                $escape = $m[1];
 
-            return match (true) {
-                $escape === '\\' => '\\',
-                $escape === "'" => "'",
-                $escape === '"' => '\\"',
-                in_array($escape, ['n', 'r', 't', 'b', 'f'], true) => '\\'.$escape,
-                $escape === 'v' => '\\u000b',
-                $escape === '0' => '\\u0000',
-                $escape[0] === 'x' => '\\u00'.substr($escape, 1),
-                $escape[0] === 'u' => '\\'.$escape,
-                $escape === "\n" || $escape === "\r\n" => '', // line continuation
-                default => $escape,
-            };
-        }, $literal) ?? $literal;
+                return match (true) {
+                    $escape === '\\' => '\\',
+                    $escape === "'" => "'",
+                    $escape === '"' => '\\"',
+                    in_array($escape, ['n', 'r', 't', 'b', 'f'], true) => '\\' . $escape,
+                    $escape === 'v' => '\\u000b',
+                    $escape === '0' => '\\u0000',
+                    $escape[0] === 'x' => '\\u00' . substr($escape, 1),
+                    $escape[0] === 'u' => '\\' . $escape,
+                    $escape === "\n" || $escape === "\r\n" => '', // line continuation
+                    default => $escape,
+                };
+            },
+            $literal,
+        ) ?? $literal;
     }
 
     /**
@@ -207,7 +211,7 @@ abstract class GenshinGgSource implements BuildSource
     protected function setOption(string $text, string $kind): ?array
     {
         $names = array_values(array_filter(array_map('trim', preg_split('/\s*\+\s*/', $text) ?: [])));
-        $names = array_map(fn ($name) => trim(preg_replace('/^\(?[24]\s*-?\s*p(?:c|iece)?\)?\s*/i', '', $name) ?? $name), $names);
+        $names = array_map(fn($name) => trim(preg_replace('/^\(?[24]\s*-?\s*p(?:c|iece)?\)?\s*/i', '', $name) ?? $name), $names);
         if ($names === []) {
             return null;
         }
@@ -219,7 +223,7 @@ abstract class GenshinGgSource implements BuildSource
         return [
             'kind' => $kind,
             'choose' => null,
-            'pieces' => array_map(fn ($name) => ['names' => [$name], 'label' => $name, 'count' => 2], array_slice($names, 0, 2)),
+            'pieces' => array_map(fn($name) => ['names' => [$name], 'label' => $name, 'count' => 2], array_slice($names, 0, 2)),
             'note' => null,
         ];
     }

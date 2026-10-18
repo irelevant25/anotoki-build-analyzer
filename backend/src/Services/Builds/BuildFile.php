@@ -85,8 +85,25 @@ final class BuildFile
     /** The fields of the file and of a build, in the order the export writes them. */
     private const FIELDS = ['format', 'format_version', 'source', 'game', 'exported_at', 'synced_at', 'builds'];
 
-    private const BUILD_FIELDS = ['character', 'character_name', 'variant', 'role', 'recommended', 'position', 'weapons', 'sets',
-        'main_stats', 'substats', 'talent_priority', 'stat_targets', 'notes', 'source_updated_at', 'game_version', 'fetched_at', 'changed_at'];
+    private const BUILD_FIELDS = [
+        'character',
+        'character_name',
+        'variant',
+        'role',
+        'recommended',
+        'position',
+        'weapons',
+        'sets',
+        'main_stats',
+        'substats',
+        'talent_priority',
+        'stat_targets',
+        'notes',
+        'source_updated_at',
+        'game_version',
+        'fetched_at',
+        'changed_at',
+    ];
 
     /** A build may leave its times out: it was then fetched and changed when it is imported. */
     private const OPTIONAL = ['fetched_at', 'changed_at'];
@@ -115,36 +132,51 @@ final class BuildFile
             'role' => self::neutral($build->role, self::MAX_ROLE),
             'recommended' => $build->recommended,
             'position' => $build->position,
-            'weapons' => array_map(fn (array $weapon) => [
-                'key' => self::neutralKey((string) ($weapon['key'] ?? '')),
-                'name' => self::neutral((string) ($weapon['name'] ?? ''), self::MAX_NAME),
-                'rank' => $weapon['rank'] ?? null,
-                'refinement' => $weapon['refinement'] ?? null,
-                'note' => self::neutral($weapon['note'] ?? null, self::MAX_NOTE),
-                'known' => $weapon['known'] ?? null,
-            ], $build->weapons),
-            'sets' => array_map(fn (array $option) => [
-                'rank' => $option['rank'] ?? null,
-                'kind' => $option['kind'] ?? null,
-                'choose' => $option['choose'] ?? null,
-                'pieces' => array_map(fn (array $piece) => [
-                    'label' => self::neutral((string) ($piece['label'] ?? ''), self::MAX_NAME),
-                    'count' => $piece['count'] ?? null,
-                    'keys' => array_values(array_unique(array_map(fn ($key) => self::neutralKey((string) $key), $piece['keys'] ?? []))),
-                    'names' => array_values(array_unique(array_map(fn ($name) => self::neutral((string) $name, self::MAX_NAME), $piece['names'] ?? []))),
-                ], $option['pieces'] ?? []),
-                'note' => self::neutral($option['note'] ?? null, self::MAX_NOTE),
-            ], $build->sets),
+            'weapons' => array_map(
+                fn(array $weapon) => [
+                    'key' => self::neutralKey((string) ($weapon['key'] ?? '')),
+                    'name' => self::neutral((string) ($weapon['name'] ?? ''), self::MAX_NAME),
+                    'rank' => $weapon['rank'] ?? null,
+                    'refinement' => $weapon['refinement'] ?? null,
+                    'note' => self::neutral($weapon['note'] ?? null, self::MAX_NOTE),
+                    'known' => $weapon['known'] ?? null,
+                ],
+                $build->weapons,
+            ),
+            'sets' => array_map(
+                fn(array $option) => [
+                    'rank' => $option['rank'] ?? null,
+                    'kind' => $option['kind'] ?? null,
+                    'choose' => $option['choose'] ?? null,
+                    'pieces' => array_map(
+                        fn(array $piece) => [
+                            'label' => self::neutral((string) ($piece['label'] ?? ''), self::MAX_NAME),
+                            'count' => $piece['count'] ?? null,
+                            'keys' => array_values(array_unique(array_map(fn($key) => self::neutralKey((string) $key), $piece['keys'] ?? []))),
+                            'names' => array_values(array_unique(array_map(fn($name) => self::neutral((string) $name, self::MAX_NAME), $piece['names'] ?? []))),
+                        ],
+                        $option['pieces'] ?? [],
+                    ),
+                    'note' => self::neutral($option['note'] ?? null, self::MAX_NOTE),
+                ],
+                $build->sets,
+            ),
             // An object even when empty: its keys are slots.
             'main_stats' => (object) $build->main_stats,
             'substats' => $build->substats,
             'talent_priority' => $build->talent_priority,
-            'stat_targets' => $build->stat_targets === null ? null : array_map(fn (array $target) => [
-                'stat' => $target['stat'] ?? null,
-                'min' => $target['min'] ?? null,
-                'max' => $target['max'] ?? null,
-                'text' => self::neutral((string) ($target['text'] ?? ''), self::MAX_NOTE),
-            ], $build->stat_targets),
+            'stat_targets' =>
+                $build->stat_targets === null
+                    ? null
+                    : array_map(
+                        fn(array $target) => [
+                            'stat' => $target['stat'] ?? null,
+                            'min' => $target['min'] ?? null,
+                            'max' => $target['max'] ?? null,
+                            'text' => self::neutral((string) ($target['text'] ?? ''), self::MAX_NOTE),
+                        ],
+                        $build->stat_targets,
+                    ),
             'notes' => self::neutral($build->notes, self::MAX_NOTES),
             'source_updated_at' => self::time($build->source_updated_at),
             'game_version' => self::neutral($build->game_version, self::MAX_GAME_VERSION),
@@ -171,7 +203,7 @@ final class BuildFile
             return $text;
         }
 
-        return rtrim(mb_substr($text, 0, $max - 1)).'…';
+        return rtrim(mb_substr($text, 0, $max - 1)) . '…';
     }
 
     /** A key of the form Key makes, the same way: one that spells a site's name ("prydwen") stops doing so. */
@@ -196,20 +228,22 @@ final class BuildFile
 
     private function check(mixed $file, string $key, string $label): array
     {
-        if (! is_array($file) || array_is_list($file) || ($file['format'] ?? null) !== self::FORMAT) {
+        if (!is_array($file) || array_is_list($file) || ($file['format'] ?? null) !== self::FORMAT) {
             throw new BuildFileException('This is not a builds file exported by the build analyzer.');
         }
         $version = $file['format_version'] ?? null;
         if ($version !== self::VERSION) {
-            throw new BuildFileException(is_int($version) && $version > self::VERSION
-                ? "This builds file has format version {$version}, and this installation reads version ".self::VERSION.'. Update this installation, then import again.'
-                : 'This builds file has no format version this installation reads.');
+            throw new BuildFileException(
+                is_int($version) && $version > self::VERSION
+                    ? "This builds file has format version {$version}, and this installation reads version " . self::VERSION . '. Update this installation, then import again.'
+                    : 'This builds file has no format version this installation reads.',
+            );
         }
         $game = is_string($file['game'] ?? null) ? Game::tryFrom($file['game']) : null;
         if ($game !== $this->game) {
-            throw new BuildFileException($game === null
-                ? 'This builds file names no game this installation knows.'
-                : "This file holds {$game->label()} builds, and {$label} is a {$this->game->label()} source.");
+            throw new BuildFileException(
+                $game === null ? 'This builds file names no game this installation knows.' : "This file holds {$game->label()} builds, and {$label} is a {$this->game->label()} source.",
+            );
         }
         if (($file['source'] ?? null) !== $key) {
             // The file could hold any text there; only a key of the app's own form is repeated.
@@ -226,7 +260,7 @@ final class BuildFile
         foreach ($this->list($file['builds'], 'builds', self::MAX_BUILDS) as $index => $entry) {
             $build = $this->readBuild($entry, $index);
             // (source, character, variant) is a build's identity: a second one would overwrite the first.
-            $identity = $build['character']."\n".$build['variant'];
+            $identity = $build['character'] . "\n" . $build['variant'];
             if (isset($seen[$identity])) {
                 $this->fail('its character and variant', "are those of builds[{$seen[$identity]}] too");
             }
@@ -353,8 +387,8 @@ final class BuildFile
     {
         $result = [];
         foreach ($this->object($value, 'main_stats') as $slot => $list) {
-            if (! in_array($slot, $this->game->slots(), true)) {
-                $this->fail("main_stats.{$slot}", 'is not a slot of '.$this->game->label());
+            if (!in_array($slot, $this->game->slots(), true)) {
+                $this->fail("main_stats.{$slot}", 'is not a slot of ' . $this->game->label());
             }
             $result[$slot] = $this->ranked($list, "main_stats.{$slot}", 'stat', self::MAX_STATS, min: 1);
         }
@@ -380,9 +414,7 @@ final class BuildFile
             $entry = $this->object($entry, $at);
             $this->fields($entry, $at, [$name, 'priority']);
             $result[] = [
-                $name => $name === 'stat'
-                    ? $this->stat($entry['stat'], "{$at}.stat")
-                    : $this->oneOf($entry['talent'], "{$at}.talent", Talents::keys($this->game)),
+                $name => $name === 'stat' ? $this->stat($entry['stat'], "{$at}.stat") : $this->oneOf($entry['talent'], "{$at}.talent", Talents::keys($this->game)),
                 'priority' => $this->integer($entry['priority'], "{$at}.priority", 1, 99),
             ];
         }
@@ -422,9 +454,7 @@ final class BuildFile
     {
         $where = Text::limit($where, 80);
 
-        throw new BuildFileException((string) Neutral::text($this->build === null
-            ? "The file's {$where} {$problem}."
-            : "The file's {$this->build} is not valid: {$where} {$problem}."));
+        throw new BuildFileException((string) Neutral::text($this->build === null ? "The file's {$where} {$problem}." : "The file's {$this->build} is not valid: {$where} {$problem}."));
     }
 
     /**
@@ -437,12 +467,12 @@ final class BuildFile
     private function fields(array $object, ?string $where, array $fields, array $optional = []): void
     {
         foreach ($fields as $field) {
-            if (! array_key_exists($field, $object) && ! in_array($field, $optional, true)) {
+            if (!array_key_exists($field, $object) && !in_array($field, $optional, true)) {
                 $this->fail($where === null ? $field : "{$where}.{$field}", 'is missing');
             }
         }
         foreach (array_keys($object) as $field) {
-            if (! in_array($field, $fields, true)) {
+            if (!in_array($field, $fields, true)) {
                 $this->fail($where === null ? (string) $field : "{$where}.{$field}", 'is not a field of this format');
             }
         }
@@ -455,7 +485,7 @@ final class BuildFile
      */
     private function object(mixed $value, string $where): array
     {
-        if (! is_array($value) || ($value !== [] && array_is_list($value))) {
+        if (!is_array($value) || ($value !== [] && array_is_list($value))) {
             $this->fail($where, 'must be an object');
         }
 
@@ -470,8 +500,8 @@ final class BuildFile
         if ($value === null && $nullable) {
             return null;
         }
-        if (! is_array($value) || ! array_is_list($value)) {
-            $this->fail($where, 'must be a list'.($nullable ? ', or null' : ''));
+        if (!is_array($value) || !array_is_list($value)) {
+            $this->fail($where, 'must be a list' . ($nullable ? ', or null' : ''));
         }
         if (count($value) < $min) {
             $this->fail($where, 'must not be empty');
@@ -499,10 +529,10 @@ final class BuildFile
         if ($value === null && $nullable) {
             return null;
         }
-        if (! is_string($value)) {
-            $this->fail($where, 'must be text'.($nullable ? ', or null' : ''));
+        if (!is_string($value)) {
+            $this->fail($where, 'must be text' . ($nullable ? ', or null' : ''));
         }
-        if (! $empty && trim($value) === '') {
+        if (!$empty && trim($value) === '') {
             $this->fail($where, 'must not be empty');
         }
         if (mb_strlen($value) > $max) {
@@ -517,8 +547,8 @@ final class BuildFile
         if ($value === null && $nullable) {
             return null;
         }
-        if (! is_int($value) || $value < $min || $value > $max) {
-            $this->fail($where, "must be a whole number from {$min} to {$max}".($nullable ? ', or null' : ''));
+        if (!is_int($value) || $value < $min || $value > $max) {
+            $this->fail($where, "must be a whole number from {$min} to {$max}" . ($nullable ? ', or null' : ''));
         }
 
         return $value;
@@ -527,7 +557,7 @@ final class BuildFile
     /** A stat target's bound. JSON can spell numbers too large for a float (1E400), which arrive as INF. */
     private function number(mixed $value, string $where): int|float|null
     {
-        if ($value !== null && (! (is_int($value) || is_float($value)) || ! is_finite((float) $value) || abs($value) > 1_000_000)) {
+        if ($value !== null && (!(is_int($value) || is_float($value)) || !is_finite((float) $value) || abs($value) > 1_000_000)) {
             $this->fail($where, 'must be a number from -1000000 to 1000000, or null');
         }
 
@@ -536,7 +566,7 @@ final class BuildFile
 
     private function boolean(mixed $value, string $where): bool
     {
-        if (! is_bool($value)) {
+        if (!is_bool($value)) {
             $this->fail($where, 'must be true or false');
         }
 
@@ -549,7 +579,7 @@ final class BuildFile
      */
     private function key(mixed $value, string $where, int $max, bool $neutral = true): string
     {
-        if (! is_string($value) || ! preg_match('/^[a-z0-9]+$/', $value) || strlen($value) > $max) {
+        if (!is_string($value) || !preg_match('/^[a-z0-9]+$/', $value) || strlen($value) > $max) {
             $this->fail($where, "must be a key of lowercase letters and digits, at most {$max} long");
         }
 
@@ -559,7 +589,7 @@ final class BuildFile
     /** A stat key of the game (App\Support\Stats::keys()): the API sends them as they are. */
     private function stat(mixed $value, string $where): string
     {
-        if (! in_array($value, Stats::keys($this->game), true)) {
+        if (!in_array($value, Stats::keys($this->game), true)) {
             $this->fail($where, "must be a stat key of {$this->game->label()}, such as critRate_ or hp_");
         }
 
@@ -574,9 +604,9 @@ final class BuildFile
      */
     private function oneOf(mixed $value, string $where, array $allowed): string|int
     {
-        if (! in_array($value, $allowed, true)) {
+        if (!in_array($value, $allowed, true)) {
             $last = array_pop($allowed);
-            $this->fail($where, 'must be '.($allowed === [] ? $last : implode(', ', $allowed).' or '.$last));
+            $this->fail($where, 'must be ' . ($allowed === [] ? $last : implode(', ', $allowed) . ' or ' . $last));
         }
 
         return $value;
@@ -588,8 +618,7 @@ final class BuildFile
             return null;
         }
 
-        return self::parseTime($value)
-            ?? $this->fail($where, 'must be a time in ISO 8601 from 1970 on, such as 2026-09-29T14:03:12Z'.($nullable ? ', or null' : ''));
+        return self::parseTime($value) ?? $this->fail($where, 'must be a time in ISO 8601 from 1970 on, such as 2026-09-29T14:03:12Z' . ($nullable ? ', or null' : ''));
     }
 
     /**
@@ -598,7 +627,7 @@ final class BuildFile
      */
     private static function parseTime(mixed $value): ?DateTimeImmutable
     {
-        if (! is_string($value) || ! preg_match(self::TIME, $value) || (int) substr($value, 0, 4) < 1970) {
+        if (!is_string($value) || !preg_match(self::TIME, $value) || (int) substr($value, 0, 4) < 1970) {
             return null;
         }
         try {

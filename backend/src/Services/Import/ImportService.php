@@ -51,8 +51,7 @@ class ImportService
             // A refusal of the request (its owner gone meanwhile, a visitor's limit), not a failed import: nothing to record.
             throw $e;
         } catch (Throwable $e) {
-            $this->importer->recordFailure($game, 'enka', $e, $owner,
-                $target ?? $this->accounts->findOwnedByUid($owner->id, $game, $uid));
+            $this->importer->recordFailure($game, 'enka', $e, $owner, $target ?? $this->accounts->findOwnedByUid($owner->id, $game, $uid));
 
             throw $e;
         }
@@ -64,19 +63,22 @@ class ImportService
     public function fromFile(string $contents, User $owner, ?Game $expectedGame = null, ?Account $target = null, ?string $fileName = null): ImportRun
     {
         $source = 'file';
-        $game = $expectedGame ?? $target?->game ?? Game::Genshin;
+        $game = $expectedGame ?? ($target?->game ?? Game::Genshin);
 
         try {
             // Some exporters write a UTF-8 BOM.
             $json = json_decode(preg_replace('/^\xEF\xBB\xBF/', '', $contents) ?? $contents, true);
-            if (! is_array($json)) {
+            if (!is_array($json)) {
                 throw new ImportException('The file is not valid JSON.', 'file_not_json');
             }
 
             [$game, $source, $parsed] = match (true) {
                 GoodParser::matches($json) => [Game::Genshin, 'good', $this->good->parse($json)],
                 HsrScannerParser::matches($json) => [Game::Hsr, 'hsr_scanner', $this->hsrScanner->parse($json)],
-                default => throw new ImportException('Unknown file format. Upload a Genshin Impact inventory export in the GOOD format, or a Honkai: Star Rail inventory export (with "relics" and "light_cones").', 'file_unknown_format'),
+                default => throw new ImportException(
+                    'Unknown file format. Upload a Genshin Impact inventory export in the GOOD format, or a Honkai: Star Rail inventory export (with "relics" and "light_cones").',
+                    'file_unknown_format',
+                ),
             };
 
             if ($expectedGame && $expectedGame !== $game) {

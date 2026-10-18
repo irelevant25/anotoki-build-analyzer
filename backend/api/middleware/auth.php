@@ -91,22 +91,25 @@ function identifyRequest(App $app, bool $visitors = false): Closure
         $identify = new Identify(
             $app->get(AccessTokens::class),
             $app->get(SignInRule::class),
-            new ResponseFactory,
+            new ResponseFactory(),
             // Visitors::find(): the visitor, seen now - or 401 visitor_unknown, or 503 visitors_unavailable while
             // migration 004 waits, in this site's words (App\Web\HttpError, answered by jsonErrors()).
-            visitor: $visitors ? fn (string $key): User => $app->get(Visitors::class)->find($key) : null,
+            visitor: $visitors ? fn(string $key): User => $app->get(Visitors::class)->find($key) : null,
             responder: siteRefusal(...),
         );
 
-        return (new Pipeline([
-            $identify,
-            // Who it is, for the error log's line should the route fail (App\Auth\RequestCaller).
-            function (ServerRequestInterface $request, RequestHandlerInterface $handler) use ($app): ResponseInterface {
-                $app->get(RequestCaller::class)->sub = Identify::person($request)?->sub;
+        return (new Pipeline(
+            [
+                $identify,
+                // Who it is, for the error log's line should the route fail (App\Auth\RequestCaller).
+                function (ServerRequestInterface $request, RequestHandlerInterface $handler) use ($app): ResponseInterface {
+                    $app->get(RequestCaller::class)->sub = Identify::person($request)?->sub;
 
-                return $handler->handle($request);
-            },
-        ], $handler))->handle($request);
+                    return $handler->handle($request);
+                },
+            ],
+            $handler,
+        ))->handle($request);
     };
 }
 
@@ -132,7 +135,7 @@ function siteRefusal(ResponseInterface $response, Refusal $refusal): ResponseInt
  */
 function middlewareSteps(array $steps): Closure
 {
-    return fn (ServerRequestInterface $request, RequestHandlerInterface $handler): ResponseInterface => (new Pipeline($steps, $handler))->handle($request);
+    return fn(ServerRequestInterface $request, RequestHandlerInterface $handler): ResponseInterface => (new Pipeline($steps, $handler))->handle($request);
 }
 
 /**
@@ -153,9 +156,7 @@ function recordPerson(App $app): Closure
         $row = $app->db()->one("SELECT to_jsonb(u)->>'name' AS name, to_jsonb(u)->>'last_seen_at' AS last_seen_at FROM users u WHERE u.id = ?", [$person->sub]);
         $name = PeopleRecorder::clip($person->name, 100);
         $seen = $row === null ? null : Db::time($row['last_seen_at']);
-        $stale = $row === null
-            || ($name !== null && $name !== $row['name'])
-            || $seen === null || $seen < Clock::now()->modify('-'.PeopleRecorder::EVERY.' seconds');
+        $stale = $row === null || ($name !== null && $name !== $row['name']) || $seen === null || $seen < Clock::now()->modify('-' . PeopleRecorder::EVERY . ' seconds');
 
         return $stale ? (new RecordPerson($app->get(People::class)))->process($request, $handler) : $handler->handle($request);
     };
@@ -181,7 +182,7 @@ function signInRequired(): HttpError
 /** Middleware: a signed-in person, any role or none. */
 function requireSignIn(App $app): Closure
 {
-    return middlewareSteps([identifyRequest($app), new RequirePerson, recordPerson($app)]);
+    return middlewareSteps([identifyRequest($app), new RequirePerson(), recordPerson($app)]);
 }
 
 /**
@@ -200,7 +201,7 @@ function requireOwner(App $app, bool $mayMakeVisitor = false): Closure
     return middlewareSteps([
         identifyRequest($app, visitors: true),
         new RequireCaller($mayMakeVisitor ? RequireCaller::MAKE : RequireCaller::REFUSE),
-        ...($mayMakeVisitor ? [jsonFromNobody()] : []),
+        ...$mayMakeVisitor ? [jsonFromNobody()] : [],
         recordPerson($app),
         function (ServerRequestInterface $request, RequestHandlerInterface $handler) use ($app): ResponseInterface {
             if (currentUserOrNull($request) !== null) {
@@ -309,20 +310,20 @@ function optionalSignIn(App $app): Closure
 function throttle(App $app, string $name, int|string $perMinute, int|string|null $visitorsPerMinute = null): Closure
 {
     return function (ServerRequestInterface $request, RequestHandlerInterface $handler) use ($app, $name, $perMinute, $visitorsPerMinute): ResponseInterface {
-        $limit = fn (int|string|null $limit): ?int => is_string($limit) ? (int) $app->config->get($limit) : $limit;
+        $limit = fn(int|string|null $limit): ?int => is_string($limit) ? (int) $app->config->get($limit) : $limit;
         $perMinute = $limit($perMinute);
         $visitorsPerMinute = $limit($visitorsPerMinute);
         $user = currentUserOrNull($request);
-        $person = $user !== null && ! $user->isVisitor();
+        $person = $user !== null && !$user->isVisitor();
         // Per address by a keyed hash of it, never the address itself: the cache table, and its backups, keep it.
-        $who = $person ? 'user:'.$user->id : 'ip:'.ClientAddress::countedKey($request, $app->config);
+        $who = $person ? 'user:' . $user->id : 'ip:' . ClientAddress::countedKey($request, $app->config);
         $cache = $app->get(Cache::class);
-        $tooMany = fn (): HttpError => new HttpError(429, 'That is a lot of imports in one minute. Wait a moment and try again.', ['code' => 'too_many_imports'], ['Retry-After' => '60']);
+        $tooMany = fn(): HttpError => new HttpError(429, 'That is a lot of imports in one minute. Wait a moment and try again.', ['code' => 'too_many_imports'], ['Retry-After' => '60']);
 
         if ($cache->hit("rate:{$name}:{$who}", 60) > $perMinute) {
             throw $tooMany();
         }
-        if (! $person && $visitorsPerMinute !== null && $cache->hit("rate:{$name}:visitors", 60) > $visitorsPerMinute) {
+        if (!$person && $visitorsPerMinute !== null && $cache->hit("rate:{$name}:visitors", 60) > $visitorsPerMinute) {
             throw $tooMany();
         }
 

@@ -38,7 +38,7 @@ abstract class CatalogEntry
      */
     public function externalIds(): array
     {
-        return array_values(array_filter(array_map('strval', [$this->external_id, ...($this->meta['ids'] ?? [])]), fn (string $id) => $id !== ''));
+        return array_values(array_filter(array_map('strval', [$this->external_id, ...$this->meta['ids'] ?? []]), fn(string $id) => $id !== ''));
     }
 
     /** @param array<string, mixed> $row */

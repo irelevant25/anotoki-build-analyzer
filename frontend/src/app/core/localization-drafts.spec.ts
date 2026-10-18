@@ -25,11 +25,7 @@ describe("the drafts of the Translations and Languages pages, reached from outsi
 
   afterEach(() => sessionStorage.clear());
 
-  const stored = (owner: string) =>
-    sessionStorage.setItem(
-      'build-analyzer-localization-drafts',
-      JSON.stringify({ owner, strings: { 'topbar.import': { sk: 'Import' } }, languages: {} }),
-    );
+  const stored = (owner: string) => sessionStorage.setItem('build-analyzer-localization-drafts', JSON.stringify({ owner, strings: { 'topbar.import': { sk: 'Import' } }, languages: {} }));
 
   it('are none while the tab holds none - and nothing of the admin pages is loaded for them', async () => {
     expect(draftsInTab()).toBe(false);

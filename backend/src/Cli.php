@@ -16,20 +16,21 @@ final class Cli
     {
         if (PHP_SAPI !== 'cli') {
             http_response_code(404);
-            exit;
+            exit();
         }
         if (PHP_VERSION_ID < 80400) {
-            self::fail('PHP 8.4 or newer is needed (this is '.PHP_VERSION.').');
+            self::fail('PHP 8.4 or newer is needed (this is ' . PHP_VERSION . ').');
         }
 
         $config = Config::load();
-        if (! $config->isSetUp()) {
-            self::fail("This installation is not set up yet:\n  ".implode("\n  ", $config->problems())
-                ."\nRun setup.php first (composer start in backend/, then open http://localhost:8400/setup.php).");
+        if (!$config->isSetUp()) {
+            self::fail(
+                "This installation is not set up yet:\n  " . implode("\n  ", $config->problems()) . "\nRun setup.php first (composer start in backend/, then open http://localhost:8400/setup.php).",
+            );
         }
         Log::to($config->storage('logs/app.log'));
         // The anotoki library's own lines into the same file, as the API's (api/index.php).
-        LibraryLog::to(static fn (string $line) => Log::info($line));
+        LibraryLog::to(static fn(string $line) => Log::info($line));
         // What a command leaves for "after the answer" (App\Web\AfterResponse) runs when the command ends, however
         // it ends (exit() too): there is no answer to wait for here, and work queued for one would never run - a
         // restore that could not check the IAM's deleted accounts gives back the upkeep's hourly claim that way,
@@ -75,11 +76,11 @@ final class Cli
      */
     public static function helpIfAsked(array $argv, string $script): void
     {
-        if (! in_array('--help', $argv, true) && ! in_array('-h', $argv, true)) {
+        if (!in_array('--help', $argv, true) && !in_array('-h', $argv, true)) {
             return;
         }
         if (preg_match('~/\*\*(.*?)\*/~s', (string) file_get_contents($script), $match)) {
-            $lines = array_map(fn (string $line) => (string) preg_replace('~^\s*\* ?~', '', $line), explode("\n", trim($match[1])));
+            $lines = array_map(fn(string $line) => (string) preg_replace('~^\s*\* ?~', '', $line), explode("\n", trim($match[1])));
             self::line(trim(implode("\n", $lines)));
         }
         exit(0);
@@ -125,7 +126,7 @@ final class Cli
 
             return;
         }
-        fwrite(STDERR, self::colour(31, $text).PHP_EOL);
+        fwrite(STDERR, self::colour(31, $text) . PHP_EOL);
     }
 
     private static function write(string $text): void

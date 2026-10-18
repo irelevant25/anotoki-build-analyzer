@@ -26,8 +26,6 @@ export class ScoreBar {
   /** The score as the page writes a number, or "n/a" - never the kit's "45 %": a score is no share. */
   protected readonly valueText = computed(() => {
     const value = this.value();
-    return value === null || value === undefined
-      ? this.i18n.t('item.noScore')
-      : this.i18n.number(value);
+    return value === null || value === undefined ? this.i18n.t('item.noScore') : this.i18n.number(value);
   });
 }

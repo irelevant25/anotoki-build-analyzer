@@ -35,17 +35,7 @@ interface SetGroup {
  */
 @Component({
   selector: 'app-build-detail',
-  imports: [
-    Avatar,
-    StatValuePipe,
-    LocalDatePipe,
-    TranslatePipe,
-    TranslatePluralPipe,
-    BadgeComponent,
-    DisclosureComponent,
-    IconComponent,
-    TooltipDirective,
-  ],
+  imports: [Avatar, StatValuePipe, LocalDatePipe, TranslatePipe, TranslatePluralPipe, BadgeComponent, DisclosureComponent, IconComponent, TooltipDirective],
   templateUrl: './build-detail.html',
   styleUrl: './build-detail.scss',
 })
@@ -68,9 +58,7 @@ export class BuildDetail {
 
   protected readonly equippedWeaponKey = computed(() => this.evaluation()?.weapon?.equipped?.key ?? null);
 
-  protected readonly ownedWeaponKeys = computed(
-    () => new Set((this.evaluation()?.weapon?.owned_better ?? []).map((weapon) => weapon.key)),
-  );
+  protected readonly ownedWeaponKeys = computed(() => new Set((this.evaluation()?.weapon?.owned_better ?? []).map((weapon) => weapon.key)));
 
   protected readonly setGroups = computed<SetGroup[]>(() => {
     const groups = this.evaluation()?.sets?.groups ?? [];
@@ -103,9 +91,7 @@ export class BuildDetail {
     for (const talent of talents) {
       byPriority.set(talent.priority, [...(byPriority.get(talent.priority) ?? []), talent]);
     }
-    return [...byPriority.entries()]
-      .sort(([a], [b]) => a - b)
-      .map(([, list]) => list.map((t) => this.meta.talentLabel(this.game(), t.talent)).join(' = '));
+    return [...byPriority.entries()].sort(([a], [b]) => a - b).map(([, list]) => list.map((t) => this.meta.talentLabel(this.game(), t.talent)).join(' = '));
   });
 
   protected readonly targets = computed(() => {

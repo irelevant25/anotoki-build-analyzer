@@ -1,5 +1,5 @@
-@use 'sass:map';
-@use '@anotoki/lib/styles' as anotoki;
+@use "sass:map";
+@use "@anotoki/lib/styles" as anotoki;
 
 // The anotoki family's kit (@anotoki/lib/styles): its tokens, Manrope, its base, utilities and tables - with this
 // site's own colours over the family's palette, light and dark (the owner's decision of 2026-10-07: one library
@@ -196,12 +196,12 @@ $site-colours: (
 
 // Dark as the family's tokens are: under prefers-color-scheme unless data-theme="light", and under data-theme="dark".
 @media (prefers-color-scheme: dark) {
-  :root:not([data-theme='light']) {
+  :root:not([data-theme="light"]) {
     @include site-colours(dark);
   }
 }
 
-:root[data-theme='dark'] {
+:root[data-theme="dark"] {
   @include site-colours(dark);
 }
 
@@ -268,7 +268,7 @@ details.disclosure {
 
     // The chevron: down while closed, up while open.
     &::after {
-      content: '';
+      content: "";
       flex: none;
       width: 0.55rem;
       height: 0.55rem;

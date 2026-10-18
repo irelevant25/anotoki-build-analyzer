@@ -1,23 +1,8 @@
 import { provideHttpClient, withFetch, withInterceptors } from '@angular/common/http';
-import {
-  ApplicationConfig,
-  inject,
-  provideAppInitializer,
-  provideBrowserGlobalErrorListeners,
-} from '@angular/core';
-import {
-  TitleStrategy,
-  provideRouter,
-  withComponentInputBinding,
-  withInMemoryScrolling,
-} from '@angular/router';
+import { ApplicationConfig, inject, provideAppInitializer, provideBrowserGlobalErrorListeners } from '@angular/core';
+import { TitleStrategy, provideRouter, withComponentInputBinding, withInMemoryScrolling } from '@angular/router';
 import { provideAnotokiAdmin } from '@anotoki/lib/admin';
-import {
-  ANOTOKI_AUTH_CLIENT_FACTORY,
-  AnotokiAuth,
-  anotokiAuthInterceptor,
-  provideAnotokiAuth,
-} from '@anotoki/lib/auth';
+import { ANOTOKI_AUTH_CLIENT_FACTORY, AnotokiAuth, anotokiAuthInterceptor, provideAnotokiAuth } from '@anotoki/lib/auth';
 import { provideAnotokiErrorReport } from '@anotoki/lib/error-report';
 import { SiteStatus, siteStatusInterceptor } from '@anotoki/lib/migrations';
 import { provideAnotokiPeople } from '@anotoki/lib/people';
@@ -35,12 +20,7 @@ import { provideTranslations } from './core/i18n/translations.config';
 import { MetaStore } from './core/meta-store';
 import { provideShell } from './core/shell';
 import { signInKindClientFactory } from './core/sign-in-kind';
-import {
-  MIGRATIONS_ROUTE,
-  SITE_STATUS_URL,
-  appliedAt,
-  provideSiteStatus,
-} from './core/site-status';
+import { MIGRATIONS_ROUTE, SITE_STATUS_URL, appliedAt, provideSiteStatus } from './core/site-status';
 import { VisitorKey } from './core/visitor-key';
 
 /** "1 visitor", "3 game accounts" - the People page is English, as the whole admin panel. */
@@ -51,18 +31,11 @@ function counted(n: number, noun: string): string {
 export const appConfig: ApplicationConfig = {
   providers: [
     provideBrowserGlobalErrorListeners(),
-    provideRouter(
-      routes,
-      withComponentInputBinding(),
-      withInMemoryScrolling({ scrollPositionRestoration: 'top' }),
-    ),
+    provideRouter(routes, withComponentInputBinding(), withInMemoryScrolling({ scrollPositionRestoration: 'top' })),
     // siteStatusInterceptor first: it hears every answer that says the site is not set up or is being updated
     // (and the request still fails as it did), whoever the request was for. Then the anotoki family's auth
     // interceptor: who each request of this site's API is - the person's token, or the visitor's key.
-    provideHttpClient(
-      withFetch(),
-      withInterceptors([siteStatusInterceptor, anotokiAuthInterceptor]),
-    ),
+    provideHttpClient(withFetch(), withInterceptors([siteStatusInterceptor, anotokiAuthInterceptor])),
     // The errors the pages meet, into the server's error log (@anotoki/lib/error-report: POST /api/client-errors) -
     // scrubbed before they leave the page, each once, at most five a page load, never an HTTP failure - through
     // the app's HttpClient, so the interceptors above treat a report as any request of this site's: the person's
@@ -121,8 +94,7 @@ export const appConfig: ApplicationConfig = {
           allowed: (person) => person['accounts'] !== 0 || person['imports'] !== 0,
         },
         visitorsLine: (visitors) =>
-          `${counted(visitors.count, 'visitor')} with ${counted(Number(visitors['accounts'] ?? 0), 'game account')} - ` +
-          `each deleted ${meta.visitorDays()} days after its last visit.`,
+          `${counted(visitors.count, 'visitor')} with ${counted(Number(visitors['accounts'] ?? 0), 'game account')} - ` + `each deleted ${meta.visitorDays()} days after its last visit.`,
         migrationsRoute: MIGRATIONS_ROUTE,
         formatDate: (iso: string) => appliedAt(iso, site.preferences(), i18n.locale()),
       };

@@ -57,9 +57,7 @@ async function draw(options: Options = {}): Promise<{
   TestBed.configureTestingModule({
     providers: [
       provideRouter([{ path: 'import', component: TestPage }]),
-      options.language === 'sk'
-        ? provideTestTranslations(SLOVAK, { language: 'sk', english: ENGLISH })
-        : provideTestTranslations(ENGLISH),
+      options.language === 'sk' ? provideTestTranslations(SLOVAK, { language: 'sk', english: ENGLISH }) : provideTestTranslations(ENGLISH),
       provideHttpClient(),
       provideHttpClientTesting(),
       // The kit's words - the footer's among them - in the language on the page; the legal links; the form.
@@ -93,11 +91,9 @@ async function draw(options: Options = {}): Promise<{
   return { host: fixture.nativeElement, changelog, settle: () => fixture.whenStable() };
 }
 
-const text = (element: Element | null | undefined) =>
-  element?.textContent?.replace(/\s+/g, ' ').trim();
+const text = (element: Element | null | undefined) => element?.textContent?.replace(/\s+/g, ' ').trim();
 /** The footer's first row, part by part (the dots between them too). */
-const row = (host: HTMLElement) =>
-  [...host.querySelectorAll('anotoki-site-footer .anotoki-site-footer__row > *')].map(text);
+const row = (host: HTMLElement) => [...host.querySelectorAll('anotoki-site-footer .anotoki-site-footer__row > *')].map(text);
 
 describe("everybody's pages' frame", () => {
   it("is the family's frame: a skip link, the bar with the app's sections, the page in <main>, the footer", async () => {
@@ -106,11 +102,7 @@ describe("everybody's pages' frame", () => {
 
     expect(shell.querySelector('.anotoki-shell__skip-link')?.getAttribute('href')).toBe('#main');
     expect(shell.querySelector('app-top-bar anotoki-top-bar')).not.toBeNull();
-    expect(
-      [...shell.querySelectorAll('.anotoki-top-bar__nav a')].map((link) =>
-        link.textContent?.trim(),
-      ),
-    ).toEqual(['Dashboard', 'Import', 'Builds']);
+    expect([...shell.querySelectorAll('.anotoki-top-bar__nav a')].map((link) => link.textContent?.trim())).toEqual(['Dashboard', 'Import', 'Builds']);
     expect(shell.querySelector('main#main .the-page')).not.toBeNull();
     expect(text(shell.querySelector('anotoki-site-footer [data-version]'))).toBe('Version 0.3');
     // The footer under the page, outside <main>.
@@ -121,19 +113,12 @@ describe("everybody's pages' frame", () => {
     const { host, changelog } = await draw({ who: 'visitor', language: 'sk' });
 
     expect(row(host)).toEqual(['Verzia 0.3', '·', 'Čo je nové', '·', 'Spätná väzba']);
-    expect(
-      [...host.querySelectorAll('anotoki-site-footer anotoki-legal-links a')].map((link) => [
-        text(link),
-        link.getAttribute('href'),
-      ]),
-    ).toEqual([
+    expect([...host.querySelectorAll('anotoki-site-footer anotoki-legal-links a')].map((link) => [text(link), link.getAttribute('href')])).toEqual([
       ['Podmienky', '/terms'],
       ['Súkromie', '/privacy'],
       ['Kontakt', '/contact'],
     ]);
-    expect(text(host.querySelector('anotoki-site-footer [data-fan]'))).toBe(
-      'Táto stránka je fanúšikovský projekt a nie je prepojená so spoločnosťou HoYoverse ani ňou schválená.',
-    );
+    expect(text(host.querySelector('anotoki-site-footer [data-fan]'))).toBe('Táto stránka je fanúšikovský projekt a nie je prepojená so spoločnosťou HoYoverse ani ňou schválená.');
     host.querySelector<HTMLButtonElement>('anotoki-site-footer [data-whats-new]')!.click();
     expect(changelog.open).toHaveBeenCalledTimes(1);
   });
@@ -147,14 +132,8 @@ describe("everybody's pages' frame", () => {
       expect(host.querySelector('[data-feedback-dialog] anotoki-feedback-form')).not.toBeNull();
     });
     // The dialog is named by the button's words; the form offers the site's places (core/feedback.ts).
-    expect(text(host.querySelector('[data-feedback-dialog] .anotoki-dialog__title'))).toBe(
-      'Spätná väzba',
-    );
-    expect(
-      [...host.querySelectorAll('anotoki-feedback-form [data-section] option:not([value=""])')].map(
-        text,
-      ),
-    ).toEqual(['Prehľad', 'Import účtu', 'Tvoje účty a postavy', 'Buildy']);
+    expect(text(host.querySelector('[data-feedback-dialog] .anotoki-dialog__title'))).toBe('Spätná väzba');
+    expect([...host.querySelectorAll('anotoki-feedback-form [data-section] option:not([value=""])')].map(text)).toEqual(['Prehľad', 'Import účtu', 'Tvoje účty a postavy', 'Buildy']);
   });
 
   it('offers Feedback only while a message can be sent: to a person signed in and to a visitor - never to somebody signed out, nor while the site is not ready', async () => {
@@ -167,14 +146,10 @@ describe("everybody's pages' frame", () => {
     for (const [who, options, offered] of cases) {
       TestBed.resetTestingModule();
       const { host } = await draw(options);
-      expect(host.querySelector('anotoki-site-footer [data-open-feedback]') !== null, who).toBe(
-        offered,
-      );
+      expect(host.querySelector('anotoki-site-footer [data-open-feedback]') !== null, who).toBe(offered);
       // The rest of the footer is everybody's.
       expect(row(host).slice(0, 3), who).toEqual(['Version 0.3', '·', "What's new"]);
-      expect(host.querySelectorAll('anotoki-site-footer anotoki-legal-links a'), who).toHaveLength(
-        3,
-      );
+      expect(host.querySelectorAll('anotoki-site-footer anotoki-legal-links a'), who).toHaveLength(3);
     }
   });
 

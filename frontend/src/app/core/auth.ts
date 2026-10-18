@@ -1,10 +1,5 @@
 import { Injectable, computed, inject } from '@angular/core';
-import {
-  AnotokiAuth,
-  AnotokiPreferenceChanges,
-  AnotokiPreferences,
-  AnotokiSavedPreferences,
-} from '@anotoki/lib/auth';
+import { AnotokiAuth, AnotokiPreferenceChanges, AnotokiPreferences, AnotokiSavedPreferences } from '@anotoki/lib/auth';
 
 /**
  * Who is signed in, as this site's pages ask it - the anotoki family's auth module (@anotoki/lib/auth:
@@ -65,11 +60,7 @@ export class AuthService {
    */
   readonly failure = this.auth.signInFailure;
   /** The IAM's account page (profile, password, sessions), once the sign-in is set up. */
-  readonly accountUrl = computed(() =>
-    this.auth.state() === 'starting' || this.auth.state() === 'unavailable'
-      ? null
-      : this.auth.accountUrl() || null,
-  );
+  readonly accountUrl = computed(() => (this.auth.state() === 'starting' || this.auth.state() === 'unavailable' ? null : this.auth.accountUrl() || null));
 
   /**
    * Off to the IAM's sign-in, back to `returnTo` (this page by default) - the IAM's pages in the language read

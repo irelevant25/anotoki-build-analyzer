@@ -42,8 +42,7 @@ const LANGUAGES: AdminLanguage[] = [
 ];
 
 /** An element's words, its white space folded. */
-const words = (element: Element | null | undefined) =>
-  element?.textContent?.replace(/\s+/g, ' ').trim() ?? null;
+const words = (element: Element | null | undefined) => element?.textContent?.replace(/\s+/g, ' ').trim() ?? null;
 
 describe("/admin/languages: the family's Languages page in the admin panel (ADMIN)", () => {
   const roles = signal<string[]>(['ADMIN']);
@@ -67,14 +66,7 @@ describe("/admin/languages: the family's Languages page in the admin panel (ADMI
 
   async function draw(): Promise<void> {
     TestBed.configureTestingModule({
-      providers: [
-        provideHttpClient(),
-        provideHttpClientTesting(),
-        provideRouter([]),
-        provideTestTranslations(en),
-        provideTranslations(),
-        { provide: AuthService, useValue: auth },
-      ],
+      providers: [provideHttpClient(), provideHttpClientTesting(), provideRouter([]), provideTestTranslations(en), provideTranslations(), { provide: AuthService, useValue: auth }],
     });
     http = TestBed.inject(HttpTestingController);
     fixture = TestBed.createComponent(LanguagesPage);
@@ -103,9 +95,7 @@ describe("/admin/languages: the family's Languages page in the admin panel (ADMI
     expect(words(host.querySelector('h1'))).toBe('Languages');
     const rows = Array.from(host.querySelectorAll<HTMLElement>('[data-language]'));
     expect(rows.map((row) => row.dataset['language'])).toEqual(['en', 'sk', 'cs']);
-    expect(rows.map((row) => Array.from(row.querySelectorAll('anotoki-badge')).map(words))).toEqual(
-      [['en', 'Fallback'], ['sk', 'Released with the site'], ['cs']],
-    );
+    expect(rows.map((row) => Array.from(row.querySelectorAll('anotoki-badge')).map(words))).toEqual([['en', 'Fallback'], ['sk', 'Released with the site'], ['cs']]);
     expect(fixture.componentInstance.canLeave()).toBe(true);
   });
 

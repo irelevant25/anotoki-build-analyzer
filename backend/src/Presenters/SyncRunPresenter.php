@@ -33,17 +33,17 @@ final class SyncRunPresenter
             'finished_at' => Clock::iso($run->finished_at),
             // Names a sync or an import could not match ("unmatched") are text from elsewhere.
             'stats' => Neutral::deep($run->stats),
-            'progress' => $run->isActive()
-                ? ['done' => (int) ($state['done'] ?? 0), 'total' => isset($state['total']) ? (int) $state['total'] : null]
-                : null,
+            'progress' => $run->isActive() ? ['done' => (int) ($state['done'] ?? 0), 'total' => isset($state['total']) ? (int) $state['total'] : null] : null,
             'next_step_at' => Clock::iso($run->next_step_at),
             'last_step_at' => Clock::iso($run->last_step_at),
             'started_by' => $withStarter && $run->starter ? ['id' => $run->starter->id, 'name' => $run->starter->name] : null,
-            'source' => $run->source ? [
-                'key' => $this->registry->publicKey($run->source->key),
-                'name' => $this->registry->label($run->source->key),
-                'game' => $run->source->game->value,
-            ] : null,
+            'source' => $run->source
+                ? [
+                    'key' => $this->registry->publicKey($run->source->key),
+                    'name' => $this->registry->label($run->source->key),
+                    'game' => $run->source->game->value,
+                ]
+                : null,
         ];
     }
 
@@ -62,7 +62,7 @@ final class SyncRunPresenter
         return [
             'active' => $active !== [],
             'wait_ms' => $waitMs,
-            'runs' => array_map(fn (SyncRun $run) => $this->summary($run), $active),
+            'runs' => array_map(fn(SyncRun $run) => $this->summary($run), $active),
         ];
     }
 

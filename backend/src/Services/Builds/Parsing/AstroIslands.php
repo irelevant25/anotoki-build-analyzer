@@ -57,7 +57,7 @@ final class AstroIslands
 
     private static function revive(mixed $value): mixed
     {
-        if (! is_array($value) || ! array_is_list($value) || $value === []) {
+        if (!is_array($value) || !array_is_list($value) || $value === []) {
             return $value;
         }
 
@@ -65,7 +65,7 @@ final class AstroIslands
         $inner = $value[1] ?? null;
 
         return match ($type) {
-            0 => is_array($inner) && ! array_is_list($inner) ? self::reviveObject($inner) : $inner,
+            0 => is_array($inner) && !array_is_list($inner) ? self::reviveObject($inner) : $inner,
             1 => is_array($inner) ? array_map(self::revive(...), $inner) : [],
             default => $inner,
         };

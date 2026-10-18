@@ -28,13 +28,7 @@ import { VisitorKey } from './core/visitor-key';
  */
 @Component({
   selector: 'app-root',
-  imports: [
-    RouterOutlet,
-    SiteGateComponent,
-    SitePagesDirective,
-    ConfirmHostComponent,
-    ToastHostComponent,
-  ],
+  imports: [RouterOutlet, SiteGateComponent, SitePagesDirective, ConfirmHostComponent, ToastHostComponent],
   templateUrl: './app.html',
   styleUrl: './app.scss',
 })
@@ -58,11 +52,7 @@ export class App {
     // holding a visitor key), while the site is there to use; a first visit is never interrupted. The dialog is
     // the shell's, outside the gate, so the gate does not keep it away: it would stand over the gate's page.
     effect(() => {
-      if (
-        !this.siteStatus.blocked() &&
-        (this.auth.signedIn() || this.visitor.key() !== null) &&
-        this.changelog.current()
-      ) {
+      if (!this.siteStatus.blocked() && (this.auth.signedIn() || this.visitor.key() !== null) && this.changelog.current()) {
         untracked(() => this.changelog.showIfNew());
       }
     });
@@ -75,10 +65,7 @@ export class App {
         return;
       }
       untracked(() => {
-        const said = [
-          move.moved > 0 ? this.i18n.plural('visitor.moved', move.moved) : '',
-          move.kept > 0 ? this.i18n.plural('visitor.kept', move.kept) : '',
-        ];
+        const said = [move.moved > 0 ? this.i18n.plural('visitor.moved', move.moved) : '', move.kept > 0 ? this.i18n.plural('visitor.kept', move.kept) : ''];
         // A finished sentence when raised; a message is not worded again.
         this.toasts.show(said.filter(Boolean).join(' '), 'success', 10000);
         this.visitor.moved.set(null);

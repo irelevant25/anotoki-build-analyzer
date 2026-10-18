@@ -88,7 +88,10 @@ describe('the compiled English (en.ts and its parts)', () => {
       expect(strings[`${name}.few`], name).toBe(strings[`${name}.other`]);
       expect(placeholders(strings[`${name}.other`]), name).toContain('count');
       // The forms differ only in how they say the number: no form has a placeholder another lacks.
-      expect(placeholders(strings[`${name}.one`]).filter((placeholder) => !placeholders(strings[`${name}.other`]).includes(placeholder)), name).toEqual([]);
+      expect(
+        placeholders(strings[`${name}.one`]).filter((placeholder) => !placeholders(strings[`${name}.other`]).includes(placeholder)),
+        name,
+      ).toEqual([]);
       // A family's name is not itself a key, or asking for it would be ambiguous.
       expect(Object.hasOwn(strings, name), name).toBe(false);
     }

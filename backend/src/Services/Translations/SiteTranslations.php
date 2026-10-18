@@ -37,10 +37,7 @@ final class SiteTranslations
 
     public static function config(): TranslationsConfig
     {
-        return new TranslationsConfig(
-            releasedLanguages: self::RELEASED,
-            extraCheck: self::namesAnotherSite(...),
-        );
+        return new TranslationsConfig(releasedLanguages: self::RELEASED, extraCheck: self::namesAnotherSite(...));
     }
 
     /** The site's words, on a connection that throws on errors (App\Db\Db's). Built per request, as the Migrator is. */
@@ -62,17 +59,16 @@ final class SiteTranslations
         if ($found === []) {
             return null;
         }
-        $sentence = ($found === ['a web address']
-            ? 'holds a web address.'
-            : 'names another site ('.implode(', ', array_map(static fn (string $name): string => '"'.$name.'"', $found)).').')
-            .' Nothing the site shows names or links another website, service or tool.';
+        $sentence =
+            ($found === ['a web address'] ? 'holds a web address.' : 'names another site (' . implode(', ', array_map(static fn(string $name): string => '"' . $name . '"', $found)) . ').') .
+            ' Nothing the site shows names or links another website, service or tool.';
 
         if ($field === 'value') {
-            return Refusal::invalid(
-                'names_another_site',
-                "The {$about['language_name']} string of \"{$about['key']}\" {$sentence}",
-                ['key' => $about['key'], 'language' => $about['language'], 'found' => $found]
-            );
+            return Refusal::invalid('names_another_site', "The {$about['language_name']} string of \"{$about['key']}\" {$sentence}", [
+                'key' => $about['key'],
+                'language' => $about['language'],
+                'found' => $found,
+            ]);
         }
         $what = $field === 'native_name' ? 'The name as its speakers write it' : 'The name in English';
 
@@ -90,7 +86,7 @@ final class SiteTranslations
      */
     public static function otherSites(string $text): array
     {
-        if (! Neutral::mentionsAny($text)) {
+        if (!Neutral::mentionsAny($text)) {
             return [];
         }
 
@@ -100,7 +96,7 @@ final class SiteTranslations
     /** The frontend's sources, from backend/src/Services/Translations. */
     public static function frontendRoot(): string
     {
-        return str_replace('\\', '/', dirname(__DIR__, 4)).'/frontend/src/app';
+        return str_replace('\\', '/', dirname(__DIR__, 4)) . '/frontend/src/app';
     }
 
     /**
@@ -113,10 +109,6 @@ final class SiteTranslations
      */
     public static function keyScanner(?string $root = null): KeyScanner
     {
-        return new KeyScanner(
-            $root ?? self::frontendRoot(),
-            exclude: ['core/i18n/en.ts'],
-            dynamicKeys: self::DYNAMIC_KEYS,
-        );
+        return new KeyScanner($root ?? self::frontendRoot(), exclude: ['core/i18n/en.ts'], dynamicKeys: self::DYNAMIC_KEYS);
     }
 }

@@ -48,7 +48,7 @@ final class ImportAccount
         $target = null;
         if (isset($options['account'])) {
             $target = $app->get(Accounts::class)->findOwned($userId, (int) $options['account'], withCounts: false);
-            if (! $target) {
+            if (!$target) {
                 Cli::error("User {$userId} has no account #{$options['account']}.");
 
                 return 1;
@@ -57,9 +57,7 @@ final class ImportAccount
 
         try {
             $imports = $app->get(ImportService::class);
-            $run = is_file($source)
-                ? $imports->fromFile((string) file_get_contents($source), $owner, $game, $target, basename($source))
-                : $imports->fromEnka($game, $source, $owner, $target);
+            $run = is_file($source) ? $imports->fromFile((string) file_get_contents($source), $owner, $game, $target, basename($source)) : $imports->fromEnka($game, $source, $owner, $target);
         } catch (ImportException $e) {
             Cli::error($e->getMessage());
 
@@ -67,15 +65,25 @@ final class ImportAccount
         }
 
         $summary = $run->summary;
-        Cli::info(sprintf('Imported into account #%d of user %d: %d characters, %d %s, %d %s (%s).',
-            $run->account_id, $userId, $summary['characters'], $summary['weapons'], strtolower($game->weaponLabel()).'s',
-            $summary['items'], strtolower($game->itemLabel()).'s', $run->status));
+        Cli::info(
+            sprintf(
+                'Imported into account #%d of user %d: %d characters, %d %s, %d %s (%s).',
+                $run->account_id,
+                $userId,
+                $summary['characters'],
+                $summary['weapons'],
+                strtolower($game->weaponLabel()) . 's',
+                $summary['items'],
+                strtolower($game->itemLabel()) . 's',
+                $run->status,
+            ),
+        );
 
         foreach ($summary['warnings'] ?? [] as $warning) {
             Cli::warn("  ! {$warning}");
         }
         foreach ($summary['unmatched'] ?? [] as $bucket => $names) {
-            Cli::warn("  ? not in catalog ({$bucket}): ".implode(', ', $names));
+            Cli::warn("  ? not in catalog ({$bucket}): " . implode(', ', $names));
         }
 
         return 0;

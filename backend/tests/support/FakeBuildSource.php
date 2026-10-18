@@ -90,13 +90,15 @@ class FakeBuildSource implements BuildSource
         }
         self::$fetched[] = $character->name;
 
-        return [new ScrapedBuild(
-            variant: 'Main',
-            recommended: true,
-            weapons: [['name' => 'Staff of Homa', 'refinement' => 1]],
-            sets: [['kind' => 'artifact', 'pieces' => [['names' => ['Crimson Witch of Flames'], 'label' => 'Crimson Witch of Flames', 'count' => 4]]]],
-            mainStats: ['goblet' => [['stat' => 'pyro_dmg_', 'priority' => 1]]],
-            substats: [['stat' => 'critRate_', 'priority' => 1]],
-        )];
+        return [
+            new ScrapedBuild(
+                variant: 'Main',
+                recommended: true,
+                weapons: [['name' => 'Staff of Homa', 'refinement' => 1]],
+                sets: [['kind' => 'artifact', 'pieces' => [['names' => ['Crimson Witch of Flames'], 'label' => 'Crimson Witch of Flames', 'count' => 4]]]],
+                mainStats: ['goblet' => [['stat' => 'pyro_dmg_', 'priority' => 1]]],
+                substats: [['stat' => 'critRate_', 'priority' => 1]],
+            ),
+        ];
     }
 }

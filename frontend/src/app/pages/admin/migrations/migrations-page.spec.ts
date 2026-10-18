@@ -150,18 +150,9 @@ describe("/admin/migrations: the family's Migrations page in the admin panel (AD
     expect(host.querySelector('.page > anotoki-migrations-page')).not.toBeNull();
     expect(host.querySelector('anotoki-migrations-page')?.getAttribute('lang')).toBe('en');
     expect(words(host.querySelector('h1'))).toBe('Migrations');
-    expect([...host.querySelectorAll('[data-pending] li')].map(named)).toEqual([
-      '004_visitors_and_family_bar.sql pending',
-      '005_retire_not_set_up_page.sql pending',
-    ]);
-    expect([...host.querySelectorAll('[data-applied] li code')].map(named)).toEqual([
-      '001_adopt_laravel_database.sql',
-      '002_schema.sql',
-      '003_languages_and_translations.sql',
-    ]);
-    expect(words(host.querySelectorAll('[data-applied] li time')[2])).toBe(
-      appliedAt('2026-09-20T12:30:00Z', null, 'en-GB'),
-    );
+    expect([...host.querySelectorAll('[data-pending] li')].map(named)).toEqual(['004_visitors_and_family_bar.sql pending', '005_retire_not_set_up_page.sql pending']);
+    expect([...host.querySelectorAll('[data-applied] li code')].map(named)).toEqual(['001_adopt_laravel_database.sql', '002_schema.sql', '003_languages_and_translations.sql']);
+    expect(words(host.querySelectorAll('[data-applied] li time')[2])).toBe(appliedAt('2026-09-20T12:30:00Z', null, 'en-GB'));
   });
 
   it("writes when each file was applied in the account's date order and clock, where the admin has chosen them", async () => {
@@ -185,9 +176,7 @@ describe("/admin/migrations: the family's Migrations page in the admin panel (AD
       CURRENT,
     );
 
-    expect(named(host.querySelector('[data-result]'))).toBe(
-      'Up to date Applied: 004_visitors_and_family_bar.sql, 005_retire_not_set_up_page.sql.',
-    );
+    expect(named(host.querySelector('[data-result]'))).toBe('Up to date Applied: 004_visitors_and_family_bar.sql, 005_retire_not_set_up_page.sql.');
     expect(status.state()).toBe('ready');
     expect(reload).toHaveBeenCalledTimes(1);
   });
@@ -195,8 +184,7 @@ describe("/admin/migrations: the family's Migrations page in the admin panel (AD
   it("says where it stopped and the database's error - and the site stays closed to everybody else", async () => {
     await setup();
     const reload = vi.spyOn(TestBed.inject(TranslationService), 'reload');
-    const error =
-      'statement 1 of 9: SQLSTATE[42P07]: Duplicate table: 7 ERROR:  relation "visitor_ids" already exists\n\n  CREATE SEQUENCE visitor_ids';
+    const error = 'statement 1 of 9: SQLSTATE[42P07]: Duplicate table: 7 ERROR:  relation "visitor_ids" already exists\n\n  CREATE SEQUENCE visitor_ids';
     await apply(
       {
         applied: [],
@@ -210,12 +198,8 @@ describe("/admin/migrations: the family's Migrations page in the admin panel (AD
     const result = host.querySelector('[data-result]');
     expect(result?.getAttribute('role')).toBe('alert');
     // The kit's class names are its own since @anotoki/lib 0.3.0: a part of a piece is anotoki-<piece>__<part>.
-    expect(words(result?.querySelector('.anotoki-alert__heading'))).toBe(
-      'Stopped at 004_visitors_and_family_bar.sql',
-    );
-    expect(words(result?.querySelector('.anotoki-migrations-page__result-text'))).toBe(
-      'Nothing was applied. The failed file was rolled back as a whole.',
-    );
+    expect(words(result?.querySelector('.anotoki-alert__heading'))).toBe('Stopped at 004_visitors_and_family_bar.sql');
+    expect(words(result?.querySelector('.anotoki-migrations-page__result-text'))).toBe('Nothing was applied. The failed file was rolled back as a whole.');
     expect(result?.querySelector('pre')?.textContent).toBe(error);
     expect(status.state()).toBe('update-pending');
     expect(reload).not.toHaveBeenCalled();

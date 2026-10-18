@@ -58,7 +58,9 @@ final class ImportRuns
      */
     public function forAccount(int $accountId, int $limit = 50): array
     {
-        return array_map(fn (array $row) => ImportRun::fromRow($row),
-            $this->db->all('SELECT * FROM import_runs WHERE account_id = ? ORDER BY created_at DESC, id DESC LIMIT '.max(1, $limit), [$accountId]));
+        return array_map(
+            fn(array $row) => ImportRun::fromRow($row),
+            $this->db->all('SELECT * FROM import_runs WHERE account_id = ? ORDER BY created_at DESC, id DESC LIMIT ' . max(1, $limit), [$accountId]),
+        );
     }
 }

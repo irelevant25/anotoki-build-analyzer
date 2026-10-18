@@ -108,7 +108,9 @@ describe('the words of an import', () => {
       expect(importErrorText(i18n, { code: 'account_game_mismatch', params: ERROR_PARAMS['account_game_mismatch'], message: 'x' }).text).toBe(
         'Vybraný účet je z hry Genshin Impact, ale údaje sú z hry Honkai: Star Rail.',
       );
-      expect(importErrorText(i18n, { code: 'account_uid_mismatch', params: ERROR_PARAMS['account_uid_mismatch'], message: 'x' }).text).toBe('Údaje majú UID 700000002, ale vybraný účet má UID 700000001.');
+      expect(importErrorText(i18n, { code: 'account_uid_mismatch', params: ERROR_PARAMS['account_uid_mismatch'], message: 'x' }).text).toBe(
+        'Údaje majú UID 700000002, ale vybraný účet má UID 700000001.',
+      );
       // A status is a number of the protocol's, written as it is.
       expect(importErrorText(i18n, { code: 'showcase_http', params: { status: 1200 }, message: 'x' }).text).toBe('Služba, ktorá číta Character Showcase, odpovedala kódom HTTP 1200.');
     });
@@ -181,7 +183,11 @@ describe('the words of an import', () => {
     it('pairs a run’s sentences with their codes index for index', () => {
       const i18n = words('sk');
       const summary: { warnings: string[]; warning_kinds: ImportWarningKind[] } = {
-        warnings: ['Unknown character {"name":"Newcomer"} was skipped.', 'Something a newer server warns about.', 'What the game catalog does not know yet was skipped. After an admin refreshes the catalog (Sources page), import again.'],
+        warnings: [
+          'Unknown character {"name":"Newcomer"} was skipped.',
+          'Something a newer server warns about.',
+          'What the game catalog does not know yet was skipped. After an admin refreshes the catalog (Sources page), import again.',
+        ],
         warning_kinds: [
           { code: 'unknown_character', params: { ref: 'Newcomer' } },
           { code: 'brand_new', params: {} },

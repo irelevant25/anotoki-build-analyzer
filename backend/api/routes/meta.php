@@ -41,14 +41,12 @@ return function (Slim\App $slim, App $app): void {
                 ];
             }
 
-            $talentKeys = $game === Game::Genshin
-                ? ['normal', 'skill', 'burst']
-                : ['basic', 'skill', 'ultimate', 'talent', 'memo_skill', 'memo_talent'];
+            $talentKeys = $game === Game::Genshin ? ['normal', 'skill', 'burst'] : ['basic', 'skill', 'ultimate', 'talent', 'memo_skill', 'memo_talent'];
 
             return [
                 'key' => $game->value,
                 'label' => $game->label(),
-                'slots' => array_map(fn ($slot) => ['key' => $slot, 'label' => $game->slotLabel($slot), 'variable' => in_array($slot, $game->variableSlots(), true)], $game->slots()),
+                'slots' => array_map(fn($slot) => ['key' => $slot, 'label' => $game->slotLabel($slot), 'variable' => in_array($slot, $game->variableSlots(), true)], $game->slots()),
                 'weapon_label' => $game->weaponLabel(),
                 'item_label' => $game->itemLabel(),
                 'rank_label' => $game->rankLabel(),
@@ -57,7 +55,7 @@ return function (Slim\App $slim, App $app): void {
                 'elements' => $game->elements(),
                 'weapon_types' => $game->weaponTypes(),
                 'stats' => $stats,
-                'talents' => array_combine($talentKeys, array_map(fn ($key) => Talents::label($game, $key), $talentKeys)),
+                'talents' => array_combine($talentKeys, array_map(fn($key) => Talents::label($game, $key), $talentKeys)),
             ];
         };
 

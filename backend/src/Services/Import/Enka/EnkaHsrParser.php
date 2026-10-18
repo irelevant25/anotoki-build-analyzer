@@ -13,24 +13,45 @@ class EnkaHsrParser
 {
     /** _flat prop types; main stats keep a "Base" suffix, substats drop it, so both are accepted. */
     public const PROPS = [
-        'HPDelta' => 'hp', 'HPAddedRatio' => 'hp_',
-        'AttackDelta' => 'atk', 'AttackAddedRatio' => 'atk_',
-        'DefenceDelta' => 'def', 'DefenceAddedRatio' => 'def_',
+        'HPDelta' => 'hp',
+        'HPAddedRatio' => 'hp_',
+        'AttackDelta' => 'atk',
+        'AttackAddedRatio' => 'atk_',
+        'DefenceDelta' => 'def',
+        'DefenceAddedRatio' => 'def_',
         'SpeedDelta' => 'spd',
-        'CriticalChance' => 'critRate_', 'CriticalDamage' => 'critDMG_',
-        'StatusProbability' => 'effectHitRate_', 'StatusResistance' => 'effectRes_',
-        'BreakDamageAddedRatio' => 'breakEffect_', 'SPRatio' => 'energyRegen_', 'HealRatio' => 'heal_',
-        'PhysicalAddedRatio' => 'physical_dmg_', 'FireAddedRatio' => 'fire_dmg_', 'IceAddedRatio' => 'ice_dmg_',
-        'ThunderAddedRatio' => 'lightning_dmg_', 'WindAddedRatio' => 'wind_dmg_',
-        'QuantumAddedRatio' => 'quantum_dmg_', 'ImaginaryAddedRatio' => 'imaginary_dmg_',
+        'CriticalChance' => 'critRate_',
+        'CriticalDamage' => 'critDMG_',
+        'StatusProbability' => 'effectHitRate_',
+        'StatusResistance' => 'effectRes_',
+        'BreakDamageAddedRatio' => 'breakEffect_',
+        'SPRatio' => 'energyRegen_',
+        'HealRatio' => 'heal_',
+        'PhysicalAddedRatio' => 'physical_dmg_',
+        'FireAddedRatio' => 'fire_dmg_',
+        'IceAddedRatio' => 'ice_dmg_',
+        'ThunderAddedRatio' => 'lightning_dmg_',
+        'WindAddedRatio' => 'wind_dmg_',
+        'QuantumAddedRatio' => 'quantum_dmg_',
+        'ImaginaryAddedRatio' => 'imaginary_dmg_',
     ];
 
     private const SLOTS = [1 => 'head', 2 => 'hands', 3 => 'body', 4 => 'feet', 5 => 'sphere', 6 => 'rope'];
 
     /** Relic substat affix IDs (same for every rarity). */
     private const SUB_AFFIXES = [
-        1 => 'hp', 2 => 'atk', 3 => 'def', 4 => 'hp_', 5 => 'atk_', 6 => 'def_', 7 => 'spd',
-        8 => 'critRate_', 9 => 'critDMG_', 10 => 'effectHitRate_', 11 => 'effectRes_', 12 => 'breakEffect_',
+        1 => 'hp',
+        2 => 'atk',
+        3 => 'def',
+        4 => 'hp_',
+        5 => 'atk_',
+        6 => 'def_',
+        7 => 'spd',
+        8 => 'critRate_',
+        9 => 'critDMG_',
+        10 => 'effectHitRate_',
+        11 => 'effectRes_',
+        12 => 'breakEffect_',
     ];
 
     /** Last three digits of a skill tree pointId. */
@@ -53,7 +74,10 @@ class EnkaHsrParser
 
         $avatars = $detail['avatarDetailList'] ?? [];
         if ($avatars === []) {
-            throw new ImportException('This profile shows no characters. In-game open Phone > Profile, add characters to the Character Showcase and Support Characters, then try again in a few minutes.', 'showcase_empty_hsr');
+            throw new ImportException(
+                'This profile shows no characters. In-game open Phone > Profile, add characters to the Character Showcase and Support Characters, then try again in a few minutes.',
+                'showcase_empty_hsr',
+            );
         }
 
         $seen = [];
@@ -75,7 +99,7 @@ class EnkaHsrParser
                 'final_stats' => null,
             ];
 
-            if (! empty($avatar['equipment']['tid'])) {
+            if (!empty($avatar['equipment']['tid'])) {
                 $cone = $avatar['equipment'];
                 $account->weapons[] = [
                     'ref' => ['external_id' => (string) $cone['tid']],
@@ -106,12 +130,12 @@ class EnkaHsrParser
         $slot = self::SLOTS[(int) ($relic['type'] ?? 0)] ?? null;
         $props = $relic['_flat']['props'] ?? [];
         $setId = $relic['_flat']['setID'] ?? null;
-        if (! $slot || $props === [] || ! $setId) {
+        if (!$slot || $props === [] || !$setId) {
             return null;
         }
 
         $main = $this->prop($props[0]);
-        if (! $main) {
+        if (!$main) {
             return null;
         }
 
@@ -155,7 +179,7 @@ class EnkaHsrParser
     {
         $type = preg_replace('/Base$/', '', (string) ($prop['type'] ?? '')) ?? '';
         $key = self::PROPS[$type] ?? null;
-        if (! $key) {
+        if (!$key) {
             return null;
         }
         $value = (float) ($prop['value'] ?? 0);

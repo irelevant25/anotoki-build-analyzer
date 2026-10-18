@@ -55,8 +55,7 @@ export function provideTranslations(): EnvironmentProviders {
           migrations: MIGRATIONS_ROUTE,
         },
         leads: {
-          translations:
-            "What the site itself says, in every language. Game terms and values are the games' own and are not here. This page stays English.",
+          translations: "What the site itself says, in every language. Game terms and values are the games' own and are not here. This page stays English.",
         },
       },
     };

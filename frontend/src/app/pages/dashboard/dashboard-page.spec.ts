@@ -108,7 +108,7 @@ describe('the dashboard', () => {
 
   /** What an element says. */
   const text = (element: Element | null | undefined) => element?.textContent?.replace(/\s+/g, ' ').trim();
-  const texts =(selector: string) => [...host.querySelectorAll(selector)].map(text);
+  const texts = (selector: string) => [...host.querySelectorAll(selector)].map(text);
   /** A card's counts: each a number above its caption. */
   const counts = (card: HTMLElement) => [...card.querySelectorAll('.counts div')].map((count) => [text(count.querySelector('strong')), text(count.querySelector('span'))].join(' '));
   const cards = () => [...host.querySelectorAll<HTMLElement>('article.account-card')];
@@ -338,7 +338,7 @@ describe('the dashboard', () => {
   });
 
   describe('three states: nobody, a visitor, somebody signed in', () => {
-    it('shows nobody what the site does and the ways on - and asks for nobody\'s accounts', async () => {
+    it("shows nobody what the site does and the ways on - and asks for nobody's accounts", async () => {
       await setup({ language: 'en', state: 'nobody' });
 
       expect(api.accounts).not.toHaveBeenCalled();
@@ -395,7 +395,7 @@ describe('the dashboard', () => {
       expect(cards()).toEqual([]);
     });
 
-    it('loads the accounts again after a sign-in, and after the visitor\'s accounts moved in', async () => {
+    it("loads the accounts again after a sign-in, and after the visitor's accounts moved in", async () => {
       await setup({ language: 'en', state: 'visitor' });
       expect(api.accounts).toHaveBeenCalledTimes(1);
 
@@ -410,7 +410,7 @@ describe('the dashboard', () => {
       expect(cards()).toHaveLength(2);
     });
 
-    it('shows only the last load\'s answer when an earlier one fails after the state changed', async () => {
+    it("shows only the last load's answer when an earlier one fails after the state changed", async () => {
       const failing = new Subject<AccountSummary[]>();
       await setup({ language: 'en', state: 'visitor', accounts: failing });
       visitor.key.set(null);
@@ -424,7 +424,7 @@ describe('the dashboard', () => {
   });
 
   describe('deleting an account', () => {
-    it('asks first, in the kit\'s question and in the reader’s language - its no first, its yes the danger', async () => {
+    it("asks first, in the kit's question and in the reader’s language - its no first, its yes the danger", async () => {
       const browser = vi.spyOn(window, 'confirm');
       await setup();
       await askToDelete(cards()[0]);

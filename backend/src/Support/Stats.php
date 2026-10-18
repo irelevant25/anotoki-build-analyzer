@@ -21,16 +21,30 @@ final class Stats
      */
     private const MAX_ROLL = [
         'genshin' => [
-            'hp' => 298.75, 'atk' => 19.45, 'def' => 23.15,
-            'hp_' => 5.83, 'atk_' => 5.83, 'def_' => 7.29,
-            'eleMas' => 23.31, 'enerRech_' => 6.48,
-            'critRate_' => 3.89, 'critDMG_' => 7.77,
+            'hp' => 298.75,
+            'atk' => 19.45,
+            'def' => 23.15,
+            'hp_' => 5.83,
+            'atk_' => 5.83,
+            'def_' => 7.29,
+            'eleMas' => 23.31,
+            'enerRech_' => 6.48,
+            'critRate_' => 3.89,
+            'critDMG_' => 7.77,
         ],
         'hsr' => [
-            'hp' => 42.337549, 'atk' => 21.168773, 'def' => 21.168773,
-            'hp_' => 4.32, 'atk_' => 4.32, 'def_' => 5.4,
-            'spd' => 2.6, 'critRate_' => 3.24, 'critDMG_' => 6.48,
-            'effectHitRate_' => 4.32, 'effectRes_' => 4.32, 'breakEffect_' => 6.48,
+            'hp' => 42.337549,
+            'atk' => 21.168773,
+            'def' => 21.168773,
+            'hp_' => 4.32,
+            'atk_' => 4.32,
+            'def_' => 5.4,
+            'spd' => 2.6,
+            'critRate_' => 3.24,
+            'critDMG_' => 6.48,
+            'effectHitRate_' => 4.32,
+            'effectRes_' => 4.32,
+            'breakEffect_' => 6.48,
         ],
     ];
 
@@ -67,30 +81,68 @@ final class Stats
     ];
 
     private const COMMON = [
-        'hp' => 'hp_', 'maxhp' => 'hp_', 'flathp' => 'hp',
-        'atk' => 'atk_', 'attack' => 'atk_', 'flatatk' => 'atk',
-        'def' => 'def_', 'defense' => 'def_', 'defence' => 'def_', 'flatdef' => 'def',
-        'cr' => 'critRate_', 'critrate' => 'critRate_', 'critchance' => 'critRate_',
-        'cd' => 'critDMG_', 'critdmg' => 'critDMG_', 'cdmg' => 'critDMG_',
-        'elementaldmg' => self::ELEMENTAL_DMG, 'elementdmg' => self::ELEMENTAL_DMG, 'dmg' => self::ELEMENTAL_DMG,
+        'hp' => 'hp_',
+        'maxhp' => 'hp_',
+        'flathp' => 'hp',
+        'atk' => 'atk_',
+        'attack' => 'atk_',
+        'flatatk' => 'atk',
+        'def' => 'def_',
+        'defense' => 'def_',
+        'defence' => 'def_',
+        'flatdef' => 'def',
+        'cr' => 'critRate_',
+        'critrate' => 'critRate_',
+        'critchance' => 'critRate_',
+        'cd' => 'critDMG_',
+        'critdmg' => 'critDMG_',
+        'cdmg' => 'critDMG_',
+        'elementaldmg' => self::ELEMENTAL_DMG,
+        'elementdmg' => self::ELEMENTAL_DMG,
+        'dmg' => self::ELEMENTAL_DMG,
         'elemental' => self::ELEMENTAL_DMG,
     ];
 
     private const SPECIFIC = [
         'genshin' => [
-            'em' => 'eleMas', 'elementalmastery' => 'eleMas', 'mastery' => 'eleMas', 'elemas' => 'eleMas',
-            'er' => 'enerRech_', 'energyrecharge' => 'enerRech_', 'recharge' => 'enerRech_', 'energyrechargerate' => 'enerRech_',
-            'enerrech' => 'enerRech_', 'energyrechage' => 'enerRech_', // typo on genshin.gg
-            'healing' => 'heal_', 'heal' => 'heal_', 'hb' => 'heal_',
+            'em' => 'eleMas',
+            'elementalmastery' => 'eleMas',
+            'mastery' => 'eleMas',
+            'elemas' => 'eleMas',
+            'er' => 'enerRech_',
+            'energyrecharge' => 'enerRech_',
+            'recharge' => 'enerRech_',
+            'energyrechargerate' => 'enerRech_',
+            'enerrech' => 'enerRech_',
+            'energyrechage' => 'enerRech_', // typo on genshin.gg
+            'healing' => 'heal_',
+            'heal' => 'heal_',
+            'hb' => 'heal_',
         ],
         'hsr' => [
-            'spd' => 'spd', 'speed' => 'spd',
-            'ehr' => 'effectHitRate_', 'effecthitrate' => 'effectHitRate_', 'effecthit' => 'effectHitRate_', 'hitrate' => 'effectHitRate_',
-            'effectres' => 'effectRes_', 'effres' => 'effectRes_', 'res' => 'effectRes_', 'effectresistance' => 'effectRes_',
-            'be' => 'breakEffect_', 'breakeffect' => 'breakEffect_', 'break' => 'breakEffect_',
-            'err' => 'energyRegen_', 'er' => 'energyRegen_', 'energyregen' => 'energyRegen_',
-            'energyregenerationrate' => 'energyRegen_', 'energyregenrate' => 'energyRegen_', 'energyregeneration' => 'energyRegen_',
-            'ohb' => 'heal_', 'outgoinghealing' => 'heal_', 'healing' => 'heal_', 'heal' => 'heal_',
+            'spd' => 'spd',
+            'speed' => 'spd',
+            'ehr' => 'effectHitRate_',
+            'effecthitrate' => 'effectHitRate_',
+            'effecthit' => 'effectHitRate_',
+            'hitrate' => 'effectHitRate_',
+            'effectres' => 'effectRes_',
+            'effres' => 'effectRes_',
+            'res' => 'effectRes_',
+            'effectresistance' => 'effectRes_',
+            'be' => 'breakEffect_',
+            'breakeffect' => 'breakEffect_',
+            'break' => 'breakEffect_',
+            'err' => 'energyRegen_',
+            'er' => 'energyRegen_',
+            'energyregen' => 'energyRegen_',
+            'energyregenerationrate' => 'energyRegen_',
+            'energyregenrate' => 'energyRegen_',
+            'energyregeneration' => 'energyRegen_',
+            'ohb' => 'heal_',
+            'outgoinghealing' => 'heal_',
+            'healing' => 'heal_',
+            'heal' => 'heal_',
         ],
     ];
 
@@ -102,11 +154,7 @@ final class Stats
      */
     public static function keys(Game $game): array
     {
-        $keys = [
-            ...array_values(self::COMMON),
-            ...array_values(self::SPECIFIC[$game->value]),
-            ...array_map(self::elementKey(...), self::ELEMENTS[$game->value]),
-        ];
+        $keys = [...array_values(self::COMMON), ...array_values(self::SPECIFIC[$game->value]), ...array_map(self::elementKey(...), self::ELEMENTS[$game->value])];
         // "SPD%" (a set bonus) is the one key parse() makes of another with a "%".
         if (in_array('spd', $keys, true)) {
             $keys[] = 'spd_';
@@ -157,7 +205,7 @@ final class Stats
      */
     public static function elementDmg(?string $element): ?string
     {
-        return $element ? strtolower($element).'_dmg_' : null;
+        return $element ? strtolower($element) . '_dmg_' : null;
     }
 
     /**
@@ -187,12 +235,12 @@ final class Stats
 
         foreach (self::ELEMENTS[$game->value] as $element) {
             // "Pyro DMG Bonus" => "pyrodmg"; a goblet/sphere listed just as "Pyro" means the same.
-            if ($norm === $element || $norm === $element.'dmg') {
+            if ($norm === $element || $norm === $element . 'dmg') {
                 return [self::elementKey($element)];
             }
         }
 
-        $key = self::SPECIFIC[$game->value][$norm] ?? self::COMMON[$norm] ?? null;
+        $key = self::SPECIFIC[$game->value][$norm] ?? (self::COMMON[$norm] ?? null);
         if ($key === null) {
             return [];
         }
@@ -227,7 +275,7 @@ final class Stats
                 // Strip trailing notes like "ER (until 160%)" or "ATK% [if no X]".
                 $part = trim(preg_replace('/\s*[\[(].*$/', '', $part) ?? $part);
                 foreach ($part === '' ? [] : self::parse($game, $part) as $stat) {
-                    if (! isset($seen[$stat])) {
+                    if (!isset($seen[$stat])) {
                         $seen[$stat] = true;
                         $result[] = ['stat' => $stat, 'priority' => $priority];
                         $added = true;
@@ -262,15 +310,13 @@ final class Stats
                 continue;
             }
 
-            $critPair = count($stats) === 1 && $previous !== null
-                && in_array($stats[0], ['critRate_', 'critDMG_'], true)
-                && in_array($previous, ['critRate_', 'critDMG_'], true);
-            if (! $critPair) {
+            $critPair = count($stats) === 1 && $previous !== null && in_array($stats[0], ['critRate_', 'critDMG_'], true) && in_array($previous, ['critRate_', 'critDMG_'], true);
+            if (!$critPair) {
                 $priority++;
             }
 
             foreach ($stats as $stat) {
-                if (! in_array($stat, array_column($result, 'stat'), true)) {
+                if (!in_array($stat, array_column($result, 'stat'), true)) {
                     $result[] = ['stat' => $stat, 'priority' => $priority];
                 }
             }
@@ -282,7 +328,7 @@ final class Stats
 
     private static function elementKey(string $element): string
     {
-        return ($element === 'thunder' ? 'lightning' : $element).'_dmg_';
+        return ($element === 'thunder' ? 'lightning' : $element) . '_dmg_';
     }
 
     /**

@@ -8,7 +8,7 @@
 
 declare(strict_types=1);
 
-require __DIR__.'/lib.php';
+require __DIR__ . '/lib.php';
 
 use App\Repositories\Accounts;
 use App\Services\Analysis\BuildEvaluator;
@@ -20,7 +20,7 @@ use Tests\Support\FakeBuildSource;
 
 bootTests();
 
-$state = new stdClass;
+$state = new stdClass();
 // The kinds of recommendation the cases of this file have produced, for the last test.
 $state->seen = [];
 
@@ -41,18 +41,27 @@ beforeEach(function () use ($state) {
             ['key' => 'dragonsbane', 'name' => "Dragon's Bane", 'rank' => 2, 'refinement' => 5, 'note' => null, 'known' => true],
         ]),
         'sets' => Json::encode([
-            ['rank' => 1, 'kind' => 'artifact', 'choose' => null, 'note' => null, 'pieces' => [['label' => 'Crimson Witch of Flames', 'count' => 4, 'keys' => ['crimsonwitchofflames'], 'names' => ['Crimson Witch of Flames']]]],
-            ['rank' => 2, 'kind' => 'artifact', 'choose' => null, 'note' => null, 'pieces' => [['label' => "Shimenawa's Reminiscence", 'count' => 4, 'keys' => ['shimenawasreminiscence'], 'names' => ["Shimenawa's Reminiscence"]]]],
+            [
+                'rank' => 1,
+                'kind' => 'artifact',
+                'choose' => null,
+                'note' => null,
+                'pieces' => [['label' => 'Crimson Witch of Flames', 'count' => 4, 'keys' => ['crimsonwitchofflames'], 'names' => ['Crimson Witch of Flames']]],
+            ],
+            [
+                'rank' => 2,
+                'kind' => 'artifact',
+                'choose' => null,
+                'note' => null,
+                'pieces' => [['label' => "Shimenawa's Reminiscence", 'count' => 4, 'keys' => ['shimenawasreminiscence'], 'names' => ["Shimenawa's Reminiscence"]]],
+            ],
         ]),
         'main_stats' => Json::encode([
             'sands' => [['stat' => 'hp_', 'priority' => 1], ['stat' => 'eleMas', 'priority' => 2]],
             'goblet' => [['stat' => Stats::ELEMENTAL_DMG, 'priority' => 1]],
             'circlet' => [['stat' => 'critRate_', 'priority' => 1], ['stat' => 'critDMG_', 'priority' => 1]],
         ]),
-        'substats' => Json::encode([
-            ['stat' => 'critRate_', 'priority' => 1], ['stat' => 'critDMG_', 'priority' => 1],
-            ['stat' => 'eleMas', 'priority' => 2], ['stat' => 'hp_', 'priority' => 3],
-        ]),
+        'substats' => Json::encode([['stat' => 'critRate_', 'priority' => 1], ['stat' => 'critDMG_', 'priority' => 1], ['stat' => 'eleMas', 'priority' => 2], ['stat' => 'hp_', 'priority' => 3]]),
         'stat_targets' => Json::encode([['stat' => 'critRate_', 'min' => 70, 'max' => null, 'text' => 'CRIT Rate 70%']]),
         'notes' => 'Prydwen has no curated build for this character yet.',
         'source_url' => 'https://fake-builds.example/hu-tao',
@@ -63,12 +72,23 @@ beforeEach(function () use ($state) {
     $state->account = seedAccount(1, 'genshin', ['nickname' => 'Test', 'has_full_inventory' => true]);
     $state->character = $character;
     db()->insert('account_characters', [
-        'account_id' => $state->account, 'game_character_id' => $character, 'level' => 90, 'rank' => 0, 'source' => 'good',
+        'account_id' => $state->account,
+        'game_character_id' => $character,
+        'level' => 90,
+        'rank' => 0,
+        'source' => 'good',
         'final_stats' => Json::encode(['critRate_' => 62.0, 'critDMG_' => 210.0]),
     ]);
 
     // Dragon's Bane equipped, Staff of Homa owned but unused.
-    db()->insert('account_weapons', ['account_id' => $state->account, 'game_weapon_id' => idOf('game_weapons', 'dragonsbane'), 'level' => 90, 'refinement' => 5, 'equipped_character_id' => $character, 'source' => 'good']);
+    db()->insert('account_weapons', [
+        'account_id' => $state->account,
+        'game_weapon_id' => idOf('game_weapons', 'dragonsbane'),
+        'level' => 90,
+        'refinement' => 5,
+        'equipped_character_id' => $character,
+        'source' => 'good',
+    ]);
     db()->insert('account_weapons', ['account_id' => $state->account, 'game_weapon_id' => idOf('game_weapons', 'staffofhoma'), 'level' => 90, 'refinement' => 1, 'source' => 'good']);
 
     $cw = idOf('game_sets', 'crimsonwitchofflames');
@@ -79,7 +99,7 @@ beforeEach(function () use ($state) {
     analysisItem($state->account, $cw, 'flower', 'hp', $crit, $character);
     analysisItem($state->account, $cw, 'plume', 'atk', $crit, $character);
     analysisItem($state->account, $cw, 'sands', 'hp_', $crit, $character);
-    analysisItem($state->account, $emblem, 'goblet', 'atk_', $crit, $character);   // an off-piece with the wrong main stat
+    analysisItem($state->account, $emblem, 'goblet', 'atk_', $crit, $character); // an off-piece with the wrong main stat
     analysisItem($state->account, $cw, 'circlet', 'critRate_', $weak, $character); // weak substats
 
     // Better pieces in the inventory.
@@ -90,8 +110,16 @@ beforeEach(function () use ($state) {
 function analysisItem(int $account, int $set, string $slot, string $main, array $substats, ?int $equippedOn = null): void
 {
     db()->insert('account_items', [
-        'account_id' => $account, 'game_set_id' => $set, 'slot' => $slot, 'rarity' => 5, 'level' => 20,
-        'main_stat' => $main, 'main_value' => null, 'substats' => Json::encode($substats), 'equipped_character_id' => $equippedOn, 'source' => 'good',
+        'account_id' => $account,
+        'game_set_id' => $set,
+        'slot' => $slot,
+        'rarity' => 5,
+        'level' => 20,
+        'main_stat' => $main,
+        'main_value' => null,
+        'substats' => Json::encode($substats),
+        'equipped_character_id' => $equippedOn,
+        'source' => 'good',
     ]);
 }
 
@@ -109,7 +137,7 @@ function checkKinds(array $recommendations, stdClass $state): void
 
     foreach ($recommendations as $recommendation) {
         $kind = $recommendation['kind'] ?? null;
-        check(is_string($kind) && isset(BuildEvaluator::KINDS[$kind]), 'a kind of KINDS: '.json_encode($recommendation));
+        check(is_string($kind) && isset(BuildEvaluator::KINDS[$kind]), 'a kind of KINDS: ' . json_encode($recommendation));
         check(is_array($recommendation['params'] ?? null), "{$kind} has params");
         same(BuildEvaluator::KINDS[$kind], array_keys($recommendation['params']), "the params of {$kind}");
         $message = $recommendation['message'];
@@ -118,9 +146,9 @@ function checkKinds(array $recommendations, stdClass $state): void
             if ($name === 'best_choose') {
                 check($value === null || is_int($value), "{$kind}.best_choose is a number or null");
             } elseif (in_array($name, $numbers, true) || ($kind === 'target_below' && $name === 'current')) {
-                check(is_int($value) || is_float($value), "{$kind}.{$name} is a number, got ".json_encode($value));
+                check(is_int($value) || is_float($value), "{$kind}.{$name} is a number, got " . json_encode($value));
             } else {
-                check(is_string($value) && $value !== '', "{$kind}.{$name} is a string, got ".json_encode($value));
+                check(is_string($value) && $value !== '', "{$kind}.{$name} is a string, got " . json_encode($value));
                 // "stat_key" is there for the page's number format; the sentence has the stat's label.
                 check($name === 'stat_key' || stripos($message, $value) !== false, "{$kind}.{$name} \"{$value}\" is what the sentence says: {$message}");
             }
@@ -137,15 +165,14 @@ function checkKinds(array $recommendations, stdClass $state): void
  */
 function recommendationsOf(array $evaluation, string $kind, ?string $slot = null): array
 {
-    return array_values(array_filter($evaluation['recommendations'],
-        fn ($r) => $r['kind'] === $kind && ($slot === null || ($r['slot'] ?? $r['params']['stat_key'] ?? null) === $slot)));
+    return array_values(array_filter($evaluation['recommendations'], fn($r) => $r['kind'] === $kind && ($slot === null || ($r['slot'] ?? ($r['params']['stat_key'] ?? null)) === $slot)));
 }
 
 /** The only recommendation of a kind (and slot, or stat target) in an evaluation. */
 function recommendationOf(array $evaluation, string $kind, ?string $slot = null): array
 {
     $found = recommendationsOf($evaluation, $kind, $slot);
-    same(1, count($found), "one {$kind}".($slot === null ? '' : " for {$slot}").' among: '.implode(', ', array_column($evaluation['recommendations'], 'kind')));
+    same(1, count($found), "one {$kind}" . ($slot === null ? '' : " for {$slot}") . ' among: ' . implode(', ', array_column($evaluation['recommendations'], 'kind')));
 
     return $found[0];
 }
@@ -186,7 +213,7 @@ test('a character analysis', function () use ($detail) {
     $messages = array_column($evaluation['recommendations'], 'message');
     same('high', $evaluation['recommendations'][0]['severity'], 'first recommendation');
     check(str_contains($messages[0], 'Goblet of Eonothem has ATK%'), $messages[0]);
-    check(array_filter($messages, fn ($m) => str_contains($m, 'You own Staff of Homa')) !== [], 'names the better weapon owned');
+    check(array_filter($messages, fn($m) => str_contains($m, 'You own Staff of Homa')) !== [], 'names the better weapon owned');
 
     // The same recommendations as a kind with its parameters, beside the unchanged sentence.
     same(['severity', 'category', 'kind', 'params', 'message', 'slot'], array_keys($evaluation['recommendations'][0]), 'the fields of a recommendation');
@@ -202,7 +229,7 @@ test('a character analysis', function () use ($detail) {
     same(['owned' => 'Staff of Homa', 'refinement' => 'R1', 'owned_rank' => 1, 'name' => "Dragon's Bane", 'rank' => 2], $weapon['params'], 'the better weapon owned');
     same("You own Staff of Homa (R1) (#1), which ranks above Dragon's Bane (#2).", $weapon['message'], 'the better weapon owned, in English');
     same('low', $weapon['severity'], 'the better weapon owned, severity');
-    check(! isset($weapon['slot']), 'a weapon has no slot');
+    check(!isset($weapon['slot']), 'a weapon has no slot');
 
     $target = recommendationOf($evaluation, 'target_below');
     same(['stat' => 'CRIT Rate', 'stat_key' => 'critRate_', 'current' => 62, 'min' => 70], $target['params'], 'the stat target');
@@ -214,15 +241,14 @@ test('a character analysis', function () use ($detail) {
     same('Your Circlet of Logos has weak substats (0% of an ideal piece). Replace it with one rolling CR, CD, EM.', $circlet['message'], 'weak substats, in English');
 
     // What the sources agree on: a set row keeps "name" and says its pieces and its "any N" apart.
-    same([['name' => '4pc Crimson Witch of Flames', 'pieces' => '4pc Crimson Witch of Flames', 'choose' => null, 'count' => 1]],
-        $result['consensus']['sets']['artifact'], 'the consensus set row');
+    same([['name' => '4pc Crimson Witch of Flames', 'pieces' => '4pc Crimson Witch of Flames', 'choose' => null, 'count' => 1]], $result['consensus']['sets']['artifact'], 'the consensus set row');
 
     // Suggestions: the Pyro goblet (fixes the main stat) and the better circlet (keeps 4pc Crimson Witch).
     $suggestions = array_column($result['suggestions'], null, 'slot');
     same('fixes_main_stat', $suggestions['goblet']['reason'], 'goblet');
     same('pyro_dmg_', $suggestions['goblet']['item']['main_stat'], 'the Pyro goblet');
     same('better_substats', $suggestions['circlet']['reason'], 'circlet');
-    check(! isset($suggestions['flower']), 'nothing for the flower');
+    check(!isset($suggestions['flower']), 'nothing for the flower');
 });
 
 test('a set plan when no recommended set is worn', function () use ($detail, $state) {
@@ -251,15 +277,17 @@ test('a set plan when no recommended set is worn', function () use ($detail, $st
 
     // A single piece cannot complete a 4pc switch, so none is offered as "completes the set", and no
     // single swap may break the bonus the character has now.
-    check(! in_array('completes_set', array_column($result['suggestions'], 'reason'), true), 'no completes_set');
-    check(! in_array('flower', array_column($result['suggestions'], 'slot'), true), 'no flower');
+    check(!in_array('completes_set', array_column($result['suggestions'], 'reason'), true), 'no completes_set');
+    check(!in_array('flower', array_column($result['suggestions'], 'slot'), true), 'no flower');
 
     // The recommendation: what is worn is a list of sets, joined as the sentence joins it.
     $sets = recommendationOf($result['evaluations'][0], 'sets_missing');
-    same(['set_label' => 'Artifact set', 'best' => '4pc Crimson Witch of Flames', 'best_choose' => null, 'current' => "4pc Emblem of Severed Fate + 1pc Shimenawa's Reminiscence"],
-        $sets['params'], 'no recommended set');
-    same("Use the recommended artifact set: 4pc Crimson Witch of Flames. Currently: 4pc Emblem of Severed Fate + 1pc Shimenawa's Reminiscence.",
-        $sets['message'], 'no recommended set, in English');
+    same(
+        ['set_label' => 'Artifact set', 'best' => '4pc Crimson Witch of Flames', 'best_choose' => null, 'current' => "4pc Emblem of Severed Fate + 1pc Shimenawa's Reminiscence"],
+        $sets['params'],
+        'no recommended set',
+    );
+    same("Use the recommended artifact set: 4pc Crimson Witch of Flames. Currently: 4pc Emblem of Severed Fate + 1pc Shimenawa's Reminiscence.", $sets['message'], 'no recommended set, in English');
     same('high', $sets['severity'], 'no recommended set, severity');
 });
 
@@ -278,13 +306,18 @@ test('the account overview and the character API, with the source never named', 
     $best = $overview[0]['best'];
     checkKinds([['kind' => $best['top_issue_kind'], 'params' => $best['top_issue_params'], 'message' => $best['top_issue']]], $state);
 
-    $client = (new Client)->asIam(1);
-    $client->get("/api/accounts/{$state->account}")->status(200)->path('characters.0.key', 'hutao')
+    $client = (new Client())->asIam(1);
+    $client
+        ->get("/api/accounts/{$state->account}")
+        ->status(200)
+        ->path('characters.0.key', 'hutao')
         ->path('characters.0.best.top_issue', 'Goblet of Eonothem has ATK% as main stat; this build wants Pyro DMG Bonus.')
         ->path('characters.0.best.top_issue_kind', 'main_stat_wrong')
         ->path('characters.0.best.top_issue_params', $goblet);
 
-    $answer = $client->get("/api/accounts/{$state->account}/characters/hutao")->status(200)
+    $answer = $client
+        ->get("/api/accounts/{$state->account}/characters/hutao")
+        ->status(200)
         ->path('character.name', 'Hu Tao')
         ->path('builds.0.variant', 'DPS')
         ->path('builds.0.weapons.0.name', 'Staff of Homa')
@@ -296,12 +329,16 @@ test('the account overview and the character API, with the source never named', 
         ->path('builds.0.notes', 'The source has no curated build for this character yet.')
         // A recommendation as it is sent: the kind and its params beside the sentence, the slot's key apart.
         ->path('evaluations.0.recommendations.0', [
-            'severity' => 'high', 'category' => 'main_stats', 'kind' => 'main_stat_wrong', 'params' => $goblet,
-            'message' => 'Goblet of Eonothem has ATK% as main stat; this build wants Pyro DMG Bonus.', 'slot' => 'goblet',
+            'severity' => 'high',
+            'category' => 'main_stats',
+            'kind' => 'main_stat_wrong',
+            'params' => $goblet,
+            'message' => 'Goblet of Eonothem has ATK% as main stat; this build wants Pyro DMG Bonus.',
+            'slot' => 'goblet',
         ])
         ->path('consensus.sets.artifact.0', ['name' => '4pc Crimson Witch of Flames', 'pieces' => '4pc Crimson Witch of Flames', 'choose' => null, 'count' => 1]);
-    check(! str_contains($answer->body, 'fake-builds.example'), 'the page the build came from is not sent');
-    check(! str_contains($answer->body, 'Fake Builds'), 'the site\'s name is not sent');
+    check(!str_contains($answer->body, 'fake-builds.example'), 'the page the build came from is not sent');
+    check(!str_contains($answer->body, 'Fake Builds'), 'the site\'s name is not sent');
 
     // What arrives as JSON keeps the rule too: the params of each kind, numbers as JSON numbers.
     checkKinds($answer->json('evaluations.0.recommendations'), $state);
@@ -314,8 +351,15 @@ test('a character with nothing to recommend has no top issue, no kind and no par
     // Kazuha at level 90 against a build that says nothing the analysis could compare.
     $kazuha = idOf('game_characters', 'kaedeharakazuha');
     db()->insert('builds', [
-        'build_source_id' => idOf('build_sources', 'fake.genshin'), 'game_character_id' => $kazuha, 'variant' => 'Support', 'recommended' => true,
-        'weapons' => '[]', 'sets' => '[]', 'main_stats' => '{}', 'substats' => '[]', 'content_hash' => 'y',
+        'build_source_id' => idOf('build_sources', 'fake.genshin'),
+        'game_character_id' => $kazuha,
+        'variant' => 'Support',
+        'recommended' => true,
+        'weapons' => '[]',
+        'sets' => '[]',
+        'main_stats' => '{}',
+        'substats' => '[]',
+        'content_hash' => 'y',
     ]);
     db()->insert('account_characters', ['account_id' => $state->account, 'game_character_id' => $kazuha, 'level' => 90, 'rank' => 0, 'source' => 'good']);
 
@@ -331,7 +375,15 @@ test('a character with nothing to recommend has no top issue, no kind and no par
     same(0, $best['issues'], 'no issues');
     same('main_stat_wrong', $overview['hutao']['best']['top_issue_kind'], 'Hu Tao keeps hers');
 
-    $characters = array_column((new Client)->asIam(1)->get("/api/accounts/{$state->account}")->status(200)->json('characters'), null, 'key');
+    $characters = array_column(
+        (new Client())
+            ->asIam(1)
+            ->get("/api/accounts/{$state->account}")
+            ->status(200)
+            ->json('characters'),
+        null,
+        'key',
+    );
     check(array_key_exists('top_issue_kind', $characters['kaedeharakazuha']['best']) && $characters['kaedeharakazuha']['best']['top_issue_kind'] === null, 'sent as null');
     check(array_key_exists('top_issue_params', $characters['kaedeharakazuha']['best']) && $characters['kaedeharakazuha']['best']['top_issue_params'] === null, 'sent as null');
 });
@@ -341,8 +393,11 @@ test('a better weapon that another character holds is a kind of its own', functi
 
     $evaluation = $detail()['evaluations'][0];
     $weapon = recommendationOf($evaluation, 'weapon_better_owned_on');
-    same(['owned' => 'Staff of Homa', 'refinement' => 'R1', 'owned_rank' => 1, 'name' => "Dragon's Bane", 'rank' => 2, 'character' => 'Kaedehara Kazuha'],
-        $weapon['params'], 'who holds it is a parameter');
+    same(
+        ['owned' => 'Staff of Homa', 'refinement' => 'R1', 'owned_rank' => 1, 'name' => "Dragon's Bane", 'rank' => 2, 'character' => 'Kaedehara Kazuha'],
+        $weapon['params'],
+        'who holds it is a parameter',
+    );
     same("You own Staff of Homa (R1), currently on Kaedehara Kazuha (#1), which ranks above Dragon's Bane (#2).", $weapon['message'], 'in English');
     same([], recommendationsOf($evaluation, 'weapon_better_owned'), 'and not the kind without the holder');
 });
@@ -360,14 +415,14 @@ test('a weapon the build does not list: alone, with a listed one owned, and with
     same(null, $evaluation['weapon']['rank'], 'not on the list');
     $owned = recommendationOf($evaluation, 'weapon_unlisted_owned');
     same($base + ['owned' => 'Staff of Homa', 'refinement' => 'R1'], $owned['params'], 'a listed weapon is owned');
-    same($sentence.' You already own Staff of Homa (R1).', $owned['message'], 'a listed weapon is owned, in English');
+    same($sentence . ' You already own Staff of Homa (R1).', $owned['message'], 'a listed weapon is owned, in English');
     same('medium', $owned['severity'], 'severity');
 
     db()->run('UPDATE account_weapons SET equipped_character_id = ? WHERE game_weapon_id = ?', [idOf('game_characters', 'kaedeharakazuha'), $homa]);
     $evaluation = $detail()['evaluations'][0];
     $on = recommendationOf($evaluation, 'weapon_unlisted_owned_on');
     same($base + ['owned' => 'Staff of Homa', 'refinement' => 'R1', 'character' => 'Kaedehara Kazuha'], $on['params'], 'and somebody holds it');
-    same($sentence.' You already own Staff of Homa (R1), currently on Kaedehara Kazuha.', $on['message'], 'and somebody holds it, in English');
+    same($sentence . ' You already own Staff of Homa (R1), currently on Kaedehara Kazuha.', $on['message'], 'and somebody holds it, in English');
     same([], recommendationsOf($evaluation, 'weapon_unlisted_owned'), 'one kind, not both');
 
     db()->run('DELETE FROM account_weapons WHERE game_weapon_id = ?', [$homa]);
@@ -375,7 +430,7 @@ test('a weapon the build does not list: alone, with a listed one owned, and with
     $alone = recommendationOf($evaluation, 'weapon_unlisted');
     same($base, $alone['params'], 'no listed weapon is owned');
     same($sentence, $alone['message'], 'no listed weapon is owned, in English');
-    same(['weapon_unlisted'], array_values(array_filter(array_column($evaluation['recommendations'], 'kind'), fn ($kind) => str_starts_with($kind, 'weapon_'))), 'the only weapon recommendation');
+    same(['weapon_unlisted'], array_values(array_filter(array_column($evaluation['recommendations'], 'kind'), fn($kind) => str_starts_with($kind, 'weapon_'))), 'the only weapon recommendation');
 });
 
 test('no weapon, a weapon that needs levels, and a weapon far down the list', function () use ($detail, $state) {
@@ -394,12 +449,15 @@ test('no weapon, a weapon that needs levels, and a weapon far down the list', fu
 
     // Fourth of four, and none of the three above it is owned: only the first three are named.
     db()->run('DELETE FROM account_weapons WHERE game_weapon_id = ?', [idOf('game_weapons', 'staffofhoma')]);
-    db()->run('UPDATE builds SET weapons = ? WHERE game_character_id = ?', [Json::encode([
-        ['key' => 'staffofhoma', 'name' => 'Staff of Homa', 'rank' => 1, 'refinement' => null, 'note' => null, 'known' => true],
-        ['key' => 'staffofthescarletsands', 'name' => 'Staff of the Scarlet Sands', 'rank' => 2, 'refinement' => null, 'note' => null, 'known' => true],
-        ['key' => 'deathmatch', 'name' => 'Deathmatch', 'rank' => 3, 'refinement' => null, 'note' => null, 'known' => true],
-        ['key' => 'dragonsbane', 'name' => "Dragon's Bane", 'rank' => 4, 'refinement' => 5, 'note' => null, 'known' => true],
-    ]), $state->character]);
+    db()->run('UPDATE builds SET weapons = ? WHERE game_character_id = ?', [
+        Json::encode([
+            ['key' => 'staffofhoma', 'name' => 'Staff of Homa', 'rank' => 1, 'refinement' => null, 'note' => null, 'known' => true],
+            ['key' => 'staffofthescarletsands', 'name' => 'Staff of the Scarlet Sands', 'rank' => 2, 'refinement' => null, 'note' => null, 'known' => true],
+            ['key' => 'deathmatch', 'name' => 'Deathmatch', 'rank' => 3, 'refinement' => null, 'note' => null, 'known' => true],
+            ['key' => 'dragonsbane', 'name' => "Dragon's Bane", 'rank' => 4, 'refinement' => 5, 'note' => null, 'known' => true],
+        ]),
+        $state->character,
+    ]);
     $low = recommendationOf($detail()['evaluations'][0], 'weapon_low_rank');
     same(['name' => "Dragon's Bane", 'rank' => 4, 'options' => 'Staff of Homa, Staff of the Scarlet Sands, Deathmatch'], $low['params'], 'a low option');
     same("Dragon's Bane is option #4. Upgrades to aim for: Staff of Homa, Staff of the Scarlet Sands, Deathmatch.", $low['message'], 'a low option, in English');
@@ -411,8 +469,7 @@ test('a lower set option, and nothing worn at all', function () use ($detail, $s
     $evaluation = $detail()['evaluations'][0];
     same(2, $evaluation['sets']['groups'][0]['matched_rank'], 'the second option');
     $lower = recommendationOf($evaluation, 'sets_lower_option');
-    same(['set_label' => 'Artifact set', 'current' => "5pc Shimenawa's Reminiscence", 'rank' => 2, 'best' => '4pc Crimson Witch of Flames', 'best_choose' => null],
-        $lower['params'], 'a lower option');
+    same(['set_label' => 'Artifact set', 'current' => "5pc Shimenawa's Reminiscence", 'rank' => 2, 'best' => '4pc Crimson Witch of Flames', 'best_choose' => null], $lower['params'], 'a lower option');
     same("Your artifact set (5pc Shimenawa's Reminiscence) is option #2. The top choice is 4pc Crimson Witch of Flames.", $lower['message'], 'a lower option, in English');
     same('low', $lower['severity'], 'a lower option, severity');
 
@@ -433,7 +490,7 @@ test('a lower set option, and nothing worn at all', function () use ($detail, $s
 });
 
 test('a set option of which any two pieces do: the pieces and the number go out apart', function () use ($detail, $state) {
-    $piece = fn (string $name, string $key) => ['label' => $name, 'count' => 2, 'keys' => [$key], 'names' => [$name]];
+    $piece = fn(string $name, string $key) => ['label' => $name, 'count' => 2, 'keys' => [$key], 'names' => [$name]];
     $three = [$piece('Crimson Witch of Flames', 'crimsonwitchofflames'), $piece("Shimenawa's Reminiscence", 'shimenawasreminiscence'), $piece('Emblem of Severed Fate', 'emblemofseveredfate')];
     $pieces = "2pc Crimson Witch of Flames + 2pc Shimenawa's Reminiscence + 2pc Emblem of Severed Fate";
 
@@ -441,10 +498,10 @@ test('a set option of which any two pieces do: the pieces and the number go out 
     $anyTwo = ['rank' => 1, 'kind' => 'artifact', 'choose' => 2, 'note' => null, 'pieces' => $three];
     same($pieces, BuildEvaluator::optionPieces($anyTwo), 'the pieces');
     same(2, BuildEvaluator::optionChoose($anyTwo), 'any two');
-    same($pieces.' (any 2)', BuildEvaluator::optionLabel($anyTwo), 'the label, as before');
+    same($pieces . ' (any 2)', BuildEvaluator::optionLabel($anyTwo), 'the label, as before');
     foreach ([['choose' => null], ['choose' => 3], ['choose' => 0], []] as $all) {
-        same(null, BuildEvaluator::optionChoose($all + ['pieces' => $three]), 'every piece is needed: '.json_encode($all));
-        same($pieces, BuildEvaluator::optionLabel($all + ['pieces' => $three]), 'no "(any N)": '.json_encode($all));
+        same(null, BuildEvaluator::optionChoose($all + ['pieces' => $three]), 'every piece is needed: ' . json_encode($all));
+        same($pieces, BuildEvaluator::optionLabel($all + ['pieces' => $three]), 'no "(any N)": ' . json_encode($all));
     }
     same('', BuildEvaluator::optionPieces([]), 'an option without pieces');
     same(null, BuildEvaluator::optionChoose(['choose' => 1]), 'an option without pieces needs none');
@@ -454,25 +511,49 @@ test('a set option of which any two pieces do: the pieces and the number go out 
     db()->run('UPDATE builds SET sets = ? WHERE game_character_id = ?', [Json::encode([$anyTwo]), $state->character]);
     $result = $detail();
     $sets = recommendationOf($result['evaluations'][0], 'sets_missing');
-    same(['set_label' => 'Artifact set', 'best' => $pieces, 'best_choose' => 2, 'current' => '4pc Crimson Witch of Flames + 1pc Emblem of Severed Fate'],
-        $sets['params'], 'best is the pieces, best_choose the number');
+    same(
+        ['set_label' => 'Artifact set', 'best' => $pieces, 'best_choose' => 2, 'current' => '4pc Crimson Witch of Flames + 1pc Emblem of Severed Fate'],
+        $sets['params'],
+        'best is the pieces, best_choose the number',
+    );
     same("Use the recommended artifact set: {$pieces} (any 2). Currently: 4pc Crimson Witch of Flames + 1pc Emblem of Severed Fate.", $sets['message'], 'in English, as before');
-    same($pieces.' (any 2)', $result['evaluations'][0]['sets']['groups'][0]['best'], 'the group keeps its label');
+    same($pieces . ' (any 2)', $result['evaluations'][0]['sets']['groups'][0]['best'], 'the group keeps its label');
 
     // The consensus row is counted by the label and carries the two parts; no plan is made for such an option.
-    same([['name' => $pieces.' (any 2)', 'pieces' => $pieces, 'choose' => 2, 'count' => 1]], $result['consensus']['sets']['artifact'], 'the consensus set row');
+    same([['name' => $pieces . ' (any 2)', 'pieces' => $pieces, 'choose' => 2, 'count' => 1]], $result['consensus']['sets']['artifact'], 'the consensus set row');
     same([], $result['set_plans'], 'no set plan for an option of several pieces');
 
     // Two of the three worn, as the build's second option: the top option keeps its two parts there too.
-    db()->run('UPDATE builds SET sets = ? WHERE game_character_id = ?', [Json::encode([
-        ['rank' => 1, 'kind' => 'artifact', 'choose' => 2, 'note' => null, 'pieces' => [$three[1], $three[2], $piece('Gilded Dreams', 'gildeddreams')]],
-        ['rank' => 2, 'kind' => 'artifact', 'choose' => null, 'note' => null, 'pieces' => [['label' => 'Crimson Witch of Flames', 'count' => 4, 'keys' => ['crimsonwitchofflames'], 'names' => ['Crimson Witch of Flames']]]],
-    ]), $state->character]);
+    db()->run('UPDATE builds SET sets = ? WHERE game_character_id = ?', [
+        Json::encode([
+            ['rank' => 1, 'kind' => 'artifact', 'choose' => 2, 'note' => null, 'pieces' => [$three[1], $three[2], $piece('Gilded Dreams', 'gildeddreams')]],
+            [
+                'rank' => 2,
+                'kind' => 'artifact',
+                'choose' => null,
+                'note' => null,
+                'pieces' => [['label' => 'Crimson Witch of Flames', 'count' => 4, 'keys' => ['crimsonwitchofflames'], 'names' => ['Crimson Witch of Flames']]],
+            ],
+        ]),
+        $state->character,
+    ]);
     $lower = recommendationOf($detail()['evaluations'][0], 'sets_lower_option');
-    same(['set_label' => 'Artifact set', 'current' => '4pc Crimson Witch of Flames + 1pc Emblem of Severed Fate', 'rank' => 2,
-        'best' => "2pc Shimenawa's Reminiscence + 2pc Emblem of Severed Fate + 2pc Gilded Dreams", 'best_choose' => 2], $lower['params'], 'a lower option under an "any two"');
-    same("Your artifact set (4pc Crimson Witch of Flames + 1pc Emblem of Severed Fate) is option #2. The top choice is 2pc Shimenawa's Reminiscence + 2pc Emblem of Severed Fate + 2pc Gilded Dreams (any 2).",
-        $lower['message'], 'a lower option under an "any two", in English');
+    same(
+        [
+            'set_label' => 'Artifact set',
+            'current' => '4pc Crimson Witch of Flames + 1pc Emblem of Severed Fate',
+            'rank' => 2,
+            'best' => "2pc Shimenawa's Reminiscence + 2pc Emblem of Severed Fate + 2pc Gilded Dreams",
+            'best_choose' => 2,
+        ],
+        $lower['params'],
+        'a lower option under an "any two"',
+    );
+    same(
+        "Your artifact set (4pc Crimson Witch of Flames + 1pc Emblem of Severed Fate) is option #2. The top choice is 2pc Shimenawa's Reminiscence + 2pc Emblem of Severed Fate + 2pc Gilded Dreams (any 2).",
+        $lower['message'],
+        'a lower option under an "any two", in English',
+    );
 });
 
 test('levels, talents and stat targets: numbers go out as numbers, not as the sentence writes them', function () use ($detail, $state) {
@@ -529,16 +610,33 @@ test('Honkai: Star Rail has its own labels: Light Cone, the two kinds of set, S 
     $source = (int) db()->insert('build_sources', ['key' => 'fake.hsr', 'game' => 'hsr', 'name' => 'Fake Rail Builds', 'base_url' => 'https://fake-rail.example']);
 
     db()->insert('builds', [
-        'build_source_id' => $source, 'game_character_id' => $kafka, 'variant' => 'DoT', 'recommended' => true,
+        'build_source_id' => $source,
+        'game_character_id' => $kafka,
+        'variant' => 'DoT',
+        'recommended' => true,
         'weapons' => Json::encode([
             ['key' => 'patienceisallyouneed', 'name' => 'Patience Is All You Need', 'rank' => 1, 'refinement' => null, 'note' => null, 'known' => true],
             ['key' => 'goodnightandsleepwell', 'name' => 'Good Night and Sleep Well', 'rank' => 2, 'refinement' => null, 'note' => null, 'known' => true],
         ]),
         'sets' => Json::encode([
-            ['rank' => 1, 'kind' => 'relic', 'choose' => null, 'note' => null, 'pieces' => [['label' => 'Prisoner in Deep Confinement', 'count' => 4, 'keys' => ['prisonerindeepconfinement'], 'names' => ['Prisoner in Deep Confinement']]]],
-            ['rank' => 1, 'kind' => 'planar', 'choose' => null, 'note' => null, 'pieces' => [['label' => 'Firmament Frontline: Glamoth', 'count' => 2, 'keys' => ['firmamentfrontlineglamoth'], 'names' => ['Firmament Frontline: Glamoth']]]],
+            [
+                'rank' => 1,
+                'kind' => 'relic',
+                'choose' => null,
+                'note' => null,
+                'pieces' => [['label' => 'Prisoner in Deep Confinement', 'count' => 4, 'keys' => ['prisonerindeepconfinement'], 'names' => ['Prisoner in Deep Confinement']]],
+            ],
+            [
+                'rank' => 1,
+                'kind' => 'planar',
+                'choose' => null,
+                'note' => null,
+                'pieces' => [['label' => 'Firmament Frontline: Glamoth', 'count' => 2, 'keys' => ['firmamentfrontlineglamoth'], 'names' => ['Firmament Frontline: Glamoth']]],
+            ],
         ]),
-        'main_stats' => '{}', 'substats' => '[]', 'content_hash' => 'z',
+        'main_stats' => '{}',
+        'substats' => '[]',
+        'content_hash' => 'z',
     ]);
 
     // Kafka at level 80 with no relics, a light cone the build does not list, and the listed one lying unused.
@@ -552,22 +650,44 @@ test('Honkai: Star Rail has its own labels: Light Cone, the two kinds of set, S 
 
     // weapon_label is the label as it is; only the English sentence lower-cases it.
     $cone = recommendationOf($evaluation, 'weapon_unlisted_owned');
-    same(['name' => 'Eyes of the Prey', 'weapon_label' => 'Light Cone', 'options' => 'Patience Is All You Need, Good Night and Sleep Well',
-        'owned' => 'Patience Is All You Need', 'refinement' => 'S1'], $cone['params'], 'the light cone');
-    same("Eyes of the Prey is not on this build's light cone list. Recommended: Patience Is All You Need, Good Night and Sleep Well. You already own Patience Is All You Need (S1).",
-        $cone['message'], 'the light cone, in English');
+    same(
+        ['name' => 'Eyes of the Prey', 'weapon_label' => 'Light Cone', 'options' => 'Patience Is All You Need, Good Night and Sleep Well', 'owned' => 'Patience Is All You Need', 'refinement' => 'S1'],
+        $cone['params'],
+        'the light cone',
+    );
+    same(
+        "Eyes of the Prey is not on this build's light cone list. Recommended: Patience Is All You Need, Good Night and Sleep Well. You already own Patience Is All You Need (S1).",
+        $cone['message'],
+        'the light cone, in English',
+    );
 
     // One recommendation for each kind of set, told apart by set_label.
     $empty = array_column(recommendationsOf($evaluation, 'sets_missing_empty'), null, 'message');
-    same([
-        'Use the recommended Cavern Relic set: 4pc Prisoner in Deep Confinement. Currently: nothing.' => ['set_label' => 'Cavern Relic set', 'best' => '4pc Prisoner in Deep Confinement', 'best_choose' => null],
-        'Use the recommended Planar Ornament set: 2pc Firmament Frontline: Glamoth. Currently: nothing.' => ['set_label' => 'Planar Ornament set', 'best' => '2pc Firmament Frontline: Glamoth', 'best_choose' => null],
-    ], array_map(fn ($r) => $r['params'], $empty), 'the two kinds of set');
+    same(
+        [
+            'Use the recommended Cavern Relic set: 4pc Prisoner in Deep Confinement. Currently: nothing.' => [
+                'set_label' => 'Cavern Relic set',
+                'best' => '4pc Prisoner in Deep Confinement',
+                'best_choose' => null,
+            ],
+            'Use the recommended Planar Ornament set: 2pc Firmament Frontline: Glamoth. Currently: nothing.' => [
+                'set_label' => 'Planar Ornament set',
+                'best' => '2pc Firmament Frontline: Glamoth',
+                'best_choose' => null,
+            ],
+        ],
+        array_map(fn($r) => $r['params'], $empty),
+        'the two kinds of set',
+    );
 
-    same([
-        'relic' => [['name' => '4pc Prisoner in Deep Confinement', 'pieces' => '4pc Prisoner in Deep Confinement', 'choose' => null, 'count' => 1]],
-        'planar' => [['name' => '2pc Firmament Frontline: Glamoth', 'pieces' => '2pc Firmament Frontline: Glamoth', 'choose' => null, 'count' => 1]],
-    ], $result['consensus']['sets'], 'the consensus set rows');
+    same(
+        [
+            'relic' => [['name' => '4pc Prisoner in Deep Confinement', 'pieces' => '4pc Prisoner in Deep Confinement', 'choose' => null, 'count' => 1]],
+            'planar' => [['name' => '2pc Firmament Frontline: Glamoth', 'pieces' => '2pc Firmament Frontline: Glamoth', 'choose' => null, 'count' => 1]],
+        ],
+        $result['consensus']['sets'],
+        'the consensus set rows',
+    );
 });
 
 test('every kind of recommendation is one the cases above produce', function () use ($state) {

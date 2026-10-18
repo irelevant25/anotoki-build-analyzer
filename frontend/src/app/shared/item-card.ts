@@ -27,16 +27,7 @@ export interface ItemView {
  */
 @Component({
   selector: 'app-item-card',
-  imports: [
-    Avatar,
-    GradeBadge,
-    StatLabelPipe,
-    StatValuePipe,
-    SlotLabelPipe,
-    TranslatePipe,
-    IconComponent,
-    TooltipDirective,
-  ],
+  imports: [Avatar, GradeBadge, StatLabelPipe, StatValuePipe, SlotLabelPipe, TranslatePipe, IconComponent, TooltipDirective],
   templateUrl: './item-card.html',
   styleUrl: './item-card.scss',
 })

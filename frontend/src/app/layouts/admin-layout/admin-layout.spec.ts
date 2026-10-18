@@ -38,11 +38,7 @@ async function open(who: Who): Promise<{
     isStaff: signal(roles.includes('ADMIN') || roles.includes('EDITOR')),
     available: signal(true),
     failure: signal(null),
-    user: signal(
-      (who.signedIn ?? true)
-        ? { sub: '7', email: 'mona@example.test', preferred_username: 'mona' }
-        : null,
-    ),
+    user: signal((who.signedIn ?? true) ? { sub: '7', email: 'mona@example.test', preferred_username: 'mona' } : null),
     displayName: () => ((who.signedIn ?? true) ? 'mona' : null),
     preferences: () => null,
     accountUrl: signal<string | null>(null),
@@ -77,14 +73,9 @@ async function open(who: Who): Promise<{
   return { host: fixture.nativeElement, auth, unread, changelog };
 }
 
-const text = (element: Element | null | undefined) =>
-  element?.textContent?.replace(/\s+/g, ' ').trim();
+const text = (element: Element | null | undefined) => element?.textContent?.replace(/\s+/g, ' ').trim();
 /** The bar's sections: the family's bar's links, each its words (without a badge) and where it goes. */
-const links = (host: HTMLElement) =>
-  [...host.querySelectorAll<HTMLAnchorElement>('.anotoki-top-bar__nav a')].map((link) => [
-    text(link)?.replace(/\s*\d+$/, ''),
-    link.getAttribute('href'),
-  ]);
+const links = (host: HTMLElement) => [...host.querySelectorAll<HTMLAnchorElement>('.anotoki-top-bar__nav a')].map((link) => [text(link)?.replace(/\s*\d+$/, ''), link.getAttribute('href')]);
 
 describe("the admin panel's frame", () => {
   it("gives an editor the editors' sections in the bar, and the page - in English, whatever the reader reads", async () => {
@@ -110,21 +101,9 @@ describe("the admin panel's frame", () => {
     const { host, changelog } = await open({ roles: ['ADMIN'] });
 
     const footer = host.querySelector('anotoki-site-footer')!;
-    expect([...footer.querySelectorAll('.anotoki-site-footer__row > *')].map(text)).toEqual([
-      'Version 0.4.0',
-      '·',
-      "What's new",
-      '·',
-      'Feedback',
-    ]);
-    expect([...footer.querySelectorAll('anotoki-legal-links a')].map(text)).toEqual([
-      'Terms',
-      'Privacy',
-      'Contact',
-    ]);
-    expect(text(footer.querySelector('[data-fan]'))).toBe(
-      'This site is a fan-made project and is not affiliated with or endorsed by HoYoverse.',
-    );
+    expect([...footer.querySelectorAll('.anotoki-site-footer__row > *')].map(text)).toEqual(['Version 0.4.0', '·', "What's new", '·', 'Feedback']);
+    expect([...footer.querySelectorAll('anotoki-legal-links a')].map(text)).toEqual(['Terms', 'Privacy', 'Contact']);
+    expect(text(footer.querySelector('[data-fan]'))).toBe('This site is a fan-made project and is not affiliated with or endorsed by HoYoverse.');
     footer.querySelector<HTMLButtonElement>('[data-whats-new]')!.click();
     expect(changelog.open).toHaveBeenCalledTimes(1);
   });
@@ -160,16 +139,11 @@ describe("the admin panel's frame", () => {
     const { host, unread } = await open({ roles: ['ADMIN'], unread: 3 });
 
     expect(unread.refresh).toHaveBeenCalledTimes(1);
-    const feedback = () =>
-      [...host.querySelectorAll<HTMLAnchorElement>('.anotoki-top-bar__nav a')].find(
-        (link) => link.getAttribute('href') === '/admin/feedback',
-      )!;
+    const feedback = () => [...host.querySelectorAll<HTMLAnchorElement>('.anotoki-top-bar__nav a')].find((link) => link.getAttribute('href') === '/admin/feedback')!;
     // The family's badge beside the words, seen alone - and heard after the link's name: "Feedback, 3 new"
     // (anotoki-lib 0.6.0: the number aria-hidden, the kit's topbar.linkCount visually hidden after it).
     expect(feedback().querySelector('.anotoki-top-bar__badge')?.textContent?.trim()).toBe('3');
-    expect(feedback().querySelector('.anotoki-top-bar__badge')?.getAttribute('aria-hidden')).toBe(
-      'true',
-    );
+    expect(feedback().querySelector('.anotoki-top-bar__badge')?.getAttribute('aria-hidden')).toBe('true');
     expect(text(feedback())).toBe('Feedback 3, 3 new');
 
     // The Feedback page opened them all.

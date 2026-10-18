@@ -10,11 +10,8 @@ use RuntimeException;
  */
 class FetchDeferred extends RuntimeException
 {
-    public function __construct(
-        public readonly string $host,
-        public readonly float $retryAt,
-        string $reason = 'crawl delay',
-    ) {
-        parent::__construct("{$host}: {$reason}, next request at ".gmdate('H:i:s', (int) ceil($retryAt)).' UTC');
+    public function __construct(public readonly string $host, public readonly float $retryAt, string $reason = 'crawl delay')
+    {
+        parent::__construct("{$host}: {$reason}, next request at " . gmdate('H:i:s', (int) ceil($retryAt)) . ' UTC');
     }
 }

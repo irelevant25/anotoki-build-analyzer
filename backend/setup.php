@@ -36,23 +36,23 @@ header('X-Content-Type-Options: nosniff');
 header('Cache-Control: no-store');
 
 // Checked before anything newer is loaded, so an old PHP still gets as far as saying it is too old.
-if (PHP_VERSION_ID < 80400 || ! is_file(__DIR__.'/vendor/autoload.php')) {
+if (PHP_VERSION_ID < 80400 || !is_file(__DIR__ . '/vendor/autoload.php')) {
     echo '<!doctype html><meta charset="utf-8"><title>Set up</title><p style="font:16px system-ui;margin:40px">',
         PHP_VERSION_ID < 80400
-            ? 'The build analyzer needs PHP 8.4 or newer; this is PHP '.htmlspecialchars(PHP_VERSION).'. Choose PHP 8.4 in the hosting panel and reload.'
+            ? 'The build analyzer needs PHP 8.4 or newer; this is PHP ' . htmlspecialchars(PHP_VERSION) . '. Choose PHP 8.4 in the hosting panel and reload.'
             : 'vendor/ is missing: upload the whole build (or run composer install in backend/), then reload.',
         '</p>';
-    exit;
+    exit();
 }
 
-require __DIR__.'/vendor/autoload.php';
+require __DIR__ . '/vendor/autoload.php';
 
 use App\Setup\Installer;
 
 $installer = new Installer(__DIR__);
 $local = Installer::local($_SERVER);
-$scheme = (! empty($_SERVER['HTTPS']) && strtolower((string) $_SERVER['HTTPS']) !== 'off') ? 'https' : 'http';
-$siteUrl = $scheme.'://'.(string) ($_SERVER['HTTP_HOST'] ?? 'localhost');
+$scheme = !empty($_SERVER['HTTPS']) && strtolower((string) $_SERVER['HTTPS']) !== 'off' ? 'https' : 'http';
+$siteUrl = $scheme . '://' . (string) ($_SERVER['HTTP_HOST'] ?? 'localhost');
 $post = $_SERVER['REQUEST_METHOD'] === 'POST';
 
 function h(?string $text): string
@@ -65,7 +65,9 @@ function page(string $heading, string $body, string $tone = 'plain'): never
     $accent = ['plain' => '#6750a4', 'good' => '#1d8a55', 'bad' => '#c62f3b'][$tone] ?? '#6750a4';
     echo '<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">',
         '<meta name="robots" content="noindex, nofollow"><title>Set up · Build Analyzer</title><style>',
-        ':root{color-scheme:light dark;--bg:#f6f5fb;--card:#fff;--ink:#1c1b20;--muted:#6b6878;--line:#e2dfeb;--field:#fff;--accent:', $accent, '}',
+        ':root{color-scheme:light dark;--bg:#f6f5fb;--card:#fff;--ink:#1c1b20;--muted:#6b6878;--line:#e2dfeb;--field:#fff;--accent:',
+        $accent,
+        '}',
         '@media (prefers-color-scheme:dark){:root{--bg:#121218;--card:#1c1b24;--ink:#ebe8f4;--muted:#a09cb0;--line:#33323f;--field:#15141b}}',
         '*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.5 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;display:flex;min-height:100vh;align-items:flex-start;justify-content:center;padding:24px 16px}',
         '.card{background:var(--card);border:1px solid var(--line);border-radius:14px;max-width:640px;width:100%;padding:26px 28px}',
@@ -80,32 +82,39 @@ function page(string $heading, string $body, string $tone = 'plain'): never
         '.err{background:rgba(198,47,59,.12);border:1px solid rgba(198,47,59,.4);color:#c62f3b;border-radius:9px;padding:10px 12px;margin:12px 0}',
         '.note{border:1px solid var(--line);border-radius:9px;padding:11px 13px;margin:12px 0}.ok{color:#1d8a55}.muted{font-size:.85rem;margin:4px 0 0}',
         '@media (max-width:520px){.row{flex-direction:column;gap:0}.card{padding:20px 18px}}',
-        '</style></head><body><main class="card"><h1>', h($heading), '</h1>', $body, '</main></body></html>';
-    exit;
+        '</style></head><body><main class="card"><h1>',
+        h($heading),
+        '</h1>',
+        $body,
+        '</main></body></html>';
+    exit();
 }
 
 function json(array $data): never
 {
     header('Content-Type: application/json; charset=utf-8', true);
     echo json_encode($data, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
-    exit;
+    exit();
 }
 
 // ── A host that is set up: the lock stops a second run ─────────────────────────────────────────────
 
-if (! $local && is_file($installer->lockFile())) {
+if (!$local && is_file($installer->lockFile())) {
     $gone = $installer->removeSetupFiles(__FILE__);
-    page('Already set up', '<p>This site is set up; <code>storage/installed.lock</code> stops setup running again.</p>'
-        .($gone ? '<p class="ok">The setup files have been removed.</p>'
-            : '<p class="err">Delete <code>setup.php</code> and <code>config/setup-token.local.php</code> by hand.</p>'), 'good');
+    page(
+        'Already set up',
+        '<p>This site is set up; <code>storage/installed.lock</code> stops setup running again.</p>' .
+            ($gone ? '<p class="ok">The setup files have been removed.</p>' : '<p class="err">Delete <code>setup.php</code> and <code>config/setup-token.local.php</code> by hand.</p>'),
+        'good',
+    );
 }
 
 // ── Requirements ───────────────────────────────────────────────────────────────────────────────────
 
-$missing = array_filter($installer->requirements(), fn (array $check) => ! $check['ok']);
+$missing = array_filter($installer->requirements(), fn(array $check) => !$check['ok']);
 if ($missing !== []) {
-    $items = implode('', array_map(fn (array $check) => '<li><strong>'.h($check['label']).'</strong>: '.h($check['detail']).'</li>', $missing));
-    page('Not ready yet', '<p>The server is missing something the app needs:</p><ul>'.$items.'</ul><p class="muted">Fix these and reload.</p>', 'bad');
+    $items = implode('', array_map(fn(array $check) => '<li><strong>' . h($check['label']) . '</strong>: ' . h($check['detail']) . '</li>', $missing));
+    page('Not ready yet', '<p>The server is missing something the app needs:</p><ul>' . $items . '</ul><p class="muted">Fix these and reload.</p>', 'bad');
 }
 
 // ── Who may use this form ──────────────────────────────────────────────────────────────────────────
@@ -116,8 +125,7 @@ $nonce = null;
 $cookie = null;
 $token = null;
 if ($local) {
-    $cookie = is_string($_COOKIE['build_analyzer_setup'] ?? null) && preg_match('/^[a-f0-9]{48}$/', $_COOKIE['build_analyzer_setup'])
-        ? $_COOKIE['build_analyzer_setup'] : null;
+    $cookie = is_string($_COOKIE['build_analyzer_setup'] ?? null) && preg_match('/^[a-f0-9]{48}$/', $_COOKIE['build_analyzer_setup']) ? $_COOKIE['build_analyzer_setup'] : null;
     $nonce = $cookie ?? bin2hex(random_bytes(24));
     if ($cookie === null) {
         setcookie('build_analyzer_setup', $nonce, ['path' => '/setup.php', 'httponly' => true, 'samesite' => 'Strict']);
@@ -125,7 +133,11 @@ if ($local) {
 } else {
     $token = $installer->token() ?? $installer->makeToken();
     if ($token === null) {
-        page('Cannot write to config/', '<p>Setup could not create <code>config/setup-token.local.php</code>: the <code>config/</code> folder is not writable for the web server. Give it write permission and reload.</p>', 'bad');
+        page(
+            'Cannot write to config/',
+            '<p>Setup could not create <code>config/setup-token.local.php</code>: the <code>config/</code> folder is not writable for the web server. Give it write permission and reload.</p>',
+            'bad',
+        );
     }
 }
 
@@ -158,7 +170,7 @@ if ($post) {
 
 $action = (string) ($_POST['action'] ?? '');
 if ($post && in_array($action, ['test-db', 'test-iam'], true)) {
-    if (! $allowed()) {
+    if (!$allowed()) {
         json(['ok' => false, 'message' => $local ? 'This form has expired. Reload the page.' : 'Enter the setup token first.']);
     }
     if ($action === 'test-iam') {
@@ -166,7 +178,7 @@ if ($post && in_array($action, ['test-db', 'test-iam'], true)) {
     }
 
     [$settings, $errors] = $installer->validate($values, $password);
-    if (array_filter($errors, fn ($error) => str_contains($error, 'database')) !== []) {
+    if (array_filter($errors, fn($error) => str_contains($error, 'database')) !== []) {
         json(['ok' => false, 'message' => 'Fill in the database host, a numeric port, the database name and the username.']);
     }
     json($installer->testDatabase($settings['database']));
@@ -176,7 +188,7 @@ if ($post && in_array($action, ['test-db', 'test-iam'], true)) {
 
 $errors = [];
 if ($post) {
-    if (! $allowed()) {
+    if (!$allowed()) {
         $errors[] = $local ? 'This form has expired. Reload the page and try again.' : 'That is not the token from config/setup-token.local.php.';
     } else {
         [$settings, $errors] = $installer->validate($values, $password);
@@ -184,36 +196,57 @@ if ($post) {
 
     if ($errors === []) {
         try {
-            if (! $local) {
+            if (!$local) {
                 $installer->checkExposure($siteUrl);
             }
             $log = $installer->buildDatabase($settings['database']);
             $written = $installer->writeConfig($settings, Installer::userAgent($local, $siteUrl));
 
-            $files = implode(', ', array_map(fn ($file) => '<code>'.h($file).'</code>', $written));
-            $steps = '<ul>'.implode('', array_map(fn ($line) => '<li>'.h($line).'</li>', $log)).'</ul>';
+            $files = implode(', ', array_map(fn($file) => '<code>' . h($file) . '</code>', $written));
+            $steps = '<ul>' . implode('', array_map(fn($line) => '<li>' . h($line) . '</li>', $log)) . '</ul>';
 
             if ($local) {
-                page('Saved', $steps.'<p>Wrote '.$files.'.</p>'
-                    .'<p>Sign-in: <strong>through the anotoki IAM at '.h($settings['auth']['issuer']).'</strong>.</p>'
-                    .'<h2>Next</h2><ul><li>The app: <code>npm start</code> in <code>frontend/</code>, then <a href="http://localhost:4600/">http://localhost:4600</a>.</li>'
-                    .'<li>On the <strong>Sources</strong> page (editors and admins) press <strong>Refresh catalog</strong>, then <strong>Sync all</strong>, and keep the tab open while it runs.</li>'
-                    .'<li>To change any of this, open <a href="setup.php">setup.php</a> again.</li></ul>', 'good');
+                page(
+                    'Saved',
+                    $steps .
+                        '<p>Wrote ' .
+                        $files .
+                        '.</p>' .
+                        '<p>Sign-in: <strong>through the anotoki IAM at ' .
+                        h($settings['auth']['issuer']) .
+                        '</strong>.</p>' .
+                        '<h2>Next</h2><ul><li>The app: <code>npm start</code> in <code>frontend/</code>, then <a href="http://localhost:4600/">http://localhost:4600</a>.</li>' .
+                        '<li>On the <strong>Sources</strong> page (editors and admins) press <strong>Refresh catalog</strong>, then <strong>Sync all</strong>, and keep the tab open while it runs.</li>' .
+                        '<li>To change any of this, open <a href="setup.php">setup.php</a> again.</li></ul>',
+                    'good',
+                );
             }
 
-            if (! is_dir(dirname($installer->lockFile()))) {
+            if (!is_dir(dirname($installer->lockFile()))) {
                 @mkdir(dirname($installer->lockFile()), 0775, true);
             }
             // Checked, not assumed: the lock is what keeps a leftover setup.php from running a second time.
             $locked = @file_put_contents($installer->lockFile(), json_encode(['installed_at' => gmdate('c'), 'site' => $siteUrl], JSON_PRETTY_PRINT)) !== false;
             $gone = $installer->removeSetupFiles(__FILE__);
 
-            page('Set up', $steps.'<p>Wrote '.$files.' ('.($installer->phpOwns(__DIR__.'/config') ? 'readable by their owner only' : 'readable over FTP, because PHP runs as another user on this host').').</p>'
-                .($locked ? '' : '<p class="err"><code>storage/installed.lock</code> could not be written. Make <code>storage/</code> writable.</p>')
-                .($gone ? '<p class="ok">Removed <code>setup.php</code> and <code>config/setup-token.local.php</code>.</p>'
-                    : '<p class="err">Delete <code>setup.php</code> and <code>config/setup-token.local.php</code> by hand now.</p>')
-                .'<h2>Next</h2><ol><li>Open <a href="/">'.h($siteUrl).'</a> and sign in with the IAM\'s administrator account (the IAM gives it the ADMIN role here).</li>'
-                .'<li>On the <strong>Sources</strong> page press <strong>Refresh catalog</strong>, then <strong>Sync all</strong>, and keep the tab open while it runs.</li></ol>', 'good');
+            page(
+                'Set up',
+                $steps .
+                    '<p>Wrote ' .
+                    $files .
+                    ' (' .
+                    ($installer->phpOwns(__DIR__ . '/config') ? 'readable by their owner only' : 'readable over FTP, because PHP runs as another user on this host') .
+                    ').</p>' .
+                    ($locked ? '' : '<p class="err"><code>storage/installed.lock</code> could not be written. Make <code>storage/</code> writable.</p>') .
+                    ($gone
+                        ? '<p class="ok">Removed <code>setup.php</code> and <code>config/setup-token.local.php</code>.</p>'
+                        : '<p class="err">Delete <code>setup.php</code> and <code>config/setup-token.local.php</code> by hand now.</p>') .
+                    '<h2>Next</h2><ol><li>Open <a href="/">' .
+                    h($siteUrl) .
+                    '</a> and sign in with the IAM\'s administrator account (the IAM gives it the ADMIN role here).</li>' .
+                    '<li>On the <strong>Sources</strong> page press <strong>Refresh catalog</strong>, then <strong>Sync all</strong>, and keep the tab open while it runs.</li></ol>',
+                'good',
+            );
         } catch (Throwable $e) {
             $errors[] = $e->getMessage();
         }
@@ -227,39 +260,79 @@ $saved = $installer->saved() !== [];
 // is said by its fault, never its text: none of its values is shown and its password is not kept. On a real host,
 // none (Installer::passedOver()).
 $broken = $installer->passedOver($local);
-$field = fn (string $name, string $label, string $type = 'text', string $extra = '') => '<label for="'.$name.'">'.h($label).'</label>'
-    .'<input id="'.$name.'" name="'.$name.'" type="'.$type.'"'.($type === 'password' ? '' : ' value="'.h($values[$name] ?? '').'"').' '.$extra.'>';
+$field = fn(string $name, string $label, string $type = 'text', string $extra = '') => '<label for="' .
+    $name .
+    '">' .
+    h($label) .
+    '</label>' .
+    '<input id="' .
+    $name .
+    '" name="' .
+    $name .
+    '" type="' .
+    $type .
+    '"' .
+    ($type === 'password' ? '' : ' value="' . h($values[$name] ?? '') . '"') .
+    ' ' .
+    $extra .
+    '>';
 
 $intro = $local
-    ? '<p>This writes the configuration of this copy and builds its database.'.($saved ? ' It is set up already: these are the saved values (the password is not shown), and saving replaces them.' : '').'</p>'
-        .implode('', array_map(fn (string $file) => '<div class="err">'.h($file).': it is passed over, nothing in it read. Fill in every field, the password too - saving writes the file anew.</div>', $broken))
-    : '<p>This writes the configuration and builds the database. Do it once, on a PostgreSQL database made in the hosting panel.</p>'
-        .'<div class="note">A token was written to <code>config/setup-token.local.php</code>. Open that file over FTP, copy the token and paste it below: that is how setup knows it is you.</div>';
+    ? '<p>This writes the configuration of this copy and builds its database.' .
+        ($saved ? ' It is set up already: these are the saved values (the password is not shown), and saving replaces them.' : '') .
+        '</p>' .
+        implode(
+            '',
+            array_map(
+                fn(string $file) => '<div class="err">' . h($file) . ': it is passed over, nothing in it read. Fill in every field, the password too - saving writes the file anew.</div>',
+                $broken,
+            ),
+        )
+    : '<p>This writes the configuration and builds the database. Do it once, on a PostgreSQL database made in the hosting panel.</p>' .
+        '<div class="note">A token was written to <code>config/setup-token.local.php</code>. Open that file over FTP, copy the token and paste it below: that is how setup knows it is you.</div>';
 
-page('Set up the build analyzer', $intro
-    .implode('', array_map(fn (string $error) => '<div class="err">'.h($error).'</div>', $errors))
-    .'<form method="post" autocomplete="off" id="setup">'
-    .($local ? '<input type="hidden" name="nonce" value="'.h($nonce).'">' : $field('token', 'Setup token', 'password', 'required'))
-    .'<h2>Database (PostgreSQL)</h2>'
-    .'<div class="row"><div>'.$field('db_host', 'Host', 'text', 'required').'</div><div>'.$field('db_port', 'Port', 'text', 'required inputmode="numeric"').'</div></div>'
-    .$field('db_database', 'Database', 'text', 'required')
-    .'<div class="row"><div>'.$field('db_username', 'Username', 'text', 'required').'</div><div>'
-    .$field('db_password', 'Password', 'password', $local && $installer->savedPassword() !== null ? 'placeholder="saved - leave empty to keep it"' : '').'</div></div>'
-    .'<button type="button" class="test" data-test="test-db">Test connection</button><div class="result" id="test-db"></div>'
-    .'<h2>Sign-in</h2>'
-    .'<p>Everyone signs in at the anotoki IAM, which must know this site as the client below, with <code>'.h($local ? 'http://localhost:4600' : $siteUrl).'/auth/callback</code> as its redirect address.</p>'
-    .'<div class="row"><div>'.$field('issuer', 'IAM address', 'url').'</div><div>'.$field('client_id', 'Client id').'</div></div>'
-    .'<button type="button" class="test" data-test="test-iam">Test connection</button><div class="result" id="test-iam"></div>'
-    .'<button type="submit">'.($local ? 'Save' : 'Set up').'</button></form>'
-    .'<script>'
-    .'document.querySelectorAll("[data-test]").forEach(function (button) {'
-    .'  button.addEventListener("click", function () {'
-    .'    var action = button.getAttribute("data-test"), out = document.getElementById(action), data = new FormData(document.getElementById("setup"));'
-    .'    data.set("action", action); out.className = "result"; out.textContent = "Testing...";'
-    .'    fetch("setup.php", { method: "POST", body: data, credentials: "same-origin" })'
-    .'      .then(function (r) { return r.json(); })'
-    .'      .then(function (r) { out.className = "result " + (r.ok ? "ok" : "bad"); out.textContent = r.message; })'
-    .'      .catch(function () { out.className = "result bad"; out.textContent = "The test could not be run. Reload the page and try again."; });'
-    .'  });'
-    .'});'
-    .'</script>');
+page(
+    'Set up the build analyzer',
+    $intro .
+        implode('', array_map(fn(string $error) => '<div class="err">' . h($error) . '</div>', $errors)) .
+        '<form method="post" autocomplete="off" id="setup">' .
+        ($local ? '<input type="hidden" name="nonce" value="' . h($nonce) . '">' : $field('token', 'Setup token', 'password', 'required')) .
+        '<h2>Database (PostgreSQL)</h2>' .
+        '<div class="row"><div>' .
+        $field('db_host', 'Host', 'text', 'required') .
+        '</div><div>' .
+        $field('db_port', 'Port', 'text', 'required inputmode="numeric"') .
+        '</div></div>' .
+        $field('db_database', 'Database', 'text', 'required') .
+        '<div class="row"><div>' .
+        $field('db_username', 'Username', 'text', 'required') .
+        '</div><div>' .
+        $field('db_password', 'Password', 'password', $local && $installer->savedPassword() !== null ? 'placeholder="saved - leave empty to keep it"' : '') .
+        '</div></div>' .
+        '<button type="button" class="test" data-test="test-db">Test connection</button><div class="result" id="test-db"></div>' .
+        '<h2>Sign-in</h2>' .
+        '<p>Everyone signs in at the anotoki IAM, which must know this site as the client below, with <code>' .
+        h($local ? 'http://localhost:4600' : $siteUrl) .
+        '/auth/callback</code> as its redirect address.</p>' .
+        '<div class="row"><div>' .
+        $field('issuer', 'IAM address', 'url') .
+        '</div><div>' .
+        $field('client_id', 'Client id') .
+        '</div></div>' .
+        '<button type="button" class="test" data-test="test-iam">Test connection</button><div class="result" id="test-iam"></div>' .
+        '<button type="submit">' .
+        ($local ? 'Save' : 'Set up') .
+        '</button></form>' .
+        '<script>' .
+        'document.querySelectorAll("[data-test]").forEach(function (button) {' .
+        '  button.addEventListener("click", function () {' .
+        '    var action = button.getAttribute("data-test"), out = document.getElementById(action), data = new FormData(document.getElementById("setup"));' .
+        '    data.set("action", action); out.className = "result"; out.textContent = "Testing...";' .
+        '    fetch("setup.php", { method: "POST", body: data, credentials: "same-origin" })' .
+        '      .then(function (r) { return r.json(); })' .
+        '      .then(function (r) { out.className = "result " + (r.ok ? "ok" : "bad"); out.textContent = r.message; })' .
+        '      .catch(function () { out.className = "result bad"; out.textContent = "The test could not be run. Reload the page and try again."; });' .
+        '  });' .
+        '});' .
+        '</script>',
+);

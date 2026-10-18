@@ -41,8 +41,7 @@ use ReflectionNamedType;
 final class App
 {
     /** Kept across resetScope(). */
-    private const LASTING = [Db::class, HttpClient::class, People::class, AdminContext::class, AuditLog::class,
-        Feedback::class, Backups::class, ErrorLog::class];
+    private const LASTING = [Db::class, HttpClient::class, People::class, AdminContext::class, AuditLog::class, Feedback::class, Backups::class, ErrorLog::class];
 
     /** @var array<string, object> */
     private array $instances = [];
@@ -105,13 +104,13 @@ final class App
         $reflection = new ReflectionClass($class);
         $constructor = $reflection->getConstructor();
         if ($constructor === null) {
-            return new $class;
+            return new $class();
         }
 
         $arguments = [];
         foreach ($constructor->getParameters() as $parameter) {
             $type = $parameter->getType();
-            if ($type instanceof ReflectionNamedType && ! $type->isBuiltin()) {
+            if ($type instanceof ReflectionNamedType && !$type->isBuiltin()) {
                 $arguments[] = $this->get($type->getName());
             } elseif ($parameter->isDefaultValueAvailable()) {
                 $arguments[] = $parameter->getDefaultValue();
@@ -138,7 +137,7 @@ final class App
             // on the site's own connection: it makes its own on the connection it is given (SitePeople::deleteData()) -
             // in a restore this one would wait on the restore's locks while the restore waits on it.
             Translations::class => SiteTranslations::make($this->get(Db::class)->raw()),
-            HttpClient::class => new CurlHttpClient,
+            HttpClient::class => new CurlHttpClient(),
             Fetcher::class => new Fetcher($this->get(HttpClient::class), $this->get(Cache\Cache::class), $this->config, $this->web),
             // Signing in (anotoki/lib's auth module, api/middleware/auth.php): the IAM, its tokens checked here, and
             // whether it says this site requires signing in - read afresh for each request.

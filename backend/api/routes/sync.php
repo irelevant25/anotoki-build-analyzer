@@ -39,73 +39,73 @@ return function (Slim\App $slim, App $app): void {
         $presenter = $app->get(SyncRunPresenter::class);
         $runs = $app->get(SyncRuns::class);
         foreach ($result['started'] as $run) {
-            $app->get(AuditLog::class)->record($request, currentUser($request)->id, 'sync.started', 'sync_run', (int) $run->id,
-                ['kind' => $run->kind, 'game' => $run->game?->value]);
+            $app->get(AuditLog::class)->record($request, currentUser($request)->id, 'sync.started', 'sync_run', (int) $run->id, ['kind' => $run->kind, 'game' => $run->game?->value]);
         }
         $active = $runner->active();
 
         return [
-            'started' => array_map(fn ($run) => $presenter->summary($runs->find((int) $run->id) ?? $run), $result['started']),
+            'started' => array_map(fn($run) => $presenter->summary($runs->find((int) $run->id) ?? $run), $result['started']),
             'skipped' => $result['skipped'],
         ] + $presenter->status($active, $runner->waitMs($active));
     };
 
-    $slim->group('', function (RouteCollectorProxy $group) use ($app, $started) {
-        $group->get('/api/sync', function (Request $request, Response $response) use ($app): Response {
-            $runner = $app->get(SyncRunner::class);
-            $active = $runner->active();
+    $slim
+        ->group('', function (RouteCollectorProxy $group) use ($app, $started) {
+            $group->get('/api/sync', function (Request $request, Response $response) use ($app): Response {
+                $runner = $app->get(SyncRunner::class);
+                $active = $runner->active();
 
-            return Json::send($response, $app->get(SyncRunPresenter::class)->status($active, $runner->waitMs($active)));
-        });
+                return Json::send($response, $app->get(SyncRunPresenter::class)->status($active, $runner->waitMs($active)));
+            });
 
-        $group->post('/api/sync/step', function (Request $request, Response $response) use ($app): Response {
-            // A step always finishes its bookkeeping, even when the tab is closed mid-request, and has
-            // time to spare over its own budget.
-            ignore_user_abort(true);
-            @set_time_limit(max(60, (int) $app->config->get('fetch.step_seconds', 20) + 40));
+            $group->post('/api/sync/step', function (Request $request, Response $response) use ($app): Response {
+                // A step always finishes its bookkeeping, even when the tab is closed mid-request, and has
+                // time to spare over its own budget.
+                ignore_user_abort(true);
+                @set_time_limit(max(60, (int) $app->config->get('fetch.step_seconds', 20) + 40));
 
-            return Json::send($response, $app->get(SyncRunPresenter::class)->step($app->get(SyncRunner::class)->step()));
-        });
+                return Json::send($response, $app->get(SyncRunPresenter::class)->step($app->get(SyncRunner::class)->step()));
+            });
 
-        $group->post('/api/sync/builds', function (Request $request, Response $response) use ($app, $started): Response {
-            $input = Input::of($request);
-            $force = $input->boolean('force') ?? false;
-            $input->valid();
+            $group->post('/api/sync/builds', function (Request $request, Response $response) use ($app, $started): Response {
+                $input = Input::of($request);
+                $force = $input->boolean('force') ?? false;
+                $input->valid();
 
-            $sources = array_values($app->get(BuildSourceRegistry::class)->all());
+                $sources = array_values($app->get(BuildSourceRegistry::class)->all());
 
-            return Json::send($response, $started($request, $app->get(SyncRunner::class)->startBuilds($sources, ['force' => $force], currentUser($request))));
-        });
+                return Json::send($response, $started($request, $app->get(SyncRunner::class)->startBuilds($sources, ['force' => $force], currentUser($request))));
+            });
 
-        $group->post('/api/sources/{key}/sync', function (Request $request, Response $response, array $args) use ($app, $started): Response {
-            $source = $app->get(BuildSourceRegistry::class)->find((string) $args['key']) ?? throw HttpError::notFound();
+            $group->post('/api/sources/{key}/sync', function (Request $request, Response $response, array $args) use ($app, $started): Response {
+                $source = $app->get(BuildSourceRegistry::class)->find((string) $args['key']) ?? throw HttpError::notFound();
 
-            return Json::send($response, $started($request, $app->get(SyncRunner::class)->startBuilds([$source], ['force' => true], currentUser($request))));
-        });
+                return Json::send($response, $started($request, $app->get(SyncRunner::class)->startBuilds([$source], ['force' => true], currentUser($request))));
+            });
 
-        $group->post('/api/sync/catalog', function (Request $request, Response $response) use ($app, $started): Response {
-            $input = Input::of($request);
-            $games = $input->games('games') ?? Game::cases();
-            $input->valid();
+            $group->post('/api/sync/catalog', function (Request $request, Response $response) use ($app, $started): Response {
+                $input = Input::of($request);
+                $games = $input->games('games') ?? Game::cases();
+                $input->valid();
 
-            return Json::send($response, $started($request, $app->get(SyncRunner::class)->startCatalog(array_values(array_unique($games, SORT_REGULAR)), true, currentUser($request))));
-        });
+                return Json::send($response, $started($request, $app->get(SyncRunner::class)->startCatalog(array_values(array_unique($games, SORT_REGULAR)), true, currentUser($request))));
+            });
 
-        $group->post('/api/sync-runs/{run:[0-9]+}/cancel', function (Request $request, Response $response, array $args) use ($app): Response {
-            $run = $app->get(SyncRuns::class)->find((int) $args['run']) ?? throw HttpError::notFound();
-            $wasActive = $run->isActive();
+            $group->post('/api/sync-runs/{run:[0-9]+}/cancel', function (Request $request, Response $response, array $args) use ($app): Response {
+                $run = $app->get(SyncRuns::class)->find((int) $args['run']) ?? throw HttpError::notFound();
+                $wasActive = $run->isActive();
 
-            try {
-                $run = $app->get(SyncRunner::class)->cancel($run, currentUser($request));
-            } catch (LockTimeout) {
-                throw new HttpError(409, 'A sync step is still running. Try again in a moment.');
-            }
-            if ($wasActive && ! $run->isActive()) {
-                $app->get(AuditLog::class)->record($request, currentUser($request)->id, 'sync.cancelled', 'sync_run', (int) $run->id,
-                    ['kind' => $run->kind, 'game' => $run->game?->value]);
-            }
+                try {
+                    $run = $app->get(SyncRunner::class)->cancel($run, currentUser($request));
+                } catch (LockTimeout) {
+                    throw new HttpError(409, 'A sync step is still running. Try again in a moment.');
+                }
+                if ($wasActive && !$run->isActive()) {
+                    $app->get(AuditLog::class)->record($request, currentUser($request)->id, 'sync.cancelled', 'sync_run', (int) $run->id, ['kind' => $run->kind, 'game' => $run->game?->value]);
+                }
 
-            return Json::send($response, $app->get(SyncRunPresenter::class)->summary($app->get(SyncRuns::class)->find((int) $run->id) ?? $run));
-        });
-    })->add(requireRole($app, ...Role::STAFF));
+                return Json::send($response, $app->get(SyncRunPresenter::class)->summary($app->get(SyncRuns::class)->find((int) $run->id) ?? $run));
+            });
+        })
+        ->add(requireRole($app, ...Role::STAFF));
 };

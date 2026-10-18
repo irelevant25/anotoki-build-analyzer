@@ -66,21 +66,14 @@ describe("the family's feedback form, set up for this site (opened from the foot
       { value: 'Accounts', label: 'Tvoje účty a postavy' },
       { value: 'Builds', label: 'Buildy' },
     ]);
-    expect(FEEDBACK_SECTIONS.map((section) => section.value)).toEqual([
-      'Dashboard',
-      'Import',
-      'Accounts',
-      'Builds',
-    ]);
+    expect(FEEDBACK_SECTIONS.map((section) => section.value)).toEqual(['Dashboard', 'Import', 'Accounts', 'Builds']);
     expect(config.language?.()).toBe('sk');
   });
 
   it("writes in a signed-in person's address for an answer, and offers to send it without their name - neither to a visitor", async () => {
     const mona = await form('person');
     expect(mona.querySelector('[data-anonymous]')).not.toBeNull();
-    expect(mona.querySelector<HTMLInputElement>('[data-email] input')?.value).toBe(
-      'mona@example.test',
-    );
+    expect(mona.querySelector<HTMLInputElement>('[data-email] input')?.value).toBe('mona@example.test');
 
     TestBed.resetTestingModule();
     const visitor = await form('visitor');
@@ -98,9 +91,7 @@ describe("the family's feedback form, set up for this site (opened from the foot
 
     const sent = TestBed.inject(HttpTestingController).expectOne('/api/feedback');
     expect(sent.request.method).toBe('POST');
-    expect(sent.request.body).toEqual(
-      expect.objectContaining({ message: 'The import stops at the second step.', language: 'sk' }),
-    );
+    expect(sent.request.body).toEqual(expect.objectContaining({ message: 'The import stops at the second step.', language: 'sk' }));
     sent.flush({ ok: true }, { status: 201, statusText: 'Created' });
     await vi.waitFor(async () => {
       await fixture!.whenStable();
@@ -121,10 +112,6 @@ describe('whether a message can be sent now (feedbackOffered)', () => {
   });
 
   it('never to somebody signed out (the IAM requires signing in here: the server refuses them), nor while the site is not ready', () => {
-    expect([offered('signed-out'), offered('person', true), offered('visitor', true)]).toEqual([
-      false,
-      false,
-      false,
-    ]);
+    expect([offered('signed-out'), offered('person', true), offered('visitor', true)]).toEqual([false, false, false]);
   });
 });

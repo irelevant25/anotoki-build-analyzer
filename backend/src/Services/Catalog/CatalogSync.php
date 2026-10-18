@@ -32,30 +32,55 @@ class CatalogSync implements RunHandler
     public const LISTS = [Catalog::CHARACTER, Catalog::WEAPON, Catalog::SET];
 
     private const GENSHIN_ELEMENTS = [
-        'Fire' => 'pyro', 'Water' => 'hydro', 'Wind' => 'anemo', 'Electric' => 'electro',
-        'Grass' => 'dendro', 'Ice' => 'cryo', 'Rock' => 'geo',
+        'Fire' => 'pyro',
+        'Water' => 'hydro',
+        'Wind' => 'anemo',
+        'Electric' => 'electro',
+        'Grass' => 'dendro',
+        'Ice' => 'cryo',
+        'Rock' => 'geo',
     ];
 
     private const GENSHIN_WEAPONS = [
-        'WEAPON_SWORD_ONE_HAND' => 'sword', 'WEAPON_CLAYMORE' => 'claymore', 'WEAPON_POLE' => 'polearm',
-        'WEAPON_BOW' => 'bow', 'WEAPON_CATALYST' => 'catalyst',
+        'WEAPON_SWORD_ONE_HAND' => 'sword',
+        'WEAPON_CLAYMORE' => 'claymore',
+        'WEAPON_POLE' => 'polearm',
+        'WEAPON_BOW' => 'bow',
+        'WEAPON_CATALYST' => 'catalyst',
     ];
 
     private const HSR_ELEMENTS = [
-        'Physical' => 'physical', 'Fire' => 'fire', 'Ice' => 'ice', 'Thunder' => 'lightning',
-        'Wind' => 'wind', 'Quantum' => 'quantum', 'Imaginary' => 'imaginary',
+        'Physical' => 'physical',
+        'Fire' => 'fire',
+        'Ice' => 'ice',
+        'Thunder' => 'lightning',
+        'Wind' => 'wind',
+        'Quantum' => 'quantum',
+        'Imaginary' => 'imaginary',
     ];
 
     public const HSR_PATHS = [
-        'Warrior' => 'destruction', 'Rogue' => 'hunt', 'Mage' => 'erudition', 'Shaman' => 'harmony',
-        'Warlock' => 'nihility', 'Knight' => 'preservation', 'Priest' => 'abundance', 'Memory' => 'remembrance',
+        'Warrior' => 'destruction',
+        'Rogue' => 'hunt',
+        'Mage' => 'erudition',
+        'Shaman' => 'harmony',
+        'Warlock' => 'nihility',
+        'Knight' => 'preservation',
+        'Priest' => 'abundance',
+        'Memory' => 'remembrance',
         'Elation' => 'elation',
     ];
 
     private const HSR_PATH_LABELS = [
-        'destruction' => 'Destruction', 'hunt' => 'The Hunt', 'erudition' => 'Erudition', 'harmony' => 'Harmony',
-        'nihility' => 'Nihility', 'preservation' => 'Preservation', 'abundance' => 'Abundance',
-        'remembrance' => 'Remembrance', 'elation' => 'Elation',
+        'destruction' => 'Destruction',
+        'hunt' => 'The Hunt',
+        'erudition' => 'Erudition',
+        'harmony' => 'Harmony',
+        'nihility' => 'Nihility',
+        'preservation' => 'Preservation',
+        'abundance' => 'Abundance',
+        'remembrance' => 'Remembrance',
+        'elation' => 'Elation',
     ];
 
     public function __construct(
@@ -96,11 +121,11 @@ class CatalogSync implements RunHandler
             Catalog::SET => 'Sets',
             default => throw new \InvalidArgumentException("Unknown catalog list [{$type}]"),
         };
-        $method = ($game === Game::Genshin ? 'genshin' : 'hsr').$method;
+        $method = ($game === Game::Genshin ? 'genshin' : 'hsr') . $method;
 
         // Downloaded before the transaction starts, so none is held open across a request.
         $items = $this->download($game, $type);
-        $count = $this->db->transaction(fn () => $this->{$method}($items));
+        $count = $this->db->transaction(fn() => $this->{$method}($items));
         $this->catalog->flush();
 
         return $count;
@@ -125,13 +150,13 @@ class CatalogSync implements RunHandler
      */
     public function isStale(Game $game): bool
     {
-        if (! $this->hasCatalog($game)) {
+        if (!$this->hasCatalog($game)) {
             return true;
         }
         $last = $this->lastSyncedAt($game);
         $days = (int) $this->config->get('catalog.refresh_days', 3);
 
-        return ! $last || $last->getTimestamp() < Clock::timestamp() - $days * 86400;
+        return !$last || $last->getTimestamp() < Clock::timestamp() - $days * 86400;
     }
 
     /** Whether a catalog sync has run for this game at all (rows with in-game IDs exist). */
@@ -168,7 +193,7 @@ class CatalogSync implements RunHandler
                 throw $e;
             } catch (Throwable $e) {
                 $stats['errors']++;
-                $log->add("{$game->label()} {$type}: ERROR ".Text::limit($e->getMessage(), 300));
+                $log->add("{$game->label()} {$type}: ERROR " . Text::limit($e->getMessage(), 300));
                 Log::exception($e, "Catalog sync of {$game->value} {$type}");
             }
 
@@ -237,9 +262,9 @@ class CatalogSync implements RunHandler
 
             if ($item['name'] === 'Traveler' && $element) {
                 // Aether (10000005) and Lumine (10000007) share one entry per element.
-                $key = 'traveler'.$element;
+                $key = 'traveler' . $element;
                 $travelers[$key]['ids'][] = (string) $id;
-                $travelers[$key]['row'] ??= ['name' => 'Traveler ('.ucfirst($element).')'] + $row;
+                $travelers[$key]['row'] ??= ['name' => 'Traveler (' . ucfirst($element) . ')'] + $row;
 
                 continue;
             }
@@ -309,7 +334,7 @@ class CatalogSync implements RunHandler
         ksort($items);
 
         // Detect names shared by several characters (e.g. the two March 7th) to disambiguate by path.
-        $nameCounts = array_count_values(array_map(fn ($item) => Key::from($item['name']), $items));
+        $nameCounts = array_count_values(array_map(fn($item) => Key::from($item['name']), $items));
 
         $characters = 0;
         $trailblazers = [];
@@ -327,18 +352,18 @@ class CatalogSync implements RunHandler
 
             $key = Key::from($item['name']);
             if ($key === 'trailblazer' && $path) {
-                $tbKey = 'trailblazer'.$path;
+                $tbKey = 'trailblazer' . $path;
                 $trailblazers[$tbKey]['ids'][] = (string) $id;
-                $trailblazers[$tbKey]['row'] ??= ['name' => 'Trailblazer ('.self::HSR_PATH_LABELS[$path].')'] + $row;
+                $trailblazers[$tbKey]['row'] ??= ['name' => 'Trailblazer (' . self::HSR_PATH_LABELS[$path] . ')'] + $row;
 
                 continue;
             }
 
             if ($nameCounts[$key] > 1 && $path) {
-                $first = min(array_keys(array_filter($items, fn ($other) => Key::from($other['name']) === $key)));
+                $first = min(array_keys(array_filter($items, fn($other) => Key::from($other['name']) === $key)));
                 if ((string) $first !== (string) $id) {
                     $key .= $path;
-                    $row['name'] .= ' ('.self::HSR_PATH_LABELS[$path].')';
+                    $row['name'] .= ' (' . self::HSR_PATH_LABELS[$path] . ')';
                 }
             }
 
@@ -381,7 +406,7 @@ class CatalogSync implements RunHandler
         foreach ($items as $id => $item) {
             $this->upsert(Catalog::SET, Game::Hsr, Key::from($item['name']), [
                 'name' => $item['name'],
-                'kind' => ($item['isPlanarSuit'] ?? false) ? 'planar' : 'relic',
+                'kind' => $item['isPlanarSuit'] ?? false ? 'planar' : 'relic',
                 'external_id' => (string) $id,
                 'icon_url' => isset($item['icon']) ? "{$assets}/relic/{$item['icon']}.png" : null,
             ]);
@@ -393,7 +418,7 @@ class CatalogSync implements RunHandler
 
     private function rarity(mixed $rank): ?int
     {
-        if (! is_numeric($rank)) {
+        if (!is_numeric($rank)) {
             return null;
         }
 
@@ -414,7 +439,7 @@ class CatalogSync implements RunHandler
         }
 
         $existing = null;
-        if (! empty($row['external_id'])) {
+        if (!empty($row['external_id'])) {
             $existing = $this->rows->findByExternalId($game, $type, (string) $row['external_id']);
         }
         if ($existing && $existing->key !== $key && $this->rows->findByKey($game, $type, $key)) {

@@ -9,7 +9,7 @@
  * --force a catalog refreshed within refresh_days is left as it is. (App\Commands\SyncCatalog)
  */
 
-require __DIR__.'/vendor/autoload.php';
+require __DIR__ . '/vendor/autoload.php';
 
 App\Cli::helpIfAsked($argv, __FILE__);
 

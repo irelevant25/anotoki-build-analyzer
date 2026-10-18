@@ -38,7 +38,7 @@ use Slim\Routing\RouteCollectorProxy;
  * happened as a kind of ImportKinds::ERRORS with its parameters, for the wizard to word.
  */
 return function (Slim\App $slim, App $app): void {
-    $refused = fn (ImportException $e): HttpError => new HttpError(422, (string) Neutral::text($e->getMessage()), [
+    $refused = fn(ImportException $e): HttpError => new HttpError(422, (string) Neutral::text($e->getMessage()), [
         'code' => $e->kind,
         'params' => AccountPresenter::params($e->params),
     ]);
@@ -64,7 +64,7 @@ return function (Slim\App $slim, App $app): void {
      * imports at once cannot both add the last account.
      */
     $roomForAccount = function (User $user, ?Account $account, ?Game $game = null, ?string $uid = null) use ($app): void {
-        if (! $user->isVisitor() || $account !== null) {
+        if (!$user->isVisitor() || $account !== null) {
             return;
         }
         $accounts = $app->get(Accounts::class);
@@ -88,57 +88,65 @@ return function (Slim\App $slim, App $app): void {
         }
     };
 
-    $slim->group('/api/imports', function (RouteCollectorProxy $group) use ($app, $target, $refused, $roomForAccount, $smallEnough) {
-        $group->post('/showcase', function (Request $request, Response $response) use ($app, $target, $refused, $roomForAccount): Response {
-            $user = currentUser($request);
-            $input = Input::of($request);
-            $game = $input->game('game', required: true);
-            $uid = $input->string('uid', required: true, regex: '/^\d{9,10}$/', regexMessage: 'A UID is 9 or 10 digits long.');
-            $account = $target($input, $user);
-            $input->valid();
-            $roomForAccount($user, $account, $game, $uid);
+    $slim
+        ->group('/api/imports', function (RouteCollectorProxy $group) use ($app, $target, $refused, $roomForAccount, $smallEnough) {
+            $group
+                ->post('/showcase', function (Request $request, Response $response) use ($app, $target, $refused, $roomForAccount): Response {
+                    $user = currentUser($request);
+                    $input = Input::of($request);
+                    $game = $input->game('game', required: true);
+                    $uid = $input->string('uid', required: true, regex: '/^\d{9,10}$/', regexMessage: 'A UID is 9 or 10 digits long.');
+                    $account = $target($input, $user);
+                    $input->valid();
+                    $roomForAccount($user, $account, $game, $uid);
 
-            try {
-                $run = $app->get(ImportService::class)->fromEnka($game, $uid, $user, $account);
-            } catch (ImportException $e) {
-                throw $refused($e);
-            }
+                    try {
+                        $run = $app->get(ImportService::class)->fromEnka($game, $uid, $user, $account);
+                    } catch (ImportException $e) {
+                        throw $refused($e);
+                    }
 
-            return Json::send($response, AccountPresenter::importRun($run), 201);
-        })->add(makeVisitor($app))->add(throttle($app, 'showcase', 'showcase.per_minute', 'visitors.showcase_per_minute_all'));
+                    return Json::send($response, AccountPresenter::importRun($run), 201);
+                })
+                ->add(makeVisitor($app))
+                ->add(throttle($app, 'showcase', 'showcase.per_minute', 'visitors.showcase_per_minute_all'));
 
-        $group->post('/file', function (Request $request, Response $response) use ($app, $target, $refused, $roomForAccount, $smallEnough): Response {
-            $user = currentUser($request);
-            $input = Input::of($request);
-            $game = $input->game('game');
-            $account = $target($input, $user);
+            $group
+                ->post('/file', function (Request $request, Response $response) use ($app, $target, $refused, $roomForAccount, $smallEnough): Response {
+                    $user = currentUser($request);
+                    $input = Input::of($request);
+                    $game = $input->game('game');
+                    $account = $target($input, $user);
 
-            $file = $request->getUploadedFiles()['file'] ?? null;
-            $file = $file instanceof UploadedFileInterface && $file->getError() === UPLOAD_ERR_OK ? $file : null;
-            if ($file !== null && $file->getSize() > 20480 * 1024) {
-                $input->fail('file', 'The file field must not be greater than 20480 kilobytes.');
-            }
-            $content = $file === null ? $input->string('content') : null;
-            if ($file === null && $content === null && ! $input->failed('content')) {
-                $input->fail('content', 'The content field is required when file is not present.');
-            }
-            $fileName = $input->string('file_name', max: 255);
-            $input->valid();
+                    $file = $request->getUploadedFiles()['file'] ?? null;
+                    $file = $file instanceof UploadedFileInterface && $file->getError() === UPLOAD_ERR_OK ? $file : null;
+                    if ($file !== null && $file->getSize() > 20480 * 1024) {
+                        $input->fail('file', 'The file field must not be greater than 20480 kilobytes.');
+                    }
+                    $content = $file === null ? $input->string('content') : null;
+                    if ($file === null && $content === null && !$input->failed('content')) {
+                        $input->fail('content', 'The content field is required when file is not present.');
+                    }
+                    $fileName = $input->string('file_name', max: 255);
+                    $input->valid();
 
-            $smallEnough($user, $file !== null ? (int) $file->getSize() : strlen((string) $content));
-            $roomForAccount($user, $account);
-            if ($file !== null) {
-                $content = (string) $file->getStream();
-                $fileName = $file->getClientFilename();
-            }
+                    $smallEnough($user, $file !== null ? (int) $file->getSize() : strlen((string) $content));
+                    $roomForAccount($user, $account);
+                    if ($file !== null) {
+                        $content = (string) $file->getStream();
+                        $fileName = $file->getClientFilename();
+                    }
 
-            try {
-                $run = $app->get(ImportService::class)->fromFile((string) $content, $user, $game, $account, $fileName);
-            } catch (ImportException $e) {
-                throw $refused($e);
-            }
+                    try {
+                        $run = $app->get(ImportService::class)->fromFile((string) $content, $user, $game, $account, $fileName);
+                    } catch (ImportException $e) {
+                        throw $refused($e);
+                    }
 
-            return Json::send($response, AccountPresenter::importRun($run), 201);
-        })->add(makeVisitor($app))->add(throttle($app, 'file', 'imports.file_per_minute'));
-    })->add(requireOwner($app, mayMakeVisitor: true));
+                    return Json::send($response, AccountPresenter::importRun($run), 201);
+                })
+                ->add(makeVisitor($app))
+                ->add(throttle($app, 'file', 'imports.file_per_minute'));
+        })
+        ->add(requireOwner($app, mayMakeVisitor: true));
 };

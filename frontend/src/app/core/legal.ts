@@ -4,11 +4,7 @@ import { TranslationKey } from './i18n/en';
 import { TranslationService } from './i18n/translation';
 
 /** The legal pages' addresses: the library's own paths (app.routes.ts puts each page there, the footer's links go there). */
-export const LEGAL_PAGE_PATHS: readonly string[] = [
-  DEFAULT_LEGAL_PATHS.terms,
-  DEFAULT_LEGAL_PATHS.privacy,
-  DEFAULT_LEGAL_PATHS.contact,
-];
+export const LEGAL_PAGE_PATHS: readonly string[] = [DEFAULT_LEGAL_PATHS.terms, DEFAULT_LEGAL_PATHS.privacy, DEFAULT_LEGAL_PATHS.contact];
 
 /**
  * The library's legal words this site says in its own (`legal.*`, migration 011), each read from the site's key in
@@ -42,14 +38,9 @@ export function provideLegal(): EnvironmentProviders {
     const i18n = inject(TranslationService);
     return {
       language: () => i18n.effectiveLanguage(),
-      translate: (key: string) =>
-        Object.hasOwn(SITE_LEGAL_WORDS, key)
-          ? i18n.t(SITE_LEGAL_WORDS[key])
-          : i18n.libraryWord(key),
+      translate: (key: string) => (Object.hasOwn(SITE_LEGAL_WORDS, key) ? i18n.t(SITE_LEGAL_WORDS[key]) : i18n.libraryWord(key)),
       facts: () => {
-        throw new Error(
-          "The legal pages' facts come with their frame (layouts/legal-layout, core/legal-facts.ts).",
-        );
+        throw new Error("The legal pages' facts come with their frame (layouts/legal-layout, core/legal-facts.ts).");
       },
     };
   });

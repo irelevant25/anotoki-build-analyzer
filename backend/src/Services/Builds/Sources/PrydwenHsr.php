@@ -50,9 +50,8 @@ class PrydwenHsr implements BuildSource
 
     public function listCharacters(): array
     {
-        $html = $this->fetch($this->baseUrl().'/star-rail/characters');
-        $props = NextFlight::findProps($html, 'characters')
-            ?? throw new RuntimeException('The character list was not found in the page data');
+        $html = $this->fetch($this->baseUrl() . '/star-rail/characters');
+        $props = NextFlight::findProps($html, 'characters') ?? throw new RuntimeException('The character list was not found in the page data');
 
         $refs = [];
         foreach ($props['characters'] as $character) {
@@ -62,7 +61,7 @@ class PrydwenHsr implements BuildSource
             $refs[] = new CharacterRef(
                 slug: $character['slug'],
                 name: $character['name'],
-                url: $this->baseUrl().'/star-rail/characters/'.$character['slug'],
+                url: $this->baseUrl() . '/star-rail/characters/' . $character['slug'],
                 released: ($character['isReleased'] ?? true) === true && empty($character['upcoming']),
                 meta: ['element' => isset($character['element']) ? strtolower($character['element']) : null],
             );
@@ -75,7 +74,7 @@ class PrydwenHsr implements BuildSource
     {
         $html = $this->fetch($character->url);
         $props = NextFlight::findProps($html, 'statBuilds');
-        if (! $props || empty($props['statBuilds']) || ($props['character']['showBuild'] ?? true) === false) {
+        if (!$props || empty($props['statBuilds']) || ($props['character']['showBuild'] ?? true) === false) {
             return [];
         }
 
@@ -84,7 +83,7 @@ class PrydwenHsr implements BuildSource
         $sets = $this->sets($props['relicBuilds'] ?? []);
         $talents = Talents::parsePriority(Game::Hsr, (string) ($props['skillOrder']['Order'] ?? ''));
         $endgame = StatTargets::extract(Game::Hsr, $info['endgameStats'] ?? null);
-        $updatedAt = ! empty($info['updatedAt']) ? Clock::parse($info['updatedAt']) : null;
+        $updatedAt = !empty($info['updatedAt']) ? Clock::parse($info['updatedAt']) : null;
         $version = $this->value($props['lastUpdate']['build'] ?? null);
 
         $builds = [];
@@ -100,10 +99,7 @@ class PrydwenHsr implements BuildSource
             $substatText = (string) ($stat['substats'] ?? '');
             $targets = $this->mergeTargets($endgame, $this->untilTargets($substatText));
 
-            $notes = array_filter([
-                $this->plain($stat['comments'] ?? null),
-                ! empty($props['skillOrder']['TracePriority']) ? 'Major traces: '.$props['skillOrder']['TracePriority'] : null,
-            ]);
+            $notes = array_filter([$this->plain($stat['comments'] ?? null), !empty($props['skillOrder']['TracePriority']) ? 'Major traces: ' . $props['skillOrder']['TracePriority'] : null]);
 
             $builds[] = new ScrapedBuild(
                 variant: trim((string) ($stat['name'] ?? '')) ?: 'Build',
@@ -174,13 +170,10 @@ class PrydwenHsr implements BuildSource
                     $flex = array_values(array_filter(array_map('trim', $build['flex_options'] ?? [])));
                     $pieces = [['names' => [$first], 'label' => $first, 'count' => 2]];
                     if ($flex !== []) {
-                        $pieces[] = ['names' => $flex, 'label' => 'Flex: '.implode(' / ', $flex), 'count' => 2];
+                        $pieces[] = ['names' => $flex, 'label' => 'Flex: ' . implode(' / ', $flex), 'count' => 2];
                     }
                 } else {
-                    $pieces = [
-                        ['names' => [$first], 'label' => $first, 'count' => 2],
-                        ['names' => [$second], 'label' => $second, 'count' => 2],
-                    ];
+                    $pieces = [['names' => [$first], 'label' => $first, 'count' => 2], ['names' => [$second], 'label' => $second, 'count' => 2]];
                 }
                 $relics[] = ['kind' => 'relic', 'choose' => null, 'pieces' => $pieces, 'note' => $note];
             }
@@ -233,7 +226,7 @@ class PrydwenHsr implements BuildSource
 
     private function value(mixed $value): ?string
     {
-        return is_string($value) && $value !== '' && ! str_starts_with($value, '$') ? $value : null;
+        return is_string($value) && $value !== '' && !str_starts_with($value, '$') ? $value : null;
     }
 
     private function plain(?string $html): ?string

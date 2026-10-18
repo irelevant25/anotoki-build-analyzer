@@ -24,16 +24,44 @@ final class Neutral
      * domain is replaced as a whole. Matched case-insensitively on word boundaries.
      */
     private const NAMES = [
-        'genshin-builds.com', 'genshin-builds', 'genshinbuilds',
-        'www.prydwen.gg', 'prydwen.gg', 'prydwen',
-        'genshin.gg', 'genshin-gg',
-        'enka.network', 'enka network', 'enkanetwork', 'enka',
-        'gi.yatta.moe', 'sr.yatta.moe', 'yatta.moe', 'project amber', 'yatta',
-        'raw.githubusercontent.com', 'githubusercontent', 'github.com', 'github',
-        'game8', 'keqingmains', 'keqing mains', 'mobalytics',
-        'irminsul', 'inventory kamera', 'inventory_kamera', 'goodscanner', 'genshin optimizer',
-        'reliquary archiver', 'reliquary_archiver', 'reliquary-archiver', 'hsr-scanner', 'hsrscanner', 'yas-scanner',
-        'fribbels', 'npcap',
+        'genshin-builds.com',
+        'genshin-builds',
+        'genshinbuilds',
+        'www.prydwen.gg',
+        'prydwen.gg',
+        'prydwen',
+        'genshin.gg',
+        'genshin-gg',
+        'enka.network',
+        'enka network',
+        'enkanetwork',
+        'enka',
+        'gi.yatta.moe',
+        'sr.yatta.moe',
+        'yatta.moe',
+        'project amber',
+        'yatta',
+        'raw.githubusercontent.com',
+        'githubusercontent',
+        'github.com',
+        'github',
+        'game8',
+        'keqingmains',
+        'keqing mains',
+        'mobalytics',
+        'irminsul',
+        'inventory kamera',
+        'inventory_kamera',
+        'goodscanner',
+        'genshin optimizer',
+        'reliquary archiver',
+        'reliquary_archiver',
+        'reliquary-archiver',
+        'hsr-scanner',
+        'hsrscanner',
+        'yas-scanner',
+        'fribbels',
+        'npcap',
     ];
 
     public static function text(?string $text): ?string
@@ -45,7 +73,7 @@ final class Neutral
         $clean = preg_replace(self::URL, 'the source page', $text) ?? $text;
         $clean = preg_replace(self::namesPattern(), 'the source', $clean) ?? $clean;
         // "The source page" at the start of a sentence reads better capitalised.
-        $clean = preg_replace_callback('/(^|[.!?]\s+|\n\s*)(the source)/', fn (array $m) => $m[1].'The source', $clean) ?? $clean;
+        $clean = preg_replace_callback('/(^|[.!?]\s+|\n\s*)(the source)/', fn(array $m) => $m[1] . 'The source', $clean) ?? $clean;
 
         return $clean;
     }
@@ -90,6 +118,6 @@ final class Neutral
     {
         static $pattern = null;
 
-        return $pattern ??= '~(?<![\w.-])(?:'.implode('|', array_map(fn (string $name) => preg_quote($name, '~'), self::NAMES)).')(?![\w-])~i';
+        return $pattern ??= '~(?<![\w.-])(?:' . implode('|', array_map(fn(string $name) => preg_quote($name, '~'), self::NAMES)) . ')(?![\w-])~i';
     }
 }

@@ -13,9 +13,7 @@ const SLOVAK = {
   'common.signIn': 'Prihlásiť sa',
 };
 
-function setup(
-  options: { signedIn?: boolean; available?: boolean; cannotStart?: boolean; days?: number } = {},
-) {
+function setup(options: { signedIn?: boolean; available?: boolean; cannotStart?: boolean; days?: number } = {}) {
   const failure = signal<{ code: string; returnTo: string | null } | null>(null);
   const auth = {
     signedIn: signal(options.signedIn ?? false),
@@ -41,8 +39,7 @@ function setup(
   return { auth };
 }
 
-const text = (element: Element | null | undefined) =>
-  element?.textContent?.replace(/\s+/g, ' ').trim();
+const text = (element: Element | null | undefined) => element?.textContent?.replace(/\s+/g, ' ').trim();
 
 describe('the visitor notice', () => {
   it("says, in the reader's language, how long the server keeps what this browser imports - the days the server says", async () => {

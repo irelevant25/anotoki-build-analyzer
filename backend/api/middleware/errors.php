@@ -40,7 +40,9 @@ function jsonErrors(App $app, Slim\App $slim): Closure
         } catch (Throwable $e) {
             $app->get(ErrorLog::class)->record($e, $request, 500, 'server_error');
 
-            return Json::message($slim->getResponseFactory()->createResponse(), 500, 'Something went wrong on the server. Try again, and if it keeps happening, tell the admin.', ['code' => 'server_error']);
+            return Json::message($slim->getResponseFactory()->createResponse(), 500, 'Something went wrong on the server. Try again, and if it keeps happening, tell the admin.', [
+                'code' => 'server_error',
+            ]);
         }
     };
 }

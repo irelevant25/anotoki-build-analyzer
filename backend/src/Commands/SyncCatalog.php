@@ -36,8 +36,8 @@ final class SyncCatalog
             Cli::line("{$skip['name']} is {$skip['reason']}, skipping (use --force to refresh).");
         }
 
-        $ids = array_map(fn (SyncRun $run) => (int) $run->id, $started);
-        $runner->runUntilDone($ids, fn (string $line) => Cli::line($line));
+        $ids = array_map(fn(SyncRun $run) => (int) $run->id, $started);
+        $runner->runUntilDone($ids, fn(string $line) => Cli::line($line));
 
         return $app->get(SyncRuns::class)->anyFailed($ids) ? 1 : 0;
     }

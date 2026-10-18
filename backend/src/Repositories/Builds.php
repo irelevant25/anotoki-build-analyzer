@@ -37,7 +37,7 @@ final class Builds
         }
         [$in, $params] = Db::in(array_values(array_unique($characterIds)));
         $grouped = [];
-        foreach ($this->db->all(self::SELECT." WHERE b.game_character_id IN ({$in}) AND s.enabled ORDER BY b.build_source_id, b.position, b.id", $params) as $row) {
+        foreach ($this->db->all(self::SELECT . " WHERE b.game_character_id IN ({$in}) AND s.enabled ORDER BY b.build_source_id, b.position, b.id", $params) as $row) {
             $build = Build::fromRow($row);
             $grouped[$build->game_character_id][] = $build;
         }
@@ -58,11 +58,11 @@ final class Builds
         }
         [$in, $params] = Db::in($ids);
         $byId = [];
-        foreach ($this->db->all(self::SELECT." WHERE b.id IN ({$in})", $params) as $row) {
+        foreach ($this->db->all(self::SELECT . " WHERE b.id IN ({$in})", $params) as $row) {
             $byId[(int) $row['id']] = Build::fromRow($row);
         }
 
-        return array_values(array_filter(array_map(fn (int $id) => $byId[$id] ?? null, $ids)));
+        return array_values(array_filter(array_map(fn(int $id) => $byId[$id] ?? null, $ids)));
     }
 
     /**
@@ -72,7 +72,7 @@ final class Builds
      */
     public function ofSource(int $sourceId): array
     {
-        return array_map(fn (array $row) => Build::fromRow($row), $this->db->all(self::SELECT.' WHERE b.build_source_id = ?', [$sourceId]));
+        return array_map(fn(array $row) => Build::fromRow($row), $this->db->all(self::SELECT . ' WHERE b.build_source_id = ?', [$sourceId]));
     }
 
     /**

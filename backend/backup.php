@@ -23,7 +23,7 @@
  * the audit log says it was nobody.
  */
 
-require __DIR__.'/vendor/autoload.php';
+require __DIR__ . '/vendor/autoload.php';
 
 use Anotoki\Lib\Backups\Backups;
 use Anotoki\Lib\Backups\Cli\BackupsCommand;

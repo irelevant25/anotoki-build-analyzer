@@ -53,9 +53,7 @@ class BuildSync implements RunHandler
     {
         $hours = (int) $this->config->get('fetch.stale_hours', 20);
 
-        return $model->last_status === 'success'
-            && $model->last_synced_at !== null
-            && $model->last_synced_at->getTimestamp() > Clock::timestamp() - $hours * 3600;
+        return $model->last_status === 'success' && $model->last_synced_at !== null && $model->last_synced_at->getTimestamp() > Clock::timestamp() - $hours * 3600;
     }
 
     /**
@@ -72,20 +70,26 @@ class BuildSync implements RunHandler
             'total' => null,
         ];
         $run->stats = [
-            'characters_listed' => 0, 'characters_synced' => 0, 'characters_skipped' => 0, 'characters_without_builds' => 0,
-            'builds_created' => 0, 'builds_updated' => 0, 'builds_unchanged' => 0, 'builds_removed' => 0, 'errors' => 0,
+            'characters_listed' => 0,
+            'characters_synced' => 0,
+            'characters_skipped' => 0,
+            'characters_without_builds' => 0,
+            'builds_created' => 0,
+            'builds_updated' => 0,
+            'builds_unchanged' => 0,
+            'builds_removed' => 0,
+            'errors' => 0,
             'unmatched' => [],
         ];
     }
 
     public function step(SyncRun $run, float $deadline, RunLog $log): void
     {
-        $model = $run->source ?? $this->sources->find((int) $run->build_source_id)
-            ?? throw new \RuntimeException('The run has no build source');
+        $model = $run->source ?? ($this->sources->find((int) $run->build_source_id) ?? throw new \RuntimeException('The run has no build source'));
         $source = $this->registry->get($model->key);
         $this->catalog->resetUnmatched();
 
-        if ($run->state['phase'] === 'list' && ! $this->listCharacters($run, $source, $model, $log)) {
+        if ($run->state['phase'] === 'list' && !$this->listCharacters($run, $source, $model, $log)) {
             return;
         }
 
@@ -115,15 +119,14 @@ class BuildSync implements RunHandler
                         $stats[$key] += $count;
                     }
                     $stats['characters_synced']++;
-                    $log->add(sprintf('  %s: %d build(s)%s', $ref->name, count($builds),
-                        $result['builds_created'] + $result['builds_updated'] > 0 ? ' - changed' : ''));
+                    $log->add(sprintf('  %s: %d build(s)%s', $ref->name, count($builds), $result['builds_created'] + $result['builds_updated'] > 0 ? ' - changed' : ''));
                 }
             } catch (FetchDeferred $e) {
                 // Nothing of this character was written; the next step starts with it.
                 throw $e;
             } catch (Throwable $e) {
                 $stats['errors']++;
-                $log->add("  {$ref->name}: ERROR ".Text::limit($e->getMessage(), 300));
+                $log->add("  {$ref->name}: ERROR " . Text::limit($e->getMessage(), 300));
                 Log::exception($e, "Build sync of {$model->key}, {$ref->name}");
             }
 
@@ -154,7 +157,7 @@ class BuildSync implements RunHandler
             throw $e;
         } catch (Throwable $e) {
             $stats['errors']++;
-            $log->add('Sync failed: '.$e->getMessage());
+            $log->add('Sync failed: ' . $e->getMessage());
             Log::exception($e, "Build sync of {$model->key}, character list");
             $run->stats = $stats;
             $this->finish($run, $model, $log, 'failed');
@@ -162,13 +165,13 @@ class BuildSync implements RunHandler
             return false;
         }
 
-        $only = array_map(fn ($value) => Key::from((string) $value), $state['options']['only'] ?? []);
+        $only = array_map(fn($value) => Key::from((string) $value), $state['options']['only'] ?? []);
         $todo = [];
         foreach ($refs as $ref) {
-            if ($only !== [] && ! in_array(Key::from($ref->slug), $only, true) && ! in_array(Key::from($ref->name), $only, true)) {
+            if ($only !== [] && !in_array(Key::from($ref->slug), $only, true) && !in_array(Key::from($ref->name), $only, true)) {
                 continue;
             }
-            if (! $ref->released) {
+            if (!$ref->released) {
                 $stats['characters_skipped']++;
 
                 continue;
@@ -199,11 +202,20 @@ class BuildSync implements RunHandler
             default => 'failed',
         };
 
-        $log->add(sprintf('Done: %s. %d created, %d updated, %d unchanged, %d removed, %d errors.',
-            $status, $stats['builds_created'], $stats['builds_updated'], $stats['builds_unchanged'], $stats['builds_removed'], $stats['errors']));
+        $log->add(
+            sprintf(
+                'Done: %s. %d created, %d updated, %d unchanged, %d removed, %d errors.',
+                $status,
+                $stats['builds_created'],
+                $stats['builds_updated'],
+                $stats['builds_unchanged'],
+                $stats['builds_removed'],
+                $stats['errors'],
+            ),
+        );
 
         $options = $run->state['options'] ?? [];
-        $partialRun = ! empty($options['only']) || ($options['limit'] ?? null) !== null;
+        $partialRun = !empty($options['only']) || ($options['limit'] ?? null) !== null;
         $stats['partial_run'] = $partialRun;
 
         $run->status = $status;
@@ -217,7 +229,7 @@ class BuildSync implements RunHandler
             return;
         }
 
-        $errors = array_filter(explode("\n", (string) $run->log), fn ($line) => str_contains($line, 'ERROR') || str_contains($line, 'failed'));
+        $errors = array_filter(explode("\n", (string) $run->log), fn($line) => str_contains($line, 'ERROR') || str_contains($line, 'failed'));
         $this->sources->update($model, [
             'last_synced_at' => $syncedAt ?? Clock::now(),
             'last_status' => $status,
@@ -233,7 +245,7 @@ class BuildSync implements RunHandler
     private function mergeUnmatched(array $into, array $more): array
     {
         foreach ($more as $bucket => $names) {
-            $into[$bucket] = array_values(array_unique([...($into[$bucket] ?? []), ...$names]));
+            $into[$bucket] = array_values(array_unique([...$into[$bucket] ?? [], ...$names]));
         }
 
         return $into;
@@ -246,10 +258,14 @@ class BuildSync implements RunHandler
     private function store(BuildSource $source, BuildSourceModel $model, CharacterRef $ref, array $builds): array
     {
         $game = $source->game();
-        $character = $this->catalog->character($game, $ref->name, array_filter([
-            'element' => $ref->meta['element'] ?? null,
-        ]));
-        if (! $character instanceof GameCharacter) {
+        $character = $this->catalog->character(
+            $game,
+            $ref->name,
+            array_filter([
+                'element' => $ref->meta['element'] ?? null,
+            ]),
+        );
+        if (!($character instanceof GameCharacter)) {
             throw new \RuntimeException("Could not resolve character {$ref->name}");
         }
 
@@ -283,20 +299,20 @@ class BuildSync implements RunHandler
                 $hash = $this->contentHash($build['data']);
                 $columns = $this->columns($build['data']) + ['content_hash' => $hash, 'fetched_at' => $build['fetched_at'] ?? $now, 'updated_at' => $now];
 
-                $existing = $this->db->one(
-                    'SELECT id, content_hash FROM builds WHERE build_source_id = ? AND game_character_id = ? AND variant = ?',
-                    [$model->id, $characterId, $build['variant']],
-                );
+                $existing = $this->db->one('SELECT id, content_hash FROM builds WHERE build_source_id = ? AND game_character_id = ? AND variant = ?', [$model->id, $characterId, $build['variant']]);
 
                 if ($existing === null) {
                     $result['builds_created']++;
-                    $this->db->insert('builds', [
-                        'build_source_id' => $model->id,
-                        'game_character_id' => $characterId,
-                        'variant' => $build['variant'],
-                        'changed_at' => $build['changed_at'] ?? $now,
-                        'created_at' => $now,
-                    ] + $columns);
+                    $this->db->insert(
+                        'builds',
+                        [
+                            'build_source_id' => $model->id,
+                            'game_character_id' => $characterId,
+                            'variant' => $build['variant'],
+                            'changed_at' => $build['changed_at'] ?? $now,
+                            'created_at' => $now,
+                        ] + $columns,
+                    );
 
                     continue;
                 }
@@ -311,10 +327,7 @@ class BuildSync implements RunHandler
             }
 
             [$in, $params] = Db::in($variants);
-            $result['builds_removed'] = $this->db->run(
-                "DELETE FROM builds WHERE build_source_id = ? AND game_character_id = ? AND variant NOT IN ({$in})",
-                [$model->id, $characterId, ...$params],
-            );
+            $result['builds_removed'] = $this->db->run("DELETE FROM builds WHERE build_source_id = ? AND game_character_id = ? AND variant NOT IN ({$in})", [$model->id, $characterId, ...$params]);
         });
 
         return $result;
@@ -346,7 +359,7 @@ class BuildSync implements RunHandler
             $rows[] = [
                 'variant' => $scraped->variant,
                 'status' => match (true) {
-                    ! isset($stored[$scraped->variant]) => 'new',
+                    !isset($stored[$scraped->variant]) => 'new',
                     $stored[$scraped->variant] === $hash => 'unchanged',
                     default => 'changed',
                 },
@@ -354,7 +367,7 @@ class BuildSync implements RunHandler
         }
 
         // Unknown weapon / set names were collected by buildData(); hand them back.
-        $unknown = array_map(fn ($line) => trim(Text::after($line, '! ')), $this->unknown);
+        $unknown = array_map(fn($line) => trim(Text::after($line, '! ')), $this->unknown);
         $this->unknown = [];
 
         return [
@@ -445,8 +458,7 @@ class BuildSync implements RunHandler
     private function contentHash(array $data): string
     {
         if ($data['source_updated_at'] instanceof DateTimeInterface) {
-            $data['source_updated_at'] = \DateTimeImmutable::createFromInterface($data['source_updated_at'])
-                ->setTimezone(Clock::utc())->format('Y-m-d\TH:i:s.u\Z');
+            $data['source_updated_at'] = \DateTimeImmutable::createFromInterface($data['source_updated_at'])->setTimezone(Clock::utc())->format('Y-m-d\TH:i:s.u\Z');
         }
 
         return hash('sha256', json_encode($data));
@@ -472,7 +484,7 @@ class BuildSync implements RunHandler
         $weapons = [];
         foreach (array_values($scraped->weapons) as $index => $weapon) {
             $found = $this->catalog->find($game, Catalog::WEAPON, $weapon['name']);
-            if (! $found) {
+            if (!$found) {
                 $this->unknown[] = "  ! unknown weapon: {$weapon['name']}";
             }
             $weapons[] = [
@@ -498,7 +510,7 @@ class BuildSync implements RunHandler
                 $names = [];
                 foreach ($piece['names'] as $name) {
                     $found = $this->catalog->find($game, Catalog::SET, $name);
-                    if (! $found) {
+                    if (!$found) {
                         $this->unknown[] = "  ! unknown set: {$name}";
                     }
                     $keys[] = $found?->key ?? Key::from($name);

@@ -41,12 +41,7 @@ export function formatClock(date: Date, locale: string, clock: AnotokiTimeFormat
   const key = `${locale}|${clock}`;
   let format = CLOCKS.get(key);
   if (!format) {
-    format = new Intl.DateTimeFormat(
-      locale,
-      clock === '12'
-        ? { hour: 'numeric', minute: '2-digit', hourCycle: 'h12' }
-        : { hour: '2-digit', minute: '2-digit', hourCycle: 'h23' },
-    );
+    format = new Intl.DateTimeFormat(locale, clock === '12' ? { hour: 'numeric', minute: '2-digit', hourCycle: 'h12' } : { hour: '2-digit', minute: '2-digit', hourCycle: 'h23' });
     CLOCKS.set(key, format);
   }
   return format.format(date);
@@ -64,12 +59,7 @@ export interface OwnDateParts {
  * chosen neither, or there is no account to ask (`chosen` null): the caller then writes the whole moment its
  * own way, exactly as before.
  */
-export function chosenMoment(
-  date: Date,
-  chosen: DateChoices | null,
-  locale: string,
-  own: OwnDateParts,
-): string | null {
+export function chosenMoment(date: Date, chosen: DateChoices | null, locale: string, own: OwnDateParts): string | null {
   if (!chosen || (!chosen.date_format && !chosen.time_format)) {
     return null;
   }

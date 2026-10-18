@@ -31,16 +31,7 @@ import { TopBar } from '../top-bar/top-bar';
  */
 @Component({
   selector: 'app-admin-layout',
-  imports: [
-    RouterOutlet,
-    RouterLink,
-    ShellComponent,
-    ButtonComponent,
-    CardComponent,
-    IconComponent,
-    SiteFooterComponent,
-    TopBar,
-  ],
+  imports: [RouterOutlet, RouterLink, ShellComponent, ButtonComponent, CardComponent, IconComponent, SiteFooterComponent, TopBar],
   templateUrl: './admin-layout.html',
   styleUrl: './admin-layout.scss',
 })

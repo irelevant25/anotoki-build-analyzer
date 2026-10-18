@@ -86,12 +86,7 @@ final class Config
     ];
 
     /** @param array<string, mixed> $values */
-    private function __construct(
-        private array $values,
-        private readonly string $root,
-        private readonly array $problems,
-        private readonly ?string $storageRoot = null,
-    ) {}
+    private function __construct(private array $values, private readonly string $root, private readonly array $problems, private readonly ?string $storageRoot = null) {}
 
     /**
      * The configuration of this checkout or installation (backend/config/).
@@ -100,10 +95,10 @@ final class Config
     {
         $root = rtrim(str_replace('\\', '/', $root ?? dirname(__DIR__)), '/');
         $testDir = self::testConfigDir();
-        $dir = $testDir ?? $root.'/config';
+        $dir = $testDir ?? $root . '/config';
 
-        $storage = $testDir !== null ? $testDir.'/storage' : null;
-        $app = self::readLocalFile($root.'/config/app.php');
+        $storage = $testDir !== null ? $testDir . '/storage' : null;
+        $app = self::readLocalFile($root . '/config/app.php');
         $values = is_array($app['value']) ? $app['value'] : [];
         $problems = [];
         // What PHP's error log is told - each file passed over, by its fault alone -, at most once a day each.
@@ -111,8 +106,8 @@ final class Config
 
         $local = [];
         foreach (self::LOCAL_FILES as $file) {
-            $path = $dir.'/'.$file;
-            if (! is_file($path)) {
+            $path = $dir . '/' . $file;
+            if (!is_file($path)) {
                 $problems[] = "config/{$file} is missing";
 
                 continue;
@@ -125,7 +120,7 @@ final class Config
 
                 continue;
             }
-            if (! is_array($read['value'])) {
+            if (!is_array($read['value'])) {
                 $problems[] = "config/{$file} does not return an array";
 
                 continue;
@@ -133,8 +128,8 @@ final class Config
             $local[substr($file, 0, -strlen('.local.php'))] = $read['value'];
         }
         foreach (self::OPTIONAL_FILES as $file) {
-            $path = $dir.'/'.$file;
-            if (! is_file($path)) {
+            $path = $dir . '/' . $file;
+            if (!is_file($path)) {
                 continue;
             }
             $name = substr($file, 0, -strlen('.local.php'));
@@ -146,14 +141,13 @@ final class Config
                 if ($name === 'client_address') {
                     $local[$name] = ['trusted_proxies' => []];
                 }
-                $said[] = "config/{$file} {$read['problem']}: it is passed over, nothing in it read - "
-                    .($name === 'client_address'
-                        ? 'no proxy is trusted until it is mended: every request counts its own connection'
-                        : 'the defaults stand in for it until it is mended');
+                $said[] =
+                    "config/{$file} {$read['problem']}: it is passed over, nothing in it read - " .
+                    ($name === 'client_address' ? 'no proxy is trusted until it is mended: every request counts its own connection' : 'the defaults stand in for it until it is mended');
 
                 continue;
             }
-            if (! is_array($read['value'])) {
+            if (!is_array($read['value'])) {
                 $problems[] = "config/{$file} does not return an array";
 
                 continue;
@@ -176,27 +170,33 @@ final class Config
         // not a string (2026-10-18, docs/decisions.md). Never "no secret", which would believe CF-Connecting-IP from
         // every Cloudflare customer's Worker: only deleting the file switches the secret off. Anything there counts,
         // a folder in the file's place too.
-        $cloudflare = $dir.'/'.self::ORIGIN_SECRET_FILE;
+        $cloudflare = $dir . '/' . self::ORIGIN_SECRET_FILE;
         if (file_exists($cloudflare)) {
             $read = self::readLocalFile($cloudflare);
-            $secret = $read['problem'] === null && is_array($read['value']) ? ($read['value']['origin_secret'] ?? null) : null;
+            $secret = $read['problem'] === null && is_array($read['value']) ? $read['value']['origin_secret'] ?? null : null;
             if (is_string($secret) && trim($secret) !== '') {
                 $values['cloudflare'] = ['origin_secret' => $secret];
             } else {
                 $values['cloudflare'] = ['origin_secret' => self::unmatchableSecret()];
                 if ($read['problem'] !== null) {
-                    $said[] = 'config/'.self::ORIGIN_SECRET_FILE." {$read['problem']}: it is passed over, nothing in it read";
-                    $said[] = 'config/'.self::ORIGIN_SECRET_FILE.' cannot be read cleanly: no request carries its secret, so every request from Cloudflare\'s ranges counts as the edge it came from until the file is mended';
+                    $said[] = 'config/' . self::ORIGIN_SECRET_FILE . " {$read['problem']}: it is passed over, nothing in it read";
+                    $said[] =
+                        'config/' .
+                        self::ORIGIN_SECRET_FILE .
+                        ' cannot be read cleanly: no request carries its secret, so every request from Cloudflare\'s ranges counts as the edge it came from until the file is mended';
                 } else {
-                    $said[] = 'config/'.self::ORIGIN_SECRET_FILE.' holds no origin_secret (a string with something in it): no request carries its secret, so every request from Cloudflare\'s ranges counts as the edge it came from until the file names one - deleting the file switches the secret off';
+                    $said[] =
+                        'config/' .
+                        self::ORIGIN_SECRET_FILE .
+                        ' holds no origin_secret (a string with something in it): no request carries its secret, so every request from Cloudflare\'s ranges counts as the edge it came from until the file names one - deleting the file switches the secret off';
                 }
             }
         }
 
-        if ($testDir !== null && ! str_starts_with((string) ($values['database']['database'] ?? ''), self::TEST_DATABASE_PREFIX)) {
+        if ($testDir !== null && !str_starts_with((string) ($values['database']['database'] ?? ''), self::TEST_DATABASE_PREFIX)) {
             // The test settings never reach a real database: not set up, rather than the wrong one.
             $values['database'] = [];
-            $problems[] = self::TEST_CONFIG_ENV.' names a database that is not a '.self::TEST_DATABASE_PREFIX.' one';
+            $problems[] = self::TEST_CONFIG_ENV . ' names a database that is not a ' . self::TEST_DATABASE_PREFIX . ' one';
         }
 
         if ($problems === []) {
@@ -204,7 +204,7 @@ final class Config
         }
 
         foreach ($said as $line) {
-            self::sayOncePerDay($storage ?? $root.'/storage', $line);
+            self::sayOncePerDay($storage ?? $root . '/storage', $line);
         }
 
         return new self($values, $root, $problems, $storage);
@@ -250,9 +250,9 @@ final class Config
         $printed = 0;
         ob_start();
         try {
-            $value = (static fn (string $file): mixed => require $file)($path);
+            $value = (static fn(string $file): mixed => require $file)($path);
         } catch (\Throwable $e) {
-            $failure = 'could not be read ('.get_class($e).' on line '.$e->getLine().')';
+            $failure = 'could not be read (' . get_class($e) . ' on line ' . $e->getLine() . ')';
         } finally {
             // Every buffer down to the caller's, one the file opened and left open included.
             while (ob_get_level() > $level) {
@@ -293,13 +293,13 @@ final class Config
      */
     private static function sayOncePerDay(string $storage, string $line): void
     {
-        $stamp = rtrim($storage, '/').'/cache/config-said-'.substr(hash('sha256', $line), 0, 24).'.stamp';
+        $stamp = rtrim($storage, '/') . '/cache/config-said-' . substr(hash('sha256', $line), 0, 24) . '.stamp';
         $today = gmdate('Y-m-d');
         if (@file_get_contents($stamp) === $today) {
             return;
         }
-        error_log('[config] '.$line);
-        if (! is_dir(dirname($stamp))) {
+        error_log('[config] ' . $line);
+        if (!is_dir(dirname($stamp))) {
             @mkdir(dirname($stamp), 0775, true);
         }
         @file_put_contents($stamp, $today, LOCK_EX);
@@ -309,7 +309,7 @@ final class Config
     private static function testConfigDir(): ?string
     {
         $dir = getenv(self::TEST_CONFIG_ENV);
-        if (! is_string($dir) || trim($dir) === '') {
+        if (!is_string($dir) || trim($dir) === '') {
             return null;
         }
 
@@ -325,7 +325,7 @@ final class Config
     public static function fromArray(array $values, ?string $root = null, ?string $storage = null): self
     {
         $root = rtrim(str_replace('\\', '/', $root ?? dirname(__DIR__)), '/');
-        $app = self::readLocalFile($root.'/config/app.php');
+        $app = self::readLocalFile($root . '/config/app.php');
         $base = is_array($app['value']) ? $app['value'] : [];
         $values = array_replace($base, $values);
         $values['auth'] = ($values['auth'] ?? []) + ['jwks_file' => null, 'leeway' => 60];
@@ -345,32 +345,32 @@ final class Config
         $problems = [];
         $database = $values['database'] ?? [];
         foreach (['host', 'port', 'database', 'username'] as $key) {
-            if (! is_scalar($database[$key] ?? null) || trim((string) $database[$key]) === '') {
+            if (!is_scalar($database[$key] ?? null) || trim((string) $database[$key]) === '') {
                 $problems[] = "config/database.local.php has no {$key}";
             }
         }
-        if (isset($database['port']) && ! ctype_digit((string) $database['port'])) {
+        if (isset($database['port']) && !ctype_digit((string) $database['port'])) {
             $problems[] = 'config/database.local.php has a port that is not a number';
         }
 
         // Sign-in through the IAM is the only way in, so the IAM must be named - whatever else the file says.
         $auth = $values['auth'] ?? [];
-        if (! is_string($auth['issuer'] ?? null) || ! preg_match('#^https?://[^/\s]+#', $auth['issuer'])) {
+        if (!is_string($auth['issuer'] ?? null) || !preg_match('#^https?://[^/\s]+#', $auth['issuer'])) {
             $problems[] = 'config/auth.local.php has no issuer (the IAM\'s address)';
-        } elseif (! IamClient::secureAddress(trim($auth['issuer']))) {
+        } elseif (!IamClient::secureAddress(trim($auth['issuer']))) {
             // The keys tokens are checked with come from the issuer: never over plain http across a network.
             $problems[] = 'config/auth.local.php has an issuer that is not https (http only on this computer)';
         }
-        if (! is_string($auth['client_id'] ?? null) || trim($auth['client_id']) === '') {
+        if (!is_string($auth['client_id'] ?? null) || trim($auth['client_id']) === '') {
             $problems[] = 'config/auth.local.php has no client_id';
         }
 
         $fetch = $values['fetch'] ?? [];
-        if (! is_string($fetch['user_agent'] ?? null) || trim($fetch['user_agent']) === '') {
+        if (!is_string($fetch['user_agent'] ?? null) || trim($fetch['user_agent']) === '') {
             $problems[] = 'config/fetch.local.php has no user_agent';
         }
         foreach (['timeout', 'delay_ms', 'cache_hours', 'step_seconds', 'stale_hours'] as $key) {
-            if (isset($fetch[$key]) && (! is_int($fetch[$key]) || $fetch[$key] < 0)) {
+            if (isset($fetch[$key]) && (!is_int($fetch[$key]) || $fetch[$key] < 0)) {
                 $problems[] = "config/fetch.local.php has a {$key} that is not a whole number";
             }
         }
@@ -437,7 +437,7 @@ final class Config
     {
         $value = $this->values;
         foreach (explode('.', $path) as $segment) {
-            if (! is_array($value) || ! array_key_exists($segment, $value)) {
+            if (!is_array($value) || !array_key_exists($segment, $value)) {
                 return $default;
             }
             $value = $value[$segment];
@@ -453,7 +453,7 @@ final class Config
         $last = array_pop($segments);
         $target = &$this->values;
         foreach ($segments as $segment) {
-            if (! isset($target[$segment]) || ! is_array($target[$segment])) {
+            if (!isset($target[$segment]) || !is_array($target[$segment])) {
                 $target[$segment] = [];
             }
             $target = &$target[$segment];
@@ -480,14 +480,13 @@ final class Config
     /** A path inside backend/ ("storage/http-cache"). */
     public function path(string $relative = ''): string
     {
-        return $relative === '' ? $this->root : $this->root.'/'.ltrim($relative, '/');
+        return $relative === '' ? $this->root : $this->root . '/' . ltrim($relative, '/');
     }
 
     public function storage(string $relative = ''): string
     {
         $base = $this->storageRoot ?? $this->path('storage');
 
-        return $relative === '' ? $base : $base.'/'.ltrim($relative, '/');
+        return $relative === '' ? $base : $base . '/' . ltrim($relative, '/');
     }
-
 }

@@ -24,7 +24,7 @@
  * Unlike the UI, the command line names the sites (it is the developer's tool). (App\Commands\SyncBuilds)
  */
 
-require __DIR__.'/vendor/autoload.php';
+require __DIR__ . '/vendor/autoload.php';
 
 App\Cli::helpIfAsked($argv, __FILE__);
 

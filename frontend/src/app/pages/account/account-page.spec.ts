@@ -326,9 +326,7 @@ describe('the account page', () => {
       await setup({ account: account({ characters: [character(1), character(2, { best: best({ top_issue: 'An older sentence.', top_issue_kind: null, top_issue_params: null }) })] }) });
       expect(cards().map((card) => text(card.querySelector('.issue span')))).toEqual(['Zvýš level: Staff of Homa (level 80/90).', 'An older sentence.']);
 
-      expect(await TestBed.inject(TranslationService).setLanguage('en', { remember: false })).toBe(
-        true,
-      );
+      expect(await TestBed.inject(TranslationService).setLanguage('en', { remember: false })).toBe(true);
       await fixture.whenStable();
 
       const issues = cards().map((card) => card.querySelector('.issue span')!);
@@ -495,7 +493,9 @@ describe('the account page', () => {
 
     it('says why a new name was not saved, in a message worded when it is raised', async () => {
       await setup();
-      api.renameAccount.mockImplementation(() => throwError(() => new HttpErrorResponse({ status: 422, error: { message: 'The nickname is too long.', code: 'invalid', errors: { nickname: ['The nickname is too long.'] } } })));
+      api.renameAccount.mockImplementation(() =>
+        throwError(() => new HttpErrorResponse({ status: 422, error: { message: 'The nickname is too long.', code: 'invalid', errors: { nickname: ['The nickname is too long.'] } } })),
+      );
 
       host.querySelector<HTMLButtonElement>('anotoki-page-header button.rename')!.click();
       await fixture.whenStable();

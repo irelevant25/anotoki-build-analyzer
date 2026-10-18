@@ -171,9 +171,7 @@ export class AccountPage {
   ]);
 
   /** The orders, worded in the language on the page. */
-  protected readonly sortOptions = computed<SelectOption[]>(() =>
-    SORTS.map((option) => ({ value: option.value, label: this.i18n.t(option.label) })),
-  );
+  protected readonly sortOptions = computed<SelectOption[]>(() => SORTS.map((option) => ({ value: option.value, label: this.i18n.t(option.label) })));
 
   protected readonly characters = computed(() => {
     const query = this.search().trim().toLowerCase();

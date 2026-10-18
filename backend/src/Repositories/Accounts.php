@@ -32,10 +32,10 @@ final class Accounts
      */
     public function owned(int $userId): array
     {
-        return array_map(fn (array $row) => Account::fromRow($row), $this->db->all(
-            'SELECT a.*, '.self::COUNTS.' FROM accounts a WHERE a.user_id = ? ORDER BY a.game ASC, a.last_import_at DESC',
-            [$userId],
-        ));
+        return array_map(
+            fn(array $row) => Account::fromRow($row),
+            $this->db->all('SELECT a.*, ' . self::COUNTS . ' FROM accounts a WHERE a.user_id = ? ORDER BY a.game ASC, a.last_import_at DESC', [$userId]),
+        );
     }
 
     /** How many accounts the user has. */
@@ -47,7 +47,7 @@ final class Accounts
     /** One of the user's accounts, or null - also for an account that exists but is somebody else's. */
     public function findOwned(int $userId, int $id, bool $withCounts = true): ?Account
     {
-        $row = $this->db->one('SELECT a.*'.($withCounts ? ', '.self::COUNTS : '').' FROM accounts a WHERE a.id = ? AND a.user_id = ?', [$id, $userId]);
+        $row = $this->db->one('SELECT a.*' . ($withCounts ? ', ' . self::COUNTS : '') . ' FROM accounts a WHERE a.id = ? AND a.user_id = ?', [$id, $userId]);
 
         return $row === null ? null : Account::fromRow($row);
     }
@@ -61,7 +61,7 @@ final class Accounts
 
     public function withCounts(Account $account): Account
     {
-        $row = $this->db->one('SELECT a.id, '.self::COUNTS.' FROM accounts a WHERE a.id = ?', [$account->id]);
+        $row = $this->db->one('SELECT a.id, ' . self::COUNTS . ' FROM accounts a WHERE a.id = ?', [$account->id]);
         $account->counts = [
             'characters' => (int) ($row['characters_count'] ?? 0),
             'weapons' => (int) ($row['weapons_count'] ?? 0),
@@ -118,13 +118,12 @@ final class Accounts
     /** @return list<AccountCharacter> */
     public function characters(int $accountId): array
     {
-        return array_map(fn (array $row) => AccountCharacter::fromRow($row),
-            $this->db->all(self::CHARACTER.' WHERE ac.account_id = ? ORDER BY ac.id', [$accountId]));
+        return array_map(fn(array $row) => AccountCharacter::fromRow($row), $this->db->all(self::CHARACTER . ' WHERE ac.account_id = ? ORDER BY ac.id', [$accountId]));
     }
 
     public function character(int $accountId, string $characterKey): ?AccountCharacter
     {
-        $row = $this->db->one(self::CHARACTER.' WHERE ac.account_id = ? AND c.key = ?', [$accountId, $characterKey]);
+        $row = $this->db->one(self::CHARACTER . ' WHERE ac.account_id = ? AND c.key = ?', [$accountId, $characterKey]);
 
         return $row === null ? null : AccountCharacter::fromRow($row);
     }
@@ -137,25 +136,31 @@ final class Accounts
     /** @return list<AccountItem> */
     public function items(int $accountId): array
     {
-        return array_map(fn (array $row) => AccountItem::fromRow($row), $this->db->all(
-            'SELECT i.*, s.id AS s_id, s.game AS s_game, s.key AS s_key, s.name AS s_name, s.kind AS s_kind,
+        return array_map(
+            fn(array $row) => AccountItem::fromRow($row),
+            $this->db->all(
+                'SELECT i.*, s.id AS s_id, s.game AS s_game, s.key AS s_key, s.name AS s_name, s.kind AS s_kind,
                     s.external_id AS s_external_id, s.icon_url AS s_icon_url, s.meta AS s_meta, s.updated_at AS s_updated_at
                FROM account_items i JOIN game_sets s ON s.id = i.game_set_id
               WHERE i.account_id = ? ORDER BY i.id',
-            [$accountId],
-        ));
+                [$accountId],
+            ),
+        );
     }
 
     /** @return list<AccountWeapon> */
     public function weapons(int $accountId): array
     {
-        return array_map(fn (array $row) => AccountWeapon::fromRow($row), $this->db->all(
-            'SELECT aw.*, w.id AS w_id, w.game AS w_game, w.key AS w_key, w.name AS w_name, w.rarity AS w_rarity,
+        return array_map(
+            fn(array $row) => AccountWeapon::fromRow($row),
+            $this->db->all(
+                'SELECT aw.*, w.id AS w_id, w.game AS w_game, w.key AS w_key, w.name AS w_name, w.rarity AS w_rarity,
                     w.weapon_type AS w_weapon_type, w.external_id AS w_external_id, w.icon_url AS w_icon_url,
                     w.meta AS w_meta, w.updated_at AS w_updated_at
                FROM account_weapons aw JOIN game_weapons w ON w.id = aw.game_weapon_id
               WHERE aw.account_id = ? ORDER BY aw.id',
-            [$accountId],
-        ));
+                [$accountId],
+            ),
+        );
     }
 }

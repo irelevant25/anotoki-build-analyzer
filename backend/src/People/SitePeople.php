@@ -49,20 +49,14 @@ final class SitePeople
 
     public static function table(): PeopleTable
     {
-        return new PeopleTable(
-            name: 'name',
-            firstSeen: 'created_at',
-            lastSeen: 'last_seen_at',
-            updatedAt: 'updated_at',
-            nameFallback: static fn (int $sub): string => "user {$sub}",
-        );
+        return new PeopleTable(name: 'name', firstSeen: 'created_at', lastSeen: 'last_seen_at', updatedAt: 'updated_at', nameFallback: static fn(int $sub): string => "user {$sub}");
     }
 
     public static function make(App $app): People
     {
         return new People(
             self::table(),
-            static fn (): PDO => $app->db()->raw(),
+            static fn(): PDO => $app->db()->raw(),
             $app->get(IamClient::class),
             hooks: [
                 self::syncLogHook(),
@@ -74,7 +68,7 @@ final class SitePeople
                         Feedback::forgetPeopleOn($pdo, [$sub]);
                     }
                     if (AdminSchema::has($pdo, AdminSchema::AUDIT_TABLE)) {
-                        (new AuditLog(static fn (): PDO => $pdo))->scrubPeople([$sub]);
+                        (new AuditLog(static fn(): PDO => $pdo))->scrubPeople([$sub]);
                     }
                 },
             ],
@@ -104,7 +98,7 @@ final class SitePeople
                               'Started by ' || CAST(? AS text) || '.', 'Started by {$deleted}.'),
                               'Cancelled by ' || CAST(? AS text) || ' after ', 'Cancelled by {$deleted} after '),
                               'Cancelled by ' || CAST(? AS text) || '.', 'Cancelled by {$deleted}.')
-                  WHERE log LIKE '%' || CAST(? AS text) || '%'"
+                  WHERE log LIKE '%' || CAST(? AS text) || '%'",
             )->execute([$name, $name, $name, $name]);
         };
     }
@@ -122,7 +116,7 @@ final class SitePeople
             return static function (PDO $pdo, array $subs) use ($sql, $none): array {
                 $subs = array_map('intval', $subs);
                 $statement = $pdo->prepare($sql);
-                $statement->execute(['{'.implode(',', $subs).'}']);
+                $statement->execute(['{' . implode(',', $subs) . '}']);
                 $found = $statement->fetchAll(PDO::FETCH_KEY_PAIR);
 
                 return $none === null ? $found : array_replace(array_fill_keys($subs, $none), $found);
@@ -130,17 +124,18 @@ final class SitePeople
         };
 
         return [
-            new PeopleColumn('accounts', 'Game accounts', 'count', $values(
-                'SELECT user_id, count(*) FROM accounts WHERE user_id = ANY (CAST(? AS bigint[])) GROUP BY user_id', 0
-            )),
-            new PeopleColumn('imports', 'Imports', 'count', $values(
-                'SELECT user_id, count(*) FROM import_runs WHERE user_id = ANY (CAST(? AS bigint[])) GROUP BY user_id', 0
-            )),
+            new PeopleColumn('accounts', 'Game accounts', 'count', $values('SELECT user_id, count(*) FROM accounts WHERE user_id = ANY (CAST(? AS bigint[])) GROUP BY user_id', 0)),
+            new PeopleColumn('imports', 'Imports', 'count', $values('SELECT user_id, count(*) FROM import_runs WHERE user_id = ANY (CAST(? AS bigint[])) GROUP BY user_id', 0)),
             // Unix seconds: the library answers a time column as ISO 8601 UTC; none for somebody who never imported.
-            new PeopleColumn('last_import', 'Last import', 'time', $values(
-                'SELECT user_id, floor(extract(epoch FROM max(created_at)))::bigint
-                   FROM import_runs WHERE user_id = ANY (CAST(? AS bigint[])) GROUP BY user_id'
-            )),
+            new PeopleColumn(
+                'last_import',
+                'Last import',
+                'time',
+                $values(
+                    'SELECT user_id, floor(extract(epoch FROM max(created_at)))::bigint
+                   FROM import_runs WHERE user_id = ANY (CAST(? AS bigint[])) GROUP BY user_id',
+                ),
+            ),
         ];
     }
 
@@ -165,7 +160,7 @@ final class SitePeople
      */
     public static function deleteHook(): Closure
     {
-        return static fn (PDO $pdo, int $sub, ?ServerRequestInterface $request = null): ?array => self::deleteData($pdo, $sub);
+        return static fn(PDO $pdo, int $sub, ?ServerRequestInterface $request = null): ?array => self::deleteData($pdo, $sub);
     }
 
     /**
@@ -199,9 +194,11 @@ final class SitePeople
         // ... and the syncs' logs no longer name them.
         self::syncLogHook()($pdo, $sub, $former);
 
-        return ['deleted' => [
-            'Game accounts' => $deleted['accounts'],
-            'Imports' => $deleted['import_runs'],
-        ]];
+        return [
+            'deleted' => [
+                'Game accounts' => $deleted['accounts'],
+                'Imports' => $deleted['import_runs'],
+            ],
+        ];
     }
 }

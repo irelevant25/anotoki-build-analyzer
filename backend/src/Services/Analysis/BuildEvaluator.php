@@ -78,7 +78,7 @@ final class BuildEvaluator
         $weapon = $this->context->equippedWeapon($character->id);
 
         $mainStats = $this->resolveMainStats($build->main_stats ?? [], $element);
-        $substatPriorities = $this->resolveList($build->substats ?: ($fallbackSubstats ?? ItemScorer::fallbackSubstats($this->game, $mainStats)), $element);
+        $substatPriorities = $this->resolveList($build->substats ?: $fallbackSubstats ?? ItemScorer::fallbackSubstats($this->game, $mainStats), $element);
         $scorer = new ItemScorer($this->game, $substatPriorities);
 
         $weaponPart = $this->weaponPart($build, $weapon);
@@ -136,12 +136,11 @@ final class BuildEvaluator
         // The label goes out as it is ("Weapon", "Light Cone"); only the English sentence lower-cases it.
         $weaponLabel = $this->game->weaponLabel();
         $label = strtolower($weaponLabel);
-        $top = array_map(fn ($w) => $w['name'], array_slice($list, 0, 3));
+        $top = array_map(fn($w) => $w['name'], array_slice($list, 0, 3));
         $options = implode(', ', $top);
 
-        if (! $weapon) {
-            $this->recommend('high', 'weapon', 'weapon_none', ['weapon_label' => $weaponLabel, 'options' => $options],
-                "No {$label} equipped. Best options: ".implode(', ', $top).'.');
+        if (!$weapon) {
+            $this->recommend('high', 'weapon', 'weapon_none', ['weapon_label' => $weaponLabel, 'options' => $options], "No {$label} equipped. Best options: " . implode(', ', $top) . '.');
 
             return ['score' => 0, 'equipped' => null, 'rank' => null, 'owned_better' => [], 'total' => count($list)];
         }
@@ -159,8 +158,13 @@ final class BuildEvaluator
         $maxLevel = $this->game === Game::Genshin ? 90 : 80;
         if ($weapon->level < $maxLevel - 10) {
             $score = (int) round($score * 0.9);
-            $this->recommend('low', 'weapon', 'weapon_level', ['name' => $weapon->weapon->name, 'level' => $weapon->level, 'max_level' => $maxLevel],
-                "Level up {$weapon->weapon->name} (level {$weapon->level}/{$maxLevel}).");
+            $this->recommend(
+                'low',
+                'weapon',
+                'weapon_level',
+                ['name' => $weapon->weapon->name, 'level' => $weapon->level, 'max_level' => $maxLevel],
+                "Level up {$weapon->weapon->name} (level {$weapon->level}/{$maxLevel}).",
+            );
         }
 
         // Better-ranked weapons the player already owns.
@@ -170,7 +174,7 @@ final class BuildEvaluator
             if ($copies === []) {
                 continue;
             }
-            usort($copies, fn ($a, $b) => [$b->refinement, $b->level] <=> [$a->refinement, $a->level]);
+            usort($copies, fn($a, $b) => [$b->refinement, $b->level] <=> [$a->refinement, $a->level]);
             $best = $copies[0];
             $ownedBetter[] = [
                 'key' => $entry['key'],
@@ -184,28 +188,37 @@ final class BuildEvaluator
 
         $refinementPrefix = $this->game === Game::Genshin ? 'R' : 'S';
         // The best better-ranked weapon owned, as the sentences name it; who holds it is the "_on" kind.
-        $owned = $ownedBetter ? ['owned' => $ownedBetter[0]['name'], 'refinement' => $refinementPrefix.$ownedBetter[0]['refinement']] : [];
+        $owned = $ownedBetter ? ['owned' => $ownedBetter[0]['name'], 'refinement' => $refinementPrefix . $ownedBetter[0]['refinement']] : [];
         $on = $ownedBetter && $ownedBetter[0]['equipped_on'] ? ['character' => $ownedBetter[0]['equipped_on']] : [];
         if ($rank === null) {
             $kind = 'weapon_unlisted';
             $params = ['name' => $weapon->weapon->name, 'weapon_label' => $weaponLabel, 'options' => $options];
-            $message = "{$weapon->weapon->name} is not on this build's {$label} list. Recommended: ".implode(', ', $top).'.';
+            $message = "{$weapon->weapon->name} is not on this build's {$label} list. Recommended: " . implode(', ', $top) . '.';
             if ($ownedBetter) {
                 $kind = $on ? 'weapon_unlisted_owned_on' : 'weapon_unlisted_owned';
                 $params += $owned + $on;
-                $message .= ' You already own '.$this->describeOwned($ownedBetter[0], $refinementPrefix).'.';
+                $message .= ' You already own ' . $this->describeOwned($ownedBetter[0], $refinementPrefix) . '.';
             }
             $this->recommend('medium', 'weapon', $kind, $params, $message);
         } elseif ($rank > 1 && $ownedBetter) {
-            $this->recommend($rank > 3 ? 'medium' : 'low', 'weapon', $on ? 'weapon_better_owned_on' : 'weapon_better_owned',
+            $this->recommend(
+                $rank > 3 ? 'medium' : 'low',
+                'weapon',
+                $on ? 'weapon_better_owned_on' : 'weapon_better_owned',
                 $owned + ['owned_rank' => $ownedBetter[0]['rank'], 'name' => $weapon->weapon->name, 'rank' => $rank] + $on,
-                'You own '.$this->describeOwned($ownedBetter[0], $refinementPrefix)." (#{$ownedBetter[0]['rank']}), which ranks above {$weapon->weapon->name} (#{$rank}).");
+                'You own ' . $this->describeOwned($ownedBetter[0], $refinementPrefix) . " (#{$ownedBetter[0]['rank']}), which ranks above {$weapon->weapon->name} (#{$rank}).",
+            );
         } elseif ($rank > 3) {
-            $this->recommend('low', 'weapon', 'weapon_low_rank', ['name' => $weapon->weapon->name, 'rank' => $rank, 'options' => $options],
-                "{$weapon->weapon->name} is option #{$rank}. Upgrades to aim for: ".implode(', ', $top).'.');
+            $this->recommend(
+                'low',
+                'weapon',
+                'weapon_low_rank',
+                ['name' => $weapon->weapon->name, 'rank' => $rank, 'options' => $options],
+                "{$weapon->weapon->name} is option #{$rank}. Upgrades to aim for: " . implode(', ', $top) . '.',
+            );
         }
 
-        $recommendedRefinement = $rank !== null ? ($list[$rank - 1]['refinement'] ?? null) : null;
+        $recommendedRefinement = $rank !== null ? $list[$rank - 1]['refinement'] ?? null : null;
 
         return [
             'score' => $score,
@@ -254,21 +267,23 @@ final class BuildEvaluator
             return $result ? ['score' => $result['score'], 'groups' => [$result]] : null;
         }
 
-        $relicItems = array_filter($items, fn ($item, $slot) => ! $this->game->isPlanarSlot($slot), ARRAY_FILTER_USE_BOTH);
-        $planarItems = array_filter($items, fn ($item, $slot) => $this->game->isPlanarSlot($slot), ARRAY_FILTER_USE_BOTH);
+        $relicItems = array_filter($items, fn($item, $slot) => !$this->game->isPlanarSlot($slot), ARRAY_FILTER_USE_BOTH);
+        $planarItems = array_filter($items, fn($item, $slot) => $this->game->isPlanarSlot($slot), ARRAY_FILTER_USE_BOTH);
 
-        $groups = array_values(array_filter([
-            $this->evaluateOptions(AccountContext::setCounts($relicItems), $names, array_values(array_filter($options, fn ($o) => $o['kind'] === 'relic')), 'relic'),
-            $this->evaluateOptions(AccountContext::setCounts($planarItems), $names, array_values(array_filter($options, fn ($o) => $o['kind'] === 'planar')), 'planar'),
-        ]));
+        $groups = array_values(
+            array_filter([
+                $this->evaluateOptions(AccountContext::setCounts($relicItems), $names, array_values(array_filter($options, fn($o) => $o['kind'] === 'relic')), 'relic'),
+                $this->evaluateOptions(AccountContext::setCounts($planarItems), $names, array_values(array_filter($options, fn($o) => $o['kind'] === 'planar')), 'planar'),
+            ]),
+        );
         if ($groups === []) {
             return null;
         }
 
         // Cavern relics carry 4 pieces, planar ornaments 2.
         $weights = ['relic' => 0.6, 'planar' => 0.4];
-        $total = array_sum(array_map(fn ($g) => $weights[$g['kind']], $groups));
-        $score = array_sum(array_map(fn ($g) => $g['score'] * $weights[$g['kind']], $groups)) / $total;
+        $total = array_sum(array_map(fn($g) => $weights[$g['kind']], $groups));
+        $score = array_sum(array_map(fn($g) => $g['score'] * $weights[$g['kind']], $groups)) / $total;
 
         return ['score' => (int) round($score), 'groups' => $groups];
     }
@@ -306,7 +321,7 @@ final class BuildEvaluator
             'relic' => 'Cavern Relic set',
             default => 'artifact set',
         };
-        $current = $equipped === [] ? 'nothing' : implode(' + ', array_map(fn ($e) => "{$e['count']}pc {$e['name']}", $equipped));
+        $current = $equipped === [] ? 'nothing' : implode(' + ', array_map(fn($e) => "{$e['count']}pc {$e['name']}", $equipped));
 
         // For a page: the noun with a capital (it can open a sentence before a colon) and the top option
         // without its "(any N)", which the page words itself. The English sentences keep their own nouns.
@@ -320,15 +335,23 @@ final class BuildEvaluator
         if ($matchedRank === null) {
             $score = (int) round(10 + 60 * $bestFraction);
             // Nothing equipped is a kind of its own: "nothing" is an English word, not a list of sets.
-            $this->recommend('high', 'sets', $equipped === [] ? 'sets_missing_empty' : 'sets_missing',
+            $this->recommend(
+                'high',
+                'sets',
+                $equipped === [] ? 'sets_missing_empty' : 'sets_missing',
                 ['set_label' => $setLabel] + $bestParams + ($equipped === [] ? [] : ['current' => $current]),
-                "Use the recommended {$noun}: {$bestLabel}. Currently: {$current}.");
+                "Use the recommended {$noun}: {$bestLabel}. Currently: {$current}.",
+            );
         } else {
             $score = max(70, 100 - ($matchedRank - 1) * 8);
             if ($matchedRank > 1) {
-                $this->recommend($matchedRank > 2 ? 'medium' : 'low', 'sets', 'sets_lower_option',
+                $this->recommend(
+                    $matchedRank > 2 ? 'medium' : 'low',
+                    'sets',
+                    'sets_lower_option',
                     ['set_label' => $setLabel, 'current' => $current, 'rank' => $matchedRank] + $bestParams,
-                    "Your {$noun} ({$current}) is option #{$matchedRank}. The top choice is {$bestLabel}.");
+                    "Your {$noun} ({$current}) is option #{$matchedRank}. The top choice is {$bestLabel}.",
+                );
             }
         }
 
@@ -346,19 +369,19 @@ final class BuildEvaluator
     {
         $choose = self::optionChoose($option);
 
-        return self::optionPieces($option).($choose === null ? '' : " (any {$choose})");
+        return self::optionPieces($option) . ($choose === null ? '' : " (any {$choose})");
     }
 
     /** The pieces of a set option, "2pc A + 2pc B": game terms and names, the same in every language. */
     public static function optionPieces(array $option): string
     {
-        return implode(' + ', array_map(fn ($piece) => "{$piece['count']}pc {$piece['label']}", $option['pieces'] ?? []));
+        return implode(' + ', array_map(fn($piece) => "{$piece['count']}pc {$piece['label']}", $option['pieces'] ?? []));
     }
 
     /** How many of the option's pieces are needed, when that is fewer than it lists; null: all of them. */
     public static function optionChoose(array $option): ?int
     {
-        return ! empty($option['choose']) && $option['choose'] < count($option['pieces'] ?? []) ? (int) $option['choose'] : null;
+        return !empty($option['choose']) && $option['choose'] < count($option['pieces'] ?? []) ? (int) $option['choose'] : null;
     }
 
     // ---------------------------------------------------------------- main stats
@@ -380,12 +403,18 @@ final class BuildEvaluator
             $recommended = array_column($options, 'stat');
             $topPriority = min(array_column($options, 'priority'));
             $slotLabel = $this->game->slotLabel($slot);
-            $wantedLabel = implode(' / ', array_map(fn ($stat) => Stats::label($stat, $this->game), $recommended));
+            $wantedLabel = implode(' / ', array_map(fn($stat) => Stats::label($stat, $this->game), $recommended));
 
-            if (! $item) {
+            if (!$item) {
                 $rows[$slot] = ['current' => null, 'recommended' => $recommended, 'score' => 0, 'ok' => false];
-                $this->recommend('high', 'main_stats', 'main_stat_missing', ['slot_label' => $slotLabel, 'wanted' => $wantedLabel],
-                    "No {$slotLabel} equipped. Look for one with {$wantedLabel}.", $slot);
+                $this->recommend(
+                    'high',
+                    'main_stats',
+                    'main_stat_missing',
+                    ['slot_label' => $slotLabel, 'wanted' => $wantedLabel],
+                    "No {$slotLabel} equipped. Look for one with {$wantedLabel}.",
+                    $slot,
+                );
 
                 continue;
             }
@@ -408,8 +437,14 @@ final class BuildEvaluator
 
             if ($match === null) {
                 $statLabel = Stats::label($item->main_stat, $this->game);
-                $this->recommend('high', 'main_stats', 'main_stat_wrong', ['slot_label' => $slotLabel, 'stat' => $statLabel, 'wanted' => $wantedLabel],
-                    "{$slotLabel} has ".$statLabel." as main stat; this build wants {$wantedLabel}.", $slot);
+                $this->recommend(
+                    'high',
+                    'main_stats',
+                    'main_stat_wrong',
+                    ['slot_label' => $slotLabel, 'stat' => $statLabel, 'wanted' => $wantedLabel],
+                    "{$slotLabel} has " . $statLabel . " as main stat; this build wants {$wantedLabel}.",
+                    $slot,
+                );
             }
         }
 
@@ -431,7 +466,7 @@ final class BuildEvaluator
         $results = [];
         foreach ($this->game->slots() as $slot) {
             $item = $items[$slot] ?? null;
-            if (! $item) {
+            if (!$item) {
                 continue;
             }
 
@@ -439,22 +474,28 @@ final class BuildEvaluator
             $maxLevel = $this->game->maxItemLevel($item->rarity);
             $wanted = array_column($mainStats[$slot] ?? [], 'stat');
 
-            $results[$slot] = [
-                'id' => $item->id,
-                'slot' => $slot,
-                'set' => ['key' => $item->set->key, 'name' => $item->set->name, 'icon_url' => Icons::of($item->set)],
-                'rarity' => $item->rarity,
-                'level' => $item->level,
-                'max_level' => $maxLevel,
-                'main_stat' => $item->main_stat,
-                'main_value' => $item->main_value,
-                'main_ok' => $wanted === [] ? null : in_array($item->main_stat, $wanted, true),
-            ] + $score;
+            $results[$slot] =
+                [
+                    'id' => $item->id,
+                    'slot' => $slot,
+                    'set' => ['key' => $item->set->key, 'name' => $item->set->name, 'icon_url' => Icons::of($item->set)],
+                    'rarity' => $item->rarity,
+                    'level' => $item->level,
+                    'max_level' => $maxLevel,
+                    'main_stat' => $item->main_stat,
+                    'main_value' => $item->main_value,
+                    'main_ok' => $wanted === [] ? null : in_array($item->main_stat, $wanted, true),
+                ] + $score;
 
             if ($item->level < $maxLevel) {
-                $this->recommend($item->level <= $maxLevel - 8 ? 'medium' : 'low', 'levels', 'item_level',
+                $this->recommend(
+                    $item->level <= $maxLevel - 8 ? 'medium' : 'low',
+                    'levels',
+                    'item_level',
                     ['slot_label' => $this->game->slotLabel($slot), 'level' => $item->level, 'max_level' => $maxLevel],
-                    "Level up your {$this->game->slotLabel($slot)} (+{$item->level} → +{$maxLevel}).", $slot);
+                    "Level up your {$this->game->slotLabel($slot)} (+{$item->level} → +{$maxLevel}).",
+                    $slot,
+                );
             }
         }
 
@@ -463,20 +504,25 @@ final class BuildEvaluator
         }
 
         // Point out the weakest pieces worth replacing (only fully leveled ones; others may still improve).
-        $weak = array_filter($results, fn ($r) => in_array($r['grade'], ['C', 'D'], true) && $r['level'] >= $r['max_level']);
-        uasort($weak, fn ($a, $b) => $a['percent'] <=> $b['percent']);
-        $wantedSubs = array_keys(array_filter($scorer->weights(), fn ($w) => $w >= 0.8));
-        $subsLabel = implode(', ', array_map(fn ($s) => Stats::label($s, $this->game, true), array_slice($wantedSubs, 0, 3)));
+        $weak = array_filter($results, fn($r) => in_array($r['grade'], ['C', 'D'], true) && $r['level'] >= $r['max_level']);
+        uasort($weak, fn($a, $b) => $a['percent'] <=> $b['percent']);
+        $wantedSubs = array_keys(array_filter($scorer->weights(), fn($w) => $w >= 0.8));
+        $subsLabel = implode(', ', array_map(fn($s) => Stats::label($s, $this->game, true), array_slice($wantedSubs, 0, 3)));
         foreach (array_slice($weak, 0, 2, true) as $slot => $result) {
-            $this->recommend('medium', 'substats', 'substats_weak',
+            $this->recommend(
+                'medium',
+                'substats',
+                'substats_weak',
                 ['slot_label' => $this->game->slotLabel($slot), 'percent' => $result['percent'], 'stats' => $subsLabel],
-                "Your {$this->game->slotLabel($slot)} has weak substats ({$result['percent']}% of an ideal piece). Replace it with one rolling {$subsLabel}.", $slot);
+                "Your {$this->game->slotLabel($slot)} has weak substats ({$result['percent']}% of an ideal piece). Replace it with one rolling {$subsLabel}.",
+                $slot,
+            );
         }
 
         // 70% of an ideal piece is already excellent; scale so that counts as full marks.
         $average = array_sum(array_column($results, 'percent')) / max(1, count($this->game->slots()));
 
-        return [(int) round(min(100, $average / 70 * 100)), $results];
+        return [(int) round(min(100, ($average / 70) * 100)), $results];
     }
 
     // ---------------------------------------------------------------- stat targets
@@ -486,7 +532,7 @@ final class BuildEvaluator
         $targets = $build->stat_targets ?? [];
         $final = $owned->final_stats ?? [];
         if ($targets === [] || $final === []) {
-            return $targets === [] ? null : ['score' => null, 'rows' => array_map(fn ($t) => $t + ['current' => null, 'ok' => null], $targets)];
+            return $targets === [] ? null : ['score' => null, 'rows' => array_map(fn($t) => $t + ['current' => null, 'ok' => null], $targets)];
         }
 
         $rows = [];
@@ -500,17 +546,20 @@ final class BuildEvaluator
             }
 
             $ok = $current >= $target['min'];
-            $scores[] = $ok ? 100 : max(0, (int) round($current / $target['min'] * 100) - 10);
+            $scores[] = $ok ? 100 : max(0, (int) round(($current / $target['min']) * 100) - 10);
             $rows[] = $target + ['current' => $current, 'ok' => $ok];
 
-            if (! $ok) {
+            if (!$ok) {
                 $unit = Stats::isPercent($target['stat']) ? '%' : '';
                 // The two values go out as numbers ("+ 0": whatever the stored JSON held); the page writes
                 // them in the game's notation for the stat, which is why it gets the stat's key too.
-                $this->recommend('medium', 'targets', 'target_below',
+                $this->recommend(
+                    'medium',
+                    'targets',
+                    'target_below',
                     ['stat' => Stats::label($target['stat'], $this->game), 'stat_key' => $target['stat'], 'current' => $current + 0, 'min' => $target['min'] + 0],
-                    sprintf('%s is %s%s; the build aims for %s%s+.',
-                        Stats::label($target['stat'], $this->game), $this->number($current), $unit, $this->number($target['min']), $unit));
+                    sprintf('%s is %s%s; the build aims for %s%s+.', Stats::label($target['stat'], $this->game), $this->number($current), $unit, $this->number($target['min']), $unit),
+                );
             }
         }
 
@@ -528,13 +577,18 @@ final class BuildEvaluator
         }
 
         foreach ($priorities as $entry) {
-            if ($entry['priority'] !== 1 || ! isset($levels[$entry['talent']])) {
+            if ($entry['priority'] !== 1 || !isset($levels[$entry['talent']])) {
                 continue;
             }
             $level = (int) $levels[$entry['talent']];
             if ($level < 8) {
-                $this->recommend('low', 'talents', 'talent_level', ['talent' => Talents::label($this->game, $entry['talent']), 'level' => $level],
-                    sprintf('Level %s first (priority #1, currently %d).', Talents::label($this->game, $entry['talent']), $level));
+                $this->recommend(
+                    'low',
+                    'talents',
+                    'talent_level',
+                    ['talent' => Talents::label($this->game, $entry['talent']), 'level' => $level],
+                    sprintf('Level %s first (priority #1, currently %d).', Talents::label($this->game, $entry['talent']), $level),
+                );
             }
         }
     }
@@ -543,8 +597,7 @@ final class BuildEvaluator
     {
         $target = $this->game === Game::Genshin ? 80 : 70;
         if ($owned->level < $target) {
-            $this->recommend('medium', 'levels', 'character_level', ['level' => $owned->level],
-                "Level the character up (level {$owned->level}); most of their stats come from character level.");
+            $this->recommend('medium', 'levels', 'character_level', ['level' => $owned->level], "Level the character up (level {$owned->level}); most of their stats come from character level.");
         }
     }
 
@@ -600,7 +653,7 @@ final class BuildEvaluator
         $result = [];
         foreach ($list as $entry) {
             $stat = Stats::resolveElemental($entry['stat'], $element);
-            if (! in_array($stat, array_column($result, 'stat'), true)) {
+            if (!in_array($stat, array_column($result, 'stat'), true)) {
                 $result[] = ['stat' => $stat, 'priority' => $entry['priority']];
             }
         }
@@ -618,14 +671,14 @@ final class BuildEvaluator
         // Both quote names a build was read with (weapons, sets), as the build page shows them: neutral.
         $params = Neutral::deep($params);
         $message = (string) Neutral::text($message);
-        $this->recommendations[] = array_filter(compact('severity', 'category', 'kind', 'params', 'message', 'slot'), fn ($v) => $v !== null);
+        $this->recommendations[] = array_filter(compact('severity', 'category', 'kind', 'params', 'message', 'slot'), fn($v) => $v !== null);
     }
 
     private function sortedRecommendations(): array
     {
         $order = ['high' => 0, 'medium' => 1, 'low' => 2];
         $recommendations = $this->recommendations;
-        usort($recommendations, fn ($a, $b) => $order[$a['severity']] <=> $order[$b['severity']]);
+        usort($recommendations, fn($a, $b) => $order[$a['severity']] <=> $order[$b['severity']]);
 
         return $recommendations;
     }

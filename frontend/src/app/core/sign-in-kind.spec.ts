@@ -40,9 +40,7 @@ describe('SignInKind', () => {
 
   it("notes the auth module's client's own answer (the factory provided as ANOTOKI_AUTH_CLIENT_FACTORY)", async () => {
     const answers = [SILENT, CLICKED];
-    const make = vi.fn(
-      () => ({ init: async () => answers.shift() }) as unknown as AnotokiAuthClient,
-    );
+    const make = vi.fn(() => ({ init: async () => answers.shift() }) as unknown as AnotokiAuthClient);
     const factory = clientNotingSignInKind(kind(), make);
 
     const client = factory(

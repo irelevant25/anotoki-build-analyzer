@@ -34,13 +34,12 @@ final class Clock
 
     public static function fromMicrotime(float $microtime): DateTimeImmutable
     {
-        return (DateTimeImmutable::createFromFormat('U.u', sprintf('%.6F', $microtime), self::utc()) ?: new DateTimeImmutable('@'.(int) $microtime))
-            ->setTimezone(self::utc());
+        return (DateTimeImmutable::createFromFormat('U.u', sprintf('%.6F', $microtime), self::utc()) ?: new DateTimeImmutable('@' . (int) $microtime))->setTimezone(self::utc());
     }
 
     public static function fromTimestamp(int $timestamp): DateTimeImmutable
     {
-        return (new DateTimeImmutable('@'.$timestamp))->setTimezone(self::utc());
+        return (new DateTimeImmutable('@' . $timestamp))->setTimezone(self::utc());
     }
 
     /**
@@ -64,7 +63,11 @@ final class Clock
      */
     public static function iso(?DateTimeInterface $time): ?string
     {
-        return $time === null ? null : DateTimeImmutable::createFromInterface($time)->setTimezone(self::utc())->format(DATE_ATOM);
+        return $time === null
+            ? null
+            : DateTimeImmutable::createFromInterface($time)
+                ->setTimezone(self::utc())
+                ->format(DATE_ATOM);
     }
 
     /**
@@ -83,7 +86,7 @@ final class Clock
             if ($seconds >= $size) {
                 $count = intdiv($seconds, $size);
 
-                return $count.' '.$unit.($count === 1 ? '' : 's').' ago';
+                return $count . ' ' . $unit . ($count === 1 ? '' : 's') . ' ago';
             }
         }
 

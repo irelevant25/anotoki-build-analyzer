@@ -40,11 +40,7 @@ export class AppTitleStrategy extends TitleStrategy {
     effect(() => {
       const page = this._page();
       const brand = this._admin() ? `${ADMIN_PANEL} · ${BRAND}` : BRAND;
-      this._title.setTitle(
-        page === undefined
-          ? brand
-          : `${isTranslationKey(page) ? this._i18n.t(page) : page} · ${brand}`,
-      );
+      this._title.setTitle(page === undefined ? brand : `${isTranslationKey(page) ? this._i18n.t(page) : page} · ${brand}`);
     });
   }
 

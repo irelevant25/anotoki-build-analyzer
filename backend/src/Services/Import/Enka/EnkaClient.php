@@ -19,11 +19,7 @@ use RuntimeException;
  */
 class EnkaClient
 {
-    public function __construct(
-        private readonly Fetcher $fetcher,
-        private readonly Cache $cache,
-        private readonly Config $config,
-    ) {}
+    public function __construct(private readonly Fetcher $fetcher, private readonly Cache $cache, private readonly Config $config) {}
 
     public static function isValidUid(string $uid): bool
     {
@@ -35,7 +31,7 @@ class EnkaClient
      */
     public function profile(Game $game, string $uid): array
     {
-        if (! self::isValidUid($uid)) {
+        if (!self::isValidUid($uid)) {
             throw new ImportException('A UID is 9 or 10 digits long.', 'uid_invalid');
         }
 
@@ -69,7 +65,7 @@ class EnkaClient
         }
 
         $json = $response->json();
-        if (! is_array($json)) {
+        if (!is_array($json)) {
             throw new ImportException('The showcase service returned an unexpected answer.', 'showcase_bad_answer');
         }
 

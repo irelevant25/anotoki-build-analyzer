@@ -52,8 +52,7 @@ final class Installer
      */
     public static function local(array $server): bool
     {
-        return self::isLoopback((string) ($server['REMOTE_ADDR'] ?? ''))
-            && self::isLocalHost(self::hostOf((string) ($server['HTTP_HOST'] ?? '')));
+        return self::isLoopback((string) ($server['REMOTE_ADDR'] ?? '')) && self::isLocalHost(self::hostOf((string) ($server['HTTP_HOST'] ?? '')));
     }
 
     /**
@@ -99,12 +98,12 @@ final class Installer
 
     public function lockFile(): string
     {
-        return $this->root.'/storage/installed.lock';
+        return $this->root . '/storage/installed.lock';
     }
 
     public function tokenFile(): string
     {
-        return $this->root.'/config/setup-token.local.php';
+        return $this->root . '/config/setup-token.local.php';
     }
 
     // ── the values ────────────────────────────────────────────────────────────────────────────────
@@ -125,7 +124,7 @@ final class Installer
             'db_database' => 'anotoki_builder',
             'db_username' => $local ? 'postgres' : '',
             // On a host the IAM is expected beside the site: builds.example.com -> iam.example.com.
-            'issuer' => $local ? 'http://localhost:4300' : 'https://iam.'.preg_replace('/^[^.]+\./', '', $host),
+            'issuer' => $local ? 'http://localhost:4300' : 'https://iam.' . preg_replace('/^[^.]+\./', '', $host),
             'client_id' => 'build-analyzer',
         ];
 
@@ -181,7 +180,7 @@ final class Installer
     public function validate(array $input, string $password): array
     {
         $errors = [];
-        $value = fn (string $key) => trim((string) ($input[$key] ?? ''));
+        $value = fn(string $key) => trim((string) ($input[$key] ?? ''));
 
         $database = [
             'host' => $value('db_host'),
@@ -191,22 +190,22 @@ final class Installer
             'password' => $password,
             'persistent' => false,
         ];
-        if ($database['host'] === '' || ! ctype_digit($database['port']) || $database['database'] === '' || $database['username'] === '') {
+        if ($database['host'] === '' || !ctype_digit($database['port']) || $database['database'] === '' || $database['username'] === '') {
             $errors[] = 'Fill in the database host, a numeric port, the database name and the username.';
         }
-        if (preg_match('/[\x00-\x1f]/', $database['host'].$database['database'].$database['username'].$password)) {
+        if (preg_match('/[\x00-\x1f]/', $database['host'] . $database['database'] . $database['username'] . $password)) {
             $errors[] = 'The database values cannot contain line breaks or other control characters.';
         }
 
         $issuer = rtrim($value('issuer'), '/');
         $clientId = $value('client_id');
-        if (! filter_var($issuer, FILTER_VALIDATE_URL) || ! in_array(parse_url($issuer, PHP_URL_SCHEME), ['http', 'https'], true)) {
+        if (!filter_var($issuer, FILTER_VALIDATE_URL) || !in_array(parse_url($issuer, PHP_URL_SCHEME), ['http', 'https'], true)) {
             $errors[] = 'The IAM address must be a URL, like https://iam.anotoki.eu.';
-        } elseif (! IamClient::secureAddress($issuer)) {
+        } elseif (!IamClient::secureAddress($issuer)) {
             // The keys every sign-in is checked with come from there: never over plain http across a network.
             $errors[] = 'The IAM address must be https (http only on this computer: localhost, 127.0.0.1).';
         }
-        if (! preg_match('/^[a-z0-9-]{2,64}$/', $clientId)) {
+        if (!preg_match('/^[a-z0-9-]{2,64}$/', $clientId)) {
             $errors[] = 'The client id is lowercase letters, digits and dashes (build-analyzer).';
         }
 
@@ -223,12 +222,12 @@ final class Installer
      */
     public function passedOver(bool $local): array
     {
-        if (! $local) {
+        if (!$local) {
             return [];
         }
         $said = [];
         foreach (['database.local.php', 'auth.local.php'] as $file) {
-            $path = $this->root.'/config/'.$file;
+            $path = $this->root . '/config/' . $file;
             if (is_file($path) && ($problem = Config::readLocalFile($path)['problem']) !== null) {
                 $said[] = "config/{$file} {$problem}";
             }
@@ -245,8 +244,8 @@ final class Installer
      */
     private function readConfig(string $file): array
     {
-        $path = $this->root.'/config/'.$file;
-        if (! is_file($path)) {
+        $path = $this->root . '/config/' . $file;
+        if (!is_file($path)) {
             return [];
         }
         $read = Config::readLocalFile($path);
@@ -259,15 +258,19 @@ final class Installer
     /** A config file: PHP returning the values, so any password reads back exactly as it was entered. */
     public static function phpFile(array $values, string $what, string $change = 'Run setup.php again to change it.'): string
     {
-        return "<?php\n\n// Written by setup.php on ".gmdate('Y-m-d H:i')." UTC: {$what}.\n"
-            ."// Per installation and never committed (config/*.local.php is gitignored). {$change}\n\n"
-            .'return '.var_export($values, true).";\n";
+        return "<?php\n\n// Written by setup.php on " .
+            gmdate('Y-m-d H:i') .
+            " UTC: {$what}.\n" .
+            "// Per installation and never committed (config/*.local.php is gitignored). {$change}\n\n" .
+            'return ' .
+            var_export($values, true) .
+            ";\n";
     }
 
     /** How the app names itself to the sites it reads: the site's address on a host. */
     public static function userAgent(bool $local, string $siteUrl): string
     {
-        return 'build-analyzer/1.0 ('.($local ? 'personal build analyzer' : $siteUrl).')';
+        return 'build-analyzer/1.0 (' . ($local ? 'personal build analyzer' : $siteUrl) . ')';
     }
 
     /**
@@ -284,19 +287,18 @@ final class Installer
             'database.local.php' => [$settings['database'], 'the database connection', null],
             'auth.local.php' => [$settings['auth'], 'where people sign in: the anotoki IAM', null],
         ];
-        if (! is_file($this->root.'/config/fetch.local.php')) {
+        if (!is_file($this->root . '/config/fetch.local.php')) {
             $fetch = ['user_agent' => $userAgent] + array_intersect_key(Config::FETCH_DEFAULTS, array_flip(['delay_ms', 'cache_hours', 'step_seconds', 'stale_hours']));
-            $files['fetch.local.php'] = [$fetch, 'outgoing requests and sync steps, the defaults',
-                'Edit it by hand (step_seconds 12-120); setup.php keeps it as it is.'];
+            $files['fetch.local.php'] = [$fetch, 'outgoing requests and sync steps, the defaults', 'Edit it by hand (step_seconds 12-120); setup.php keeps it as it is.'];
         }
 
         $written = [];
         foreach ($files as $name => [$values, $what, $change]) {
             $contents = $change === null ? self::phpFile($values, $what) : self::phpFile($values, $what, $change);
-            if (! $this->writeSecret($this->root.'/config/'.$name, $contents)) {
+            if (!$this->writeSecret($this->root . '/config/' . $name, $contents)) {
                 throw new RuntimeException("config/{$name} could not be written. Make the config/ folder writable for the web server and try again.");
             }
-            $written[] = 'config/'.$name;
+            $written[] = 'config/' . $name;
         }
 
         return $written;
@@ -324,7 +326,7 @@ final class Installer
 
     public function phpOwns(string $folder): bool
     {
-        if (! function_exists('posix_geteuid') || ($owner = @fileowner($folder)) === false) {
+        if (!function_exists('posix_geteuid') || ($owner = @fileowner($folder)) === false) {
             return true;
         }
 
@@ -335,13 +337,13 @@ final class Installer
 
     public function token(): ?string
     {
-        if (! is_file($this->tokenFile())) {
+        if (!is_file($this->tokenFile())) {
             return null;
         }
         // Read as every settings file is (a broken one is no token: a new one is made in its place).
         $read = Config::readLocalFile($this->tokenFile());
         $data = $read['problem'] === null ? $read['value'] : null;
-        $token = is_array($data) ? ($data['token'] ?? null) : null;
+        $token = is_array($data) ? $data['token'] ?? null : null;
 
         return is_string($token) && strlen($token) >= 32 ? $token : null;
     }
@@ -358,7 +360,7 @@ final class Installer
     {
         @unlink($this->tokenFile());
 
-        return @unlink($self) || ! is_file($self);
+        return @unlink($self) || !is_file($self);
     }
 
     // ── requirements ──────────────────────────────────────────────────────────────────────────────
@@ -368,19 +370,21 @@ final class Installer
      */
     public function requirements(): array
     {
-        $checks = [[
-            'label' => 'PHP 8.4 or newer',
-            'ok' => PHP_VERSION_ID >= self::MIN_PHP && class_exists('Dom\HTMLDocument'),
-            'detail' => 'this is PHP '.PHP_VERSION.'; the build pages are read with PHP 8.4\'s Dom\HTMLDocument (choose PHP 8.4 in the hosting panel)',
-        ]];
+        $checks = [
+            [
+                'label' => 'PHP 8.4 or newer',
+                'ok' => PHP_VERSION_ID >= self::MIN_PHP && class_exists('Dom\HTMLDocument'),
+                'detail' => 'this is PHP ' . PHP_VERSION . '; the build pages are read with PHP 8.4\'s Dom\HTMLDocument (choose PHP 8.4 in the hosting panel)',
+            ],
+        ];
         foreach (self::EXTENSIONS as $extension => $why) {
             $checks[] = ['label' => "PHP extension {$extension}", 'ok' => extension_loaded($extension), 'detail' => "needed for {$why}; enable it in the hosting panel"];
         }
         foreach (['config', 'storage'] as $folder) {
-            $path = $this->root.'/'.$folder;
+            $path = $this->root . '/' . $folder;
             $checks[] = ['label' => "{$folder}/ writable", 'ok' => is_dir($path) && is_writable($path), 'detail' => 'the web server must be able to write here (FTP: permissions 755 or 775)'];
         }
-        $checks[] = ['label' => 'vendor/ uploaded', 'ok' => is_file($this->root.'/vendor/autoload.php'), 'detail' => 'upload the whole build, with its vendor/ folder'];
+        $checks[] = ['label' => 'vendor/ uploaded', 'ok' => is_file($this->root . '/vendor/autoload.php'), 'detail' => 'upload the whole build, with its vendor/ folder'];
 
         return $checks;
     }
@@ -414,8 +418,12 @@ final class Installer
             $tables = (int) $pdo->query("SELECT count(*) FROM information_schema.tables WHERE table_schema = current_schema() AND table_type = 'BASE TABLE'")->fetchColumn();
             $pending = count(Migrations::migrator($pdo)->applicable());
 
-            return ['ok' => true, 'message' => "Connected to the database \"{$name}\": "
-                .($tables === 0 ? 'it is empty - Save makes the tables.' : ($pending > 0 ? "{$pending} update(s) to apply - Save applies them." : 'it is up to date.'))];
+            return [
+                'ok' => true,
+                'message' =>
+                    "Connected to the database \"{$name}\": " .
+                    ($tables === 0 ? 'it is empty - Save makes the tables.' : ($pending > 0 ? "{$pending} update(s) to apply - Save applies them." : 'it is up to date.')),
+            ];
         } catch (Throwable $e) {
             $first = $e->getMessage();
         }
@@ -425,7 +433,7 @@ final class Installer
             $exists = $server->prepare('SELECT 1 FROM pg_database WHERE datname = ?');
             $exists->execute([$name]);
             if ($exists->fetchColumn()) {
-                return ['ok' => false, 'message' => "The server is there, but \"{$database['username']}\" cannot open the database \"{$name}\": ".$this->shortError($first, $password)];
+                return ['ok' => false, 'message' => "The server is there, but \"{$database['username']}\" cannot open the database \"{$name}\": " . $this->shortError($first, $password)];
             }
             $create = (bool) $server->query('SELECT rolcreatedb OR rolsuper FROM pg_roles WHERE rolname = current_user')->fetchColumn();
 
@@ -433,7 +441,7 @@ final class Installer
                 ? ['ok' => true, 'message' => "Connected to the server. The database \"{$name}\" does not exist yet - Save creates it."]
                 : ['ok' => false, 'message' => "Connected to the server, but there is no database \"{$name}\" and this user may not create one. Make it in the hosting panel first."];
         } catch (Throwable) {
-            return ['ok' => false, 'message' => 'Cannot connect: '.$this->shortError($first, $password)];
+            return ['ok' => false, 'message' => 'Cannot connect: ' . $this->shortError($first, $password)];
         }
     }
 
@@ -443,7 +451,7 @@ final class Installer
         $message = (string) preg_replace('/^SQLSTATE\[\w+\]\s*(\[\d+\]\s*)?/', '', trim($this->without($message, $password)));
         $message = (string) preg_replace('/\s+/', ' ', $message);
 
-        return mb_strlen($message) > 300 ? mb_substr($message, 0, 299).'…' : $message;
+        return mb_strlen($message) > 300 ? mb_substr($message, 0, 299) . '…' : $message;
     }
 
     /**
@@ -454,15 +462,15 @@ final class Installer
     public function testIam(string $issuer): array
     {
         $issuer = rtrim(trim($issuer), '/');
-        if (! filter_var($issuer, FILTER_VALIDATE_URL) || ! in_array(parse_url($issuer, PHP_URL_SCHEME), ['http', 'https'], true)) {
+        if (!filter_var($issuer, FILTER_VALIDATE_URL) || !in_array(parse_url($issuer, PHP_URL_SCHEME), ['http', 'https'], true)) {
             return ['ok' => false, 'message' => 'The IAM address must be a URL, like https://iam.anotoki.eu.'];
         }
-        if (! IamClient::secureAddress($issuer)) {
+        if (!IamClient::secureAddress($issuer)) {
             return ['ok' => false, 'message' => 'The IAM address must be https (http only on this computer: localhost, 127.0.0.1).'];
         }
 
         try {
-            $answer = ($this->http ?? new CurlHttpClient)->get($issuer.'/.well-known/openid-configuration', ['Accept' => 'application/json'], 5);
+            $answer = ($this->http ?? new CurlHttpClient())->get($issuer . '/.well-known/openid-configuration', ['Accept' => 'application/json'], 5);
         } catch (ConnectionFailed $e) {
             return ['ok' => false, 'message' => "No answer from {$issuer}: {$e->getMessage()}"];
         }
@@ -471,7 +479,7 @@ final class Installer
             return ['ok' => false, 'message' => "{$issuer} answered HTTP {$answer->status} for its OpenID configuration."];
         }
         $document = $answer->json();
-        if (! is_array($document) || ! isset($document['issuer'], $document['jwks_uri'])) {
+        if (!is_array($document) || !isset($document['issuer'], $document['jwks_uri'])) {
             return ['ok' => false, 'message' => "{$issuer} answered, but not with an OpenID configuration."];
         }
         if (rtrim((string) $document['issuer'], '/') !== $issuer) {
@@ -488,24 +496,26 @@ final class Installer
      */
     public function checkExposure(string $siteUrl): void
     {
-        $name = 'setup-probe-'.bin2hex(random_bytes(6)).'.txt';
+        $name = 'setup-probe-' . bin2hex(random_bytes(6)) . '.txt';
         $secret = bin2hex(random_bytes(16));
-        if (@file_put_contents($this->root.'/storage/'.$name, $secret) === false) {
+        if (@file_put_contents($this->root . '/storage/' . $name, $secret) === false) {
             return;
         }
 
         try {
-            $answer = ($this->http ?? new CurlHttpClient)->get(rtrim($siteUrl, '/').'/storage/'.$name, [], 8);
+            $answer = ($this->http ?? new CurlHttpClient())->get(rtrim($siteUrl, '/') . '/storage/' . $name, [], 8);
             $served = $answer->status === 200 && str_contains($answer->body, $secret);
         } catch (Throwable) {
             $served = false;
         } finally {
-            @unlink($this->root.'/storage/'.$name);
+            @unlink($this->root . '/storage/' . $name);
         }
 
         if ($served) {
-            throw new RuntimeException('The web server hands out files from storage/ (it served a test file from there), so config/ would be readable too. '
-                .'Upload the build with its .htaccess files and make sure the host reads them (AllowOverride), then try again.');
+            throw new RuntimeException(
+                'The web server hands out files from storage/ (it served a test file from there), so config/ would be readable too. ' .
+                    'Upload the build with its .htaccess files and make sure the host reads them (AllowOverride), then try again.',
+            );
         }
     }
 
@@ -534,7 +544,7 @@ final class Installer
         try {
             $pdo = Db::pdo($database, (string) $database['database'], false, 5);
         } catch (Throwable $e) {
-            throw new RuntimeException("Cannot connect to the database \"{$database['database']}\": ".$this->without($e->getMessage(), (string) ($database['password'] ?? '')));
+            throw new RuntimeException("Cannot connect to the database \"{$database['database']}\": " . $this->without($e->getMessage(), (string) ($database['password'] ?? '')));
         }
 
         $migrator = Migrations::migrator($pdo);
@@ -544,10 +554,10 @@ final class Installer
             throw new RuntimeException('Another update is being applied to this database right now (the Migrations page or migration.php). Nothing was applied: wait a moment, then save again.');
         }
         if ($result['error'] !== null) {
-            throw new RuntimeException(($result['failed'] !== null ? "Migration {$result['failed']['name']} failed: " : '').$result['error']);
+            throw new RuntimeException(($result['failed'] !== null ? "Migration {$result['failed']['name']} failed: " : '') . $result['error']);
         }
 
-        $log[] = $result['applied'] === [] ? 'The database is up to date.' : 'Applied '.count($result['applied']).' migration(s).';
+        $log[] = $result['applied'] === [] ? 'The database is up to date.' : 'Applied ' . count($result['applied']) . ' migration(s).';
         if ($wasLaravel) {
             $log[] = 'The database of the first (Laravel) version was brought forward, with all its data, and checked.';
         }

@@ -33,12 +33,9 @@ final class Translations
     public static function command(App $app, ?string $frontend = null, $out = null, $err = null): TranslationsCommand
     {
         return new TranslationsCommand(
-            fn (): SiteWords => $app->get(SiteWords::class),
+            fn(): SiteWords => $app->get(SiteWords::class),
             SiteTranslations::keyScanner($frontend),
-            pending: fn (): array => array_map(
-                static fn (array $file): string => ($file['set'] === Migrations::SET ? '' : $file['set'].'/').$file['name'],
-                $app->get(Migrator::class)->applicable()
-            ),
+            pending: fn(): array => array_map(static fn(array $file): string => ($file['set'] === Migrations::SET ? '' : $file['set'] . '/') . $file['name'], $app->get(Migrator::class)->applicable()),
             title: "build analyzer ({$app->config->get('database.database')}): the site's own strings",
             out: $out,
             err: $err,
@@ -55,7 +52,7 @@ final class Translations
      */
     public static function run(App $app, array $argv, ?string $frontend = null, $out = null, $err = null): int
     {
-        $flags = array_filter(array_slice($argv, 1), static fn (string $argument): bool => str_starts_with($argument, '-'));
+        $flags = array_filter(array_slice($argv, 1), static fn(string $argument): bool => str_starts_with($argument, '-'));
         if (count($flags) > 1) {
             fwrite($err ?? STDERR, "One command at a time: php translations.php --status | --export=CODE [FILE] | --import=CODE FILE\n");
 

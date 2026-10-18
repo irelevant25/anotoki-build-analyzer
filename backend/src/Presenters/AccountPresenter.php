@@ -59,7 +59,7 @@ final class AccountPresenter
 
         if ($summary !== null) {
             unset($summary['tool']);
-            $summary['warnings'] = array_map(fn ($warning) => Neutral::text((string) $warning), $summary['warnings'] ?? []);
+            $summary['warnings'] = array_map(fn($warning) => Neutral::text((string) $warning), $summary['warnings'] ?? []);
             // The names the file wrote that matched nothing: as the file wrote them, so a site's name too.
             if (is_array($summary['unmatched'] ?? null)) {
                 $summary['unmatched'] = Neutral::deep($summary['unmatched']);
@@ -95,8 +95,8 @@ final class AccountPresenter
      */
     public static function params(mixed $params): array|\stdClass
     {
-        if (! is_array($params) || $params === []) {
-            return new \stdClass;
+        if (!is_array($params) || $params === []) {
+            return new \stdClass();
         }
 
         return Neutral::deep($params);
@@ -109,13 +109,13 @@ final class AccountPresenter
      */
     private static function warningKinds(mixed $stored): ?array
     {
-        if (! is_array($stored)) {
+        if (!is_array($stored)) {
             return null;
         }
 
         $kinds = [];
         foreach ($stored as $kind) {
-            if (! is_array($kind) || ! is_string($kind['code'] ?? null)) {
+            if (!is_array($kind) || !is_string($kind['code'] ?? null)) {
                 return null;
             }
             $kinds[] = ['code' => $kind['code'], 'params' => self::params($kind['params'] ?? null)];

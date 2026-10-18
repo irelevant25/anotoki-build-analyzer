@@ -2,13 +2,7 @@ import { provideHttpClient } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
 import { computed, signal } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
-import {
-  ANOTOKI_TRANSLATIONS_CONFIG,
-  ANOTOKI_TRANSLATION_BUNDLE,
-  AnotokiTranslationsConfig,
-  TranslationBundle,
-  TranslationService as LibraryTranslationService,
-} from '@anotoki/lib/translations';
+import { ANOTOKI_TRANSLATIONS_CONFIG, ANOTOKI_TRANSLATION_BUNDLE, AnotokiTranslationsConfig, TranslationBundle, TranslationService as LibraryTranslationService } from '@anotoki/lib/translations';
 import { TEST_LANGUAGES } from '@anotoki/lib/translations/testing';
 import { AuthService } from '../auth';
 import { AnotokiPreferenceChanges, AnotokiUser } from '@anotoki/lib/auth';
@@ -83,12 +77,7 @@ describe("the site's words: the anotoki library's translations, set up for this 
   function start(): void {
     auth = fakeAuth();
     TestBed.configureTestingModule({
-      providers: [
-        provideTranslations(),
-        provideHttpClient(),
-        provideHttpClientTesting(),
-        { provide: AuthService, useValue: auth },
-      ],
+      providers: [provideTranslations(), provideHttpClient(), provideHttpClientTesting(), { provide: AuthService, useValue: auth }],
     });
     requests = TestBed.inject(HttpTestingController);
   }
@@ -130,9 +119,7 @@ describe("the site's words: the anotoki library's translations, set up for this 
     expect(config().fallbackEnglish).toBe(en);
     expect(i18n().ready()).toBe(false);
     expect(i18n().t('title.builds')).toBe(en['title.builds']);
-    expect(i18n().t('anotoki.language.button', { name: 'English', code: 'EN' })).toBe(
-      'Language: English (EN)',
-    );
+    expect(i18n().t('anotoki.language.button', { name: 'English', code: 'EN' })).toBe('Language: English (EN)');
   });
 
   it('asks for nothing while /api/meta has not answered, and starts from the cached bundle in the language it is in', async () => {
@@ -159,29 +146,17 @@ describe("the site's words: the anotoki library's translations, set up for this 
     await started;
 
     expect(i18n().t('whatsNew.title')).toBe('News');
-    expect(JSON.parse(localStorage.getItem('build-analyzer-language-cache') ?? 'null')).toEqual(
-      EN_BUNDLE,
-    );
+    expect(JSON.parse(localStorage.getItem('build-analyzer-language-cache') ?? 'null')).toEqual(EN_BUNDLE);
   });
 
   it("follows the account: its language (the token's locale), its say while the IAM keeps the person's choices, a choice saved to it", async () => {
     start();
-    const save = vi
-      .spyOn(auth, 'savePreferences')
-      .mockResolvedValue({ locale: 'en', preferences: MONA.preferences });
+    const save = vi.spyOn(auth, 'savePreferences').mockResolvedValue({ locale: 'en', preferences: MONA.preferences });
     const account = config().account!;
-    expect([account.language(), account.decides?.(), account.userKey?.()]).toEqual([
-      null,
-      false,
-      null,
-    ]);
+    expect([account.language(), account.decides?.(), account.userKey?.()]).toEqual([null, false, null]);
 
     auth.user.set(MONA);
-    expect([account.language(), account.decides?.(), account.userKey?.()]).toEqual([
-      'sk',
-      true,
-      '7',
-    ]);
+    expect([account.language(), account.decides?.(), account.userKey?.()]).toEqual(['sk', true, '7']);
     auth.user.set({ ...MONA, preferences: null });
     expect(account.decides?.()).toBe(false);
     auth.user.set(MONA);

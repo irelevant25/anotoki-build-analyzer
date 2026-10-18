@@ -63,8 +63,7 @@ function dialogsThatOpen(): void {
 }
 
 /** An element's words, its white space folded. */
-const words = (element: Element | null | undefined) =>
-  element?.textContent?.replace(/\s+/g, ' ').trim() ?? null;
+const words = (element: Element | null | undefined) => element?.textContent?.replace(/\s+/g, ' ').trim() ?? null;
 
 describe("/admin/translations: the family's Translations page in the admin panel (EDITOR and ADMIN)", () => {
   const roles = signal<string[]>(['EDITOR']);
@@ -88,14 +87,7 @@ describe("/admin/translations: the family's Translations page in the admin panel
 
   async function draw(): Promise<void> {
     TestBed.configureTestingModule({
-      providers: [
-        provideHttpClient(),
-        provideHttpClientTesting(),
-        provideRouter([]),
-        provideTestTranslations(en),
-        provideTranslations(),
-        { provide: AuthService, useValue: auth },
-      ],
+      providers: [provideHttpClient(), provideHttpClientTesting(), provideRouter([]), provideTestTranslations(en), provideTranslations(), { provide: AuthService, useValue: auth }],
     });
     http = TestBed.inject(HttpTestingController);
     fixture = TestBed.createComponent(TranslationsPage);
@@ -123,9 +115,7 @@ describe("/admin/translations: the family's Translations page in the admin panel
 
     expect(host.querySelector('.page > anotoki-translations-page')).not.toBeNull();
     expect(words(host.querySelector('h1'))).toBe('Translations');
-    expect(words(host.querySelector('anotoki-page-header'))).toContain(
-      "Game terms and values are the games' own and are not here.",
-    );
+    expect(words(host.querySelector('anotoki-page-header'))).toContain("Game terms and values are the games' own and are not here.");
     expect(host.querySelector('textarea[aria-label="Slovak: topbar.import"]')).not.toBeNull();
   });
 
@@ -141,9 +131,7 @@ describe("/admin/translations: the family's Translations page in the admin panel
     await settle();
     expect(fixture.componentInstance.canLeave()).toBe(true);
 
-    const box = host.querySelector<HTMLTextAreaElement>(
-      'textarea[aria-label="Slovak: topbar.import"]',
-    )!;
+    const box = host.querySelector<HTMLTextAreaElement>('textarea[aria-label="Slovak: topbar.import"]')!;
     box.value = 'Import';
     box.dispatchEvent(new Event('input', { bubbles: true }));
     await settle();

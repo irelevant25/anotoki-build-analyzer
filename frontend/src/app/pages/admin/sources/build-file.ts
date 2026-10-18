@@ -60,9 +60,7 @@ export function checkBuildFile(text: string, source: Source): BuildFileCheck | B
   const game = data['game'];
   if (game !== source.game) {
     return problem(
-      isGame(game)
-        ? `This file holds ${GAME_LABELS[game]} builds, and ${source.name} is a ${GAME_LABELS[source.game]} source.`
-        : 'This builds file names no game this installation knows.',
+      isGame(game) ? `This file holds ${GAME_LABELS[game]} builds, and ${source.name} is a ${GAME_LABELS[source.game]} source.` : 'This builds file names no game this installation knows.',
     );
   }
 
@@ -96,9 +94,7 @@ export function importQuestion(source: Source, file: BuildFileCheck, dates: Date
   const name = `${source.name} (${GAME_LABELS[source.game]})`;
   const builds = `the file's ${count(file.builds, 'build')} of ${count(file.characters, 'character')}`;
   const exported = file.exportedAt ? `, exported ${formatTime(file.exportedAt, dates)}` : '';
-  return source.builds > 0
-    ? `Replace the ${count(source.builds, 'build')} of ${name} with ${builds}${exported}?`
-    : `Import into ${name} ${builds}${exported}?`;
+  return source.builds > 0 ? `Replace the ${count(source.builds, 'build')} of ${name} with ${builds}${exported}?` : `Import into ${name} ${builds}${exported}?`;
 }
 
 /** What an import did: the counts, and the characters this installation's catalog lacks. */
@@ -109,10 +105,7 @@ export function importSummary(source: Pick<SourceStatus, 'name'>, result: BuildI
   }
   const names = result.skipped.slice(0, 5).map((character) => character.name);
   const more = result.skipped.length - names.length;
-  return (
-    `${message} Skipped ${count(result.skipped.length, 'character')} the catalog lacks ` +
-    `(${names.join(', ')}${more > 0 ? ` and ${more} more` : ''}): refresh the catalog, then import again.`
-  );
+  return `${message} Skipped ${count(result.skipped.length, 'character')} the catalog lacks ` + `(${names.join(', ')}${more > 0 ? ` and ${more} more` : ''}): refresh the catalog, then import again.`;
 }
 
 function problem(message: string): BuildFileProblem {
@@ -144,10 +137,7 @@ const OWN_PARTS: OwnDateParts = {
  */
 function formatTime(value: string, dates: DateChoices | null): string {
   const date = parseTime(value);
-  return (
-    chosenMoment(date, dates, 'en-GB', OWN_PARTS) ??
-    date.toLocaleString('en-GB', { day: 'numeric', month: 'long', year: 'numeric', hour: '2-digit', minute: '2-digit' })
-  );
+  return chosenMoment(date, dates, 'en-GB', OWN_PARTS) ?? date.toLocaleString('en-GB', { day: 'numeric', month: 'long', year: 'numeric', hour: '2-digit', minute: '2-digit' });
 }
 
 function count(value: number, noun: string): string {

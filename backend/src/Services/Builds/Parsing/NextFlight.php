@@ -31,7 +31,7 @@ final class NextFlight
      */
     public static function findProps(string $html, string $key): ?array
     {
-        foreach (self::rowsContaining(self::payload($html), '"'.$key.'"') as $row) {
+        foreach (self::rowsContaining(self::payload($html), '"' . $key . '"') as $row) {
             $found = self::search($row, $key);
             if ($found !== null) {
                 return $found;
@@ -64,7 +64,7 @@ final class NextFlight
             if (($payload[$position] ?? '') === 'T' && preg_match('/\GT([0-9a-f]+),/A', $payload, $m, 0, $position)) {
                 $size = (int) hexdec($m[1]);
                 $start = $position + strlen($m[0]);
-                $rows[$id] = 'T:'.substr($payload, $start, $size);
+                $rows[$id] = 'T:' . substr($payload, $start, $size);
                 $position = $start + $size;
 
                 continue;
@@ -86,7 +86,7 @@ final class NextFlight
     {
         foreach (self::rows($payload) as $row) {
             // Skip text rows and module/hint rows ("I[...]", "HL[...]"); only JSON rows carry props.
-            if (str_starts_with($row, 'T:') || ! str_contains($row, $needle)) {
+            if (str_starts_with($row, 'T:') || !str_contains($row, $needle)) {
                 continue;
             }
             $json = json_decode($row, true);
@@ -101,10 +101,10 @@ final class NextFlight
      */
     private static function search(mixed $node, string $key, int $depth = 0): ?array
     {
-        if (! is_array($node) || $depth > 40) {
+        if (!is_array($node) || $depth > 40) {
             return null;
         }
-        if (! array_is_list($node) && array_key_exists($key, $node)) {
+        if (!array_is_list($node) && array_key_exists($key, $node)) {
             return $node;
         }
         foreach ($node as $child) {

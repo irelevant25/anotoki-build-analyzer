@@ -1,26 +1,8 @@
 import { provideHttpClient } from '@angular/common/http';
 import { TestBed } from '@angular/core/testing';
-import {
-  ActivatedRouteSnapshot,
-  Router,
-  RouterStateSnapshot,
-  UrlTree,
-  provideRouter,
-} from '@angular/router';
-import {
-  ANOTOKI_AUTH_CLIENT_FACTORY,
-  AnotokiAuth,
-  AnotokiAuthEnvironment,
-  AnotokiAuthOptions,
-  adminGuard,
-} from '@anotoki/lib/auth';
-import {
-  FakeAuthClient,
-  TestAnotokiAuth,
-  TestUser,
-  provideTestAnotokiAuth,
-  testAnotokiAuth,
-} from '@anotoki/lib/auth/testing';
+import { ActivatedRouteSnapshot, Router, RouterStateSnapshot, UrlTree, provideRouter } from '@angular/router';
+import { ANOTOKI_AUTH_CLIENT_FACTORY, AnotokiAuth, AnotokiAuthEnvironment, AnotokiAuthOptions, adminGuard } from '@anotoki/lib/auth';
+import { FakeAuthClient, TestAnotokiAuth, TestUser, provideTestAnotokiAuth, testAnotokiAuth } from '@anotoki/lib/auth/testing';
 import { CALLBACK_PATH, SIGN_IN_FAILED_PATH, sitePagesGuard } from './auth.guards';
 
 interface Who {
@@ -77,15 +59,8 @@ async function setup(who: Who = {}): Promise<{ handle: TestAnotokiAuth; auth: An
 
 /** What the guard answers for a page of the AppLayout: true, or where it sends the browser instead. */
 async function page(path: string, url: string): Promise<boolean | string> {
-  const result = await TestBed.runInInjectionContext(() =>
-    sitePagesGuard(
-      { routeConfig: { path } } as ActivatedRouteSnapshot,
-      { url } as RouterStateSnapshot,
-    ),
-  );
-  return result instanceof UrlTree
-    ? TestBed.inject(Router).serializeUrl(result)
-    : (result as boolean);
+  const result = await TestBed.runInInjectionContext(() => sitePagesGuard({ routeConfig: { path } } as ActivatedRouteSnapshot, { url } as RouterStateSnapshot));
+  return result instanceof UrlTree ? TestBed.inject(Router).serializeUrl(result) : (result as boolean);
 }
 
 describe("everybody's pages: sitePagesGuard (the family's personOrVisitorGuard, and a failed sign-in said once)", () => {
@@ -125,12 +100,8 @@ describe("everybody's pages: sitePagesGuard (the family's personOrVisitorGuard, 
 
 describe("the admin panel's ADMIN pages: the family's adminGuard, as this site sets it up", () => {
   async function admin(url = '/admin/people'): Promise<boolean | string> {
-    const result = await TestBed.runInInjectionContext(() =>
-      adminGuard({} as ActivatedRouteSnapshot, { url } as RouterStateSnapshot),
-    );
-    return result instanceof UrlTree
-      ? TestBed.inject(Router).serializeUrl(result)
-      : (result as boolean);
+    const result = await TestBed.runInInjectionContext(() => adminGuard({} as ActivatedRouteSnapshot, { url } as RouterStateSnapshot));
+    return result instanceof UrlTree ? TestBed.inject(Router).serializeUrl(result) : (result as boolean);
   }
 
   it('lets the ADMIN in, sends an editor (and anybody else signed in) to the Sources page', async () => {

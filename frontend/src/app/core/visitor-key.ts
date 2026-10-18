@@ -69,9 +69,7 @@ export class VisitorKey implements VisitorKeyStore {
   /** The key this browser holds, or null. */
   readonly key = this._key.asReadonly();
   /** A visitor: nobody is signed in, the site does not require a sign-in, and this browser holds a key. */
-  readonly active = computed(
-    () => !this.auth.signedIn() && !this.auth.loginRequired() && this._key() !== null,
-  );
+  readonly active = computed(() => !this.auth.signedIn() && !this.auth.loginRequired() && this._key() !== null);
   /** The key was forgotten because the server no longer knew it: the dashboard says so, once. */
   readonly lost = signal(false);
   /** The last move that moved or kept anything - for the toast (worded where it is shown). */
@@ -190,10 +188,7 @@ export class VisitorKey implements VisitorKeyStore {
       return;
     }
     const seconds = Number(error.headers?.get('Retry-After'));
-    const delay =
-      Number.isFinite(seconds) && seconds > 0
-        ? Math.min(seconds, 60) * 1000
-        : MOVE_RETRY_MS[this.retries];
+    const delay = Number.isFinite(seconds) && seconds > 0 ? Math.min(seconds, 60) * 1000 : MOVE_RETRY_MS[this.retries];
     this.retries++;
     this.retryTimer = setTimeout(() => {
       this.retryTimer = null;
@@ -202,8 +197,7 @@ export class VisitorKey implements VisitorKeyStore {
   }
 
   private read(): string | null {
-    const value =
-      this.inMemory || !storageUsable() ? this.memory : readStorage(VISITOR_STORAGE_KEY);
+    const value = this.inMemory || !storageUsable() ? this.memory : readStorage(VISITOR_STORAGE_KEY);
     return value !== null && KEY_SHAPE.test(value) ? value : null;
   }
 

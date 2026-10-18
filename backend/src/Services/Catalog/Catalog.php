@@ -61,7 +61,7 @@ class Catalog
     {
         $this->load($game, $type);
 
-        return $this->byExternalId[$game->value.':'.$type][(string) $id] ?? null;
+        return $this->byExternalId[$game->value . ':' . $type][(string) $id] ?? null;
     }
 
     /**
@@ -70,7 +70,7 @@ class Catalog
     public function find(Game $game, string $type, string $name): ?CatalogEntry
     {
         $this->load($game, $type);
-        $bucket = $game->value.':'.$type;
+        $bucket = $game->value . ':' . $type;
         $key = $this->normalize($game, $type, $name);
 
         if ($key === '') {
@@ -136,10 +136,10 @@ class Catalog
             return $found;
         }
 
-        $bucket = $game->value.':'.$type;
+        $bucket = $game->value . ':' . $type;
         $this->unmatched[$bucket][] = $name;
 
-        if (! $create) {
+        if (!$create) {
             return null;
         }
 
@@ -151,7 +151,7 @@ class Catalog
 
     private function load(Game $game, string $type): void
     {
-        $bucket = $game->value.':'.$type;
+        $bucket = $game->value . ':' . $type;
         if (isset($this->byKey[$bucket])) {
             return;
         }
@@ -179,14 +179,10 @@ class Catalog
 
         // Only ever match a *longer* catalog name: the reverse ("himekonova" -> "himeko") would silently
         // map a brand-new character onto an older one.
-        $strategies = [
-            fn (string $candidate) => str_starts_with($candidate, $key),
-            fn (string $candidate) => str_ends_with($candidate, $key),
-            fn (string $candidate) => str_contains($candidate, $key),
-        ];
+        $strategies = [fn(string $candidate) => str_starts_with($candidate, $key), fn(string $candidate) => str_ends_with($candidate, $key), fn(string $candidate) => str_contains($candidate, $key)];
 
         foreach ($strategies as $matches) {
-            $hits = array_filter(array_keys($this->byKey[$bucket] ?? []), fn ($candidate) => $matches((string) $candidate));
+            $hits = array_filter(array_keys($this->byKey[$bucket] ?? []), fn($candidate) => $matches((string) $candidate));
             if (count($hits) === 1) {
                 return $this->byKey[$bucket][reset($hits)];
             }
@@ -199,22 +195,19 @@ class Catalog
     {
         if ($game === Game::Genshin) {
             $elements = 'anemo|geo|electro|dendro|hydro|pyro|cryo';
-            if (preg_match("/^(?:traveler|traveller|aether|lumine)({$elements})$/", $key, $m)
-                || preg_match("/^({$elements})(?:traveler|traveller|aether|lumine)$/", $key, $m)) {
-                return 'traveler'.$m[1];
+            if (preg_match("/^(?:traveler|traveller|aether|lumine)({$elements})$/", $key, $m) || preg_match("/^({$elements})(?:traveler|traveller|aether|lumine)$/", $key, $m)) {
+                return 'traveler' . $m[1];
             }
 
             return $key;
         }
 
         $paths = 'destruction|preservation|harmony|remembrance|elation|nihility|erudition|abundance|hunt';
-        if (preg_match("/^(?:trailblazer|caelus|stelle|mc)(?:the)?({$paths})$/", $key, $m)
-            || preg_match("/^(?:the)?({$paths})(?:trailblazer|caelus|stelle|mc)$/", $key, $m)) {
-            return 'trailblazer'.$m[1];
+        if (preg_match("/^(?:trailblazer|caelus|stelle|mc)(?:the)?({$paths})$/", $key, $m) || preg_match("/^(?:the)?({$paths})(?:trailblazer|caelus|stelle|mc)$/", $key, $m)) {
+            return 'trailblazer' . $m[1];
         }
 
-        if (preg_match('/^march7th(?:thehunt|hunt|hunter|imaginary|swordmaster|shifu|sword)$/', $key)
-            || preg_match('/^(?:thehunt|hunt|imaginary|swordmaster)march7th$/', $key)) {
+        if (preg_match('/^march7th(?:thehunt|hunt|hunter|imaginary|swordmaster|shifu|sword)$/', $key) || preg_match('/^(?:thehunt|hunt|imaginary|swordmaster)march7th$/', $key)) {
             return 'march7thhunt';
         }
 

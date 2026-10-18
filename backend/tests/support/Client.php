@@ -66,11 +66,11 @@ final class Client
      */
     public function request(string $method, string $url, ?array $json = null, array $options = []): Answer
     {
-        $url = str_starts_with($url, 'http') ? $url : 'http://localhost'.$url;
-        $uri = (new UriFactory)->createUri($url);
-        $host = $uri->getHost().($uri->getPort() ? ':'.$uri->getPort() : '');
-        $request = (new ServerRequestFactory)->createServerRequest($method, $uri, ['REMOTE_ADDR' => $this->ip])->withHeader('Host', $host);
-        $streams = new StreamFactory;
+        $url = str_starts_with($url, 'http') ? $url : 'http://localhost' . $url;
+        $uri = (new UriFactory())->createUri($url);
+        $host = $uri->getHost() . ($uri->getPort() ? ':' . $uri->getPort() : '');
+        $request = (new ServerRequestFactory())->createServerRequest($method, $uri, ['REMOTE_ADDR' => $this->ip])->withHeader('Host', $host);
+        $streams = new StreamFactory();
 
         if ($json !== null) {
             $request = $request->withHeader('Content-Type', 'application/json')->withBody($streams->createStream((string) json_encode($json)));
@@ -90,7 +90,7 @@ final class Client
             $request = $request->withHeader($name, $value);
         }
         if ($this->token !== null) {
-            $request = $request->withHeader('Authorization', 'Bearer '.$this->token);
+            $request = $request->withHeader('Authorization', 'Bearer ' . $this->token);
         }
 
         return new Answer(T::$api->handle($request));
@@ -144,7 +144,7 @@ final class Answer
             return $data;
         }
         foreach (explode('.', $path) as $segment) {
-            if (! is_array($data) || ! array_key_exists($segment, $data)) {
+            if (!is_array($data) || !array_key_exists($segment, $data)) {
                 return null;
             }
             $data = $data[$segment];
@@ -160,7 +160,7 @@ final class Answer
 
     public function status(int $expected): self
     {
-        same($expected, $this->status, 'HTTP status (body: '.substr($this->body, 0, 300).')');
+        same($expected, $this->status, 'HTTP status (body: ' . substr($this->body, 0, 300) . ')');
 
         return $this;
     }

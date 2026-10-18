@@ -44,7 +44,9 @@ function pipes(language: 'en' | 'sk', account?: Partial<AnotokiPreferences>) {
       TranslatePipe,
       TranslatePluralPipe,
       LocalDatePipe,
-      account ? { provide: AuthService, useValue: { user: signal({ sub: '7', preferences }), preferences: signal(preferences) } } : { provide: AuthService, useValue: { user: () => null, signedIn: () => false, preferences: () => null } },
+      account
+        ? { provide: AuthService, useValue: { user: signal({ sub: '7', preferences }), preferences: signal(preferences) } }
+        : { provide: AuthService, useValue: { user: () => null, signedIn: () => false, preferences: () => null } },
     ],
   });
   return {

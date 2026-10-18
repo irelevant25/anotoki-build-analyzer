@@ -22,19 +22,23 @@ return function (Slim\App $slim, App $app): void {
     $slim->get('/api/icons/{type:[cws]}/{id:[0-9]+}', function (Request $request, Response $response, array $args) use ($app): Response {
         $entry = $app->get(CatalogRows::class)->find(Icons::TYPES[$args['type']], (int) $args['id']);
         $source = $entry?->icon_url;
-        if (! is_string($source) || ! preg_match('#^https?://#i', $source)) {
+        if (!is_string($source) || !preg_match('#^https?://#i', $source)) {
             throw HttpError::notFound();
         }
 
-        $file = $app->config->storage('icons/'.sha1($source).'.img');
-        if (! is_file($file)) {
+        $file = $app->config->storage('icons/' . sha1($source) . '.img');
+        if (!is_file($file)) {
             try {
-                $answer = $app->get(HttpClient::class)->get($source, [
-                    'User-Agent' => (string) $app->config->get('fetch.user_agent'),
-                    'Accept' => 'image/*',
-                ], 10);
+                $answer = $app->get(HttpClient::class)->get(
+                    $source,
+                    [
+                        'User-Agent' => (string) $app->config->get('fetch.user_agent'),
+                        'Accept' => 'image/*',
+                    ],
+                    10,
+                );
             } catch (ConnectionFailed $e) {
-                Log::info("Icon {$args['type']}/{$args['id']}: ".$e->getMessage());
+                Log::info("Icon {$args['type']}/{$args['id']}: " . $e->getMessage());
 
                 throw HttpError::notFound();
             }
@@ -42,7 +46,7 @@ return function (Slim\App $slim, App $app): void {
             if ($answer->status !== 200 || Icons::type($answer->body) === null || strlen($answer->body) > 2_000_000) {
                 throw HttpError::notFound();
             }
-            if (! is_dir(dirname($file))) {
+            if (!is_dir(dirname($file))) {
                 @mkdir(dirname($file), 0775, true);
             }
             @file_put_contents($file, $answer->body, LOCK_EX);
@@ -59,4 +63,3 @@ return function (Slim\App $slim, App $app): void {
             ->withHeader('Content-Security-Policy', "default-src 'none'");
     });
 };
-

@@ -62,22 +62,25 @@ final class Users
      */
     public function withCounts(): array
     {
-        return array_map(fn (array $row) => [
-            'id' => (int) $row['id'],
-            'name' => (string) $row['name'],
-            'accounts' => (int) $row['accounts'],
-            'import_runs' => (int) $row['import_runs'],
-            'created_at' => $row['created_at'],
-            'last_import_at' => $row['last_import_at'],
-        ], $this->db->all(
-            'SELECT u.id, u.name, u.created_at,
+        return array_map(
+            fn(array $row) => [
+                'id' => (int) $row['id'],
+                'name' => (string) $row['name'],
+                'accounts' => (int) $row['accounts'],
+                'import_runs' => (int) $row['import_runs'],
+                'created_at' => $row['created_at'],
+                'last_import_at' => $row['last_import_at'],
+            ],
+            $this->db->all(
+                'SELECT u.id, u.name, u.created_at,
                     (SELECT count(*) FROM accounts a WHERE a.user_id = u.id) AS accounts,
                     (SELECT count(*) FROM import_runs r WHERE r.user_id = u.id) AS import_runs,
                     (SELECT max(r.created_at) FROM import_runs r WHERE r.user_id = u.id) AS last_import_at
                FROM users u
               WHERE u.id > 0
-              ORDER BY lower(u.name), u.id'
-        ));
+              ORDER BY lower(u.name), u.id',
+            ),
+        );
     }
 
     /**
@@ -114,7 +117,7 @@ final class Users
             'SELECT (SELECT count(*) FROM accounts a WHERE a.user_id = u.id) AS accounts,
                     (SELECT count(*) FROM import_runs r WHERE r.user_id = u.id) AS import_runs
                FROM users u WHERE u.id = ? FOR UPDATE',
-            [$id]
+            [$id],
         );
         if ($row === null) {
             return null;
@@ -134,7 +137,7 @@ final class Users
     {
         return (bool) $this->db->value(
             "SELECT EXISTS (SELECT 1 FROM information_schema.columns
-                             WHERE table_schema = current_schema() AND table_name = 'users' AND column_name = 'visitor_key_hash')"
+                             WHERE table_schema = current_schema() AND table_name = 'users' AND column_name = 'visitor_key_hash')",
         );
     }
 
@@ -188,7 +191,7 @@ final class Users
     public function sweepVisitors(\DateTimeImmutable $before, int $limit, int $timeoutMs): int
     {
         return $this->db->transaction(function () use ($before, $limit, $timeoutMs): int {
-            $this->db->value("SELECT set_config('statement_timeout', ?, true)", [max(1, $timeoutMs).'ms']);
+            $this->db->value("SELECT set_config('statement_timeout', ?, true)", [max(1, $timeoutMs) . 'ms']);
 
             return $this->db->run(
                 'DELETE FROM users WHERE id IN (
@@ -215,7 +218,7 @@ final class Users
     public function moveVisitor(string $hash, int $personId, int $lockTimeoutMs, bool $onlyIntoNothing = false): array|null|false
     {
         return $this->db->transaction(function () use ($hash, $personId, $lockTimeoutMs, $onlyIntoNothing): array|null|false {
-            $this->db->value("SELECT set_config('lock_timeout', ?, true)", [max(1, $lockTimeoutMs).'ms']);
+            $this->db->value("SELECT set_config('lock_timeout', ?, true)", [max(1, $lockTimeoutMs) . 'ms']);
 
             $visitor = $this->db->value('SELECT id FROM users WHERE visitor_key_hash = ? AND id < 0 FOR UPDATE', [$hash]);
             if ($visitor === null) {
@@ -225,10 +228,10 @@ final class Users
             if ($this->db->value('SELECT id FROM users WHERE id = ? AND id > 0 FOR UPDATE', [$personId]) === null) {
                 return false;
             }
-            if ($onlyIntoNothing && (bool) $this->db->value(
-                'SELECT EXISTS (SELECT 1 FROM accounts WHERE user_id = ?) OR EXISTS (SELECT 1 FROM import_runs WHERE user_id = ?)',
-                [$personId, $personId],
-            )) {
+            if (
+                $onlyIntoNothing &&
+                (bool) $this->db->value('SELECT EXISTS (SELECT 1 FROM accounts WHERE user_id = ?) OR EXISTS (SELECT 1 FROM import_runs WHERE user_id = ?)', [$personId, $personId])
+            ) {
                 return ['held' => true];
             }
 

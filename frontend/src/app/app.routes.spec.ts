@@ -38,20 +38,14 @@ function standIns(list: Routes): Routes {
       matcher: route.matcher,
       data: { route },
     };
-    return route.children
-      ? { ...standIn, component: FrameStandIn, children: standIns(route.children) }
-      : { ...standIn, component: PageStandIn };
+    return route.children ? { ...standIn, component: FrameStandIn, children: standIns(route.children) } : { ...standIn, component: PageStandIn };
   });
 }
 
 /** The app's routes the router took for the address it is at, from the top. */
 function taken(): Route[] {
   const chain: Route[] = [];
-  for (
-    let node = TestBed.inject(Router).routerState.snapshot.root.firstChild;
-    node;
-    node = node.firstChild
-  ) {
+  for (let node = TestBed.inject(Router).routerState.snapshot.root.firstChild; node; node = node.firstChild) {
     chain.push(node.data['route'] as Route);
   }
   return chain;
@@ -72,33 +66,17 @@ describe('the routes: what the router makes of an address', () => {
   it("\"/\" is the dashboard, in everybody's pages' frame under its guard - the family's personOrVisitorGuard, which sends anybody else to the IAM first while sign-in is required", async () => {
     await RouterTestingHarness.create('/');
     const [frame, page, ...more] = taken();
-    expect([frame.path, frame.component, frame.canActivateChild]).toEqual([
-      '',
-      AppLayout,
-      [sitePagesGuard],
-    ]);
+    expect([frame.path, frame.component, frame.canActivateChild]).toEqual(['', AppLayout, [sitePagesGuard]]);
     expect([page.path, page.pathMatch, more]).toEqual(['', 'full', []]);
     expect(((await page.loadComponent!()) as { name: string }).name).toContain('DashboardPage');
   });
 
   it("an unknown address goes to the dashboard - and so does one that only begins like a legal page's", async () => {
     const harness = await RouterTestingHarness.create();
-    for (const address of [
-      '/no-such-page',
-      '/terms-of-use',
-      '/privacy2',
-      '/contact/me',
-      '/terms/x',
-    ]) {
+    for (const address of ['/no-such-page', '/terms-of-use', '/privacy2', '/contact/me', '/terms/x']) {
       await harness.navigateByUrl(address);
       const [frame, page] = taken();
-      expect([
-        address,
-        TestBed.inject(Router).url,
-        frame.component,
-        frame.canActivateChild,
-        page.pathMatch,
-      ]).toEqual([address, '/', AppLayout, [sitePagesGuard], 'full']);
+      expect([address, TestBed.inject(Router).url, frame.component, frame.canActivateChild, page.pathMatch]).toEqual([address, '/', AppLayout, [sitePagesGuard], 'full']);
     }
   });
 
@@ -111,14 +89,7 @@ describe('the routes: what the router makes of an address', () => {
     ]) {
       await harness.navigateByUrl(address);
       const [frame, child, ...more] = taken();
-      expect([
-        frame.path,
-        frame.component,
-        frame.canActivate,
-        frame.canActivateChild,
-        frame.canMatch,
-        more,
-      ]).toEqual([address.slice(1), undefined, undefined, undefined, undefined, []]);
+      expect([frame.path, frame.component, frame.canActivate, frame.canActivateChild, frame.canMatch, more]).toEqual([address.slice(1), undefined, undefined, undefined, undefined, []]);
       expect([child.path, child.title, child.canActivate]).toEqual(['', title, undefined]);
       expect(((await frame.loadComponent!()) as { name: string }).name).toContain('LegalLayout');
       expect(((await child.loadComponent!()) as { name: string }).name).toContain(page);

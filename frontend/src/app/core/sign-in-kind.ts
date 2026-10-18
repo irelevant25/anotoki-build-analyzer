@@ -1,11 +1,5 @@
 import { Injectable, inject } from '@angular/core';
-import {
-  AnotokiAuthClient,
-  AnotokiAuthEnvironment,
-  AnotokiAuthOptions,
-  AnotokiInitResult,
-  createAuthClient,
-} from '@anotoki/lib/auth';
+import { AnotokiAuthClient, AnotokiAuthEnvironment, AnotokiAuthOptions, AnotokiInitResult, createAuthClient } from '@anotoki/lib/auth';
 import { readStorage, writeStorage } from './storage';
 
 /** Where this browser keeps how its present sign-in began (localStorage: every tab of the site shares it). */
@@ -50,10 +44,7 @@ export class SignInKind {
  */
 export function clientNotingSignInKind(
   kind: SignInKind,
-  make: (
-    options: AnotokiAuthOptions,
-    environment: AnotokiAuthEnvironment,
-  ) => AnotokiAuthClient = createAuthClient,
+  make: (options: AnotokiAuthOptions, environment: AnotokiAuthEnvironment) => AnotokiAuthClient = createAuthClient,
 ): (options: AnotokiAuthOptions, environment: AnotokiAuthEnvironment) => AnotokiAuthClient {
   return (options, environment) => {
     const client = make(options, environment);
@@ -68,9 +59,6 @@ export function clientNotingSignInKind(
 }
 
 /** For app.config.ts: the factory, with the root's SignInKind. */
-export function signInKindClientFactory(): (
-  options: AnotokiAuthOptions,
-  environment: AnotokiAuthEnvironment,
-) => AnotokiAuthClient {
+export function signInKindClientFactory(): (options: AnotokiAuthOptions, environment: AnotokiAuthEnvironment) => AnotokiAuthClient {
   return clientNotingSignInKind(inject(SignInKind));
 }

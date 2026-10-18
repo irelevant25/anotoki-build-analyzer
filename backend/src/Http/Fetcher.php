@@ -45,12 +45,7 @@ class Fetcher
     /**
      * @param  bool  $web  answering a web request (someone is waiting), rather than running on the command line
      */
-    public function __construct(
-        private readonly HttpClient $http,
-        private readonly Cache $cache,
-        private readonly Config $config,
-        private readonly bool $web,
-    ) {}
+    public function __construct(private readonly HttpClient $http, private readonly Cache $cache, private readonly Config $config, private readonly bool $web) {}
 
     /**
      * The wall-clock time (microtime) the current sync step must end by, or null outside a step.
@@ -66,7 +61,7 @@ class Fetcher
     public function get(string $url, array $options = []): string
     {
         $cacheHours = $options['cache_hours'] ?? null;
-        $cachePath = $this->config->storage('http-cache/'.sha1($url).'.cache');
+        $cachePath = $this->config->storage('http-cache/' . sha1($url) . '.cache');
 
         if ($cacheHours && is_file($cachePath) && filemtime($cachePath) > time() - $cacheHours * 3600) {
             return (string) file_get_contents($cachePath);
@@ -75,7 +70,7 @@ class Fetcher
         $body = $this->send($url, $options)->body;
 
         if ($cacheHours) {
-            if (! is_dir(dirname($cachePath))) {
+            if (!is_dir(dirname($cachePath))) {
                 @mkdir(dirname($cachePath), 0775, true);
             }
             @file_put_contents($cachePath, $body);
@@ -117,14 +112,15 @@ class Fetcher
         $host = parse_url($url, PHP_URL_HOST) ?: $url;
         $delayMs = $options['delay_ms'] ?? (int) $this->config->get('fetch.delay_ms', 1200);
 
-        $userAgent = ($options['browser'] ?? false)
-            ? (string) $this->config->get('fetch.browser_user_agent')
-            : (string) $this->config->get('fetch.user_agent');
+        $userAgent = $options['browser'] ?? false ? (string) $this->config->get('fetch.browser_user_agent') : (string) $this->config->get('fetch.user_agent');
 
-        $headers = array_merge([
-            'User-Agent' => $userAgent,
-            'Accept-Language' => 'en-US,en;q=0.9',
-        ], $options['headers'] ?? []);
+        $headers = array_merge(
+            [
+                'User-Agent' => $userAgent,
+                'Accept-Language' => 'en-US,en;q=0.9',
+            ],
+            $options['headers'] ?? [],
+        );
 
         $attempt = 0;
         while (true) {
@@ -169,9 +165,7 @@ class Fetcher
         $wait = $allowedAt - Clock::microtime();
 
         if ($this->deadline !== null && Clock::microtime() + max(0, $wait) + self::REQUEST_RESERVE_SECONDS > $this->deadline) {
-            throw $wait > 0
-                ? new FetchDeferred($host, $allowedAt)
-                : new FetchDeferred($host, Clock::microtime(), 'no time left in this step');
+            throw $wait > 0 ? new FetchDeferred($host, $allowedAt) : new FetchDeferred($host, Clock::microtime(), 'no time left in this step');
         }
         if ($wait > 0) {
             usleep((int) ceil($wait * 1_000_000));
@@ -227,11 +221,11 @@ class Fetcher
 
     private function throttleKey(string $host): string
     {
-        return 'fetcher:last-request:'.$host;
+        return 'fetcher:last-request:' . $host;
     }
 
     private function failuresKey(string $url): string
     {
-        return 'fetcher:failures:'.sha1($url);
+        return 'fetcher:failures:' . sha1($url);
     }
 }

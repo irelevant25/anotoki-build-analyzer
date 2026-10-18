@@ -60,100 +60,109 @@ return function (Slim\App $slim, App $app): void {
         ];
     };
 
-    $slim->get('/api/sources', function (Request $request, Response $response) use ($app, $summary): Response {
-        $registry = $app->get(BuildSourceRegistry::class);
-        $registry->ensureModels();
-        $counts = $app->get(BuildSources::class)->counts();
-        // Who started a run (an editor's IAM id and name) is for editors and admins only.
-        $staff = currentUserOrNull($request)?->isStaff() ?? false;
-
-        $sources = array_map(fn (BuildSource $source) => $summary($source, $counts, $staff), array_values($registry->all()));
-        // By game, then in the order of their numbers.
-        usort($sources, fn ($a, $b) => [$a['game'], $a['key']] <=> [$b['game'], $b['key']]);
-
-        return Json::send($response, $sources);
-    })->add(optionalSignIn($app));
-
-    $slim->group('', function (RouteCollectorProxy $group) use ($app) {
-        $group->patch('/api/sources/{key}', function (Request $request, Response $response, array $args) use ($app): Response {
+    $slim
+        ->get('/api/sources', function (Request $request, Response $response) use ($app, $summary): Response {
             $registry = $app->get(BuildSourceRegistry::class);
-            $source = $registry->find((string) $args['key']) ?? throw HttpError::notFound();
-            $input = Input::of($request);
-            $enabled = $input->boolean('enabled', required: true);
-            $input->valid();
+            $registry->ensureModels();
+            $counts = $app->get(BuildSources::class)->counts();
+            // Who started a run (an editor's IAM id and name) is for editors and admins only.
+            $staff = currentUserOrNull($request)?->isStaff() ?? false;
 
-            $model = $registry->model($source);
-            $was = (bool) $model->enabled;
-            $app->get(BuildSources::class)->update($model, ['enabled' => $enabled]);
-            if ($was !== $enabled) {
-                $app->get(AuditLog::class)->record($request, currentUser($request)->id, $enabled ? 'source.enabled' : 'source.disabled', 'source', (string) $args['key']);
-            }
+            $sources = array_map(fn(BuildSource $source) => $summary($source, $counts, $staff), array_values($registry->all()));
+            // By game, then in the order of their numbers.
+            usort($sources, fn($a, $b) => [$a['game'], $a['key']] <=> [$b['game'], $b['key']]);
 
-            return Json::send($response, $app->get(SyncRunPresenter::class)->source($model));
-        });
-    })->add(requireRole($app, Role::ADMIN));
+            return Json::send($response, $sources);
+        })
+        ->add(optionalSignIn($app));
 
-    $slim->group('', function (RouteCollectorProxy $group) use ($app, $summary) {
-        $group->get('/api/sources/{key}/export', function (Request $request, Response $response, array $args) use ($app): Response {
-            $source = $app->get(BuildSourceRegistry::class)->find((string) $args['key']) ?? throw HttpError::notFound();
-            $file = $app->get(BuildTransfer::class)->export($source);
+    $slim
+        ->group('', function (RouteCollectorProxy $group) use ($app) {
+            $group->patch('/api/sources/{key}', function (Request $request, Response $response, array $args) use ($app): Response {
+                $registry = $app->get(BuildSourceRegistry::class);
+                $source = $registry->find((string) $args['key']) ?? throw HttpError::notFound();
+                $input = Input::of($request);
+                $enabled = $input->boolean('enabled', required: true);
+                $input->valid();
 
-            return Json::download($response, $file, "builds-{$file['source']}-".substr((string) $file['exported_at'], 0, 10).'.json');
-        });
+                $model = $registry->model($source);
+                $was = (bool) $model->enabled;
+                $app->get(BuildSources::class)->update($model, ['enabled' => $enabled]);
+                if ($was !== $enabled) {
+                    $app->get(AuditLog::class)->record($request, currentUser($request)->id, $enabled ? 'source.enabled' : 'source.disabled', 'source', (string) $args['key']);
+                }
 
-        $group->post('/api/sources/{key}/import', function (Request $request, Response $response, array $args) use ($app, $summary): Response {
-            // An import that has started finishes, even when the tab is closed while it runs.
-            ignore_user_abort(true);
-            @set_time_limit(BuildTransfer::MAX_SECONDS);
+                return Json::send($response, $app->get(SyncRunPresenter::class)->source($model));
+            });
+        })
+        ->add(requireRole($app, Role::ADMIN));
 
-            $source = $app->get(BuildSourceRegistry::class)->find((string) $args['key']) ?? throw HttpError::notFound();
-            $bytes = strlen((string) $request->getBody());
-            if ($bytes === 0) {
-                // What PHP makes of a body larger than its post_max_size: the file arrives as nothing.
-                throw new HttpError(422, 'No file arrived. A file larger than this server accepts arrives empty.');
-            }
-            if ($bytes > BuildFile::MAX_BYTES) {
-                throw new HttpError(422, sprintf('The file is larger than %d MB, far more than the builds of a source take.', BuildFile::MAX_BYTES / 1048576));
-            }
+    $slim
+        ->group('', function (RouteCollectorProxy $group) use ($app, $summary) {
+            $group->get('/api/sources/{key}/export', function (Request $request, Response $response, array $args) use ($app): Response {
+                $source = $app->get(BuildSourceRegistry::class)->find((string) $args['key']) ?? throw HttpError::notFound();
+                $file = $app->get(BuildTransfer::class)->export($source);
 
-            try {
-                $result = $app->get(BuildTransfer::class)->import($source, $request->getParsedBody(), currentUser($request));
-            } catch (BuildFileException $e) {
-                throw new HttpError(422, $e->getMessage());
-            } catch (SourceSyncing $e) {
-                throw new HttpError(409, $e->getMessage());
-            } catch (LockTimeout) {
-                throw new HttpError(409, 'A sync step is still running. Try again in a moment.');
-            }
-            $app->get(AuditLog::class)->record($request, currentUser($request)->id, 'builds.imported', 'source', (string) $args['key'], [
-                'created' => $result['created'], 'updated' => $result['updated'], 'removed' => $result['removed'], 'characters' => $result['characters'],
-            ]);
+                return Json::download($response, $file, "builds-{$file['source']}-" . substr((string) $file['exported_at'], 0, 10) . '.json');
+            });
 
-            return Json::send($response, $result + ['source' => $summary($source, $app->get(BuildSources::class)->counts(), true)]);
-        });
+            $group->post('/api/sources/{key}/import', function (Request $request, Response $response, array $args) use ($app, $summary): Response {
+                // An import that has started finishes, even when the tab is closed while it runs.
+                ignore_user_abort(true);
+                @set_time_limit(BuildTransfer::MAX_SECONDS);
 
-        $group->get('/api/sync-runs', function (Request $request, Response $response) use ($app): Response {
-            $query = $request->getQueryParams();
-            $registry = $app->get(BuildSourceRegistry::class);
+                $source = $app->get(BuildSourceRegistry::class)->find((string) $args['key']) ?? throw HttpError::notFound();
+                $bytes = strlen((string) $request->getBody());
+                if ($bytes === 0) {
+                    // What PHP makes of a body larger than its post_max_size: the file arrives as nothing.
+                    throw new HttpError(422, 'No file arrived. A file larger than this server accepts arrives empty.');
+                }
+                if ($bytes > BuildFile::MAX_BYTES) {
+                    throw new HttpError(422, sprintf('The file is larger than %d MB, far more than the builds of a source take.', BuildFile::MAX_BYTES / 1048576));
+                }
 
-            $sourceKey = null;
-            if (is_string($query['source'] ?? null) && $query['source'] !== '') {
-                // An unknown source has no runs; its internal key is not needed to say so.
-                $sourceKey = $registry->find($query['source'])?->key() ?? '(none)';
-            }
-            $kind = is_string($query['kind'] ?? null) && $query['kind'] !== '' ? $query['kind'] : null;
-            $limit = isset($query['limit']) && ctype_digit((string) $query['limit']) ? (int) $query['limit'] : 30;
+                try {
+                    $result = $app->get(BuildTransfer::class)->import($source, $request->getParsedBody(), currentUser($request));
+                } catch (BuildFileException $e) {
+                    throw new HttpError(422, $e->getMessage());
+                } catch (SourceSyncing $e) {
+                    throw new HttpError(409, $e->getMessage());
+                } catch (LockTimeout) {
+                    throw new HttpError(409, 'A sync step is still running. Try again in a moment.');
+                }
+                $app->get(AuditLog::class)->record($request, currentUser($request)->id, 'builds.imported', 'source', (string) $args['key'], [
+                    'created' => $result['created'],
+                    'updated' => $result['updated'],
+                    'removed' => $result['removed'],
+                    'characters' => $result['characters'],
+                ]);
 
-            $runs = $app->get(SyncRuns::class)->recent($sourceKey, $kind, max(1, min(100, $limit)));
-            $presenter = $app->get(SyncRunPresenter::class);
+                return Json::send($response, $result + ['source' => $summary($source, $app->get(BuildSources::class)->counts(), true)]);
+            });
 
-            return Json::send($response, array_map(fn ($run) => $presenter->summary($run), $runs));
-        });
+            $group->get('/api/sync-runs', function (Request $request, Response $response) use ($app): Response {
+                $query = $request->getQueryParams();
+                $registry = $app->get(BuildSourceRegistry::class);
 
-        $group->get('/api/sync-runs/{run:[0-9]+}', function (Request $request, Response $response, array $args) use ($app): Response {
-            $run = $app->get(SyncRuns::class)->find((int) $args['run']) ?? throw HttpError::notFound();
+                $sourceKey = null;
+                if (is_string($query['source'] ?? null) && $query['source'] !== '') {
+                    // An unknown source has no runs; its internal key is not needed to say so.
+                    $sourceKey = $registry->find($query['source'])?->key() ?? '(none)';
+                }
+                $kind = is_string($query['kind'] ?? null) && $query['kind'] !== '' ? $query['kind'] : null;
+                $limit = isset($query['limit']) && ctype_digit((string) $query['limit']) ? (int) $query['limit'] : 30;
 
-            return Json::send($response, $app->get(SyncRunPresenter::class)->withLog($run));
-        });
-    })->add(requireRole($app, ...Role::STAFF));
+                $runs = $app->get(SyncRuns::class)->recent($sourceKey, $kind, max(1, min(100, $limit)));
+                $presenter = $app->get(SyncRunPresenter::class);
+
+                return Json::send($response, array_map(fn($run) => $presenter->summary($run), $runs));
+            });
+
+            $group->get('/api/sync-runs/{run:[0-9]+}', function (Request $request, Response $response, array $args) use ($app): Response {
+                $run = $app->get(SyncRuns::class)->find((int) $args['run']) ?? throw HttpError::notFound();
+
+                return Json::send($response, $app->get(SyncRunPresenter::class)->withLog($run));
+            });
+        })
+        ->add(requireRole($app, ...Role::STAFF));
 };

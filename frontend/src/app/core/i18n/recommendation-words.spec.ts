@@ -231,7 +231,11 @@ describe('recommendationText(): what a build recommends, in the reader’s words
     expect([...RECOMMENDATION_KINDS]).toEqual([...DYNAMIC_KEYS['recommendation.']]);
     expect(RECOMMENDATION_KINDS).toHaveLength(18);
     expect(RECOMMENDATION_KINDS.filter((kind) => !Object.hasOwn(en, `recommendation.${kind}`))).toEqual([]);
-    expect(Object.keys(en).filter((key) => key.startsWith('recommendation.')).sort()).toEqual(RECOMMENDATION_KINDS.map((kind) => `recommendation.${kind}`).sort());
+    expect(
+      Object.keys(en)
+        .filter((key) => key.startsWith('recommendation.'))
+        .sort(),
+    ).toEqual(RECOMMENDATION_KINDS.map((kind) => `recommendation.${kind}`).sort());
   });
 
   it('words an account’s top issue the same way, from its kind and params', () => {

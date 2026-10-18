@@ -7,7 +7,7 @@
 
 declare(strict_types=1);
 
-require __DIR__.'/lib.php';
+require __DIR__ . '/lib.php';
 
 use App\Cache\Cache;
 use App\Http\FetchDeferred;
@@ -18,7 +18,7 @@ use Tests\Support\FakeHttpClient;
 
 bootTests();
 
-$fetcher = fn () => new Fetcher(T::$http, T::$app->get(Cache::class), T::$app->config, false);
+$fetcher = fn() => new Fetcher(T::$http, T::$app->get(Cache::class), T::$app->config, false);
 
 test('the crawl delay holds across requests, and a wait that does not fit is deferred', function () use ($fetcher) {
     T::$http->fake(['https://slow.example/*' => 'page', 'https://other.example/*' => 'other']);
@@ -28,7 +28,7 @@ test('the crawl delay holds across requests, and a wait that does not fit is def
     // The next step (a new request, a new Fetcher) has 12 s left: 10 s of waiting and a request do not fit.
     $next = $fetcher();
     $next->setDeadline(Clock::microtime() + 12);
-    $deferred = throws(FetchDeferred::class, fn () => $next->get('https://slow.example/b', ['delay_ms' => 10_000]), 'deferred');
+    $deferred = throws(FetchDeferred::class, fn() => $next->get('https://slow.example/b', ['delay_ms' => 10_000]), 'deferred');
     same('slow.example', $deferred->host, 'host');
     near(Clock::microtime() + 10, $deferred->retryAt, 1.5, 'retry at');
     same(1, count(T::$http->sent), 'one request sent');
@@ -44,7 +44,7 @@ test('a step near its deadline sends nothing more', function () use ($fetcher) {
     $step = $fetcher();
     $step->setDeadline(Clock::microtime() + 3);
 
-    throws(FetchDeferred::class, fn () => $step->get('https://fast.example/a', ['delay_ms' => 0]), 'deferred');
+    throws(FetchDeferred::class, fn() => $step->get('https://fast.example/a', ['delay_ms' => 0]), 'deferred');
     same([], T::$http->sent, 'nothing sent');
 });
 
@@ -54,12 +54,12 @@ test('inside a step a 429 is retried by later steps, then given up', function ()
     $step = $fetcher();
     $step->setDeadline(Clock::microtime() + 60);
     foreach ([1, 2] as $attempt) {
-        $deferred = throws(FetchDeferred::class, fn () => $step->get('https://busy.example/page', ['delay_ms' => 0]), "attempt {$attempt}");
+        $deferred = throws(FetchDeferred::class, fn() => $step->get('https://busy.example/page', ['delay_ms' => 0]), "attempt {$attempt}");
         near(Clock::microtime() + 30, $deferred->retryAt, 2, "attempt {$attempt} waits for Retry-After");
     }
 
     // The third attempt's failure stands, so the run can count it and move on.
-    throws(HttpStatusException::class, fn () => $step->get('https://busy.example/page', ['delay_ms' => 0]), 'third attempt');
+    throws(HttpStatusException::class, fn() => $step->get('https://busy.example/page', ['delay_ms' => 0]), 'third attempt');
 });
 
 test('pages are kept in the page cache for the hours asked', function () use ($fetcher) {

@@ -45,13 +45,12 @@ final class CatalogRows
     {
         $class = self::CLASSES[$type];
 
-        return array_map(fn (array $row) => $class::fromRow($row),
-            $this->db->all('SELECT * FROM '.self::table($type).' WHERE game = ? ORDER BY id', [$game->value]));
+        return array_map(fn(array $row) => $class::fromRow($row), $this->db->all('SELECT * FROM ' . self::table($type) . ' WHERE game = ? ORDER BY id', [$game->value]));
     }
 
     public function find(string $type, int $id): ?CatalogEntry
     {
-        $row = $this->db->one('SELECT * FROM '.self::table($type).' WHERE id = ?', [$id]);
+        $row = $this->db->one('SELECT * FROM ' . self::table($type) . ' WHERE id = ?', [$id]);
 
         return $row === null ? null : self::CLASSES[$type]::fromRow($row);
     }
@@ -67,20 +66,19 @@ final class CatalogRows
         }
         [$in, $params] = Db::in($ids);
 
-        return array_map(fn (array $row) => self::CLASSES[$type]::fromRow($row),
-            $this->db->all('SELECT * FROM '.self::table($type)." WHERE id IN ({$in})", $params));
+        return array_map(fn(array $row) => self::CLASSES[$type]::fromRow($row), $this->db->all('SELECT * FROM ' . self::table($type) . " WHERE id IN ({$in})", $params));
     }
 
     public function findByKey(Game $game, string $type, string $key): ?CatalogEntry
     {
-        $row = $this->db->one('SELECT * FROM '.self::table($type).' WHERE game = ? AND key = ?', [$game->value, $key]);
+        $row = $this->db->one('SELECT * FROM ' . self::table($type) . ' WHERE game = ? AND key = ?', [$game->value, $key]);
 
         return $row === null ? null : self::CLASSES[$type]::fromRow($row);
     }
 
     public function findByExternalId(Game $game, string $type, string $externalId): ?CatalogEntry
     {
-        $row = $this->db->one('SELECT * FROM '.self::table($type).' WHERE game = ? AND external_id = ? ORDER BY id LIMIT 1', [$game->value, $externalId]);
+        $row = $this->db->one('SELECT * FROM ' . self::table($type) . ' WHERE game = ? AND external_id = ? ORDER BY id LIMIT 1', [$game->value, $externalId]);
 
         return $row === null ? null : self::CLASSES[$type]::fromRow($row);
     }
@@ -96,7 +94,7 @@ final class CatalogRows
         }
         [$in, $params] = Db::in(array_values(array_unique($keys)));
         $result = [];
-        foreach ($this->db->all('SELECT * FROM '.self::table($type)." WHERE game = ? AND key IN ({$in})", [$game->value, ...$params]) as $row) {
+        foreach ($this->db->all('SELECT * FROM ' . self::table($type) . " WHERE game = ? AND key IN ({$in})", [$game->value, ...$params]) as $row) {
             $entry = self::CLASSES[$type]::fromRow($row);
             $result[$entry->key] = $entry;
         }
@@ -120,8 +118,17 @@ final class CatalogRows
         $now = Clock::now();
         $row = ['game' => $game->value, 'key' => $key] + $this->columns($type, $attributes) + ['created_at' => $now, 'updated_at' => $now];
         $columns = array_keys($row);
-        $this->db->run('INSERT INTO '.self::table($type).' ("'.implode('", "', $columns).'") VALUES ('.implode(', ', array_fill(0, count($columns), '?')).')
-            ON CONFLICT (game, key) DO NOTHING', array_values($row));
+        $this->db->run(
+            'INSERT INTO ' .
+                self::table($type) .
+                ' ("' .
+                implode('", "', $columns) .
+                '") VALUES (' .
+                implode(', ', array_fill(0, count($columns), '?')) .
+                ')
+            ON CONFLICT (game, key) DO NOTHING',
+            array_values($row),
+        );
 
         return $this->findByKey($game, $type, $key) ?? throw new \RuntimeException("Could not store {$type} {$key}");
     }
@@ -133,10 +140,10 @@ final class CatalogRows
      */
     public function update(string $type, CatalogEntry $entry, array $attributes): void
     {
-        $current = $this->db->one('SELECT * FROM '.self::table($type).' WHERE id = ?', [$entry->id]) ?? [];
+        $current = $this->db->one('SELECT * FROM ' . self::table($type) . ' WHERE id = ?', [$entry->id]) ?? [];
         $changes = [];
         foreach ($this->columns($type, $attributes) + (array_key_exists('key', $attributes) ? ['key' => $attributes['key']] : []) as $column => $value) {
-            if (! self::same($current[$column] ?? null, $value, $column)) {
+            if (!self::same($current[$column] ?? null, $value, $column)) {
                 $changes[$column] = $value;
             }
         }

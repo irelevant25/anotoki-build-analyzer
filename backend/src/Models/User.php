@@ -20,10 +20,7 @@ final class User
     /** @var list<string> this request's roles */
     private array $roles = [];
 
-    public function __construct(
-        public readonly int $id,
-        public string $name,
-    ) {}
+    public function __construct(public readonly int $id, public string $name) {}
 
     /** @param array<string, mixed> $row */
     public static function fromRow(array $row): self
@@ -65,8 +62,7 @@ final class User
      */
     public function hasRole(string $role): bool
     {
-        return in_array($role, $this->roles, true)
-            || ($role === Role::EDITOR && in_array(Role::ADMIN, $this->roles, true));
+        return in_array($role, $this->roles, true) || ($role === Role::EDITOR && in_array(Role::ADMIN, $this->roles, true));
     }
 
     /** An EDITOR or an ADMIN: the admin panel. */

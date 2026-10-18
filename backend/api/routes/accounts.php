@@ -32,64 +32,73 @@ return function (Slim\App $slim, App $app): void {
         return $app->get(Accounts::class)->findOwned(currentUser($request)->id, (int) $args['account']) ?? throw HttpError::notFound();
     };
 
-    $slim->group('/api/accounts', function (RouteCollectorProxy $group) use ($app, $own) {
-        $group->get('', function (Request $request, Response $response) use ($app): Response {
-            $accounts = $app->get(Accounts::class)->owned(currentUser($request)->id);
+    $slim
+        ->group('/api/accounts', function (RouteCollectorProxy $group) use ($app, $own) {
+            $group->get('', function (Request $request, Response $response) use ($app): Response {
+                $accounts = $app->get(Accounts::class)->owned(currentUser($request)->id);
 
-            return Json::send($response, array_map(fn (Account $account) => AccountPresenter::summary($account), $accounts));
-        });
+                return Json::send($response, array_map(fn(Account $account) => AccountPresenter::summary($account), $accounts));
+            });
 
-        $group->get('/{account:[0-9]+}', function (Request $request, Response $response, array $args) use ($app, $own): Response {
-            $account = $own($request, $args);
+            $group->get('/{account:[0-9]+}', function (Request $request, Response $response, array $args) use ($app, $own): Response {
+                $account = $own($request, $args);
 
-            return Json::send($response, AccountPresenter::summary($account) + [
-                'characters' => $app->get(CharacterAnalyzer::class)->overview($account),
-            ]);
-        });
+                return Json::send(
+                    $response,
+                    AccountPresenter::summary($account) + [
+                        'characters' => $app->get(CharacterAnalyzer::class)->overview($account),
+                    ],
+                );
+            });
 
-        $group->patch('/{account:[0-9]+}', function (Request $request, Response $response, array $args) use ($app, $own): Response {
-            $account = $own($request, $args);
-            $input = Input::of($request);
-            $nickname = null;
-            if ($input->has('nickname')) {
-                $nickname = $input->string('nickname', required: true, max: 100);
-            }
-            $input->valid();
+            $group->patch('/{account:[0-9]+}', function (Request $request, Response $response, array $args) use ($app, $own): Response {
+                $account = $own($request, $args);
+                $input = Input::of($request);
+                $nickname = null;
+                if ($input->has('nickname')) {
+                    $nickname = $input->string('nickname', required: true, max: 100);
+                }
+                $input->valid();
 
-            if ($nickname !== null) {
-                $app->get(Accounts::class)->rename($account, $nickname);
-            }
+                if ($nickname !== null) {
+                    $app->get(Accounts::class)->rename($account, $nickname);
+                }
 
-            return Json::send($response, AccountPresenter::summary($app->get(Accounts::class)->withCounts($account)));
-        });
+                return Json::send($response, AccountPresenter::summary($app->get(Accounts::class)->withCounts($account)));
+            });
 
-        $group->delete('/{account:[0-9]+}', function (Request $request, Response $response, array $args) use ($app, $own): Response {
-            $app->get(Accounts::class)->delete($own($request, $args));
+            $group->delete('/{account:[0-9]+}', function (Request $request, Response $response, array $args) use ($app, $own): Response {
+                $app->get(Accounts::class)->delete($own($request, $args));
 
-            return $response->withStatus(204);
-        });
+                return $response->withStatus(204);
+            });
 
-        $group->get('/{account:[0-9]+}/imports', function (Request $request, Response $response, array $args) use ($app, $own): Response {
-            $account = $own($request, $args);
-            $runs = $app->get(ImportRuns::class)->forAccount($account->id);
+            $group->get('/{account:[0-9]+}/imports', function (Request $request, Response $response, array $args) use ($app, $own): Response {
+                $account = $own($request, $args);
+                $runs = $app->get(ImportRuns::class)->forAccount($account->id);
 
-            return Json::send($response, array_map(fn ($run) => AccountPresenter::importRun($run), $runs));
-        });
+                return Json::send($response, array_map(fn($run) => AccountPresenter::importRun($run), $runs));
+            });
 
-        $group->get('/{account:[0-9]+}/characters/{key}', function (Request $request, Response $response, array $args) use ($app, $own): Response {
-            $account = $own($request, $args);
-            $owned = $app->get(Accounts::class)->character($account->id, (string) $args['key']) ?? throw HttpError::notFound();
+            $group->get('/{account:[0-9]+}/characters/{key}', function (Request $request, Response $response, array $args) use ($app, $own): Response {
+                $account = $own($request, $args);
+                $owned = $app->get(Accounts::class)->character($account->id, (string) $args['key']) ?? throw HttpError::notFound();
 
-            $build = $request->getQueryParams()['build'] ?? null;
-            $buildId = is_string($build) && ctype_digit($build) ? (int) $build : null;
-            $detail = $app->get(CharacterAnalyzer::class)->detail($account, $owned, $buildId ?: null);
+                $build = $request->getQueryParams()['build'] ?? null;
+                $buildId = is_string($build) && ctype_digit($build) ? (int) $build : null;
+                $detail = $app->get(CharacterAnalyzer::class)->detail($account, $owned, $buildId ?: null);
 
-            $buildIds = array_map(fn ($evaluation) => $evaluation['build']['id'], $detail['evaluations']);
-            $builds = $app->get(Builds::class)->byIds($buildIds);
+                $buildIds = array_map(fn($evaluation) => $evaluation['build']['id'], $detail['evaluations']);
+                $builds = $app->get(Builds::class)->byIds($buildIds);
 
-            return Json::send($response, ['account' => AccountPresenter::summary($account)] + $detail + [
-                'builds' => $app->get(BuildPresenter::class)->collection($builds),
-            ]);
-        });
-    })->add(requireOwner($app));
+                return Json::send(
+                    $response,
+                    ['account' => AccountPresenter::summary($account)] +
+                        $detail + [
+                            'builds' => $app->get(BuildPresenter::class)->collection($builds),
+                        ],
+                );
+            });
+        })
+        ->add(requireOwner($app));
 };

@@ -9,7 +9,7 @@
 
 declare(strict_types=1);
 
-require __DIR__.'/lib.php';
+require __DIR__ . '/lib.php';
 
 use App\Auth\Role;
 use App\Cache\Locks;
@@ -46,7 +46,7 @@ beforeEach(function () {
     T::$app->config->set('sources', [FakeBuildSource::class]);
 });
 
-$admin = fn () => (new Client)->asIam(1, [Role::ADMIN], ['preferred_username' => 'admin']);
+$admin = fn() => (new Client())->asIam(1, [Role::ADMIN], ['preferred_username' => 'admin']);
 
 /**
  * A build with every field filled, the way a sync stores one; $fields replace some.
@@ -65,14 +65,24 @@ function aBuild(string $variant, array $fields = []): array
             ['key' => 'dragonsbane', 'name' => "Dragon's Bane", 'rank' => 2, 'refinement' => null, 'note' => null, 'known' => true],
         ],
         'sets' => [
-            ['rank' => 1, 'kind' => 'artifact', 'choose' => null, 'pieces' => [
-                ['label' => 'Crimson Witch of Flames', 'count' => 4, 'keys' => ['crimsonwitchofflames'], 'names' => ['Crimson Witch of Flames']],
-            ], 'note' => null],
-            ['rank' => 2, 'kind' => 'artifact', 'choose' => 2, 'pieces' => [
-                ['label' => 'Crimson Witch of Flames', 'count' => 2, 'keys' => ['crimsonwitchofflames'], 'names' => ['Crimson Witch of Flames']],
-                ['label' => 'Elemental Mastery +80 set', 'count' => 2, 'keys' => ['gildeddreams', 'wandererstroupe'], 'names' => ['Gilded Dreams', "Wanderer's Troupe"]],
-                ['label' => "Shimenawa's Reminiscence", 'count' => 2, 'keys' => ['shimenawasreminiscence'], 'names' => ["Shimenawa's Reminiscence"]],
-            ], 'note' => 'Any two of these.'],
+            [
+                'rank' => 1,
+                'kind' => 'artifact',
+                'choose' => null,
+                'pieces' => [['label' => 'Crimson Witch of Flames', 'count' => 4, 'keys' => ['crimsonwitchofflames'], 'names' => ['Crimson Witch of Flames']]],
+                'note' => null,
+            ],
+            [
+                'rank' => 2,
+                'kind' => 'artifact',
+                'choose' => 2,
+                'pieces' => [
+                    ['label' => 'Crimson Witch of Flames', 'count' => 2, 'keys' => ['crimsonwitchofflames'], 'names' => ['Crimson Witch of Flames']],
+                    ['label' => 'Elemental Mastery +80 set', 'count' => 2, 'keys' => ['gildeddreams', 'wandererstroupe'], 'names' => ['Gilded Dreams', "Wanderer's Troupe"]],
+                    ['label' => "Shimenawa's Reminiscence", 'count' => 2, 'keys' => ['shimenawasreminiscence'], 'names' => ["Shimenawa's Reminiscence"]],
+                ],
+                'note' => 'Any two of these.',
+            ],
         ],
         'main_stats' => [
             'sands' => [['stat' => 'hp_', 'priority' => 1], ['stat' => 'eleMas', 'priority' => 1]],
@@ -112,20 +122,37 @@ function storeBuilds(string $character, array $builds): array
 function contentOf(array $build, int $position): array
 {
     return BuildSync::content(
-        role: $build['role'], recommended: $build['recommended'], position: $position, weapons: $build['weapons'], sets: $build['sets'],
-        mainStats: $build['main_stats'], substats: $build['substats'], talentPriority: $build['talent_priority'],
-        statTargets: $build['stat_targets'], notes: $build['notes'], sourceUrl: $build['source_url'],
-        sourceUpdatedAt: $build['source_updated_at'], gameVersion: $build['game_version'],
+        role: $build['role'],
+        recommended: $build['recommended'],
+        position: $position,
+        weapons: $build['weapons'],
+        sets: $build['sets'],
+        mainStats: $build['main_stats'],
+        substats: $build['substats'],
+        talentPriority: $build['talent_priority'],
+        statTargets: $build['stat_targets'],
+        notes: $build['notes'],
+        sourceUrl: $build['source_url'],
+        sourceUpdatedAt: $build['source_updated_at'],
+        gameVersion: $build['game_version'],
     );
 }
 
 /** Three builds of two characters, the source synced three hours ago. */
 function seedSource(): void
 {
-    storeBuilds('kaedeharakazuha', [aBuild('Main', [
-        'role' => null, 'main_stats' => [], 'substats' => [], 'talent_priority' => [], 'stat_targets' => [], 'notes' => null,
-        'source_updated_at' => null, 'game_version' => null,
-    ])]);
+    storeBuilds('kaedeharakazuha', [
+        aBuild('Main', [
+            'role' => null,
+            'main_stats' => [],
+            'substats' => [],
+            'talent_priority' => [],
+            'stat_targets' => [],
+            'notes' => null,
+            'source_updated_at' => null,
+            'game_version' => null,
+        ]),
+    ]);
     storeBuilds('hutao', [aBuild('Support', ['recommended' => false]), aBuild('DPS')]);
     db()->run("UPDATE build_sources SET last_synced_at = ?, last_status = 'success' WHERE key = 'fake.genshin'", [Clock::now()->modify('-3 hours')]);
 }
@@ -173,40 +200,69 @@ function stringsNameASite(mixed $value): bool
 }
 
 test('a source without builds exports an empty file', function () use ($admin) {
-    $admin()->get('/api/sources/genshin-1/export')->status(200)
-        ->path('source', 'genshin-1')
-        ->path('synced_at', null)
-        ->path('builds', []);
+    $admin()->get('/api/sources/genshin-1/export')->status(200)->path('source', 'genshin-1')->path('synced_at', null)->path('builds', []);
 });
 
 test('an export holds every build of the source in a stable order, and names no site', function () use ($admin) {
     seedSource();
     // A build copied from a page that names its site, kept with the page's address.
-    storeBuilds('traveleranemo', [aBuild('Prydwen pick', [
-        'role' => 'Prydwen DPS',
-        'weapons' => [['key' => 'staffofhoma', 'name' => 'Staff of Homa', 'rank' => 1, 'refinement' => null, 'note' => 'Best in slot per genshin-builds.com', 'known' => true]],
-        'sets' => [['rank' => 1, 'kind' => 'artifact', 'choose' => null, 'note' => 'See https://keqingmains.com/traveler', 'pieces' => [
-            ['label' => 'Crimson Witch of Flames', 'count' => 4, 'keys' => ['crimsonwitchofflames'], 'names' => ['Crimson Witch of Flames']],
-        ]]],
-        'stat_targets' => [['stat' => 'critRate_', 'min' => 60, 'max' => null, 'text' => 'CRIT Rate 60% (Prydwen)']],
-        'notes' => 'Copied from https://www.prydwen.gg/genshin-impact/characters/traveler - thanks Prydwen!',
-        'source_url' => 'https://www.prydwen.gg/genshin-impact/characters/traveler',
-    ])]);
+    storeBuilds('traveleranemo', [
+        aBuild('Prydwen pick', [
+            'role' => 'Prydwen DPS',
+            'weapons' => [['key' => 'staffofhoma', 'name' => 'Staff of Homa', 'rank' => 1, 'refinement' => null, 'note' => 'Best in slot per genshin-builds.com', 'known' => true]],
+            'sets' => [
+                [
+                    'rank' => 1,
+                    'kind' => 'artifact',
+                    'choose' => null,
+                    'note' => 'See https://keqingmains.com/traveler',
+                    'pieces' => [['label' => 'Crimson Witch of Flames', 'count' => 4, 'keys' => ['crimsonwitchofflames'], 'names' => ['Crimson Witch of Flames']]],
+                ],
+            ],
+            'stat_targets' => [['stat' => 'critRate_', 'min' => 60, 'max' => null, 'text' => 'CRIT Rate 60% (Prydwen)']],
+            'notes' => 'Copied from https://www.prydwen.gg/genshin-impact/characters/traveler - thanks Prydwen!',
+            'source_url' => 'https://www.prydwen.gg/genshin-impact/characters/traveler',
+        ]),
+    ]);
 
     $answer = $admin()->get('/api/sources/genshin-1/export')->status(200);
-    same('attachment; filename="builds-genshin-1-'.Clock::now()->format('Y-m-d').'.json"', $answer->header('Content-Disposition'), 'the file name');
+    same('attachment; filename="builds-genshin-1-' . Clock::now()->format('Y-m-d') . '.json"', $answer->header('Content-Disposition'), 'the file name');
     check(str_starts_with($answer->header('Content-Type'), 'application/json'), $answer->header('Content-Type'));
 
     $file = $answer->json();
     same(['format', 'format_version', 'source', 'game', 'exported_at', 'synced_at', 'builds'], array_keys($file), 'the fields of the file');
     same(['build-analyzer.builds', 1, 'genshin-1', 'genshin'], [$file['format'], $file['format_version'], $file['source'], $file['game']], 'what the file is');
     same(BuildFile::time(Db::time(db()->value('SELECT last_synced_at FROM build_sources'))), $file['synced_at'], 'when the builds were synced');
-    same(['character', 'character_name', 'variant', 'role', 'recommended', 'position', 'weapons', 'sets', 'main_stats', 'substats',
-        'talent_priority', 'stat_targets', 'notes', 'source_updated_at', 'game_version', 'fetched_at', 'changed_at'], array_keys($file['builds'][0]), 'the fields of a build');
+    same(
+        [
+            'character',
+            'character_name',
+            'variant',
+            'role',
+            'recommended',
+            'position',
+            'weapons',
+            'sets',
+            'main_stats',
+            'substats',
+            'talent_priority',
+            'stat_targets',
+            'notes',
+            'source_updated_at',
+            'game_version',
+            'fetched_at',
+            'changed_at',
+        ],
+        array_keys($file['builds'][0]),
+        'the fields of a build',
+    );
 
     // By character key, then position (Support was listed before DPS), then variant.
-    same(['hutao/Support', 'hutao/DPS', 'kaedeharakazuha/Main', 'traveleranemo/The source pick'],
-        array_map(fn (array $build) => $build['character'].'/'.$build['variant'], $file['builds']), 'the order');
+    same(
+        ['hutao/Support', 'hutao/DPS', 'kaedeharakazuha/Main', 'traveleranemo/The source pick'],
+        array_map(fn(array $build) => $build['character'] . '/' . $build['variant'], $file['builds']),
+        'the order',
+    );
     same('Hu Tao', $file['builds'][0]['character_name'], 'the name, for people reading the file');
     same('2026-09-19T08:00:00.123456Z', $file['builds'][0]['source_updated_at'], 'times to the microsecond');
     same([], $file['builds'][2]['main_stats'], 'no main stats: an object, {} in the file');
@@ -214,10 +270,10 @@ test('an export holds every build of the source in a stable order, and names no 
 
     // No site in any value or field name, and no page address.
     foreach (stringsIn($file) as $text) {
-        check(! Neutral::mentionsAny($text) && ! preg_match('~https?://|www\.~i', $text), "the export names a site: {$text}");
+        check(!Neutral::mentionsAny($text) && !preg_match('~https?://|www\.~i', $text), "the export names a site: {$text}");
     }
     foreach (['source_url', 'base_url', 'fake-builds'] as $word) {
-        check(! str_contains($answer->body, $word), "the export holds {$word}");
+        check(!str_contains($answer->body, $word), "the export holds {$word}");
     }
 
     // The same builds a minute later: the same file, but for when it was exported.
@@ -239,16 +295,18 @@ test('an import brings the exported builds back exactly, and removes what the fi
     db()->run("UPDATE builds SET notes = 'an older text', content_hash = 'older' WHERE variant = 'DPS'");
     db()->run("DELETE FROM builds WHERE variant = 'Main'");
     storeBuilds('traveleranemo', [aBuild('Anemo')]);
-    db()->insert('builds', ['build_source_id' => (int) db()->value('SELECT id FROM build_sources'), 'game_character_id' => idOf('game_characters', 'hutao'),
-        'variant' => 'Vape', 'weapons' => '[]', 'sets' => '[]', 'main_stats' => '{}', 'substats' => '[]', 'content_hash' => 'x']);
+    db()->insert('builds', [
+        'build_source_id' => (int) db()->value('SELECT id FROM build_sources'),
+        'game_character_id' => idOf('game_characters', 'hutao'),
+        'variant' => 'Vape',
+        'weapons' => '[]',
+        'sets' => '[]',
+        'main_stats' => '{}',
+        'substats' => '[]',
+        'content_hash' => 'x',
+    ]);
 
-    $client->post('/api/sources/genshin-1/import', $file)->status(200)
-        ->path('created', 1)
-        ->path('updated', 1)
-        ->path('unchanged', 1)
-        ->path('removed', 2)
-        ->path('characters', 2)
-        ->path('skipped', []);
+    $client->post('/api/sources/genshin-1/import', $file)->status(200)->path('created', 1)->path('updated', 1)->path('unchanged', 1)->path('removed', 2)->path('characters', 2)->path('skipped', []);
 
     same($exported, storedBuilds(), 'the builds as they were exported');
 });
@@ -264,7 +322,9 @@ test('an import is a run of the source, and leaves the source synced when the fi
     $file['synced_at'] = BuildFile::time(Clock::now()->modify('-3 hours'));
     db()->run("UPDATE build_sources SET last_synced_at = NULL, last_status = 'failed', last_error = 'HTTP 403'");
 
-    $answer = $client->post('/api/sources/genshin-1/import', $file)->status(200)
+    $answer = $client
+        ->post('/api/sources/genshin-1/import', $file)
+        ->status(200)
         ->path('created', 0)
         ->path('updated', 0)
         ->path('unchanged', 2)
@@ -305,16 +365,19 @@ test('the file is the whole truth: the builds of characters it lacks go, and an 
     $client = $admin();
     $file = $client->get('/api/sources/genshin-1/export')->json();
 
-    $huTaoOnly = ['builds' => array_values(array_filter($file['builds'], fn (array $build) => $build['character'] === 'hutao'))] + $file;
-    $client->post('/api/sources/genshin-1/import', $huTaoOnly)->status(200)
-        ->path('removed', 1)->path('unchanged', 2)->path('characters', 1);
+    $huTaoOnly = ['builds' => array_values(array_filter($file['builds'], fn(array $build) => $build['character'] === 'hutao'))] + $file;
+    $client->post('/api/sources/genshin-1/import', $huTaoOnly)->status(200)->path('removed', 1)->path('unchanged', 2)->path('characters', 1);
     same(['hutao', 'hutao'], db()->column('SELECT c.key FROM builds b JOIN game_characters c ON c.id = b.game_character_id'), 'Hu Tao\'s builds only');
     $log = (string) db()->value('SELECT log FROM sync_runs ORDER BY id DESC LIMIT 1');
     check(str_contains($log, '  Kaedehara Kazuha: not in the file, 1 build(s) removed.'), $log);
 
     // Nothing synced on the other side: the source counts as synced when the file was made.
-    $client->post('/api/sources/genshin-1/import', ['builds' => [], 'synced_at' => null] + $file)->status(200)
-        ->path('removed', 2)->path('characters', 0)->path('source.builds', 0);
+    $client
+        ->post('/api/sources/genshin-1/import', ['builds' => [], 'synced_at' => null] + $file)
+        ->status(200)
+        ->path('removed', 2)
+        ->path('characters', 0)
+        ->path('source.builds', 0);
     same(0, (int) db()->value('SELECT count(*) FROM builds'), 'no builds');
     same($file['exported_at'], BuildFile::time(Db::time(db()->value('SELECT last_synced_at FROM build_sources'))), 'last synced');
 });
@@ -325,7 +388,9 @@ test('characters this catalog lacks are skipped and named, and a file of nothing
     $file = $client->get('/api/sources/genshin-1/export')->json();
     $newcomer = ['character' => 'someonenew', 'character_name' => 'Someone New'] + $file['builds'][0];
 
-    $client->post('/api/sources/genshin-1/import', ['builds' => [...$file['builds'], $newcomer]] + $file)->status(200)
+    $client
+        ->post('/api/sources/genshin-1/import', ['builds' => [...$file['builds'], $newcomer]] + $file)
+        ->status(200)
         ->path('skipped', [['key' => 'someonenew', 'name' => 'Someone New']])
         ->path('characters', 2)
         ->path('unchanged', 3)
@@ -341,7 +406,9 @@ test('characters this catalog lacks are skipped and named, and a file of nothing
     // Only characters the catalog lacks: a catalog nobody refreshed yet, not a source without builds.
     $builds = storedBuilds();
     $runs = runCount();
-    $client->post('/api/sources/genshin-1/import', ['builds' => [$newcomer]] + $file)->status(422)
+    $client
+        ->post('/api/sources/genshin-1/import', ['builds' => [$newcomer]] + $file)
+        ->status(422)
         ->path('message', "None of the file's characters is in this installation's catalog. Refresh the catalog, then import again.");
     same($builds, storedBuilds(), 'nothing removed');
     same($runs, runCount(), 'no run');
@@ -368,7 +435,7 @@ test('a file for another source or game, or no builds file at all, is refused an
         $client->post('/api/sources/genshin-1/import', $body)->status(422)->path('message', $message);
     }
 
-    $raw = fn (string $body) => $client->request('POST', '/api/sources/genshin-1/import', null, ['body' => $body]);
+    $raw = fn(string $body) => $client->request('POST', '/api/sources/genshin-1/import', null, ['body' => $body]);
     $raw('{"format": "build-analyzer.builds"')->status(422)->path('message', 'This is not a builds file exported by the build analyzer.');
     $raw('[1, 2]')->status(422)->path('message', 'This is not a builds file exported by the build analyzer.');
     $raw('')->status(422)->path('message', 'No file arrived. A file larger than this server accepts arrives empty.');
@@ -387,47 +454,119 @@ test('a malformed build is refused with the whole file, naming the first problem
     $in = 'The file\'s builds[0] (hutao, "Support") is not valid: ';
 
     $cases = [
-        "The file's builds must be a list." => function (array &$f) { $f['builds'] = ['one' => $f['builds'][0]]; },
-        "The file's builds must not have more than 5000 entries." => function (array &$f) { $f['builds'] = array_fill(0, 5001, 0); },
-        "The file's builds[0] must be an object." => function (array &$f) { $f['builds'][0] = 'a build'; },
-        "The file's synced_at must be a time in ISO 8601 from 1970 on, such as 2026-09-29T14:03:12Z, or null." => function (array &$f) { $f['synced_at'] = 'yesterday'; },
-        "The file's exported_at must be a time in ISO 8601 from 1970 on, such as 2026-09-29T14:03:12Z." => function (array &$f) { $f['exported_at'] = '2026-02-30T10:00:00Z'; },
-        "The file's teams is not a field of this format." => function (array &$f) { $f['teams'] = []; },
-        "The file's builds[0] is not valid: character must be a key of lowercase letters and digits, at most 120 long." => function (array &$f) { $f['builds'][0]['character'] = 'Hu Tao'; },
-        "The file's builds[0] is not valid: variant must not be longer than 120 characters." => function (array &$f) { $f['builds'][0]['variant'] = str_repeat('x', 121); },
-        $in.'notes is missing.' => function (array &$f) { unset($f['builds'][0]['notes']); },
-        $in.'source_url is not a field of this format.' => function (array &$f) { $f['builds'][0]['source_url'] = 'https://example.org/'; },
+        "The file's builds must be a list." => function (array &$f) {
+            $f['builds'] = ['one' => $f['builds'][0]];
+        },
+        "The file's builds must not have more than 5000 entries." => function (array &$f) {
+            $f['builds'] = array_fill(0, 5001, 0);
+        },
+        "The file's builds[0] must be an object." => function (array &$f) {
+            $f['builds'][0] = 'a build';
+        },
+        "The file's synced_at must be a time in ISO 8601 from 1970 on, such as 2026-09-29T14:03:12Z, or null." => function (array &$f) {
+            $f['synced_at'] = 'yesterday';
+        },
+        "The file's exported_at must be a time in ISO 8601 from 1970 on, such as 2026-09-29T14:03:12Z." => function (array &$f) {
+            $f['exported_at'] = '2026-02-30T10:00:00Z';
+        },
+        "The file's teams is not a field of this format." => function (array &$f) {
+            $f['teams'] = [];
+        },
+        "The file's builds[0] is not valid: character must be a key of lowercase letters and digits, at most 120 long." => function (array &$f) {
+            $f['builds'][0]['character'] = 'Hu Tao';
+        },
+        "The file's builds[0] is not valid: variant must not be longer than 120 characters." => function (array &$f) {
+            $f['builds'][0]['variant'] = str_repeat('x', 121);
+        },
+        $in . 'notes is missing.' => function (array &$f) {
+            unset($f['builds'][0]['notes']);
+        },
+        $in . 'source_url is not a field of this format.' => function (array &$f) {
+            $f['builds'][0]['source_url'] = 'https://example.org/';
+        },
         // A field named like a site is not repeated either.
-        $in.'the source is not a field of this format.' => function (array &$f) { $f['builds'][0]['prydwen'] = true; },
-        $in.'recommended must be true or false.' => function (array &$f) { $f['builds'][0]['recommended'] = 1; },
-        $in.'position must be a whole number from 0 to 32767.' => function (array &$f) { $f['builds'][0]['position'] = -1; },
-        $in.'weapons must be a list.' => function (array &$f) { $f['builds'][0]['weapons'] = ['key' => 'staffofhoma']; },
-        $in.'weapons[1].refinement must be a whole number from 0 to 99, or null.' => function (array &$f) { $f['builds'][0]['weapons'][1]['refinement'] = '5'; },
-        $in.'sets[0].kind must be artifact.' => function (array &$f) { $f['builds'][0]['sets'][0]['kind'] = 'relic'; },
-        $in.'sets[1].choose must be a whole number from 1 to 3, or null.' => function (array &$f) { $f['builds'][0]['sets'][1]['choose'] = 4; },
-        $in.'sets[0].pieces must not be empty.' => function (array &$f) { $f['builds'][0]['sets'][0]['pieces'] = []; },
-        $in.'sets[0].pieces must not have more than 30 entries.' => function (array &$f) { $f['builds'][0]['sets'][0]['pieces'] = array_fill(0, 31, $f['builds'][0]['sets'][0]['pieces'][0]); },
-        $in.'sets[1].pieces[1].keys[0] must be a key of lowercase letters and digits, at most 1000 long.' => function (array &$f) { $f['builds'][0]['sets'][1]['pieces'][1]['keys'][0] = 'Gilded Dreams'; },
+        $in . 'the source is not a field of this format.' => function (array &$f) {
+            $f['builds'][0]['prydwen'] = true;
+        },
+        $in . 'recommended must be true or false.' => function (array &$f) {
+            $f['builds'][0]['recommended'] = 1;
+        },
+        $in . 'position must be a whole number from 0 to 32767.' => function (array &$f) {
+            $f['builds'][0]['position'] = -1;
+        },
+        $in . 'weapons must be a list.' => function (array &$f) {
+            $f['builds'][0]['weapons'] = ['key' => 'staffofhoma'];
+        },
+        $in . 'weapons[1].refinement must be a whole number from 0 to 99, or null.' => function (array &$f) {
+            $f['builds'][0]['weapons'][1]['refinement'] = '5';
+        },
+        $in . 'sets[0].kind must be artifact.' => function (array &$f) {
+            $f['builds'][0]['sets'][0]['kind'] = 'relic';
+        },
+        $in . 'sets[1].choose must be a whole number from 1 to 3, or null.' => function (array &$f) {
+            $f['builds'][0]['sets'][1]['choose'] = 4;
+        },
+        $in . 'sets[0].pieces must not be empty.' => function (array &$f) {
+            $f['builds'][0]['sets'][0]['pieces'] = [];
+        },
+        $in . 'sets[0].pieces must not have more than 30 entries.' => function (array &$f) {
+            $f['builds'][0]['sets'][0]['pieces'] = array_fill(0, 31, $f['builds'][0]['sets'][0]['pieces'][0]);
+        },
+        $in . 'sets[1].pieces[1].keys[0] must be a key of lowercase letters and digits, at most 1000 long.' => function (array &$f) {
+            $f['builds'][0]['sets'][1]['pieces'][1]['keys'][0] = 'Gilded Dreams';
+        },
         // Set pieces as syncs store them: each set once, 2 or 4 pieces of it. (A set listed ten times over,
         // with 1 piece of it enough, made the set matcher try every repeat - seconds for one evaluation.)
-        $in.'sets[1].pieces[1].keys[1] repeats an earlier entry of its list.' => function (array &$f) { $f['builds'][0]['sets'][1]['pieces'][1]['keys'] = ['gildeddreams', 'gildeddreams']; },
-        $in.'sets[1].pieces[1].names[1] repeats an earlier entry of its list.' => function (array &$f) { $f['builds'][0]['sets'][1]['pieces'][1]['names'] = ['Gilded Dreams', 'Gilded Dreams']; },
-        $in.'sets[0].pieces[0].count must be 2 or 4.' => function (array &$f) { $f['builds'][0]['sets'][0]['pieces'][0]['count'] = 1; },
-        $in.'sets[1].pieces[0].count must be 2 or 4.' => function (array &$f) { $f['builds'][0]['sets'][1]['pieces'][0]['count'] = 3; },
-        $in.'main_stats must be an object.' => function (array &$f) { $f['builds'][0]['main_stats'] = [[['stat' => 'hp_', 'priority' => 1]]]; },
-        $in.'main_stats.body is not a slot of Genshin Impact.' => function (array &$f) { $f['builds'][0]['main_stats'] = ['body' => [['stat' => 'spd', 'priority' => 1]]]; },
+        $in . 'sets[1].pieces[1].keys[1] repeats an earlier entry of its list.' => function (array &$f) {
+            $f['builds'][0]['sets'][1]['pieces'][1]['keys'] = ['gildeddreams', 'gildeddreams'];
+        },
+        $in . 'sets[1].pieces[1].names[1] repeats an earlier entry of its list.' => function (array &$f) {
+            $f['builds'][0]['sets'][1]['pieces'][1]['names'] = ['Gilded Dreams', 'Gilded Dreams'];
+        },
+        $in . 'sets[0].pieces[0].count must be 2 or 4.' => function (array &$f) {
+            $f['builds'][0]['sets'][0]['pieces'][0]['count'] = 1;
+        },
+        $in . 'sets[1].pieces[0].count must be 2 or 4.' => function (array &$f) {
+            $f['builds'][0]['sets'][1]['pieces'][0]['count'] = 3;
+        },
+        $in . 'main_stats must be an object.' => function (array &$f) {
+            $f['builds'][0]['main_stats'] = [[['stat' => 'hp_', 'priority' => 1]]];
+        },
+        $in . 'main_stats.body is not a slot of Genshin Impact.' => function (array &$f) {
+            $f['builds'][0]['main_stats'] = ['body' => [['stat' => 'spd', 'priority' => 1]]];
+        },
         // Stat keys are sent as they are: only the game's own.
-        $in.'main_stats.sands[0].stat must be a stat key of Genshin Impact, such as critRate_ or hp_.' => function (array &$f) { $f['builds'][0]['main_stats']['sands'][0]['stat'] = 'enka'; },
-        $in.'substats[0].stat must be a stat key of Genshin Impact, such as critRate_ or hp_.' => function (array &$f) { $f['builds'][0]['substats'][0]['stat'] = 'prydwen'; },
-        $in.'substats[1].stat must be a stat key of Genshin Impact, such as critRate_ or hp_.' => function (array &$f) { $f['builds'][0]['substats'][1]['stat'] = 'spd'; },
-        $in.'stat_targets[0].stat must be a stat key of Genshin Impact, such as critRate_ or hp_.' => function (array &$f) { $f['builds'][0]['stat_targets'][0]['stat'] = 'critRate'; },
-        $in.'substats[0].priority must be a whole number from 1 to 99.' => function (array &$f) { $f['builds'][0]['substats'][0]['priority'] = 1.5; },
-        $in.'talent_priority[0].talent must be normal, skill or burst.' => function (array &$f) { $f['builds'][0]['talent_priority'][0]['talent'] = 'ultimate'; },
-        $in.'stat_targets[0].min must be a number from -1000000 to 1000000, or null.' => function (array &$f) { $f['builds'][0]['stat_targets'][0]['min'] = 5_000_000; },
-        $in.'source_updated_at must be a time in ISO 8601 from 1970 on, such as 2026-09-29T14:03:12Z, or null.' => function (array &$f) { $f['builds'][0]['source_updated_at'] = 'last week'; },
-        'The file\'s builds[1] (hutao, "Support") is not valid: its character and variant are those of builds[0] too.' => function (array &$f) { $f['builds'][1] = $f['builds'][0]; },
+        $in . 'main_stats.sands[0].stat must be a stat key of Genshin Impact, such as critRate_ or hp_.' => function (array &$f) {
+            $f['builds'][0]['main_stats']['sands'][0]['stat'] = 'enka';
+        },
+        $in . 'substats[0].stat must be a stat key of Genshin Impact, such as critRate_ or hp_.' => function (array &$f) {
+            $f['builds'][0]['substats'][0]['stat'] = 'prydwen';
+        },
+        $in . 'substats[1].stat must be a stat key of Genshin Impact, such as critRate_ or hp_.' => function (array &$f) {
+            $f['builds'][0]['substats'][1]['stat'] = 'spd';
+        },
+        $in . 'stat_targets[0].stat must be a stat key of Genshin Impact, such as critRate_ or hp_.' => function (array &$f) {
+            $f['builds'][0]['stat_targets'][0]['stat'] = 'critRate';
+        },
+        $in . 'substats[0].priority must be a whole number from 1 to 99.' => function (array &$f) {
+            $f['builds'][0]['substats'][0]['priority'] = 1.5;
+        },
+        $in . 'talent_priority[0].talent must be normal, skill or burst.' => function (array &$f) {
+            $f['builds'][0]['talent_priority'][0]['talent'] = 'ultimate';
+        },
+        $in . 'stat_targets[0].min must be a number from -1000000 to 1000000, or null.' => function (array &$f) {
+            $f['builds'][0]['stat_targets'][0]['min'] = 5_000_000;
+        },
+        $in . 'source_updated_at must be a time in ISO 8601 from 1970 on, such as 2026-09-29T14:03:12Z, or null.' => function (array &$f) {
+            $f['builds'][0]['source_updated_at'] = 'last week';
+        },
+        'The file\'s builds[1] (hutao, "Support") is not valid: its character and variant are those of builds[0] too.' => function (array &$f) {
+            $f['builds'][1] = $f['builds'][0];
+        },
         // The first problem may be in a later build: it is named.
-        'The file\'s builds[2] (kaedeharakazuha, "Main") is not valid: weapons[0].known must be true or false.' => function (array &$f) { $f['builds'][2]['weapons'][0]['known'] = 'yes'; },
+        'The file\'s builds[2] (kaedeharakazuha, "Main") is not valid: weapons[0].known must be true or false.' => function (array &$f) {
+            $f['builds'][2]['weapons'][0]['known'] = 'yes';
+        },
     ];
     foreach ($cases as $message => $break) {
         $broken = $file;
@@ -437,8 +576,10 @@ test('a malformed build is refused with the whole file, naming the first problem
 
     // A number too large for a float arrives as INF.
     $json = preg_replace('/"min":60\b/', '"min":1E400', (string) json_encode($file), 1);
-    $client->request('POST', '/api/sources/genshin-1/import', null, ['body' => $json])->status(422)
-        ->path('message', $in.'stat_targets[0].min must be a number from -1000000 to 1000000, or null.');
+    $client
+        ->request('POST', '/api/sources/genshin-1/import', null, ['body' => $json])
+        ->status(422)
+        ->path('message', $in . 'stat_targets[0].min must be a number from -1000000 to 1000000, or null.');
 
     same($builds, storedBuilds(), 'nothing written');
     same(0, runCount(), 'no run');
@@ -452,8 +593,7 @@ test('no import while the source syncs, or while a step runs', function () use (
 
     // A sync of the source is going (started and not stepped yet, as when its tab was closed).
     $runId = $client->post('/api/sources/genshin-1/sync')->status(200)->json('started.0.id');
-    $client->post('/api/sources/genshin-1/import', $file)->status(409)
-        ->path('message', 'Source 1 is being synced. Let that sync finish or cancel it, then import.');
+    $client->post('/api/sources/genshin-1/import', $file)->status(409)->path('message', 'Source 1 is being synced. Let that sync finish or cancel it, then import.');
     $client->post("/api/sync-runs/{$runId}/cancel")->status(200);
 
     // A step holds the lock: the import waits a moment for it, then gives up.
@@ -473,17 +613,20 @@ test('no import while the source syncs, or while a step runs', function () use (
 test('only an editor or an admin exports or imports', function () use ($admin) {
     seedSource();
     $file = $admin()->get('/api/sources/genshin-1/export')->json();
-    $person = (new Client)->asIam(3, []);
+    $person = (new Client())->asIam(3, []);
 
     $person->get('/api/sources/genshin-1/export')->status(403)->path('message', 'Only an editor or an admin can do this.');
-    $person->post('/api/sources/genshin-1/import', ['builds' => []] + $file)->status(403)->path('message', 'Only an editor or an admin can do this.');
-    (new Client)->get('/api/sources/genshin-1/export')->status(401);
+    $person
+        ->post('/api/sources/genshin-1/import', ['builds' => []] + $file)
+        ->status(403)
+        ->path('message', 'Only an editor or an admin can do this.');
+    (new Client())->get('/api/sources/genshin-1/export')->status(401);
 
     same(3, (int) db()->value('SELECT count(*) FROM builds'), 'nothing removed');
     same(0, runCount(), 'no run');
 
     // An editor moves a source's builds as an admin does.
-    $editor = (new Client)->asIam(4, [Role::EDITOR]);
+    $editor = (new Client())->asIam(4, [Role::EDITOR]);
     same($file['builds'], $editor->get('/api/sources/genshin-1/export')->status(200)->json('builds'), 'the same file');
     $editor->post('/api/sources/genshin-1/import', $file)->status(200)->path('unchanged', 3);
 });
@@ -494,7 +637,7 @@ test('a build keeps the page address it has here: importing it changes nothing, 
     $synced = db()->one('SELECT content_hash, source_url FROM builds');
     $client = $admin();
     $file = $client->get('/api/sources/genshin-1/export')->json();
-    check(! str_contains((string) json_encode($file), 'fake-builds'), 'the file carries no address');
+    check(!str_contains((string) json_encode($file), 'fake-builds'), 'the file carries no address');
 
     $client->post('/api/sources/genshin-1/import', $file)->status(200)->path('unchanged', 1)->path('updated', 0);
     same($synced, db()->one('SELECT content_hash, source_url FROM builds'), 'the address, and the hash a sync made with it');
@@ -528,10 +671,12 @@ test('what an import stores names no site, whatever the file says', function () 
     $entry['stat_targets'][0]['text'] = 'CRIT Rate 60% (Prydwen)';
     $newcomer = ['character' => 'someonenew', 'character_name' => 'Prydwen favourite from https://www.prydwen.gg'] + $file['builds'][1];
 
-    $answer = $client->post('/api/sources/genshin-1/import', ['builds' => [$entry, $newcomer]] + $file)->status(200)
+    $answer = $client
+        ->post('/api/sources/genshin-1/import', ['builds' => [$entry, $newcomer]] + $file)
+        ->status(200)
         ->path('created', 1)
         ->path('removed', 3);
-    check(! stringsNameASite($answer->json()), 'the answer: '.$answer->body);
+    check(!stringsNameASite($answer->json()), 'the answer: ' . $answer->body);
 
     $stored = db()->one('SELECT variant, role, notes, game_version, weapons, sets, stat_targets FROM builds');
     same('The source pick', $stored['variant'], 'the variant');
@@ -539,20 +684,20 @@ test('what an import stores names no site, whatever the file says', function () 
     foreach (['weapons', 'sets', 'stat_targets'] as $column) {
         $stored[$column] = json_decode($stored[$column], true);
     }
-    check(! stringsNameASite($stored), 'the build: '.json_encode($stored));
+    check(!stringsNameASite($stored), 'the build: ' . json_encode($stored));
 
     // The name of the character the catalog lacks is stored with the run, and sent with it.
-    check(! stringsNameASite(json_decode((string) db()->value('SELECT stats FROM sync_runs ORDER BY id DESC LIMIT 1'), true)), 'the run\'s stats');
-    check(! stringsNameASite($client->get('/api/sync-runs')->status(200)->json()), 'the runs');
+    check(!stringsNameASite(json_decode((string) db()->value('SELECT stats FROM sync_runs ORDER BY id DESC LIMIT 1'), true)), 'the run\'s stats');
+    check(!stringsNameASite($client->get('/api/sync-runs')->status(200)->json()), 'the runs');
 });
 
 test('an export always imports: neutral text kept to its caps, variants it makes alike told apart', function () use ($admin) {
     // A role at its column's 60 characters, which "the source" makes longer; notes longer than the file's
     // cap; two variants that neutral words make alike; and a piece whose sets they make alike.
-    $role = str_repeat('x', 51).' enka DPS';
+    $role = str_repeat('x', 51) . ' enka DPS';
     $pieces = [['label' => 'Prydwen set', 'count' => 2, 'keys' => ['prydwen', 'enka'], 'names' => ['Prydwen set', 'Enka set']]];
     storeBuilds('hutao', [
-        aBuild('Prydwen DPS', ['role' => $role, 'notes' => str_repeat('n', 19995).' see https://www.prydwen.gg/x']),
+        aBuild('Prydwen DPS', ['role' => $role, 'notes' => str_repeat('n', 19995) . ' see https://www.prydwen.gg/x']),
         aBuild('Game8 DPS', ['sets' => [['rank' => 1, 'kind' => 'artifact', 'choose' => null, 'pieces' => $pieces, 'note' => null]]]),
     ]);
     same(60, mb_strlen($role), 'the role fits its column');
@@ -563,7 +708,7 @@ test('an export always imports: neutral text kept to its caps, variants it makes
     same(60, mb_strlen($file['builds'][0]['role']), 'the role at its cap');
     same(20000, mb_strlen($file['builds'][0]['notes']), 'the notes at the cap');
     same([['label' => 'The source set', 'count' => 2, 'keys' => ['thesource'], 'names' => ['The source set']]], $file['builds'][1]['sets'][0]['pieces'], 'sets alike, listed once');
-    check(! stringsNameASite($file), 'the file names no site');
+    check(!stringsNameASite($file), 'the file names no site');
 
     // The same builds under their neutral names, then an import of the same file that changes nothing.
     $client->post('/api/sources/genshin-1/import', $file)->status(200)->path('created', 2)->path('removed', 2);
@@ -577,33 +722,60 @@ test('a Star Rail file: set kinds, ornaments in pairs, and the game\'s own stats
     seedHsrCatalog();
     T::$app->config->set('sources', [FakeBuildSource::class, FakeHsrSource::class]);
     $file = [
-        'format' => 'build-analyzer.builds', 'format_version' => 1, 'source' => 'hsr-1', 'game' => 'hsr',
-        'exported_at' => BuildFile::time(Clock::now()), 'synced_at' => null,
-        'builds' => [[
-            'character' => 'kafka', 'character_name' => 'Kafka', 'variant' => 'DoT', 'role' => null, 'recommended' => true, 'position' => 0,
-            'weapons' => [['key' => 'patienceisallyouneed', 'name' => 'Patience Is All You Need', 'rank' => 1, 'refinement' => 1, 'note' => null, 'known' => true]],
-            'sets' => [
-                ['rank' => 1, 'kind' => 'relic', 'choose' => null, 'note' => null, 'pieces' => [
-                    ['label' => 'Prisoner in Deep Confinement', 'count' => 4, 'keys' => ['prisonerindeepconfinement'], 'names' => ['Prisoner in Deep Confinement']],
-                ]],
-                ['rank' => 2, 'kind' => 'planar', 'choose' => null, 'note' => null, 'pieces' => [
-                    ['label' => 'Firmament Frontline: Glamoth', 'count' => 2, 'keys' => ['firmamentfrontlineglamoth'], 'names' => ['Firmament Frontline: Glamoth']],
-                ]],
+        'format' => 'build-analyzer.builds',
+        'format_version' => 1,
+        'source' => 'hsr-1',
+        'game' => 'hsr',
+        'exported_at' => BuildFile::time(Clock::now()),
+        'synced_at' => null,
+        'builds' => [
+            [
+                'character' => 'kafka',
+                'character_name' => 'Kafka',
+                'variant' => 'DoT',
+                'role' => null,
+                'recommended' => true,
+                'position' => 0,
+                'weapons' => [['key' => 'patienceisallyouneed', 'name' => 'Patience Is All You Need', 'rank' => 1, 'refinement' => 1, 'note' => null, 'known' => true]],
+                'sets' => [
+                    [
+                        'rank' => 1,
+                        'kind' => 'relic',
+                        'choose' => null,
+                        'note' => null,
+                        'pieces' => [['label' => 'Prisoner in Deep Confinement', 'count' => 4, 'keys' => ['prisonerindeepconfinement'], 'names' => ['Prisoner in Deep Confinement']]],
+                    ],
+                    [
+                        'rank' => 2,
+                        'kind' => 'planar',
+                        'choose' => null,
+                        'note' => null,
+                        'pieces' => [['label' => 'Firmament Frontline: Glamoth', 'count' => 2, 'keys' => ['firmamentfrontlineglamoth'], 'names' => ['Firmament Frontline: Glamoth']]],
+                    ],
+                ],
+                'main_stats' => ['body' => [['stat' => 'atk_', 'priority' => 1]], 'feet' => [['stat' => 'spd', 'priority' => 1]]],
+                'substats' => [['stat' => 'spd', 'priority' => 1], ['stat' => 'atk_', 'priority' => 2]],
+                'talent_priority' => [['talent' => 'ultimate', 'priority' => 1]],
+                'stat_targets' => [['stat' => 'spd', 'min' => 134, 'max' => null, 'text' => 'SPD 134+']],
+                'notes' => null,
+                'source_updated_at' => null,
+                'game_version' => null,
             ],
-            'main_stats' => ['body' => [['stat' => 'atk_', 'priority' => 1]], 'feet' => [['stat' => 'spd', 'priority' => 1]]],
-            'substats' => [['stat' => 'spd', 'priority' => 1], ['stat' => 'atk_', 'priority' => 2]],
-            'talent_priority' => [['talent' => 'ultimate', 'priority' => 1]],
-            'stat_targets' => [['stat' => 'spd', 'min' => 134, 'max' => null, 'text' => 'SPD 134+']],
-            'notes' => null, 'source_updated_at' => null, 'game_version' => null,
-        ]],
+        ],
     ];
     $client = $admin();
     $in = 'The file\'s builds[0] (kafka, "DoT") is not valid: ';
 
     $cases = [
-        $in.'sets[1].pieces[0].count must be 2.' => function (array &$f) { $f['builds'][0]['sets'][1]['pieces'][0]['count'] = 4; },
-        $in.'sets[0].kind must be relic or planar.' => function (array &$f) { $f['builds'][0]['sets'][0]['kind'] = 'artifact'; },
-        $in.'substats[1].stat must be a stat key of Honkai: Star Rail, such as critRate_ or hp_.' => function (array &$f) { $f['builds'][0]['substats'][1]['stat'] = 'eleMas'; },
+        $in . 'sets[1].pieces[0].count must be 2.' => function (array &$f) {
+            $f['builds'][0]['sets'][1]['pieces'][0]['count'] = 4;
+        },
+        $in . 'sets[0].kind must be relic or planar.' => function (array &$f) {
+            $f['builds'][0]['sets'][0]['kind'] = 'artifact';
+        },
+        $in . 'substats[1].stat must be a stat key of Honkai: Star Rail, such as critRate_ or hp_.' => function (array &$f) {
+            $f['builds'][0]['substats'][1]['stat'] = 'eleMas';
+        },
     ];
     foreach ($cases as $message => $break) {
         $broken = $file;
@@ -619,13 +791,17 @@ test('times before 1970 are no times: refused where a time must be, now where on
     $file = $client->get('/api/sources/genshin-1/export')->json();
     $in = 'The file\'s builds[0] (hutao, "Support") is not valid: ';
 
-    $client->post('/api/sources/genshin-1/import', ['exported_at' => '0000-01-01T00:00:00Z'] + $file)->status(422)
+    $client
+        ->post('/api/sources/genshin-1/import', ['exported_at' => '0000-01-01T00:00:00Z'] + $file)
+        ->status(422)
         ->path('message', "The file's exported_at must be a time in ISO 8601 from 1970 on, such as 2026-09-29T14:03:12Z.");
     foreach (['0000-01-01T00:00:00Z', '1969-12-31T23:59:59Z'] as $time) {
         $broken = $file;
         $broken['builds'][0]['source_updated_at'] = $time;
-        $client->post('/api/sources/genshin-1/import', $broken)->status(422)
-            ->path('message', $in.'source_updated_at must be a time in ISO 8601 from 1970 on, such as 2026-09-29T14:03:12Z, or null.');
+        $client
+            ->post('/api/sources/genshin-1/import', $broken)
+            ->status(422)
+            ->path('message', $in . 'source_updated_at must be a time in ISO 8601 from 1970 on, such as 2026-09-29T14:03:12Z, or null.');
     }
     same(0, runCount(), 'nothing imported');
 

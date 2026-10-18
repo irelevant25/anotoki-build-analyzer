@@ -26,13 +26,13 @@ class GenshinGgHsr extends GenshinGgSource
 
     protected function characterUrl(string $slug): string
     {
-        return $this->baseUrl().'/star-rail/characters/'.$slug.'/';
+        return $this->baseUrl() . '/star-rail/characters/' . $slug . '/';
     }
 
     public function fetchBuilds(CharacterRef $character): array
     {
         $raw = $this->raw($character);
-        if (! $raw || empty($raw['light_cone'])) {
+        if (!$raw || empty($raw['light_cone'])) {
             return [];
         }
 
@@ -45,8 +45,8 @@ class GenshinGgHsr extends GenshinGgSource
         }
 
         $sets = [
-            ...array_map(fn ($text) => $this->setOption($text, 'relic'), $this->lines($raw['relic'] ?? [])),
-            ...array_map(fn ($text) => $this->setOption($text, 'planar'), $this->lines($raw['ornament'] ?? [])),
+            ...array_map(fn($text) => $this->setOption($text, 'relic'), $this->lines($raw['relic'] ?? [])),
+            ...array_map(fn($text) => $this->setOption($text, 'planar'), $this->lines($raw['ornament'] ?? [])),
         ];
 
         // main_stats = [body, feet, sphere, rope]; "Any" means no preference.
@@ -69,16 +69,18 @@ class GenshinGgHsr extends GenshinGgSource
             }
         }
 
-        return [new ScrapedBuild(
-            variant: 'Build',
-            role: null,
-            recommended: true,
-            weapons: $weapons,
-            sets: array_values(array_filter($sets)),
-            mainStats: $mainStats,
-            substats: Stats::parsePriorityList(Game::Hsr, implode(' > ', array_map('strval', $raw['sub_stats'] ?? []))),
-            statTargets: $targets,
-            sourceUrl: $character->url,
-        )];
+        return [
+            new ScrapedBuild(
+                variant: 'Build',
+                role: null,
+                recommended: true,
+                weapons: $weapons,
+                sets: array_values(array_filter($sets)),
+                mainStats: $mainStats,
+                substats: Stats::parsePriorityList(Game::Hsr, implode(' > ', array_map('strval', $raw['sub_stats'] ?? []))),
+                statTargets: $targets,
+                sourceUrl: $character->url,
+            ),
+        ];
     }
 }

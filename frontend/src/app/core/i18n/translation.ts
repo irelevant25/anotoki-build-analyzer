@@ -38,17 +38,8 @@ export type WordKey = TranslationKey | LibraryKey;
 interface TypedWords {
   t(key: WordKey, params?: TranslationParams): string;
   plural(key: PluralKey, count: number, params?: TranslationParams): string;
-  around(
-    key: WordKey,
-    placeholder: string,
-    params?: TranslationParams,
-  ): [before: string, after: string, found: boolean];
-  aroundPlural(
-    key: PluralKey,
-    count: number,
-    placeholder: string,
-    params?: TranslationParams,
-  ): [before: string, after: string, found: boolean];
+  around(key: WordKey, placeholder: string, params?: TranslationParams): [before: string, after: string, found: boolean];
+  aroundPlural(key: PluralKey, count: number, placeholder: string, params?: TranslationParams): [before: string, after: string, found: boolean];
 }
 
 /**
@@ -65,5 +56,4 @@ interface TypedWords {
  * How the library is set up for this site is translations.config.ts (provideTranslations()).
  */
 export type TranslationService = Omit<AnotokiTranslationService, keyof TypedWords> & TypedWords;
-export const TranslationService =
-  AnotokiTranslationService as unknown as AbstractType<TranslationService>;
+export const TranslationService = AnotokiTranslationService as unknown as AbstractType<TranslationService>;

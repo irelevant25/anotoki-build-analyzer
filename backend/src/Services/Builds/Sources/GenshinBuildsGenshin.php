@@ -22,11 +22,7 @@ use RuntimeException;
  */
 class GenshinBuildsGenshin implements BuildSource
 {
-    public function __construct(
-        protected readonly Fetcher $fetcher,
-        protected readonly SetBonusGroups $setGroups,
-        protected readonly Config $config,
-    ) {}
+    public function __construct(protected readonly Fetcher $fetcher, protected readonly SetBonusGroups $setGroups, protected readonly Config $config) {}
 
     public function key(): string
     {
@@ -55,9 +51,8 @@ class GenshinBuildsGenshin implements BuildSource
 
     public function listCharacters(): array
     {
-        $html = $this->fetch($this->baseUrl().'/en/characters');
-        $props = AstroIslands::find($html, 'CharactersList')
-            ?? throw new RuntimeException('The character list was not found on the page');
+        $html = $this->fetch($this->baseUrl() . '/en/characters');
+        $props = AstroIslands::find($html, 'CharactersList') ?? throw new RuntimeException('The character list was not found on the page');
 
         $refs = [];
         foreach ($props['characters'] ?? [] as $character) {
@@ -66,13 +61,11 @@ class GenshinBuildsGenshin implements BuildSource
             }
             $released = empty($character['upcoming']) && ($character['status'] ?? 'released') !== 'speculated';
             // A missing element renders as "Traveler (undefined)"; the slug ("traveler_pyro") is reliable.
-            $name = str_contains($character['name'], 'undefined')
-                ? ucwords(str_replace('_', ' ', $character['id']))
-                : $character['name'];
+            $name = str_contains($character['name'], 'undefined') ? ucwords(str_replace('_', ' ', $character['id'])) : $character['name'];
             $refs[] = new CharacterRef(
                 slug: $character['id'],
                 name: $name,
-                url: $this->baseUrl().'/en/character/'.$character['id'],
+                url: $this->baseUrl() . '/en/character/' . $character['id'],
                 released: $released,
                 meta: ['element' => $character['element']['id'] ?? null],
             );
@@ -85,12 +78,12 @@ class GenshinBuildsGenshin implements BuildSource
     {
         $html = $this->fetch($character->url);
         $props = AstroIslands::find($html, 'CharacterBuildTabs');
-        if (! $props || empty($props['builds'])) {
+        if (!$props || empty($props['builds'])) {
             return [];
         }
 
         $version = preg_match('/\(v(\d+\.\d+)\)/', $html, $m) ? $m[1] : null;
-        $weaponNames = array_map(fn ($weapon) => $weapon['name'] ?? null, $props['weapons'] ?? []);
+        $weaponNames = array_map(fn($weapon) => $weapon['name'] ?? null, $props['weapons'] ?? []);
         $artifacts = $props['artifacts'] ?? [];
 
         $builds = [];
@@ -98,15 +91,12 @@ class GenshinBuildsGenshin implements BuildSource
         foreach ($props['builds'] as $build) {
             $variant = $this->prettyName((string) ($build['name'] ?? 'Build'));
             if (isset($usedNames[$variant])) {
-                $variant .= ' #'.(++$usedNames[$variant]);
+                $variant .= ' #' . ++$usedNames[$variant];
             } else {
                 $usedNames[$variant] = 1;
             }
 
-            $notes = trim(implode("\n", array_filter([
-                $this->plain($build['description'] ?? null),
-                $this->plain($build['build_notes'] ?? null),
-            ])));
+            $notes = trim(implode("\n", array_filter([$this->plain($build['description'] ?? null), $this->plain($build['build_notes'] ?? null)])));
 
             $builds[] = new ScrapedBuild(
                 variant: $variant,
@@ -117,7 +107,7 @@ class GenshinBuildsGenshin implements BuildSource
                 mainStats: $this->mainStats($build['stats'] ?? []),
                 substats: Stats::ordered(Game::Genshin, $build['stats_priority'] ?? []),
                 talents: Talents::ordered(Game::Genshin, $build['talent_priority'] ?? []),
-                statTargets: StatTargets::extract(Game::Genshin, ($build['build_notes'] ?? '').' '.($build['description'] ?? '')),
+                statTargets: StatTargets::extract(Game::Genshin, ($build['build_notes'] ?? '') . ' ' . ($build['description'] ?? '')),
                 notes: $notes !== '' ? $notes : null,
                 sourceUrl: $character->url,
                 gameVersion: $version,
@@ -150,7 +140,7 @@ class GenshinBuildsGenshin implements BuildSource
         foreach ($build['weapons'] ?? [] as $weapon) {
             $id = $weapon['id'] ?? null;
             $name = $names[$id] ?? ($id ? ucwords(str_replace('_', ' ', $id)) : null);
-            if (! $name) {
+            if (!$name) {
                 continue;
             }
             $refinement = (int) ($weapon['r'] ?? 0);
@@ -180,7 +170,7 @@ class GenshinBuildsGenshin implements BuildSource
             if ($artifact === null && ($pseudo = $this->pseudoSet($id))) {
                 return $pseudo + ['count' => $count];
             }
-            $children = array_values(array_filter(array_map(fn ($child) => $child['name'] ?? null, $artifact['children'] ?? [])));
+            $children = array_values(array_filter(array_map(fn($child) => $child['name'] ?? null, $artifact['children'] ?? [])));
 
             return [
                 'names' => $children !== [] ? $children : [$artifact['name'] ?? ucwords(str_replace('_', ' ', $id))],
@@ -196,9 +186,8 @@ class GenshinBuildsGenshin implements BuildSource
                 continue;
             }
 
-            $isPseudo = fn (string $id) => ! empty($artifacts[$id]['children'])
-                || (! isset($artifacts[$id]) && $this->pseudoSet($id) !== null);
-            if (count($ids) === 1 && ! $isPseudo($ids[0])) {
+            $isPseudo = fn(string $id) => !empty($artifacts[$id]['children']) || (!isset($artifacts[$id]) && $this->pseudoSet($id) !== null);
+            if (count($ids) === 1 && !$isPseudo($ids[0])) {
                 $options[] = ['kind' => 'artifact', 'choose' => null, 'pieces' => [$piece($ids[0], 4)], 'note' => $notes[$ids[0]] ?? null];
 
                 continue;
@@ -207,7 +196,7 @@ class GenshinBuildsGenshin implements BuildSource
             $options[] = [
                 'kind' => 'artifact',
                 'choose' => count($ids) > 2 ? 2 : null,
-                'pieces' => array_map(fn ($id) => $piece($id, 2), $ids),
+                'pieces' => array_map(fn($id) => $piece($id, 2), $ids),
                 'note' => $notes[$ids[0]] ?? null,
             ];
         }
@@ -224,17 +213,19 @@ class GenshinBuildsGenshin implements BuildSource
     protected function pseudoSet(string $id): ?array
     {
         $key = preg_replace('/[^a-z0-9]/', '', strtolower($id)) ?? '';
-        if (! preg_match('/^(?:and)?\d*([a-z]+?)(?:dmg)?(?:bonus)?set$/', $key, $m)) {
+        if (!preg_match('/^(?:and)?\d*([a-z]+?)(?:dmg)?(?:bonus)?set$/', $key, $m)) {
             return null;
         }
 
         $stat = Stats::parse($this->game(), $m[1])[0] ?? null;
         $names = $stat ? $this->setGroups->names($this->game(), $stat) : [];
 
-        return $names === [] ? null : [
-            'names' => $names,
-            'label' => Stats::label($stat, $this->game(), true).' set',
-        ];
+        return $names === []
+            ? null
+            : [
+                'names' => $names,
+                'label' => Stats::label($stat, $this->game(), true) . ' set',
+            ];
     }
 
     /**
@@ -266,11 +257,7 @@ class GenshinBuildsGenshin implements BuildSource
 
         $pretty = ucwords(mb_strtolower($name), " \t-/&(");
 
-        return preg_replace_callback(
-            '/\b(Dps|Sub-dps|Em|Er|Atk|Hp|Def|Crit|Aoe|Na|Ca|F2p|Dot|Spd|Be|Ehr)\b/i',
-            fn ($m) => strtoupper($m[0]),
-            $pretty,
-        ) ?? $pretty;
+        return preg_replace_callback('/\b(Dps|Sub-dps|Em|Er|Atk|Hp|Def|Crit|Aoe|Na|Ca|F2p|Dot|Spd|Be|Ehr)\b/i', fn($m) => strtoupper($m[0]), $pretty) ?? $pretty;
     }
 
     protected function plain(?string $html): ?string

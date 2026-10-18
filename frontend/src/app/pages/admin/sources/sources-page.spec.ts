@@ -14,8 +14,17 @@ import { provideKit } from '../../../core/kit';
 
 function source(key: string, name: string): SourceStatus {
   return {
-    key, game: 'genshin', name, enabled: true, last_synced_at: null, last_status: null, last_error: null,
-    builds: 3, characters: 2, running: false, latest_run: null,
+    key,
+    game: 'genshin',
+    name,
+    enabled: true,
+    last_synced_at: null,
+    last_status: null,
+    last_error: null,
+    builds: 3,
+    characters: 2,
+    running: false,
+    latest_run: null,
   };
 }
 
@@ -50,10 +59,8 @@ describe('SourcesPage, moving builds through a file', () => {
     const fixture = TestBed.createComponent(SourcesPage);
     await fixture.whenStable();
     const element: HTMLElement = fixture.nativeElement;
-    const card = (key: string) =>
-      [...element.querySelectorAll<HTMLElement>('anotoki-card.source')].find((article) => article.textContent?.includes(key))!;
-    const button = (within: HTMLElement, label: string) =>
-      [...within.querySelectorAll<HTMLButtonElement>('button')].find((candidate) => candidate.textContent?.includes(label))!;
+    const card = (key: string) => [...element.querySelectorAll<HTMLElement>('anotoki-card.source')].find((article) => article.textContent?.includes(key))!;
+    const button = (within: HTMLElement, label: string) => [...within.querySelectorAll<HTMLButtonElement>('button')].find((candidate) => candidate.textContent?.includes(label))!;
     return { fixture, element, card, button };
   }
 
@@ -86,9 +93,7 @@ describe('SourcesPage, moving builds through a file', () => {
     input.dispatchEvent(new Event('change'));
     await fixture.whenStable();
 
-    expect(toasts.error).toHaveBeenCalledWith(
-      'This file is larger than 8 MB: more than the server may accept, and far more than the builds of a source take. Is it the right file?',
-    );
+    expect(toasts.error).toHaveBeenCalledWith('This file is larger than 8 MB: more than the server may accept, and far more than the builds of a source take. Is it the right file?');
     expect(read).not.toHaveBeenCalled();
     expect(api['importSourceBuilds']).not.toHaveBeenCalled();
   });
@@ -97,8 +102,18 @@ describe('SourcesPage, moving builds through a file', () => {
 describe('SourcesPage, the syncs on their way', () => {
   function run(id: number, change: Partial<SyncRunSummary>): SyncRunSummary {
     return {
-      id, kind: 'builds', game: 'genshin', status: 'running', started_at: '2026-10-18T08:00:00Z', finished_at: null, stats: null,
-      progress: null, next_step_at: null, last_step_at: null, started_by: null, source: { key: 'genshin-1', name: 'Source 1', game: 'genshin' },
+      id,
+      kind: 'builds',
+      game: 'genshin',
+      status: 'running',
+      started_at: '2026-10-18T08:00:00Z',
+      finished_at: null,
+      stats: null,
+      progress: null,
+      next_step_at: null,
+      last_step_at: null,
+      started_by: null,
+      source: { key: 'genshin-1', name: 'Source 1', game: 'genshin' },
       ...change,
     };
   }
@@ -117,13 +132,7 @@ describe('SourcesPage, the syncs on their way', () => {
     };
     TestBed.configureTestingModule({
       imports: [SourcesPage],
-      providers: [
-        { provide: Api, useValue: api },
-        { provide: AuthService, useValue: { isAdmin: signal(true), user: signal(null) } },
-        provideTestTranslations({}),
-        provideKit(),
-        provideRouter([]),
-      ],
+      providers: [{ provide: Api, useValue: api }, { provide: AuthService, useValue: { isAdmin: signal(true), user: signal(null) } }, provideTestTranslations({}), provideKit(), provideRouter([])],
     });
     const fixture = TestBed.createComponent(SourcesPage);
     await fixture.whenStable();
@@ -149,13 +158,7 @@ describe('SourcesPage and database updates', () => {
     };
     TestBed.configureTestingModule({
       imports: [SourcesPage],
-      providers: [
-        { provide: Api, useValue: api },
-        { provide: AuthService, useValue: { isAdmin: signal(true), user: signal(null) } },
-        provideTestTranslations({}),
-        provideKit(),
-        provideRouter([]),
-      ],
+      providers: [{ provide: Api, useValue: api }, { provide: AuthService, useValue: { isAdmin: signal(true), user: signal(null) } }, provideTestTranslations({}), provideKit(), provideRouter([])],
     });
     const fixture = TestBed.createComponent(SourcesPage);
     await fixture.whenStable();

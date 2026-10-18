@@ -34,52 +34,58 @@ use Slim\Routing\RouteCollectorProxy;
  * me.file_max_mb, so what it writes always imports.
  */
 return function (Slim\App $slim, App $app): void {
-    $refused = fn (AccountsFileException $e): HttpError => new HttpError(422, $e->getMessage(), [
+    $refused = fn(AccountsFileException $e): HttpError => new HttpError(422, $e->getMessage(), [
         'code' => $e->kind,
-        'params' => $e->params === [] ? new stdClass : $e->params,
+        'params' => $e->params === [] ? new stdClass() : $e->params,
     ]);
 
-    $slim->group('/api/me', function (RouteCollectorProxy $group) use ($app, $refused) {
-        $group->get('/export', function (Request $request, Response $response) use ($app, $refused): Response {
-            try {
-                $file = $app->get(AccountsTransfer::class)->export(currentUser($request));
-            } catch (AccountsFileException $e) {
-                throw $refused($e);
-            }
-            $response->getBody()->write($file['body']);
-
-            return $response->withHeader('Content-Type', 'application/json; charset=utf-8')
-                ->withHeader('Content-Disposition', 'attachment; filename="'.$file['filename'].'"');
-        });
-
-        $group->post('/import', function (Request $request, Response $response) use ($app, $refused): Response {
-            // An import that has started finishes, even when the tab is closed while it runs.
-            ignore_user_abort(true);
-            $transfer = $app->get(AccountsTransfer::class);
-            $dryRun = in_array(strtolower((string) ($request->getQueryParams()['dry_run'] ?? '')), ['1', 'true', 'yes'], true);
-
-            try {
-                $body = (string) $request->getBody();
-                if ($body === '') {
-                    // What PHP makes of a body larger than its post_max_size: it arrives as nothing.
-                    throw new AccountsFileException('no_file', [], 'No file arrived. A file larger than this server accepts arrives empty.');
+    $slim
+        ->group('/api/me', function (RouteCollectorProxy $group) use ($app, $refused) {
+            $group->get('/export', function (Request $request, Response $response) use ($app, $refused): Response {
+                try {
+                    $file = $app->get(AccountsTransfer::class)->export(currentUser($request));
+                } catch (AccountsFileException $e) {
+                    throw $refused($e);
                 }
-                if (strlen($body) > $transfer->maxBytes()) {
-                    throw new AccountsFileException('file_too_big', ['max_mb' => $transfer->maxMb()],
-                        "The file is larger than {$transfer->maxMb()} MB, more than an export of this site writes.");
-                }
-                // Sent as application/json, the body parser has decoded it already (once is enough for a file of
-                // megabytes); anything else - or a byte order mark, which some editors save - is decoded here.
-                $parsed = $request->getParsedBody();
-                $file = is_array($parsed) ? $parsed : json_decode(preg_replace('/^\xEF\xBB\xBF/', '', $body) ?? $body, true, 64);
-                unset($body, $parsed);
-                $file = AccountsFile::read($file);
-                $result = $transfer->import(currentUser($request), $file, $dryRun);
-            } catch (AccountsFileException $e) {
-                throw $refused($e);
-            }
+                $response->getBody()->write($file['body']);
 
-            return Json::send($response, $result);
-        })->add(throttle($app, 'me-import', 'me.import_per_minute'));
-    })->add(requireSignIn($app));
+                return $response->withHeader('Content-Type', 'application/json; charset=utf-8')->withHeader('Content-Disposition', 'attachment; filename="' . $file['filename'] . '"');
+            });
+
+            $group
+                ->post('/import', function (Request $request, Response $response) use ($app, $refused): Response {
+                    // An import that has started finishes, even when the tab is closed while it runs.
+                    ignore_user_abort(true);
+                    $transfer = $app->get(AccountsTransfer::class);
+                    $dryRun = in_array(strtolower((string) ($request->getQueryParams()['dry_run'] ?? '')), ['1', 'true', 'yes'], true);
+
+                    try {
+                        $body = (string) $request->getBody();
+                        if ($body === '') {
+                            // What PHP makes of a body larger than its post_max_size: it arrives as nothing.
+                            throw new AccountsFileException('no_file', [], 'No file arrived. A file larger than this server accepts arrives empty.');
+                        }
+                        if (strlen($body) > $transfer->maxBytes()) {
+                            throw new AccountsFileException(
+                                'file_too_big',
+                                ['max_mb' => $transfer->maxMb()],
+                                "The file is larger than {$transfer->maxMb()} MB, more than an export of this site writes.",
+                            );
+                        }
+                        // Sent as application/json, the body parser has decoded it already (once is enough for a file of
+                        // megabytes); anything else - or a byte order mark, which some editors save - is decoded here.
+                        $parsed = $request->getParsedBody();
+                        $file = is_array($parsed) ? $parsed : json_decode(preg_replace('/^\xEF\xBB\xBF/', '', $body) ?? $body, true, 64);
+                        unset($body, $parsed);
+                        $file = AccountsFile::read($file);
+                        $result = $transfer->import(currentUser($request), $file, $dryRun);
+                    } catch (AccountsFileException $e) {
+                        throw $refused($e);
+                    }
+
+                    return Json::send($response, $result);
+                })
+                ->add(throttle($app, 'me-import', 'me.import_per_minute'));
+        })
+        ->add(requireSignIn($app));
 };

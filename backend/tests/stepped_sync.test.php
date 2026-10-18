@@ -7,7 +7,7 @@
 
 declare(strict_types=1);
 
-require __DIR__.'/lib.php';
+require __DIR__ . '/lib.php';
 
 use App\Auth\Role;
 use App\Cache\Locks;
@@ -28,16 +28,18 @@ beforeEach(function () {
     T::$app->config->set('sources', [FakeBuildSource::class]);
 });
 
-$admin = fn () => (new Client)->asIam(1, [Role::ADMIN], ['preferred_username' => 'admin']);
-$run = fn (int $id) => db()->one('SELECT * FROM sync_runs WHERE id = ?', [$id]);
-$builds = fn () => (int) db()->value('SELECT count(*) FROM builds');
+$admin = fn() => (new Client())->asIam(1, [Role::ADMIN], ['preferred_username' => 'admin']);
+$run = fn(int $id) => db()->one('SELECT * FROM sync_runs WHERE id = ?', [$id]);
+$builds = fn() => (int) db()->value('SELECT count(*) FROM builds');
 
 test('an admin syncs a source in steps that respect the crawl delay', function () use ($admin, $run, $builds) {
     // Kazuha's page may only be fetched 10 s after Hu Tao's: more than this step has left.
     FakeBuildSource::$defer = ['Kaedehara Kazuha' => 1];
     $client = $admin();
 
-    $start = $client->post('/api/sources/genshin-1/sync')->status(200)
+    $start = $client
+        ->post('/api/sources/genshin-1/sync')
+        ->status(200)
         ->path('active', true)
         ->path('started.0.status', 'running')
         ->path('started.0.started_by.name', 'admin')
@@ -46,12 +48,14 @@ test('an admin syncs a source in steps that respect the crawl delay', function (
     $runId = $start->json('started.0.id');
 
     // Step 1: the character list and Hu Tao; then the site asks for a pause.
-    $step = $client->post('/api/sync/step')->status(200)
+    $step = $client
+        ->post('/api/sync/step')
+        ->status(200)
         ->path('busy', false)
         ->path('did.id', $runId)
         ->path('did.status', 'running')
         ->path('did.progress', ['done' => 1, 'total' => 2]);
-    check($step->json('wait_ms') > 8000, 'wait_ms '.$step->json('wait_ms'));
+    check($step->json('wait_ms') > 8000, 'wait_ms ' . $step->json('wait_ms'));
     same(['Hu Tao'], FakeBuildSource::$fetched, 'fetched');
     same(1, $builds(), 'builds');
 
@@ -84,7 +88,9 @@ test('a run nobody steps waits, and continues where it stopped', function () use
 
     // The tab is closed for an hour: nothing happens meanwhile.
     Clock::travel(3600);
-    $client->get('/api/sync')->status(200)
+    $client
+        ->get('/api/sync')
+        ->status(200)
         ->path('active', true)
         ->path('wait_ms', 0)
         ->path('runs.0.status', 'running')
@@ -100,7 +106,9 @@ test('sync all skips sources synced recently and switched off', function () use 
     $client->get('/api/sources')->status(200); // makes the source's row
     db()->run("UPDATE build_sources SET last_status = 'success', last_synced_at = ? WHERE key = 'fake.genshin'", [Clock::now()->modify('-2 hours')]);
 
-    $client->post('/api/sync/builds')->status(200)
+    $client
+        ->post('/api/sync/builds')
+        ->status(200)
         ->path('started', [])
         ->path('skipped.0.key', 'genshin-1')
         ->path('skipped.0.name', 'Source 1 (Genshin Impact)')
@@ -146,14 +154,18 @@ test('a stale catalog is refreshed first, in a run of its own', function () use 
 
 test('a catalog refresh takes one list per unit of work', function () use ($admin) {
     T::$http->fake([
-        'gi.yatta.moe/api/v2/en/avatar' => FakeHttpClient::json(['data' => ['items' => ['10000089' => ['name' => 'Furina', 'element' => 'Water', 'rank' => 5, 'weaponType' => 'WEAPON_SWORD_ONE_HAND']]]]),
+        'gi.yatta.moe/api/v2/en/avatar' => FakeHttpClient::json([
+            'data' => ['items' => ['10000089' => ['name' => 'Furina', 'element' => 'Water', 'rank' => 5, 'weaponType' => 'WEAPON_SWORD_ONE_HAND']]],
+        ]),
         'gi.yatta.moe/api/v2/en/weapon' => FakeHttpClient::json(['data' => ['items' => []]]),
         'gi.yatta.moe/api/v2/en/reliquary' => FakeHttpClient::status(500),
         'sr.yatta.moe/*' => FakeHttpClient::json(['data' => ['items' => []]]),
     ]);
     $client = $admin();
 
-    $client->post('/api/sync/catalog', ['games' => ['genshin']])->status(200)
+    $client
+        ->post('/api/sync/catalog', ['games' => ['genshin']])
+        ->status(200)
         ->path('started.0.kind', 'catalog')
         ->path('started.0.game', 'genshin')
         ->path('started.0.progress', ['done' => 0, 'total' => 3]);
@@ -176,7 +188,10 @@ test('cancelling stops a run without marking the source synced', function () use
     $runId = $client->post('/api/sources/genshin-1/sync')->json('started.0.id');
     $client->post('/api/sync/step');
 
-    $client->post("/api/sync-runs/{$runId}/cancel")->status(200)->path('status', 'cancelled');
+    $client
+        ->post("/api/sync-runs/{$runId}/cancel")
+        ->status(200)
+        ->path('status', 'cancelled');
 
     $client->get('/api/sync')->path('active', false);
     check(str_contains($run($runId)['log'], 'Cancelled by admin after 1 of 2.'), $run($runId)['log']);
@@ -241,15 +256,18 @@ test('the command line loops over the same steps', function () {
 });
 
 test('the Sources page shows neutral names and no addresses', function () use ($admin) {
-    db()->insert('build_sources', ['key' => 'fake.genshin', 'game' => 'genshin', 'name' => 'Fake Builds', 'base_url' => 'https://fake-builds.example',
-        'last_status' => 'failed', 'last_error' => '  Hu Tao: ERROR HTTP 403 from https://fake-builds.example/hu-tao']);
+    db()->insert('build_sources', [
+        'key' => 'fake.genshin',
+        'game' => 'genshin',
+        'name' => 'Fake Builds',
+        'base_url' => 'https://fake-builds.example',
+        'last_status' => 'failed',
+        'last_error' => '  Hu Tao: ERROR HTTP 403 from https://fake-builds.example/hu-tao',
+    ]);
 
-    $answer = $admin()->get('/api/sources')->status(200)
-        ->path('0.name', 'Source 1')
-        ->path('0.key', 'genshin-1')
-        ->path('0.last_error', '  Hu Tao: ERROR HTTP 403 from the source page');
-    check(! str_contains($answer->body, 'fake-builds'), $answer->body);
-    check(! array_key_exists('base_url', $answer->json()[0]), 'no base_url');
+    $answer = $admin()->get('/api/sources')->status(200)->path('0.name', 'Source 1')->path('0.key', 'genshin-1')->path('0.last_error', '  Hu Tao: ERROR HTTP 403 from the source page');
+    check(!str_contains($answer->body, 'fake-builds'), $answer->body);
+    check(!array_key_exists('base_url', $answer->json()[0]), 'no base_url');
     same('Source 1', db()->value("SELECT name FROM build_sources WHERE key = 'fake.genshin'"), 'the stored name is neutral too');
 });
 

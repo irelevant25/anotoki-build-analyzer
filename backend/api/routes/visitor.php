@@ -33,20 +33,22 @@ use Slim\Routing\RouteCollectorProxy;
  * their account when they sign in.
  */
 return function (Slim\App $slim, App $app): void {
-    $slim->group('/api/visitor', function (RouteCollectorProxy $group) use ($app) {
-        $group->post('/move', function (Request $request, Response $response) use ($app): Response {
-            $key = Visitors::keyOf($request);
-            if ($key === null) {
-                throw new ValidationError(['visitor_key' => ['The X-Visitor-Key header is required.']]);
-            }
-            if (! Visitors::wellFormed($key)) {
-                throw new ValidationError(['visitor_key' => ['The X-Visitor-Key header is not a visitor key.']]);
-            }
-            $input = Input::of($request);
-            $silent = $input->boolean('silent') ?? false;
-            $input->valid();
+    $slim
+        ->group('/api/visitor', function (RouteCollectorProxy $group) use ($app) {
+            $group->post('/move', function (Request $request, Response $response) use ($app): Response {
+                $key = Visitors::keyOf($request);
+                if ($key === null) {
+                    throw new ValidationError(['visitor_key' => ['The X-Visitor-Key header is required.']]);
+                }
+                if (!Visitors::wellFormed($key)) {
+                    throw new ValidationError(['visitor_key' => ['The X-Visitor-Key header is not a visitor key.']]);
+                }
+                $input = Input::of($request);
+                $silent = $input->boolean('silent') ?? false;
+                $input->valid();
 
-            return Json::send($response, $app->get(Visitors::class)->moveInto(currentUser($request), $key, $silent));
-        });
-    })->add(requireSignIn($app));
+                return Json::send($response, $app->get(Visitors::class)->moveInto(currentUser($request), $key, $silent));
+            });
+        })
+        ->add(requireSignIn($app));
 };

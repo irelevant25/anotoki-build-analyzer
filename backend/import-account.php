@@ -10,7 +10,7 @@
  * default); --account merges a file into one of that user's accounts. (App\Commands\ImportAccount)
  */
 
-require __DIR__.'/vendor/autoload.php';
+require __DIR__ . '/vendor/autoload.php';
 
 App\Cli::helpIfAsked($argv, __FILE__);
 

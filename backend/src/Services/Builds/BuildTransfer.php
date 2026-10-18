@@ -58,9 +58,7 @@ final class BuildTransfer
     {
         $model = $this->registry->model($source);
         $builds = $this->builds->ofSource($model->id);
-        usort($builds, fn (Build $a, Build $b) => strcmp($a->character->key, $b->character->key)
-            ?: $a->position <=> $b->position
-            ?: strcmp($a->variant, $b->variant));
+        usort($builds, fn(Build $a, Build $b) => strcmp($a->character->key, $b->character->key) ?: $a->position <=> $b->position ?: strcmp($a->variant, $b->variant));
 
         // Neutral words can make two variants of a character alike ("Prydwen DPS", "Game8 DPS"), and a file
         // holds each (character, variant) once: the later one becomes "… #2", as sources name a repeated one.
@@ -70,7 +68,7 @@ final class BuildTransfer
             $entry = BuildFile::entry($build);
             $variant = $entry['variant'];
             for ($n = 2; isset($taken[$entry['character']][$variant]); $n++) {
-                $variant = BuildFile::neutral($entry['variant'], BuildFile::MAX_VARIANT - strlen(" #{$n}"))." #{$n}";
+                $variant = BuildFile::neutral($entry['variant'], BuildFile::MAX_VARIANT - strlen(" #{$n}")) . " #{$n}";
             }
             $taken[$entry['character']][$variant] = true;
             $entry['variant'] = $variant;
@@ -114,7 +112,7 @@ final class BuildTransfer
                 throw new SourceSyncing("{$label} is being synced. Let that sync finish or cancel it, then import.");
             }
 
-            return $this->db->transaction(fn () => $this->replace($source, $model, $read, $by));
+            return $this->db->transaction(fn() => $this->replace($source, $model, $read, $by));
         }, self::MAX_SECONDS + 60);
     }
 
@@ -134,13 +132,29 @@ final class BuildTransfer
         $exported = min($read['exported_at'], $now);
         $synced = $read['synced_at'] === null ? null : min($read['synced_at'], $now);
 
-        $run = new SyncRun(id: null, kind: SyncRun::BUILDS, game: $source->game(), build_source_id: $model->id,
-            status: SyncRun::RUNNING, started_at: $now, started_by: $by->id, source: $model, starter: $by);
+        $run = new SyncRun(
+            id: null,
+            kind: SyncRun::BUILDS,
+            game: $source->game(),
+            build_source_id: $model->id,
+            status: SyncRun::RUNNING,
+            started_at: $now,
+            started_by: $by->id,
+            source: $model,
+            starter: $by,
+        );
         $this->sync->begin($run);
         $log = new RunLog($run);
         $log->add("Started by {$by->name}.");
-        $log->add(sprintf('%s: imported from a file exported %s%s, %d build(s).', $this->registry->title($source),
-            self::when($exported), $synced ? ' (synced there '.self::when($synced).')' : '', count($read['builds'])));
+        $log->add(
+            sprintf(
+                '%s: imported from a file exported %s%s, %d build(s).',
+                $this->registry->title($source),
+                self::when($exported),
+                $synced ? ' (synced there ' . self::when($synced) . ')' : '',
+                count($read['builds']),
+            ),
+        );
         $this->runs->insert($run);
 
         $byCharacter = [];
@@ -171,48 +185,57 @@ final class BuildTransfer
                 continue;
             }
 
-            $counts = $this->sync->write($model, $character->id, array_map(fn (array $build) => [
-                'variant' => $build['variant'],
-                'data' => BuildSync::content(
-                    role: $build['role'],
-                    recommended: $build['recommended'],
-                    position: $build['position'],
-                    weapons: $build['weapons'],
-                    sets: $build['sets'],
-                    mainStats: $build['main_stats'],
-                    substats: $build['substats'],
-                    talentPriority: $build['talent_priority'],
-                    statTargets: $build['stat_targets'],
-                    notes: $build['notes'],
-                    sourceUrl: $addresses[$character->id][$build['variant']] ?? null,
-                    sourceUpdatedAt: $build['source_updated_at'],
-                    gameVersion: $build['game_version'],
+            $counts = $this->sync->write(
+                $model,
+                $character->id,
+                array_map(
+                    fn(array $build) => [
+                        'variant' => $build['variant'],
+                        'data' => BuildSync::content(
+                            role: $build['role'],
+                            recommended: $build['recommended'],
+                            position: $build['position'],
+                            weapons: $build['weapons'],
+                            sets: $build['sets'],
+                            mainStats: $build['main_stats'],
+                            substats: $build['substats'],
+                            talentPriority: $build['talent_priority'],
+                            statTargets: $build['stat_targets'],
+                            notes: $build['notes'],
+                            sourceUrl: $addresses[$character->id][$build['variant']] ?? null,
+                            sourceUpdatedAt: $build['source_updated_at'],
+                            gameVersion: $build['game_version'],
+                        ),
+                        'fetched_at' => min($build['fetched_at'] ?? $now, $now),
+                        'changed_at' => min($build['changed_at'] ?? $now, $now),
+                    ],
+                    $builds,
                 ),
-                'fetched_at' => min($build['fetched_at'] ?? $now, $now),
-                'changed_at' => min($build['changed_at'] ?? $now, $now),
-            ], $builds));
+            );
 
             foreach ($counts as $name => $count) {
                 $stats[$name] += $count;
             }
             $stats['characters_synced']++;
             $written[] = $character->id;
-            $log->add(sprintf('  %s: %d build(s)%s', $character->name, count($builds),
-                $counts['builds_created'] + $counts['builds_updated'] + $counts['builds_removed'] > 0 ? ' - changed' : ''));
+            $log->add(sprintf('  %s: %d build(s)%s', $character->name, count($builds), $counts['builds_created'] + $counts['builds_updated'] + $counts['builds_removed'] > 0 ? ' - changed' : ''));
         }
 
         // The file is the whole truth for the source: characters it does not have keep no builds of it.
         [$in, $params] = Db::in($written);
         $others = $written === [] ? '' : " AND b.game_character_id NOT IN ({$in})";
-        $gone = $this->db->all("SELECT c.name, count(*) AS builds FROM builds b JOIN game_characters c ON c.id = b.game_character_id
-            WHERE b.build_source_id = ?{$others} GROUP BY c.id, c.name ORDER BY c.name", [$model->id, ...$params]);
+        $gone = $this->db->all(
+            "SELECT c.name, count(*) AS builds FROM builds b JOIN game_characters c ON c.id = b.game_character_id
+            WHERE b.build_source_id = ?{$others} GROUP BY c.id, c.name ORDER BY c.name",
+            [$model->id, ...$params],
+        );
         foreach ($gone as $row) {
             $log->add("  {$row['name']}: not in the file, {$row['builds']} build(s) removed.");
         }
         $stats['builds_removed'] += $this->db->run("DELETE FROM builds b WHERE b.build_source_id = ?{$others}", [$model->id, ...$params]);
 
         if ($skipped !== []) {
-            $stats['unmatched'] = [$source->game()->value.':'.Catalog::CHARACTER => array_column($skipped, 'name')];
+            $stats['unmatched'] = [$source->game()->value . ':' . Catalog::CHARACTER => array_column($skipped, 'name')];
         }
         $run->stats = $stats;
         $this->sync->finish($run, $model, $log, syncedAt: $synced ?? $exported);
@@ -230,6 +253,6 @@ final class BuildTransfer
     /** "2026-09-29 14:03 UTC", for the run's log. */
     private static function when(DateTimeImmutable $time): string
     {
-        return $time->setTimezone(Clock::utc())->format('Y-m-d H:i').' UTC';
+        return $time->setTimezone(Clock::utc())->format('Y-m-d H:i') . ' UTC';
     }
 }

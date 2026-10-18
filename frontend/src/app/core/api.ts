@@ -175,10 +175,14 @@ export class Api {
    * then the server moves nothing into an account that already has data here (held: true).
    */
   moveVisitor(key: string, silent = false): Observable<VisitorMove> {
-    return this.http.post<VisitorMove>(`${this.base}/visitor/move`, { silent }, {
-      headers: { [VISITOR_KEY_HEADER]: key },
-      context: this.asPerson().set(CARRIES_VISITOR_KEY, true),
-    });
+    return this.http.post<VisitorMove>(
+      `${this.base}/visitor/move`,
+      { silent },
+      {
+        headers: { [VISITOR_KEY_HEADER]: key },
+        context: this.asPerson().set(CARRIES_VISITOR_KEY, true),
+      },
+    );
   }
 
   /** The signed-in person's game accounts as one file, its name in Content-Disposition. */

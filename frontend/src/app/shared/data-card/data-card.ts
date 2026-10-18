@@ -72,17 +72,7 @@ interface Preview {
  */
 @Component({
   selector: 'app-data-card',
-  imports: [
-    AlertComponent,
-    BadgeComponent,
-    ButtonComponent,
-    CardComponent,
-    IconComponent,
-    SpinnerComponent,
-    TranslatePipe,
-    TranslatePluralPipe,
-    ErrorTextPipe,
-  ],
+  imports: [AlertComponent, BadgeComponent, ButtonComponent, CardComponent, IconComponent, SpinnerComponent, TranslatePipe, TranslatePluralPipe, ErrorTextPipe],
   templateUrl: './data-card.html',
   styleUrl: './data-card.scss',
 })
@@ -109,13 +99,7 @@ export class DataCard {
       next: (response) => {
         this.busy.set(false);
         if (response.body) {
-          saveFile(
-            response.body,
-            downloadName(
-              response.headers.get('Content-Disposition'),
-              'build-analyzer-accounts.json',
-            ),
-          );
+          saveFile(response.body, downloadName(response.headers.get('Content-Disposition'), 'build-analyzer-accounts.json'));
           // A finished sentence when raised; a message is not worded again.
           this.toasts.success(this.i18n.t('data.exported'));
         }

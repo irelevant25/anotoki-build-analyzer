@@ -38,8 +38,8 @@ use Psr\Http\Server\RequestHandlerInterface;
  */
 return function (Slim\App $slim, App $app): void {
     // A file as the log names it: the site's by its name, the library's with its set in front (anotoki_translations/...).
-    $name = static fn (array $file): string => ($file['set'] === Migrations::SET ? '' : $file['set'].'/').$file['name'];
-    MigrationsRoutes::admin($slim, '/api/admin/migrations', fn (): Migrator => $app->get(Migrator::class), function (Request $request, array $result) use ($app, $name): void {
+    $name = static fn(array $file): string => ($file['set'] === Migrations::SET ? '' : $file['set'] . '/') . $file['name'];
+    MigrationsRoutes::admin($slim, '/api/admin/migrations', fn(): Migrator => $app->get(Migrator::class), function (Request $request, array $result) use ($app, $name): void {
         // A failing migration is reported, not thrown: on a host without a shell the admin has only the page's
         // answer to go on, and the log (FTP-only) keeps it.
         if ($result['failed'] !== null) {
@@ -52,10 +52,20 @@ return function (Slim\App $slim, App $app): void {
         $audit = $app->get(AuditLog::class);
         $audit->flushPending();
         if ($result['applied'] !== [] || $result['failed'] !== null) {
-            $audit->record($request, Identify::person($request)?->sub, 'migrations.applied', null, null, array_filter([
-                'files' => array_map($name, $result['applied']),
-                'failed' => $result['failed'] !== null ? $name($result['failed']) : null,
-            ], static fn (mixed $value): bool => $value !== null));
+            $audit->record(
+                $request,
+                Identify::person($request)?->sub,
+                'migrations.applied',
+                null,
+                null,
+                array_filter(
+                    [
+                        'files' => array_map($name, $result['applied']),
+                        'failed' => $result['failed'] !== null ? $name($result['failed']) : null,
+                    ],
+                    static fn(mixed $value): bool => $value !== null,
+                ),
+            );
         }
     })
         // An apply on the host is not cut short when the browser goes, and has five minutes.

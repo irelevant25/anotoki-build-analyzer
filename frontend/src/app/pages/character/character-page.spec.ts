@@ -204,7 +204,19 @@ function plan(kind: SetPlan['kind'], needed: number, owned: number): SetPlan {
 
 function analysis(game: GameKey = 'genshin', change: Partial<CharacterAnalysis> = {}): CharacterAnalysis {
   return {
-    account: { id: 3, game, uid: '700000001', nickname: 'Mona', level: 60, world_level: 8, signature: null, has_full_inventory: true, last_import_at: null, counts: { characters: 1, weapons: 1, items: 1 }, meta: null },
+    account: {
+      id: 3,
+      game,
+      uid: '700000001',
+      nickname: 'Mona',
+      level: 60,
+      world_level: 8,
+      signature: null,
+      has_full_inventory: true,
+      last_import_at: null,
+      counts: { characters: 1, weapons: 1, items: 1 },
+      meta: null,
+    },
     character: {
       id: 9,
       key: 'hutao',
@@ -267,7 +279,10 @@ describe('CharacterPage: the site’s words are keys, the game’s words stay', 
         language === 'en' ? provideTestTranslations(en) : provideTestTranslations(language === 'sk' ? SLOVAK : MARKED, { language: 'sk', english: en }),
         provideKit(),
         { provide: Api, useValue: { meta: () => of(META), character: () => answer } },
-        { provide: AuthService, useValue: { signedIn: signal(who !== 'nobody'), isStaff: signal(who === 'editor'), available: signal(true), failure: signal(null), user: signal(null), preferences: signal(null) } },
+        {
+          provide: AuthService,
+          useValue: { signedIn: signal(who !== 'nobody'), isStaff: signal(who === 'editor'), available: signal(true), failure: signal(null), user: signal(null), preferences: signal(null) },
+        },
       ],
     });
     await TestBed.inject(MetaStore).load();
@@ -358,7 +373,11 @@ describe('CharacterPage: the site’s words are keys, the game’s words stay', 
 
     expect(text('.plan .anotoki-card__title')).toEqual(['Prejdi na set: 4pc Alpha', 'Prejdi na set: 4pc Alpha', 'Prejdi na set: 4pc Alpha']);
     expect(text('.plan [cardActions] anotoki-badge')).toEqual(['Máš 2 / 4 kusy', 'Máš 0 / 1 kus', 'Máš 0 / 5 kusov']);
-    expect(text('.plan .plan-missing')).toEqual(['Na celý bonus ti chýbajú ešte 2 kusy tohto setu.', 'Na celý bonus ti chýba ešte 1 kus tohto setu.', 'Na celý bonus ti chýba ešte 5 kusov tohto setu.']);
+    expect(text('.plan .plan-missing')).toEqual([
+      'Na celý bonus ti chýbajú ešte 2 kusy tohto setu.',
+      'Na celý bonus ti chýba ešte 1 kus tohto setu.',
+      'Na celý bonus ti chýba ešte 5 kusov tohto setu.',
+    ]);
     expect(text('.suggestion-head anotoki-badge')).toEqual(['Substats: +3 body kvality', 'Doplní set bonus podľa odporúčania', 'Lepšie pre tento build']);
     expect(text('.suggestion > .small')).toEqual(['Terajší kus: 41 % · Teraz na postave: Xiangling', 'Terajší kus: 41 % · Nie je na žiadnej postave', 'Terajší kus: 41 % · Nie je na žiadnej postave']);
     expect(text('.bottom-grid .anotoki-card__body > p')[0]).toBe('2 buildy, zdroje: Source 1, Source 2');
@@ -402,7 +421,11 @@ describe('CharacterPage: the site’s words are keys, the game’s words stay', 
   });
 
   it('shows nobody the ways in, not an error, when the account is not theirs to open (401)', async () => {
-    await open('en', throwError(() => new HttpErrorResponse({ status: 401, error: { message: 'Sign in.', code: 'sign_in_required' } })), 'nobody');
+    await open(
+      'en',
+      throwError(() => new HttpErrorResponse({ status: 401, error: { message: 'Sign in.', code: 'sign_in_required' } })),
+      'nobody',
+    );
 
     expect(host.querySelector('app-visitor-hero')).not.toBeNull();
     expect(host.querySelector('anotoki-alert.failure')).toBeNull();
@@ -452,7 +475,33 @@ describe('CharacterPage: the site’s words are keys, the game’s words stay', 
       rest = rest.replace(/⟦[^⟦⟧]*⟧/g, ' ');
     }
     expect(rest).not.toMatch(/[⟦⟧]/);
-    for (const word of ['Your', 'Score', 'improve', 'Nothing', 'Better', 'Switch', 'You own', 'Farm', 'Currently', 'Not equipped', 'Current piece', 'agree', 'builds', 'Best', 'Stats', 'totals', 'vs.', 'option', 'Crit value', 'color', 'points', 'Completes', 'of ideal', 'n/a', 'Checked']) {
+    for (const word of [
+      'Your',
+      'Score',
+      'improve',
+      'Nothing',
+      'Better',
+      'Switch',
+      'You own',
+      'Farm',
+      'Currently',
+      'Not equipped',
+      'Current piece',
+      'agree',
+      'builds',
+      'Best',
+      'Stats',
+      'totals',
+      'vs.',
+      'option',
+      'Crit value',
+      'color',
+      'points',
+      'Completes',
+      'of ideal',
+      'n/a',
+      'Checked',
+    ]) {
       expect(rest, word).not.toContain(word);
     }
     // The game's words are there as they are.
@@ -463,7 +512,10 @@ describe('CharacterPage: the site’s words are keys, the game’s words stay', 
   });
 
   it('words a failed request from its code, never with the server’s sentence, and follows the language', async () => {
-    await open('sk', throwError(() => new HttpErrorResponse({ status: 403, error: { message: 'Only an editor or an admin can do this.', code: 'editor_only' } })));
+    await open(
+      'sk',
+      throwError(() => new HttpErrorResponse({ status: 403, error: { message: 'Only an editor or an admin can do this.', code: 'editor_only' } })),
+    );
 
     expect(text('.failure .anotoki-alert__text')).toEqual(['Toto môže urobiť len editor alebo správca.']);
 

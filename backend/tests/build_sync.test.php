@@ -7,7 +7,7 @@
 
 declare(strict_types=1);
 
-require __DIR__.'/lib.php';
+require __DIR__ . '/lib.php';
 
 use App\Cli;
 use App\Commands\SyncBuilds;
@@ -24,44 +24,61 @@ bootTests();
 
 function island(string $component, array $props): string
 {
-    return '<html><body><astro-island component-url="/_astro/'.$component.'.abc.js" props="'
-        .htmlspecialchars(json_encode($props), ENT_QUOTES).'"></astro-island></body></html>';
+    return '<html><body><astro-island component-url="/_astro/' . $component . '.abc.js" props="' . htmlspecialchars(json_encode($props), ENT_QUOTES) . '"></astro-island></body></html>';
 }
 
 $pages = [
     'https://genshin-builds.com/en/characters' => island('CharactersList', [
-        'characters' => [1, [
-            [0, ['id' => [0, 'hu_tao'], 'name' => [0, 'Hu Tao'], 'element' => [0, ['id' => [0, 'pyro']]]]],
-            [0, ['id' => [0, 'vesna'], 'name' => [0, 'Vesna'], 'upcoming' => [0, true], 'status' => [0, 'speculated']]],
-        ]],
+        'characters' => [
+            1,
+            [
+                [0, ['id' => [0, 'hu_tao'], 'name' => [0, 'Hu Tao'], 'element' => [0, ['id' => [0, 'pyro']]]]],
+                [0, ['id' => [0, 'vesna'], 'name' => [0, 'Vesna'], 'upcoming' => [0, true], 'status' => [0, 'speculated']]],
+            ],
+        ],
     ]),
     'https://genshin-builds.com/en/character/hu_tao' => island('CharacterBuildTabs', [
-        'builds' => [1, [[0, [
-            'name' => [0, 'DPS'],
-            'role' => [0, 'DPS'],
-            'recommended' => [0, true],
-            'weapons' => [1, [[0, ['id' => [0, 'staff_of_homa'], 'r' => [0, 0]]], [0, ['id' => [0, 'dragons_bane'], 'r' => [0, '5']]]]],
-            'sets' => [1, [
-                [1, [[0, 'crimson_witch_of_flames']]],
-                [1, [[0, 'crimson_witch_of_flames'], [0, '80elementalmastery_set']]],
-                // Not described in props.artifacts: resolved through the catalog's 2pc bonuses.
-                [1, [[0, 'crimson_witch_of_flames'], [0, '15_cryo_dmg_set']]],
-            ]],
-            'stats' => [0, ['sands' => [1, [[0, 'HP%'], [0, 'Elemental Mastery']]], 'goblet' => [1, [[0, 'Pyro DMG Bonus']]], 'circlet' => [1, [[0, 'CRIT Rate'], [0, 'CRIT DMG']]]]],
-            'stats_priority' => [1, [[0, 'CRIT Rate'], [0, 'CRIT DMG'], [0, 'Elemental Mastery'], [0, 'HP%']]],
-            'talent_priority' => [1, [[0, 'Normal Attack'], [0, 'Skill'], [0, 'Burst']]],
-            'build_notes' => [0, 'Aim for 60-70% <stat>CRIT Rate</stat>.'],
-        ]]]],
-        'weapons' => [0, [
-            'staff_of_homa' => [0, ['name' => [0, 'Staff of Homa']]],
-            'dragons_bane' => [0, ['name' => [0, "Dragon's Bane"]]],
-        ]],
-        'artifacts' => [0, [
-            'crimson_witch_of_flames' => [0, ['name' => [0, 'Crimson Witch of Flames']]],
-            '80elementalmastery_set' => [0, ['name' => [0, 'Elemental Mastery +80 set'], 'children' => [1, [
-                [0, ['name' => [0, 'Gilded Dreams']]], [0, ['name' => [0, "Wanderer's Troupe"]]],
-            ]]]],
-        ]],
+        'builds' => [
+            1,
+            [
+                [
+                    0,
+                    [
+                        'name' => [0, 'DPS'],
+                        'role' => [0, 'DPS'],
+                        'recommended' => [0, true],
+                        'weapons' => [1, [[0, ['id' => [0, 'staff_of_homa'], 'r' => [0, 0]]], [0, ['id' => [0, 'dragons_bane'], 'r' => [0, '5']]]]],
+                        'sets' => [
+                            1,
+                            [
+                                [1, [[0, 'crimson_witch_of_flames']]],
+                                [1, [[0, 'crimson_witch_of_flames'], [0, '80elementalmastery_set']]],
+                                // Not described in props.artifacts: resolved through the catalog's 2pc bonuses.
+                                [1, [[0, 'crimson_witch_of_flames'], [0, '15_cryo_dmg_set']]],
+                            ],
+                        ],
+                        'stats' => [0, ['sands' => [1, [[0, 'HP%'], [0, 'Elemental Mastery']]], 'goblet' => [1, [[0, 'Pyro DMG Bonus']]], 'circlet' => [1, [[0, 'CRIT Rate'], [0, 'CRIT DMG']]]]],
+                        'stats_priority' => [1, [[0, 'CRIT Rate'], [0, 'CRIT DMG'], [0, 'Elemental Mastery'], [0, 'HP%']]],
+                        'talent_priority' => [1, [[0, 'Normal Attack'], [0, 'Skill'], [0, 'Burst']]],
+                        'build_notes' => [0, 'Aim for 60-70% <stat>CRIT Rate</stat>.'],
+                    ],
+                ],
+            ],
+        ],
+        'weapons' => [
+            0,
+            [
+                'staff_of_homa' => [0, ['name' => [0, 'Staff of Homa']]],
+                'dragons_bane' => [0, ['name' => [0, "Dragon's Bane"]]],
+            ],
+        ],
+        'artifacts' => [
+            0,
+            [
+                'crimson_witch_of_flames' => [0, ['name' => [0, 'Crimson Witch of Flames']]],
+                '80elementalmastery_set' => [0, ['name' => [0, 'Elemental Mastery +80 set'], 'children' => [1, [[0, ['name' => [0, 'Gilded Dreams']]], [0, ['name' => [0, "Wanderer's Troupe"]]]]]]],
+            ],
+        ],
     ]),
 ];
 
@@ -70,15 +87,17 @@ function servePages(array $pages): void
 {
     // The build sources of the current scope hold the fetcher they were made with.
     T::$app->resetScope();
-    T::$app->set(Fetcher::class, new class($pages) extends Fetcher
-    {
-        public function __construct(private array $pages) {}
+    T::$app->set(
+        Fetcher::class,
+        new class ($pages) extends Fetcher {
+            public function __construct(private array $pages) {}
 
-        public function get(string $url, array $options = []): string
-        {
-            return $this->pages[$url] ?? throw new RuntimeException("Unexpected URL {$url}");
-        }
-    });
+            public function get(string $url, array $options = []): string
+            {
+                return $this->pages[$url] ?? throw new RuntimeException("Unexpected URL {$url}");
+            }
+        },
+    );
 }
 
 beforeEach(function () use ($pages) {
@@ -103,7 +122,7 @@ function syncSource(BuildSource $source, array $options = []): ?SyncRun
     return T::$app->get(SyncRuns::class)->find((int) $started[0]->id);
 }
 
-$build = fn () => db()->one('SELECT * FROM builds LIMIT 1');
+$build = fn() => db()->one('SELECT * FROM builds LIMIT 1');
 
 test('a sync stores normalized builds, and running it again changes nothing', function () use ($build) {
     $source = T::$app->get(BuildSourceRegistry::class)->get('genshin-builds.genshin');
@@ -172,9 +191,16 @@ test('the content hash is the first version\'s, so its builds do not all look ch
     // run of this version: unchanged.
     $source = (int) db()->insert('build_sources', ['key' => 'genshin-builds.genshin', 'game' => 'genshin', 'name' => 'x', 'base_url' => 'https://genshin-builds.com']);
     $data = [
-        'role' => 'DPS', 'recommended' => true, 'position' => 0,
+        'role' => 'DPS',
+        'recommended' => true,
+        'position' => 0,
         'weapons' => [['key' => 'staffofhoma', 'name' => 'Staff of Homa', 'rank' => 1, 'refinement' => null, 'note' => null, 'known' => true]],
-        'sets' => [], 'main_stats' => [], 'substats' => [], 'talent_priority' => null, 'stat_targets' => null, 'notes' => null,
+        'sets' => [],
+        'main_stats' => [],
+        'substats' => [],
+        'talent_priority' => null,
+        'stat_targets' => null,
+        'notes' => null,
         'source_url' => 'https://genshin-builds.com/en/character/hu_tao',
         'source_updated_at' => '2026-09-19T08:00:00.000000Z', // what Carbon's JSON looked like
         'game_version' => '6.0',
@@ -182,8 +208,7 @@ test('the content hash is the first version\'s, so its builds do not all look ch
     $hash = hash('sha256', json_encode($data));
 
     $method = new ReflectionMethod(App\Services\Builds\BuildSync::class, 'contentHash');
-    $mine = $method->invoke(T::$app->make(App\Services\Builds\BuildSync::class),
-        array_replace($data, ['source_updated_at' => new DateTimeImmutable('2026-09-19 10:00:00+02:00')]));
+    $mine = $method->invoke(T::$app->make(App\Services\Builds\BuildSync::class), array_replace($data, ['source_updated_at' => new DateTimeImmutable('2026-09-19 10:00:00+02:00')]));
     same($hash, $mine, 'the same hash for the same build');
     check($source > 0, 'source');
 });

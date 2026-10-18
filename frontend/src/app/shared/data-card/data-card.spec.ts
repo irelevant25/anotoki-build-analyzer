@@ -43,34 +43,24 @@ describe('the "Your data" card', () => {
   let host: HTMLElement;
   let api: {
     exportData: ReturnType<typeof vi.fn>;
-    importData: ReturnType<
-      typeof vi.fn<(file: string, dryRun: boolean) => Observable<DataImportResult>>
-    >;
+    importData: ReturnType<typeof vi.fn<(file: string, dryRun: boolean) => Observable<DataImportResult>>>;
   };
   let toasts: { success: ReturnType<typeof vi.fn> };
   let imported: DataImportResult[];
 
-  const text = (element: Element | null | undefined) =>
-    element?.textContent?.replace(/\s+/g, ' ').trim();
+  const text = (element: Element | null | undefined) => element?.textContent?.replace(/\s+/g, ' ').trim();
   const problem = () => text(host.querySelector('.problem .anotoki-alert__text'));
   const button = (selector: string) => host.querySelector<HTMLButtonElement>(`button.${selector}`)!;
 
   async function setup(): Promise<void> {
     api = {
       exportData: vi.fn(),
-      importData: vi.fn<(file: string, dryRun: boolean) => Observable<DataImportResult>>(
-        (_file, dryRun) => of(result(dryRun)),
-      ),
+      importData: vi.fn<(file: string, dryRun: boolean) => Observable<DataImportResult>>((_file, dryRun) => of(result(dryRun))),
     };
     toasts = { success: vi.fn() };
     imported = [];
     TestBed.configureTestingModule({
-      providers: [
-        provideTestTranslations(en),
-        provideKit(),
-        { provide: Api, useValue: api },
-        { provide: ToastService, useValue: toasts },
-      ],
+      providers: [provideTestTranslations(en), provideKit(), { provide: Api, useValue: api }, { provide: ToastService, useValue: toasts }],
     });
     fixture = TestBed.createComponent(DataCard);
     fixture.componentInstance.imported.subscribe((done) => imported.push(done));
@@ -79,9 +69,7 @@ describe('the "Your data" card', () => {
   }
 
   /** Chooses a file in the card's hidden input. */
-  async function choose(
-    file: { name?: string; size?: number; text?: () => Promise<string> } = {},
-  ): Promise<void> {
+  async function choose(file: { name?: string; size?: number; text?: () => Promise<string> } = {}): Promise<void> {
     const input = host.querySelector<HTMLInputElement>('input[type="file"]')!;
     const chosen = {
       name: file.name ?? 'build-analyzer-accounts-2026-10-04.json',
@@ -101,18 +89,14 @@ describe('the "Your data" card', () => {
     expect(text(host.querySelector('h2'))).toBe('Your data');
     expect(text(host.querySelector('.data-card > p'))).toBe(en['data.text']);
     expect([text(button('export')), text(button('import'))]).toEqual(['Export', 'Import a file']);
-    expect(host.querySelector<HTMLInputElement>('input[type="file"]')?.accept).toBe(
-      'application/json,.json',
-    );
+    expect(host.querySelector<HTMLInputElement>('input[type="file"]')?.accept).toBe('application/json,.json');
   });
 
   it('exports: saves the file under the name the server gives, and says it is on its way', async () => {
     await setup();
     const created = vi.spyOn(URL, 'createObjectURL').mockReturnValue('blob:file');
     let saved = '';
-    vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(function (
-      this: HTMLAnchorElement,
-    ) {
+    vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(function (this: HTMLAnchorElement) {
       saved = this.download;
     });
     api.exportData.mockReturnValue(
@@ -136,23 +120,13 @@ describe('the "Your data" card', () => {
 
   it('words an export the server refuses - its answer a file too - from the code and its numbers', async () => {
     await setup();
-    api.exportData.mockReturnValue(
-      throwError(() =>
-        refused(
-          422,
-          { message: 'Too big.', code: 'export_too_big', params: { max_mb: 8, max_accounts: 500 } },
-          true,
-        ),
-      ),
-    );
+    api.exportData.mockReturnValue(throwError(() => refused(422, { message: 'Too big.', code: 'export_too_big', params: { max_mb: 8, max_accounts: 500 } }, true)));
 
     button('export').click();
     await settle();
     await fixture.whenStable();
 
-    expect(problem()).toBe(
-      'Your data is too big for one file (more than 8 MB or 500 game accounts).',
-    );
+    expect(problem()).toBe('Your data is too big for one file (more than 8 MB or 500 game accounts).');
   });
 
   it('imports in two steps: the dry run is the preview, Confirm does it, and the page reloads the accounts', async () => {
@@ -161,21 +135,10 @@ describe('the "Your data" card', () => {
 
     expect(api.importData).toHaveBeenCalledTimes(1);
     expect(api.importData).toHaveBeenCalledWith(FILE_TEXT, true);
-    expect(text(host.querySelector('.preview h3'))).toBe(
-      'What importing build-analyzer-accounts-2026-10-04.json does',
-    );
-    expect(text(host.querySelector('.preview .summary'))).toBe(
-      '1 new, 1 replaced by a newer copy, 1 kept - yours is as new or newer.',
-    );
-    expect(text(host.querySelector('.preview .skipped'))).toBe(
-      '3 entries this site does not know are left out.',
-    );
-    expect(
-      [...host.querySelectorAll('.outcomes li')].map((item) => [
-        text(item.querySelector('.account')),
-        text(item.querySelector('anotoki-badge')),
-      ]),
-    ).toEqual([
+    expect(text(host.querySelector('.preview h3'))).toBe('What importing build-analyzer-accounts-2026-10-04.json does');
+    expect(text(host.querySelector('.preview .summary'))).toBe('1 new, 1 replaced by a newer copy, 1 kept - yours is as new or newer.');
+    expect(text(host.querySelector('.preview .skipped'))).toBe('3 entries this site does not know are left out.');
+    expect([...host.querySelectorAll('.outcomes li')].map((item) => [text(item.querySelector('.account')), text(item.querySelector('anotoki-badge'))])).toEqual([
       ['Genshin Impact · Mona', 'new'],
       ['Honkai: Star Rail · UID 800000001', 'replaced by the newer copy'],
       ['Genshin Impact · -', 'kept'],
@@ -189,9 +152,7 @@ describe('the "Your data" card', () => {
     expect(api.importData).toHaveBeenCalledTimes(2);
     expect(api.importData).toHaveBeenLastCalledWith(FILE_TEXT, false);
     expect(host.querySelector('.preview')).toBeNull();
-    expect(text(host.querySelector('.done .anotoki-alert__text'))).toBe(
-      'Imported: 1 new, 1 replaced by a newer copy, 1 kept.',
-    );
+    expect(text(host.querySelector('.done .anotoki-alert__text'))).toBe('Imported: 1 new, 1 replaced by a newer copy, 1 kept.');
     expect(host.querySelector('.done')?.getAttribute('role')).toBe('status');
     expect(imported).toEqual([result(false)]);
   });
@@ -209,9 +170,7 @@ describe('the "Your data" card', () => {
 
   it('says a file without game accounts has none, and offers nothing to confirm', async () => {
     await setup();
-    api.importData.mockReturnValueOnce(
-      of(result(true, { added: 0, replaced: 0, kept: 0, skipped: 0, accounts: [] })),
-    );
+    api.importData.mockReturnValueOnce(of(result(true, { added: 0, replaced: 0, kept: 0, skipped: 0, accounts: [] })));
     await choose();
 
     expect(text(host.querySelector('.preview p'))).toBe(en['data.empty']);
@@ -238,18 +197,9 @@ describe('the "Your data" card', () => {
     await setup();
     const cases: [HttpErrorResponse, string][] = [
       [refused(422, { message: 'x', code: 'no_file', params: {} }), 'The file is empty.'],
-      [
-        refused(422, { message: 'x', code: 'file_too_big', params: { max_mb: 8 } }),
-        'The file is larger than 8 MB.',
-      ],
-      [
-        refused(422, { message: 'x', code: 'not_a_data_file', params: {} }),
-        'This is not a file of game accounts exported by this site.',
-      ],
-      [
-        refused(422, { message: 'x', code: 'newer_version', params: { version: 2 } }),
-        'This file comes from a newer version of the site (format 2). This copy cannot read it yet.',
-      ],
+      [refused(422, { message: 'x', code: 'file_too_big', params: { max_mb: 8 } }), 'The file is larger than 8 MB.'],
+      [refused(422, { message: 'x', code: 'not_a_data_file', params: {} }), 'This is not a file of game accounts exported by this site.'],
+      [refused(422, { message: 'x', code: 'newer_version', params: { version: 2 } }), 'This file comes from a newer version of the site (format 2). This copy cannot read it yet.'],
       [
         refused(422, {
           message: 'x',
@@ -258,10 +208,7 @@ describe('the "Your data" card', () => {
         }),
         'The file is damaged at accounts[2].characters[5].level. Export it again.',
       ],
-      [
-        refused(422, { message: 'x', code: 'too_many_accounts', params: { max: 500 } }),
-        'With this file you would have more than 500 game accounts.',
-      ],
+      [refused(422, { message: 'x', code: 'too_many_accounts', params: { max: 500 } }), 'With this file you would have more than 500 game accounts.'],
       // A parameter missing, or a code nobody listed: worded as any failed request.
       [refused(422, { message: 'x', code: 'bad_entry', params: {} }), en['error.unknown']],
       [refused(422, { message: 'x', code: 'something_new', params: {} }), en['error.unknown']],
@@ -281,9 +228,7 @@ describe('the "Your data" card', () => {
   it('keeps the preview when the import itself fails, so it can be confirmed again', async () => {
     await setup();
     await choose();
-    api.importData.mockReturnValueOnce(
-      throwError(() => refused(429, { message: 'x', code: 'too_many_imports' })),
-    );
+    api.importData.mockReturnValueOnce(throwError(() => refused(429, { message: 'x', code: 'too_many_imports' })));
     button('confirm').click();
     await settle();
     await fixture.whenStable();
@@ -295,8 +240,6 @@ describe('the "Your data" card', () => {
 
   it('words only what the key scan is told about', () => {
     expect([...DATA_PROBLEM_CODES]).toEqual([...DYNAMIC_KEYS['data.error.']]);
-    expect(Object.values(OUTCOME_KEYS)).toEqual(
-      DYNAMIC_KEYS['data.outcome.'].map((tail) => `data.outcome.${tail}`),
-    );
+    expect(Object.values(OUTCOME_KEYS)).toEqual(DYNAMIC_KEYS['data.outcome.'].map((tail) => `data.outcome.${tail}`));
   });
 });

@@ -24,7 +24,7 @@
  * in the browser). It works on the database of config/database.local.php.
  */
 
-require __DIR__.'/vendor/autoload.php';
+require __DIR__ . '/vendor/autoload.php';
 
 App\Cli::helpIfAsked($argv, __FILE__);
 

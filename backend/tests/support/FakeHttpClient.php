@@ -49,10 +49,10 @@ final class FakeHttpClient implements HttpClient
     {
         $bare = preg_replace('#^https?://#', '', $url) ?? $url;
         foreach ($this->routes as $pattern => $answer) {
-            $regex = '#^'.str_replace('\*', '.*', preg_quote(preg_replace('#^https?://#', '', $pattern) ?? $pattern, '#')).'$#';
+            $regex = '#^' . str_replace('\*', '.*', preg_quote(preg_replace('#^https?://#', '', $pattern) ?? $pattern, '#')) . '$#';
             if (preg_match($regex, $bare)) {
                 $this->sent[] = $url;
-                if (is_callable($answer) && ! is_string($answer)) {
+                if (is_callable($answer) && !is_string($answer)) {
                     $answer = $answer($url, $headers);
                 }
 

@@ -15,7 +15,6 @@ use App\Services\Builds\Sources\PrydwenGenshin;
 use App\Services\Builds\Sources\PrydwenHsr;
 
 return [
-
     /*
     | Build sources: the scrapers the build sync runs, chosen for structured, up-to-date data (see
     | docs/build-sources.md for the sites that were rejected and why).
@@ -24,13 +23,7 @@ return [
     | and the API calls it "{game}-{N}". Add a new source at the end of its game so the others keep their
     | numbers.
     */
-    'sources' => [
-        GenshinBuildsGenshin::class,
-        PrydwenGenshin::class,
-        GenshinGgGenshin::class,
-        PrydwenHsr::class,
-        GenshinGgHsr::class,
-    ],
+    'sources' => [GenshinBuildsGenshin::class, PrydwenGenshin::class, GenshinGgGenshin::class, PrydwenHsr::class, GenshinGgHsr::class],
 
     /*
     | The game catalog (names, rarity, elements, icons): up-to-date lists for both games, keyed by in-game

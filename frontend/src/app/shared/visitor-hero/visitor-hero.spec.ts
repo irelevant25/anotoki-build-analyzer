@@ -13,8 +13,7 @@ const SLOVAK = {
   'home.text': 'Importuj účet a pri každej postave uvidíš, čo zlepšiť.',
   'home.import': 'Importovať účet',
   'home.browse': 'Buildy pre hru {game}',
-  'home.signInText':
-    'Keď sa prihlásiš, tvoje účty zostanú pri tvojom anotoki účte na každom zariadení.',
+  'home.signInText': 'Keď sa prihlásiš, tvoje účty zostanú pri tvojom anotoki účte na každom zariadení.',
 };
 
 function setup(options: { available?: boolean } = {}) {
@@ -26,18 +25,12 @@ function setup(options: { available?: boolean } = {}) {
     login: vi.fn(async () => true),
   };
   TestBed.configureTestingModule({
-    providers: [
-      provideRouter([]),
-      provideTestTranslations(SLOVAK, { language: 'sk', english: en }),
-      provideKit(),
-      { provide: AuthService, useValue: auth },
-    ],
+    providers: [provideRouter([]), provideTestTranslations(SLOVAK, { language: 'sk', english: en }), provideKit(), { provide: AuthService, useValue: auth }],
   });
   return { auth };
 }
 
-const text = (element: Element | null | undefined) =>
-  element?.textContent?.replace(/\s+/g, ' ').trim();
+const text = (element: Element | null | undefined) => element?.textContent?.replace(/\s+/g, ' ').trim();
 
 describe('the ways in for somebody new (visitor hero)', () => {
   it("offers the import, each game's builds and the sign-in, in the reader's language, the games' names as they are", async () => {
@@ -47,9 +40,7 @@ describe('the ways in for somebody new (visitor hero)', () => {
     const host: HTMLElement = fixture.nativeElement;
 
     expect(text(host.querySelector('h2'))).toBe('Každá postava v porovnaní s buildmi od komunity');
-    expect(
-      [...host.querySelectorAll('a')].map((link) => [text(link), link.getAttribute('href')]),
-    ).toEqual([
+    expect([...host.querySelectorAll('a')].map((link) => [text(link), link.getAttribute('href')])).toEqual([
       ['Importovať účet', '/import'],
       ['Buildy pre hru Genshin Impact', '/builds/genshin'],
       ['Buildy pre hru Honkai: Star Rail', '/builds/hsr'],

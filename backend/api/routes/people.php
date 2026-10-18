@@ -37,7 +37,7 @@ return function (Slim\App $slim, App $app): void {
         '/api/admin/people',
         $app->get(People::class),
         columns: SitePeople::columns(),
-        visitors: fn (PDO $pdo): array => SitePeople::visitors($app),
+        visitors: fn(PDO $pdo): array => SitePeople::visitors($app),
         // The library's transaction around it, the person's feedback forgotten in it (People::delete()).
         delete: SitePeople::deleteHook(),
         error: siteRefusal(...),

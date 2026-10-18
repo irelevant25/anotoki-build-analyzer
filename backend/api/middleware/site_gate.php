@@ -51,13 +51,7 @@ use App\Support\Log;
  */
 function siteOpenPaths(): array
 {
-    return [
-        '/api/meta',
-        TranslationsRoutes::openPath(),
-        '~^/api/admin/migrations(/file|/apply)?$~D',
-        ...ErrorLogRoutes::openPaths(),
-        ...BackupsRoutes::openPaths(),
-    ];
+    return ['/api/meta', TranslationsRoutes::openPath(), '~^/api/admin/migrations(/file|/apply)?$~D', ...ErrorLogRoutes::openPaths(), ...BackupsRoutes::openPaths()];
 }
 
 /** Where this site stands: its settings, whether setup.php finished on a real host, and its migrations. */
@@ -69,13 +63,13 @@ function siteState(App $app): SiteState
                 return null;
             }
             $problems = implode('; ', $app->config->problems());
-            Log::info('Not set up: '.$problems);
+            Log::info('Not set up: ' . $problems);
 
             return $problems;
         },
-        installed: fn (): bool => is_file($app->config->storage('installed.lock')),
+        installed: fn(): bool => is_file($app->config->storage('installed.lock')),
         // A request's own Migrator (App\App builds it once per request): what is applied is asked anew each time.
-        migrator: fn (): Migrator => $app->get(Migrator::class),
+        migrator: fn(): Migrator => $app->get(Migrator::class),
     );
 }
 

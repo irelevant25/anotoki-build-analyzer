@@ -30,11 +30,7 @@ function upkeepAfterAnswer(App $app, SiteState $state): Closure
 
         try {
             if ($app->config->get('upkeep.people', true)) {
-                (new PeopleUpkeep(
-                    $app->get(People::class),
-                    static fn (): bool => $state->state() === SiteState::READY,
-                    static fn (callable $work) => AfterResponse::add($work),
-                ))->soon();
+                (new PeopleUpkeep($app->get(People::class), static fn(): bool => $state->state() === SiteState::READY, static fn(callable $work) => AfterResponse::add($work)))->soon();
             }
             if ($app->config->get('upkeep.daily_backup', true)) {
                 $app->get(Backups::class)->dailyIfDue();

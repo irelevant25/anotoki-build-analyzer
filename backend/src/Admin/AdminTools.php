@@ -67,16 +67,16 @@ final class AdminTools
     public static function context(App $app): AdminContext
     {
         return new AdminContext(
-            actorId: static fn (ServerRequestInterface $request): ?int => Identify::person($request)?->sub,
-            proof: AdminContext::recentSignIn(static fn (ServerRequestInterface $request): ?int => Identify::person($request)?->authTime),
-            error: static fn (ResponseInterface $response, Refusal $refusal): ResponseInterface => Json::message(
+            actorId: static fn(ServerRequestInterface $request): ?int => Identify::person($request)?->sub,
+            proof: AdminContext::recentSignIn(static fn(ServerRequestInterface $request): ?int => Identify::person($request)?->authTime),
+            error: static fn(ResponseInterface $response, Refusal $refusal): ResponseInterface => Json::message(
                 $response,
                 $refusal->status,
                 $refusal->message,
                 ['code' => $refusal->code] + $refusal->extra,
             ),
-            isAdmin: static fn (ServerRequestInterface $request): bool => Identify::person($request)?->isAdmin() ?? false,
-            names: static fn (array $ids): array => self::names($app, $ids),
+            isAdmin: static fn(ServerRequestInterface $request): bool => Identify::person($request)?->isAdmin() ?? false,
+            names: static fn(array $ids): array => self::names($app, $ids),
             // Where a request comes from, for the feedback's limits and the error log's client hash: the library's
             // rule - CF-Connecting-IP (its default clientHeader, never another) believed only on a connection from
             // these - over the same list as the site's own counters. Without it the library would read REMOTE_ADDR
@@ -104,26 +104,29 @@ final class AdminTools
      */
     public static function errorLog(App $app, ?SlimApp $slim = null): ErrorLog
     {
-        return new ErrorLog($app->config->storage('logs'), [
-            'root' => $app->config->path(),
-            'context' => $app->get(AdminContext::class),
-            // Who asked: the token's person - also for an exception jsonErrors() writes down, which has the request
-            // only as it came in, before its route group identified it (App\Auth\RequestCaller).
-            'actorId' => static fn (ServerRequestInterface $request): ?int => Identify::person($request)?->sub ?? $app->get(RequestCaller::class)->sub,
-            'expected' => self::EXPECTED_ANSWERS,
-        ] + ($slim === null ? [] : ['app' => $slim]));
+        return new ErrorLog(
+            $app->config->storage('logs'),
+            [
+                'root' => $app->config->path(),
+                'context' => $app->get(AdminContext::class),
+                // Who asked: the token's person - also for an exception jsonErrors() writes down, which has the request
+                // only as it came in, before its route group identified it (App\Auth\RequestCaller).
+                'actorId' => static fn(ServerRequestInterface $request): ?int => Identify::person($request)?->sub ?? $app->get(RequestCaller::class)->sub,
+                'expected' => self::EXPECTED_ANSWERS,
+            ] + ($slim === null ? [] : ['app' => $slim]),
+        );
     }
 
     public static function auditLog(App $app): AuditLog
     {
-        return new AuditLog(static fn (): PDO => $app->db()->raw(), [
+        return new AuditLog(static fn(): PDO => $app->db()->raw(), [
             // While anotoki_admin/001 waits (an upload before Apply), entries wait here; after every Apply they go in.
             'pendingFile' => $app->config->storage('logs/audit-pending.jsonl'),
             // The page's actor filter by a name: the people whose name holds it (never a visitor's row).
-            'actorIds' => static fn (string $name): array => array_map('intval', $app->db()->column(
-                'SELECT id FROM users WHERE id > 0 AND strpos(lower(name), lower(?)) > 0 ORDER BY id LIMIT 50',
-                [$name],
-            )),
+            'actorIds' => static fn(string $name): array => array_map(
+                'intval',
+                $app->db()->column('SELECT id FROM users WHERE id > 0 AND strpos(lower(name), lower(?)) > 0 ORDER BY id LIMIT 50', [$name]),
+            ),
         ]);
     }
 
@@ -137,12 +140,12 @@ final class AdminTools
      */
     public static function names(App $app, array $ids): array
     {
-        $ids = array_values(array_filter(array_map('intval', $ids), static fn (int $id): bool => $id > 0));
+        $ids = array_values(array_filter(array_map('intval', $ids), static fn(int $id): bool => $id > 0));
         if ($ids === []) {
             return [];
         }
         $names = [];
-        foreach ($app->db()->all('SELECT id, name FROM users WHERE id = ANY (CAST(? AS bigint[]))', ['{'.implode(',', $ids).'}']) as $row) {
+        foreach ($app->db()->all('SELECT id, name FROM users WHERE id = ANY (CAST(? AS bigint[]))', ['{' . implode(',', $ids) . '}']) as $row) {
             $names[(int) $row['id']] = (string) $row['name'];
         }
 
@@ -151,10 +154,10 @@ final class AdminTools
 
     public static function feedback(App $app): Feedback
     {
-        return new Feedback(static fn (): PDO => $app->db()->raw(), [
+        return new Feedback(static fn(): PDO => $app->db()->raw(), [
             'storage' => $app->config->storage(),
             'sections' => self::FEEDBACK_SECTIONS,
-            'defer' => static fn (callable $work) => AfterResponse::add($work),
+            'defer' => static fn(callable $work) => AfterResponse::add($work),
         ]);
     }
 
@@ -162,17 +165,17 @@ final class AdminTools
     {
         $config = $app->config;
 
-        return new Backups(static fn (): PDO => self::copyConnection($app), $config->storage('backups'), [
+        return new Backups(static fn(): PDO => self::copyConnection($app), $config->storage('backups'), [
             'site' => 'build-analyzer',
             // Read only (the files applied, each file's SQL): the backup keeps the schema it was made with.
-            'migrator' => static fn (PDO $pdo): Migrator => Migrations::migrator($pdo),
+            'migrator' => static fn(PDO $pdo): Migrator => Migrations::migrator($pdo),
             // The day's backup waits while an update waits - as the site gate sees it: the app's own Migrator.
-            'ready' => static fn (PDO $pdo): bool => $app->get(Migrator::class)->applicable() === [],
+            'ready' => static fn(PDO $pdo): bool => $app->get(Migrator::class)->applicable() === [],
             'lock' => Migrations::LOCK,
             // Never restored: what the site counts and locks by the minute (the throttles, the syncs' locks).
             'keep' => ['cache', 'cache_locks'],
             'audit' => $app->get(AuditLog::class),
-            'defer' => static fn (callable $work) => AfterResponse::add($work),
+            'defer' => static fn(callable $work) => AfterResponse::add($work),
             'onError' => static function (Throwable $e) use ($app): void {
                 $app->get(ErrorLog::class)->record($e);
             },
@@ -182,10 +185,7 @@ final class AdminTools
             // deleted accounts at once - one that cannot finish (the IAM out of reach) is the answer's
             // after_restore_error, and the upkeep's hourly stamp goes after this answer, so the next request
             // checks again.
-            ...$app->get(People::class)->restoreHooks(
-                delete: SitePeople::deleteHook(),
-                defer: static fn (callable $work) => AfterResponse::add($work),
-            ),
+            ...$app->get(People::class)->restoreHooks(delete: SitePeople::deleteHook(), defer: static fn(callable $work) => AfterResponse::add($work)),
         ]);
     }
 

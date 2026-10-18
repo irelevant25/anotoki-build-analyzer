@@ -7,7 +7,7 @@
 
 declare(strict_types=1);
 
-require __DIR__.'/lib.php';
+require __DIR__ . '/lib.php';
 
 use App\Enums\Game;
 use App\Services\Builds\Parsing\AstroIslands;
@@ -19,8 +19,11 @@ use App\Services\Builds\Sources\GenshinGgSource;
 test('astro island props are revived', function () {
     $props = ['builds' => [1, [[0, ['name' => [0, 'DPS'], 'weapons' => [1, [[0, ['id' => [0, 'staff_of_homa'], 'r' => [0, 5]]]]]]]]], 'lang' => [0, 'en']];
     $attribute = htmlspecialchars(json_encode($props), ENT_QUOTES);
-    $html = '<html><body><astro-island component-url="/_astro/Other.js" props="{}"></astro-island>'
-        .'<astro-island component-url="/_astro/CharacterBuildTabs.C1.js" props="'.$attribute.'"></astro-island></body></html>';
+    $html =
+        '<html><body><astro-island component-url="/_astro/Other.js" props="{}"></astro-island>' .
+        '<astro-island component-url="/_astro/CharacterBuildTabs.C1.js" props="' .
+        $attribute .
+        '"></astro-island></body></html>';
 
     $found = AstroIslands::find($html, 'CharacterBuildTabs');
 
@@ -31,12 +34,11 @@ test('astro island props are revived', function () {
 
 test('next flight rows, text rows included', function () {
     // A text row ("2:T5,hello") is followed directly by the next row without a newline.
-    $payload = '0:["$","$L1",null,{"x":1}]'."\n"
-        .'2:T5,hello'
-        .'3:["$","$L4",null,{"statBuilds":[{"name":"Kafka DoT"}],"lastUpdate":{"build":"3.5"}}]'."\n";
+    $payload = '0:["$","$L1",null,{"x":1}]' . "\n" . '2:T5,hello' . '3:["$","$L4",null,{"statBuilds":[{"name":"Kafka DoT"}],"lastUpdate":{"build":"3.5"}}]' . "\n";
     $html = '<html><body>';
-    foreach (str_split($payload, 20) as $chunk) { // the payload is split over several push() calls
-        $html .= '<script>self.__next_f.push('.json_encode([1, $chunk]).')</script>';
+    foreach (str_split($payload, 20) as $chunk) {
+        // the payload is split over several push() calls
+        $html .= '<script>self.__next_f.push(' . json_encode([1, $chunk]) . ')</script>';
     }
     $html .= '</body></html>';
 
@@ -57,9 +59,9 @@ test('bundle entries with line breaks are separate options', function () {
 
 test('JSON literals in a JS bundle are decoded', function () {
     $js = <<<'JS'
-        var a=1;var chars=JSON.parse('[{"name":"Hu Tao","type":"Pyro","weapon":"Polearm","build":{"weapons":["Staff of Homa","The Catch R5"]}}]');
-        var w=JSON.parse('[{"name":"Wolf\'s Gravestone","note":"a \\"quoted\\" word\\nnext"}]');
-        JS;
+    var a=1;var chars=JSON.parse('[{"name":"Hu Tao","type":"Pyro","weapon":"Polearm","build":{"weapons":["Staff of Homa","The Catch R5"]}}]');
+    var w=JSON.parse('[{"name":"Wolf\'s Gravestone","note":"a \\"quoted\\" word\\nnext"}]');
+    JS;
 
     $arrays = GenshinGgSource::decodeBundle($js);
 
@@ -70,8 +72,7 @@ test('JSON literals in a JS bundle are decoded', function () {
 });
 
 test('stat goals are read from Genshin notes', function () {
-    $targets = StatTargets::extract(Game::Genshin,
-        'Goal: 2,000+ <stat>ATK</stat>, 125-145% <stat>Energy Recharge</stat>, 180%+ <stat>CRIT DMG</stat>, 150-200 Elemental Mastery.');
+    $targets = StatTargets::extract(Game::Genshin, 'Goal: 2,000+ <stat>ATK</stat>, 125-145% <stat>Energy Recharge</stat>, 180%+ <stat>CRIT DMG</stat>, 150-200 Elemental Mastery.');
 
     $byStat = array_column($targets, null, 'stat');
     same(2000.0, $byStat['atk']['min'], 'flat ATK');
@@ -83,8 +84,7 @@ test('stat goals are read from Genshin notes', function () {
 });
 
 test('stat goals are read from an endgame list', function () {
-    $html = '<ul><li><p>HP: <b>3000+</b></p></li><li><p>ATK: <b>2500 - 3000+ </b></p></li>'
-        .'<li><p>EHR: <b>75%</b> (More can be fine)</p></li><li><p>SPD: <b>160+</b></p></li></ul>';
+    $html = '<ul><li><p>HP: <b>3000+</b></p></li><li><p>ATK: <b>2500 - 3000+ </b></p></li>' . '<li><p>EHR: <b>75%</b> (More can be fine)</p></li><li><p>SPD: <b>160+</b></p></li></ul>';
     $byStat = array_column(StatTargets::extract(Game::Hsr, $html), null, 'stat');
 
     same(3000.0, $byStat['hp']['min'], 'HP');

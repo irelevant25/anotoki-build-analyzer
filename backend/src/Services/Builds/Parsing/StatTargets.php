@@ -28,7 +28,7 @@ final class StatTargets
      */
     public static function extract(Game $game, ?string $text): array
     {
-        if (! $text) {
+        if (!$text) {
             return [];
         }
 
@@ -50,7 +50,7 @@ final class StatTargets
             preg_match_all($pattern, $plain, $matches, PREG_SET_ORDER | PREG_UNMATCHED_AS_NULL);
             foreach ($matches as $m) {
                 $isGoal = $m['max'] !== null || $m['plus'] !== null || ($m['colon'] ?? null) !== null;
-                if (! $isGoal) {
+                if (!$isGoal) {
                     continue;
                 }
 
@@ -67,7 +67,7 @@ final class StatTargets
     private static function build(Game $game, string $label, string $min, ?string $max, bool $percent, string $text): ?array
     {
         $stat = Stats::parse($game, $label)[0] ?? null;
-        if (! $stat) {
+        if (!$stat) {
             return null;
         }
 
@@ -75,7 +75,7 @@ final class StatTargets
         $maxValue = $max === null ? null : (float) str_replace(',', '', $max);
 
         // Goals for ATK/HP/DEF without a % sign are totals ("2000+ ATK"), i.e. flat stats.
-        if (in_array($stat, ['atk_', 'hp_', 'def_'], true) && ! $percent) {
+        if (in_array($stat, ['atk_', 'hp_', 'def_'], true) && !$percent) {
             $stat = rtrim($stat, '_');
         }
 

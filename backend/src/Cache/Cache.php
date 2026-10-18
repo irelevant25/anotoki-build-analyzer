@@ -70,10 +70,7 @@ final class Cache
      */
     public function giveBack(string $key): void
     {
-        $this->db->run(
-            'UPDATE cache SET value = GREATEST((value)::BIGINT - 1, 0)::TEXT WHERE key = ? AND expiration > ?',
-            [$key, Clock::timestamp()],
-        );
+        $this->db->run('UPDATE cache SET value = GREATEST((value)::BIGINT - 1, 0)::TEXT WHERE key = ? AND expiration > ?', [$key, Clock::timestamp()]);
     }
 
     public function forget(string $key): void

@@ -2,10 +2,7 @@ import { formatDate } from '@angular/common';
 import { EnvironmentProviders, inject } from '@angular/core';
 import { Router } from '@angular/router';
 import { provideAnotokiMigrations } from '@anotoki/lib/migrations';
-import {
-  TranslationService as LibraryTranslations,
-  siteStatusWords,
-} from '@anotoki/lib/translations';
+import { TranslationService as LibraryTranslations, siteStatusWords } from '@anotoki/lib/translations';
 import { AuthService } from './auth';
 import { DateChoices, OwnDateParts, chosenMoment } from './i18n/date-patterns';
 import { TranslationService } from './i18n/translation';
@@ -34,9 +31,7 @@ export function appliedAt(iso: string, chosen: DateChoices | null, locale: strin
   if (Number.isNaN(date.getTime())) {
     return iso;
   }
-  return (
-    chosenMoment(date, chosen, locale, OWN_PARTS) ?? formatDate(date, 'd MMM y, HH:mm', 'en-US')
-  );
+  return chosenMoment(date, chosen, locale, OWN_PARTS) ?? formatDate(date, 'd MMM y, HH:mm', 'en-US');
 }
 
 /**

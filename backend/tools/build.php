@@ -26,94 +26,99 @@ declare(strict_types=1);
 const MIN_PHP = 80400;
 
 $root = dirname(__DIR__, 2);
-$backend = $root.'/backend';
-$frontend = $root.'/frontend';
-$dist = $root.'/dist';
-$site = $dist.'/build-analyzer';
+$backend = $root . '/backend';
+$frontend = $root . '/frontend';
+$dist = $root . '/dist';
+$site = $dist . '/build-analyzer';
 
 $options = getopt('', ['skip-frontend']);
 
 if (PHP_VERSION_ID < MIN_PHP) {
-    fail('PHP 8.4 or newer is needed (this is '.PHP_VERSION.').');
+    fail('PHP 8.4 or newer is needed (this is ' . PHP_VERSION . ').');
 }
-if (! is_file($backend.'/vendor/autoload.php')) {
+if (!is_file($backend . '/vendor/autoload.php')) {
     fail('backend/vendor/ is missing: run `composer install` in backend/ first (DEV.md).');
 }
-require $backend.'/vendor/autoload.php';
+require $backend . '/vendor/autoload.php';
 
 // ── 1. The Angular app ────────────────────────────────────────────────────────────────────────
-$browser = $frontend.'/dist/frontend/browser';
-if (! isset($options['skip-frontend'])) {
+$browser = $frontend . '/dist/frontend/browser';
+if (!isset($options['skip-frontend'])) {
     step('Building the Angular app (production)');
     run('npx ng build --configuration production', $frontend);
 }
-if (! is_file($browser.'/index.html')) {
+if (!is_file($browser . '/index.html')) {
     fail("No Angular build in {$browser}; run without --skip-frontend.");
 }
 
 step('Assembling dist/build-analyzer');
 removeTree($dist, $root);
 mkdir($site, 0775, true);
-copyTree($browser, $site, fn () => false);
+copyTree($browser, $site, fn() => false);
 
 // ── 2. The backend's runtime files ────────────────────────────────────────────────────────────
-copyTree($backend.'/api', $site.'/api', fn () => false);
-copyTree($backend.'/src', $site.'/src', fn () => false);
-copyTree($backend.'/migrations', $site.'/migrations', fn () => false);
-copyTree($backend.'/vendor', $site.'/vendor', fn () => false);
+copyTree($backend . '/api', $site . '/api', fn() => false);
+copyTree($backend . '/src', $site . '/src', fn() => false);
+copyTree($backend . '/migrations', $site . '/migrations', fn() => false);
+copyTree($backend . '/vendor', $site . '/vendor', fn() => false);
 // config/: the committed app.php only; every *.local.php (the database password, the setup token) stays.
-copyTree($backend.'/config', $site.'/config', fn (string $relative) => str_ends_with($relative, '.local.php'));
+copyTree($backend . '/config', $site . '/config', fn(string $relative) => str_ends_with($relative, '.local.php'));
 // storage/: the folders the app writes to, empty (the backups' folder the library makes, guarded, at its first backup).
 foreach (['cache', 'http-cache', 'icons', 'logs'] as $folder) {
     mkdir("{$site}/storage/{$folder}", 0775, true);
 }
 
 // ── 3. Only the app and /api are served ───────────────────────────────────────────────────────
-file_put_contents($site.'/.htaccess', <<<'HTACCESS'
-# The build analyzer - the web root: the Angular app, with the PHP API in api/.
-# Written by backend/tools/build.php; edit that, not this.
+file_put_contents(
+    $site . '/.htaccess',
+    <<<'HTACCESS'
+    # The build analyzer - the web root: the Angular app, with the PHP API in api/.
+    # Written by backend/tools/build.php; edit that, not this.
 
-DirectoryIndex index.html
+    DirectoryIndex index.html
 
-<IfModule mod_rewrite.c>
-RewriteEngine On
+    <IfModule mod_rewrite.c>
+    RewriteEngine On
 
-# The API is its own handler (api/.htaccess sends every /api path to api/index.php).
-RewriteRule ^api(/|$) - [L]
+    # The API is its own handler (api/.htaccess sends every /api path to api/index.php).
+    RewriteRule ^api(/|$) - [L]
 
-# Real files (the hashed bundles, the fonts, changelog.json, setup.php while it is there) as they are.
-RewriteCond %{REQUEST_FILENAME} -f [OR]
-RewriteCond %{REQUEST_FILENAME} -d
-RewriteRule ^ - [L]
+    # Real files (the hashed bundles, the fonts, changelog.json, setup.php while it is there) as they are.
+    RewriteCond %{REQUEST_FILENAME} -f [OR]
+    RewriteCond %{REQUEST_FILENAME} -d
+    RewriteRule ^ - [L]
 
-# A file that is not there - a bundle of an older version, say - is a 404, not the app: a script answered
-# with a page fails with a confusing error instead of a missing file.
-RewriteRule \.(js|mjs|css|map|json|ico|png|jpe?g|gif|svg|webp|avif|woff2?|ttf|txt|php)$ - [R=404,L]
+    # A file that is not there - a bundle of an older version, say - is a 404, not the app: a script answered
+    # with a page fails with a confusing error instead of a missing file.
+    RewriteRule \.(js|mjs|css|map|json|ico|png|jpe?g|gif|svg|webp|avif|woff2?|ttf|txt|php)$ - [R=404,L]
 
-# Every other path is a page of the app.
-RewriteRule ^ index.html [L]
-</IfModule>
+    # Every other path is a page of the app.
+    RewriteRule ^ index.html [L]
+    </IfModule>
 
-<IfModule mod_headers.c>
-Header always set X-Frame-Options "DENY"
-Header always set X-Content-Type-Options "nosniff"
-Header always set Referrer-Policy "strict-origin-when-cross-origin"
-# A new version must reach the browser at once; the bundles it names are hashed, and may be cached.
-<FilesMatch "^(index\.html|changelog\.json)$">
-Header set Cache-Control "no-cache"
-</FilesMatch>
-</IfModule>
+    <IfModule mod_headers.c>
+    Header always set X-Frame-Options "DENY"
+    Header always set X-Content-Type-Options "nosniff"
+    Header always set Referrer-Policy "strict-origin-when-cross-origin"
+    # A new version must reach the browser at once; the bundles it names are hashed, and may be cached.
+    <FilesMatch "^(index\.html|changelog\.json)$">
+    Header set Cache-Control "no-cache"
+    </FilesMatch>
+    </IfModule>
 
-HTACCESS);
+    HTACCESS
+    ,
+);
 
-$deny = "# Never served: read by PHP from disk only.\n"
-    ."<IfModule mod_authz_core.c>\n    Require all denied\n</IfModule>\n<IfModule !mod_authz_core.c>\n    Order allow,deny\n    Deny from all\n</IfModule>\n";
+$deny =
+    "# Never served: read by PHP from disk only.\n" .
+    "<IfModule mod_authz_core.c>\n    Require all denied\n</IfModule>\n<IfModule !mod_authz_core.c>\n    Order allow,deny\n    Deny from all\n</IfModule>\n";
 foreach (['src', 'config', 'migrations', 'vendor', 'storage'] as $folder) {
     file_put_contents("{$site}/{$folder}/.htaccess", $deny);
 }
 
 // ── 4. The first-run installer, kept apart ────────────────────────────────────────────────────
-copy($backend.'/setup.php', $dist.'/setup.php');
+copy($backend . '/setup.php', $dist . '/setup.php');
 
 // ── 5. Nothing that must not be uploaded, nothing missing ─────────────────────────────────────
 step('Checking the result');
@@ -126,46 +131,63 @@ foreach (new RecursiveIteratorIterator(new RecursiveDirectoryIterator($site, Fil
     $bytes += $file->getSize();
 
     $name = $file->getFilename();
-    if (str_ends_with($name, '.local.php') || $name === '.env' || str_starts_with($name, '.env.') || $name === 'dev.local.ps1'
-        || str_ends_with($name, '.sqlite') || str_ends_with($name, '.log')) {
+    if (str_ends_with($name, '.local.php') || $name === '.env' || str_starts_with($name, '.env.') || $name === 'dev.local.ps1' || str_ends_with($name, '.sqlite') || str_ends_with($name, '.log')) {
         $problems[] = "must not ship: {$relative}";
     }
     if (preg_match('~(^|/)(laravel|illuminate)(/|$)~i', $relative)) {
         $problems[] = "a Laravel component: {$relative}";
     }
     // The UI names no other website, service or tool (the backend's own code may: it is not served).
-    if (! str_contains($relative, '/') && preg_match('/\.(html|js|css|json|txt)$/', $name)) {
+    if (!str_contains($relative, '/') && preg_match('/\.(html|js|css|json|txt)$/', $name)) {
         $names = App\Support\Neutral::namesIn((string) file_get_contents($file->getPathname()));
         if ($names !== []) {
-            $problems[] = "{$relative} names ".implode(', ', $names);
+            $problems[] = "{$relative} names " . implode(', ', $names);
         }
     }
 }
 // The library's own migration files and words ship inside vendor/ (anotoki/lib's backend/migrations and backend/resources):
 // without them the Migrations page would have nothing of the library's to apply, and a save of strings would fail.
-foreach (['index.html', 'changelog.json', 'robots.txt', 'api/index.php', 'api/.htaccess', 'vendor/autoload.php', 'config/app.php', 'migrations/002_schema.sql',
-    'migrations/003_languages_and_translations.sql', 'vendor/anotoki/lib/backend/migrations/admin/001_audit_log.sql',
-    'vendor/anotoki/lib/backend/migrations/translations/001_languages_and_strings.sql', 'vendor/anotoki/lib/backend/migrations/people/001_people.sql',
-    'vendor/anotoki/lib/backend/resources/library-words.json'] as $required) {
-    if (! is_file("{$site}/{$required}")) {
+foreach (
+    [
+        'index.html',
+        'changelog.json',
+        'robots.txt',
+        'api/index.php',
+        'api/.htaccess',
+        'vendor/autoload.php',
+        'config/app.php',
+        'migrations/002_schema.sql',
+        'migrations/003_languages_and_translations.sql',
+        'vendor/anotoki/lib/backend/migrations/admin/001_audit_log.sql',
+        'vendor/anotoki/lib/backend/migrations/translations/001_languages_and_strings.sql',
+        'vendor/anotoki/lib/backend/migrations/people/001_people.sql',
+        'vendor/anotoki/lib/backend/resources/library-words.json',
+    ]
+    as $required
+) {
+    if (!is_file("{$site}/{$required}")) {
         $problems[] = "missing: build-analyzer/{$required}";
     }
 }
-foreach (['tests', 'tools', 'node_modules', 'router.php', 'migration.php', 'sync-builds.php', 'sync-catalog.php', 'import-account.php', 'translations.php', 'setup.php',
-    'backup.php', 'composer.json'] as $absent) {
+foreach (
+    ['tests', 'tools', 'node_modules', 'router.php', 'migration.php', 'sync-builds.php', 'sync-catalog.php', 'import-account.php', 'translations.php', 'setup.php', 'backup.php', 'composer.json']
+    as $absent
+) {
     if (file_exists("{$site}/{$absent}")) {
         $problems[] = "should not be there: build-analyzer/{$absent}";
     }
 }
 if ($problems !== []) {
-    fail("The build is not right:\n  ".implode("\n  ", $problems));
+    fail("The build is not right:\n  " . implode("\n  ", $problems));
 }
 
-echo "\nBuilt dist/ ({$files} files, ".round($bytes / 1048576, 1)." MB):\n\n"
-    ."  dist/build-analyzer/*   upload into the site's web root (the folder its address serves).\n"
-    ."  dist/setup.php          first install only: upload beside it, open https://<site>/setup.php.\n\n"
-    ."Writable for the web server: config/ (setup.php writes its files there) and storage/.\n"
-    ."PHP 8.4+ with pdo_pgsql, curl, dom, mbstring, openssl and zlib. Details: DEV.md (\"Deploying\").\n";
+echo "\nBuilt dist/ ({$files} files, " .
+    round($bytes / 1048576, 1) .
+    " MB):\n\n" .
+    "  dist/build-analyzer/*   upload into the site's web root (the folder its address serves).\n" .
+    "  dist/setup.php          first install only: upload beside it, open https://<site>/setup.php.\n\n" .
+    "Writable for the web server: config/ (setup.php writes its files there) and storage/.\n" .
+    "PHP 8.4+ with pdo_pgsql, curl, dom, mbstring, openssl and zlib. Details: DEV.md (\"Deploying\").\n";
 
 // ──────────────────────────────────────────────────────────────────────────────────────────────
 
@@ -196,7 +218,7 @@ function run(string $command, string $directory): void
  */
 function copyTree(string $from, string $to, callable $skip): void
 {
-    if (! is_dir($from)) {
+    if (!is_dir($from)) {
         fail("{$from} is missing.");
     }
     @mkdir($to, 0775, true);
@@ -221,10 +243,10 @@ function copyTree(string $from, string $to, callable $skip): void
  */
 function removeTree(string $path, string $root): void
 {
-    if (! is_dir($path)) {
+    if (!is_dir($path)) {
         return;
     }
-    if (! str_starts_with(realpath($path) ?: '', realpath($root) ?: "\0")) {
+    if (!str_starts_with(realpath($path) ?: '', realpath($root) ?: "\0")) {
         fail("refusing to delete {$path}");
     }
     $items = new RecursiveIteratorIterator(new RecursiveDirectoryIterator($path, FilesystemIterator::SKIP_DOTS), RecursiveIteratorIterator::CHILD_FIRST);

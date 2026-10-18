@@ -1,10 +1,5 @@
 import { Routes } from '@angular/router';
-import {
-  AuthCallbackComponent,
-  SignInFailureComponent,
-  adminGuard,
-  personGuard,
-} from '@anotoki/lib/auth';
+import { AuthCallbackComponent, SignInFailureComponent, adminGuard, personGuard } from '@anotoki/lib/auth';
 import { anotokiUnsavedChangesGuard } from '@anotoki/lib/translations';
 import { CALLBACK_PATH, SIGN_IN_FAILED_PATH, sitePagesGuard } from './core/auth.guards';
 import { AppLayout } from './layouts/app-layout/app-layout';
@@ -80,8 +75,7 @@ export const routes: Routes = [
       {
         path: '',
         pathMatch: 'full',
-        loadComponent: () =>
-          import('./pages/dashboard/dashboard-page').then((m) => m.DashboardPage),
+        loadComponent: () => import('./pages/dashboard/dashboard-page').then((m) => m.DashboardPage),
       },
       {
         path: 'import',
@@ -96,8 +90,7 @@ export const routes: Routes = [
       {
         path: 'accounts/:id/characters/:key',
         title: 'title.character',
-        loadComponent: () =>
-          import('./pages/character/character-page').then((m) => m.CharacterPage),
+        loadComponent: () => import('./pages/character/character-page').then((m) => m.CharacterPage),
       },
       { path: 'builds', pathMatch: 'full', redirectTo: 'builds/genshin' },
       {
@@ -108,8 +101,7 @@ export const routes: Routes = [
       {
         path: 'builds/:game/:key',
         title: 'title.buildCharacter',
-        loadComponent: () =>
-          import('./pages/builds/build-character-page').then((m) => m.BuildCharacterPage),
+        loadComponent: () => import('./pages/builds/build-character-page').then((m) => m.BuildCharacterPage),
       },
       {
         // The screen of a sign-in that came back without one, could not start, or cannot be set up (the anotoki
@@ -140,23 +132,20 @@ export const routes: Routes = [
       {
         path: 'sources',
         title: 'Build sources',
-        loadComponent: () =>
-          import('./pages/admin/sources/sources-page').then((m) => m.SourcesPage),
+        loadComponent: () => import('./pages/admin/sources/sources-page').then((m) => m.SourcesPage),
       },
       {
         path: 'translations',
         title: 'Translations',
         canDeactivate: [anotokiUnsavedChangesGuard],
-        loadComponent: () =>
-          import('./pages/admin/translations/translations-page').then((m) => m.TranslationsPage),
+        loadComponent: () => import('./pages/admin/translations/translations-page').then((m) => m.TranslationsPage),
       },
       {
         path: 'languages',
         title: 'Languages',
         canActivate: [adminGuard],
         canDeactivate: [anotokiUnsavedChangesGuard],
-        loadComponent: () =>
-          import('./pages/admin/languages/languages-page').then((m) => m.LanguagesPage),
+        loadComponent: () => import('./pages/admin/languages/languages-page').then((m) => m.LanguagesPage),
       },
       {
         // The anotoki family's People page, from its own entry point (a lazy chunk; app.config.ts sets it up).
@@ -169,8 +158,7 @@ export const routes: Routes = [
         path: 'migrations',
         title: 'Migrations',
         canActivate: [adminGuard],
-        loadComponent: () =>
-          import('./pages/admin/migrations/migrations-page').then((m) => m.MigrationsPage),
+        loadComponent: () => import('./pages/admin/migrations/migrations-page').then((m) => m.MigrationsPage),
       },
       // The anotoki family's admin tools, each from its own entry point (lazy chunks; app.config.ts sets them up),
       // for the site's ADMIN alone - the server refuses anybody else (403 admin_only).
@@ -178,29 +166,25 @@ export const routes: Routes = [
         path: 'errors',
         title: 'Error log',
         canActivate: [adminGuard],
-        loadComponent: () =>
-          import('@anotoki/lib/admin/errors').then((m) => m.ErrorLogPageComponent),
+        loadComponent: () => import('@anotoki/lib/admin/errors').then((m) => m.ErrorLogPageComponent),
       },
       {
         path: 'audit',
         title: 'Audit log',
         canActivate: [adminGuard],
-        loadComponent: () =>
-          import('@anotoki/lib/admin/audit').then((m) => m.AuditLogPageComponent),
+        loadComponent: () => import('@anotoki/lib/admin/audit').then((m) => m.AuditLogPageComponent),
       },
       {
         path: 'feedback',
         title: 'Feedback',
         canActivate: [adminGuard],
-        loadComponent: () =>
-          import('@anotoki/lib/admin/feedback').then((m) => m.FeedbackPageComponent),
+        loadComponent: () => import('@anotoki/lib/admin/feedback').then((m) => m.FeedbackPageComponent),
       },
       {
         path: 'backups',
         title: 'Backups',
         canActivate: [adminGuard],
-        loadComponent: () =>
-          import('@anotoki/lib/admin/backups').then((m) => m.BackupsPageComponent),
+        loadComponent: () => import('@anotoki/lib/admin/backups').then((m) => m.BackupsPageComponent),
       },
     ],
   },

@@ -9,15 +9,15 @@
  */
 
 $filter = $argv[1] ?? '';
-$files = array_values(array_filter(glob(__DIR__.'/*.test.php') ?: [], fn (string $file) => $filter === '' || str_contains(basename($file), $filter)));
+$files = array_values(array_filter(glob(__DIR__ . '/*.test.php') ?: [], fn(string $file) => $filter === '' || str_contains(basename($file), $filter)));
 sort($files);
 $failed = [];
 $counts = [];
 
 foreach ($files as $file) {
-    echo "\n== ".basename($file)."\n";
+    echo "\n== " . basename($file) . "\n";
     $output = [];
-    $handle = popen(escapeshellarg(PHP_BINARY).' '.escapeshellarg($file).' 2>&1', 'r');
+    $handle = popen(escapeshellarg(PHP_BINARY) . ' ' . escapeshellarg($file) . ' 2>&1', 'r');
     while (($line = fgets($handle)) !== false) {
         echo $line;
         if (preg_match('/^(\d+) tests, /', $line, $m)) {
@@ -29,6 +29,5 @@ foreach ($files as $file) {
     }
 }
 
-echo "\n".array_sum($counts).' tests in '.count($files).' files. '
-    .($failed === [] ? "Every test file passed.\n" : 'Failed: '.implode(', ', $failed)."\n");
+echo "\n" . array_sum($counts) . ' tests in ' . count($files) . ' files. ' . ($failed === [] ? "Every test file passed.\n" : 'Failed: ' . implode(', ', $failed) . "\n");
 exit($failed === [] ? 0 : 1);

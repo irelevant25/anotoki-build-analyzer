@@ -39,8 +39,7 @@ final class Log
 
     public static function exception(Throwable $e, string $context = ''): void
     {
-        self::write('error', ($context !== '' ? $context.': ' : '').get_class($e).': '.$e->getMessage()
-            .' in '.basename($e->getFile()).':'.$e->getLine());
+        self::write('error', ($context !== '' ? $context . ': ' : '') . get_class($e) . ': ' . $e->getMessage() . ' in ' . basename($e->getFile()) . ':' . $e->getLine());
     }
 
     private static function write(string $level, string $message): void
@@ -50,17 +49,17 @@ final class Log
         }
 
         $directory = dirname(self::$file);
-        if (! is_dir($directory)) {
+        if (!is_dir($directory)) {
             @mkdir($directory, 0775, true);
         }
         clearstatcache(true, self::$file);
         if (@filesize(self::$file) > self::MAX_BYTES) {
             // Two requests may both find it full: the second rename finds nothing to move, and that is fine.
-            @rename(self::$file, self::$file.'.1');
+            @rename(self::$file, self::$file . '.1');
         }
-        $line = gmdate('Y-m-d H:i:s').' '.strtoupper($level).' '.str_replace(["\r", "\n"], ' ', $message).PHP_EOL;
+        $line = gmdate('Y-m-d H:i:s') . ' ' . strtoupper($level) . ' ' . str_replace(["\r", "\n"], ' ', $message) . PHP_EOL;
         if (@file_put_contents(self::$file, $line, FILE_APPEND | LOCK_EX) === false) {
-            error_log('[build-analyzer] '.$message);
+            error_log('[build-analyzer] ' . $message);
         }
     }
 }

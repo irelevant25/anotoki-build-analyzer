@@ -36,7 +36,7 @@ final class BuildPresenter
             array_push($weaponKeys, ...array_column($build->weapons, 'key'));
             foreach ($build->sets as $option) {
                 foreach ($option['pieces'] ?? [] as $piece) {
-                    array_push($setKeys, ...($piece['keys'] ?? []));
+                    array_push($setKeys, ...$piece['keys'] ?? []);
                 }
             }
         }
@@ -44,7 +44,7 @@ final class BuildPresenter
         $weapons = $this->rows->byKeys($game, Catalog::WEAPON, $weaponKeys);
         $sets = $this->rows->byKeys($game, Catalog::SET, $setKeys);
 
-        return array_map(fn (Build $build) => $this->present($build, $weapons, $sets), $builds);
+        return array_map(fn(Build $build) => $this->present($build, $weapons, $sets), $builds);
     }
 
     public function sourceOf(Build $build): array
@@ -60,15 +60,24 @@ final class BuildPresenter
             'variant' => Neutral::text($build->variant),
             'role' => Neutral::text($build->role),
             'recommended' => $build->recommended,
-            'weapons' => array_map(fn ($weapon) => Neutral::deep($weapon) + [
-                'icon_url' => Icons::of($weapons[$weapon['key']] ?? null),
-                'rarity' => ($weapons[$weapon['key']] ?? null)?->rarity,
-            ], $build->weapons),
-            'sets' => array_map(fn ($option) => array_merge(Neutral::deep($option), [
-                'pieces' => array_map(fn ($piece) => Neutral::deep($piece) + [
-                    'icon_url' => count($piece['keys']) === 1 ? Icons::of($sets[$piece['keys'][0]] ?? null) : null,
-                ], $option['pieces']),
-            ]), $build->sets),
+            'weapons' => array_map(
+                fn($weapon) => Neutral::deep($weapon) + [
+                    'icon_url' => Icons::of($weapons[$weapon['key']] ?? null),
+                    'rarity' => ($weapons[$weapon['key']] ?? null)?->rarity,
+                ],
+                $build->weapons,
+            ),
+            'sets' => array_map(
+                fn($option) => array_merge(Neutral::deep($option), [
+                    'pieces' => array_map(
+                        fn($piece) => Neutral::deep($piece) + [
+                            'icon_url' => count($piece['keys']) === 1 ? Icons::of($sets[$piece['keys'][0]] ?? null) : null,
+                        ],
+                        $option['pieces'],
+                    ),
+                ]),
+                $build->sets,
+            ),
             'main_stats' => (object) $build->main_stats,
             'substats' => $build->substats,
             'talent_priority' => $build->talent_priority,

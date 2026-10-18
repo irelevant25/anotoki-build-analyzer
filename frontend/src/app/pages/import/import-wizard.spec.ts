@@ -263,7 +263,7 @@ describe('the import wizard', () => {
 
     expect(notFromAKey(['Genshin Impact', 'Honkai: Star Rail', 'Second'])).toEqual([]);
     expect(text(host.querySelector('.drop .small'))).toBe('«A .json file in the GOOD format»');
-    expect(text(host.querySelector('.account-field .anotoki-field__hint'))).toBe('«A full export replaces the account\'s Weapons and Artifacts; characters are kept.»');
+    expect(text(host.querySelector('.account-field .anotoki-field__hint'))).toBe("«A full export replaces the account's Weapons and Artifacts; characters are kept.»");
 
     // Back to the guide (a step is drawn at a time): the chosen game's and way's, step by step.
     await backTo(2);
@@ -311,20 +311,26 @@ describe('the import wizard', () => {
     expect(host.querySelector('.account-field')).toBeNull();
   });
 
-  it('lists a visitor\'s own accounts, under the notice', async () => {
+  it("lists a visitor's own accounts, under the notice", async () => {
     await wizard({ language: 'en', who: 'visitor', accounts: [account(1)] });
 
     expect(api.accounts).toHaveBeenCalledTimes(1);
     expect(host.querySelector('app-visitor-notice anotoki-alert')).not.toBeNull();
   });
 
-  it('words a visitor\'s limits from their code and {max} - each one offering the sign-in', async () => {
+  it("words a visitor's limits from their code and {max} - each one offering the sign-in", async () => {
     await wizard({ language: 'en', who: 'visitor' });
     await choose('genshin', 'showcase');
     await typeUid('700123456');
     const cases: [HttpErrorResponse, string][] = [
-      [refusedWith(422, { message: SERVER_ENGLISH, code: 'visitor_limit', params: { limit: 'accounts', max: 5 } }), 'Without signing in, this browser keeps at most 5 game accounts. Import into one of them, or sign in to add more.'],
-      [refusedWith(422, { message: SERVER_ENGLISH, code: 'visitor_limit', params: { limit: 'file_size', max: 5120 } }), 'Without signing in, a file can be up to 5120 KB. Sign in to import a larger one.'],
+      [
+        refusedWith(422, { message: SERVER_ENGLISH, code: 'visitor_limit', params: { limit: 'accounts', max: 5 } }),
+        'Without signing in, this browser keeps at most 5 game accounts. Import into one of them, or sign in to add more.',
+      ],
+      [
+        refusedWith(422, { message: SERVER_ENGLISH, code: 'visitor_limit', params: { limit: 'file_size', max: 5120 } }),
+        'Without signing in, a file can be up to 5120 KB. Sign in to import a larger one.',
+      ],
       [refusedWith(429, { message: SERVER_ENGLISH, code: 'too_many_visitors' }), 'Too many people are importing without signing in right now. Sign in, or try again later.'],
       [refusedWith(503, { message: SERVER_ENGLISH, code: 'visitors_unavailable' }), 'Importing without signing in is not ready on this server yet. Sign in to import.'],
     ];
@@ -345,7 +351,10 @@ describe('the import wizard', () => {
 
     const cases: [HttpErrorResponse, string][] = [
       [refusedWith(422, { message: SERVER_ENGLISH, code: 'showcase_player_not_found', params: {} }), 'Hráč sa nenašiel (skontroluj UID aj hru).'],
-      [refusedWith(422, { message: SERVER_ENGLISH, code: 'account_uid_mismatch', params: { data_uid: '700000002', account_uid: '700000001' } }), 'Údaje majú UID 700000002, ale vybraný účet má UID 700000001.'],
+      [
+        refusedWith(422, { message: SERVER_ENGLISH, code: 'account_uid_mismatch', params: { data_uid: '700000002', account_uid: '700000001' } }),
+        'Údaje majú UID 700000002, ale vybraný účet má UID 700000001.',
+      ],
       // A code this build does not know, or one that came without what its sentence needs: one general sentence.
       [refusedWith(422, { message: SERVER_ENGLISH, code: 'something_new', params: {} }), 'Niečo sa pokazilo.'],
       [refusedWith(422, { message: SERVER_ENGLISH, code: 'account_uid_mismatch', params: {} }), 'Niečo sa pokazilo.'],
@@ -511,7 +520,18 @@ describe('the import wizard', () => {
         finished({
           game: 'hsr',
           account: null,
-          summary: { characters: 4, weapons: 9, items: 80, full_inventory: true, warnings: ['A warning of a newer server.', 'Unknown character "X" was skipped.'], warning_kinds: [{ code: 'something_new', params: {} }, { code: 'unknown_character', params: { ref: 'X' } }], unmatched: {} },
+          summary: {
+            characters: 4,
+            weapons: 9,
+            items: 80,
+            full_inventory: true,
+            warnings: ['A warning of a newer server.', 'Unknown character "X" was skipped.'],
+            warning_kinds: [
+              { code: 'something_new', params: {} },
+              { code: 'unknown_character', params: { ref: 'X' } },
+            ],
+            unmatched: {},
+          },
         }),
       ),
     );
@@ -533,7 +553,13 @@ describe('the import wizard', () => {
   it('takes every word of the last step from a key', async () => {
     await wizard({ strings: MARKED });
     await choose('genshin', 'file');
-    api.importFile.mockReturnValue(of(finished({ summary: { characters: 12, weapons: 31, items: 40, full_inventory: true, warnings: ['Stored.'], warning_kinds: [{ code: 'catalog_behind', params: {} }], unmatched: { sets: ['NewSet'] } } })));
+    api.importFile.mockReturnValue(
+      of(
+        finished({
+          summary: { characters: 12, weapons: 31, items: 40, full_inventory: true, warnings: ['Stored.'], warning_kinds: [{ code: 'catalog_behind', params: {} }], unmatched: { sets: ['NewSet'] } },
+        }),
+      ),
+    );
     await drop(file('inventory.json', '{"format": "GOOD"}'));
     submit('file').click();
     await settle();

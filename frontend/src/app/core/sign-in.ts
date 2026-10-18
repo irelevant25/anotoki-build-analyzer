@@ -12,11 +12,7 @@ import { SIGN_IN_FAILED_PATH } from './auth.guards';
  *
  * Answers true when the browser is on its way to the IAM.
  */
-export async function signInOrSayWhy(
-  auth: AuthService,
-  router: Router,
-  returnTo?: string,
-): Promise<boolean> {
+export async function signInOrSayWhy(auth: AuthService, router: Router, returnTo?: string): Promise<boolean> {
   if (await auth.login(returnTo)) {
     return true;
   }

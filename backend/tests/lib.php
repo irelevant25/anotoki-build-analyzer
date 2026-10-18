@@ -19,8 +19,8 @@
 declare(strict_types=1);
 
 define('BUILD_ANALYZER_NO_RUN', true);
-require __DIR__.'/../api/index.php';
-foreach (glob(__DIR__.'/support/*.php') ?: [] as $support) {
+require __DIR__ . '/../api/index.php';
+foreach (glob(__DIR__ . '/support/*.php') ?: [] as $support) {
     require_once $support;
 }
 
@@ -65,25 +65,25 @@ final class T
  */
 function bootTests(): void
 {
-    $local = __DIR__.'/../config/database.local.php';
-    if (! is_file($local)) {
+    $local = __DIR__ . '/../config/database.local.php';
+    if (!is_file($local)) {
         fwrite(STDERR, "The tests need the PostgreSQL server of config/database.local.php. Run setup.php first (see DEV.md).\n");
         exit(1);
     }
     $server = require $local;
 
-    $suffix = getmypid().'_'.bin2hex(random_bytes(3));
-    T::$database = 'build_analyzer_test_'.$suffix;
-    T::$storage = sys_get_temp_dir().DIRECTORY_SEPARATOR.'build-analyzer-test-'.$suffix;
+    $suffix = getmypid() . '_' . bin2hex(random_bytes(3));
+    T::$database = 'build_analyzer_test_' . $suffix;
+    T::$storage = sys_get_temp_dir() . DIRECTORY_SEPARATOR . 'build-analyzer-test-' . $suffix;
     @mkdir(T::$storage, 0777, true);
 
     // Before the database is made: a migration that fails below ends the file, and its database must go too.
     register_shutdown_function(static function () use ($server): void {
         try {
             $postgres = Db::pdo($server, 'postgres', false);
-            $postgres->exec('DROP DATABASE IF EXISTS "'.T::$database.'" WITH (FORCE)');
+            $postgres->exec('DROP DATABASE IF EXISTS "' . T::$database . '" WITH (FORCE)');
         } catch (Throwable $e) {
-            fwrite(STDERR, 'could not drop '.T::$database.": {$e->getMessage()}\n");
+            fwrite(STDERR, 'could not drop ' . T::$database . ": {$e->getMessage()}\n");
         }
         removeTree(T::$storage);
     });
@@ -92,19 +92,19 @@ function bootTests(): void
     $pdo = Db::pdo($server, T::$database, false);
     $result = Migrations::migrator($pdo)->apply();
     if ($result['busy'] || $result['error'] !== null) {
-        fwrite(STDERR, $result['busy'] ? "the migrations' lock is held: nothing was applied\n" : 'migration '.($result['failed']['name'] ?? '')." failed: {$result['error']}\n");
+        fwrite(STDERR, $result['busy'] ? "the migrations' lock is held: nothing was applied\n" : 'migration ' . ($result['failed']['name'] ?? '') . " failed: {$result['error']}\n");
         exit(1);
     }
 
-    T::$iam = TestIam::create(T::$storage.DIRECTORY_SEPARATOR.'iam', TEST_ISSUER, TEST_CLIENT, 'test-key');
+    T::$iam = TestIam::create(T::$storage . DIRECTORY_SEPARATOR . 'iam', TEST_ISSUER, TEST_CLIENT, 'test-key');
     // The anotoki library's own lines go where the site's go, as api/index.php sends them: nowhere, unless a test
     // points App\Support\Log at a file of its own.
-    \Anotoki\Lib\Support\Log::to(static fn (string $line) => \App\Support\Log::info($line));
+    \Anotoki\Lib\Support\Log::to(static fn(string $line) => \App\Support\Log::info($line));
 
     $config = testConfig(['database' => ['database' => T::$database, 'persistent' => false] + $server]);
     T::$app = new App($config, web: true);
     T::$app->set(Db::class, new Db($pdo));
-    T::$http = new FakeHttpClient;
+    T::$http = new FakeHttpClient();
     T::$app->set(HttpClient::class, T::$http);
     T::$api = buildAnalyzerApi(T::$app);
 
@@ -119,8 +119,8 @@ function bootTests(): void
         T::$iam->anonymized([]);
         T::$app->resetScope();
         Tests\Support\FakeBuildSource::reset();
-        removeTree(T::$storage.DIRECTORY_SEPARATOR.'http-cache');
-        removeTree(T::$storage.DIRECTORY_SEPARATOR.'cache');
+        removeTree(T::$storage . DIRECTORY_SEPARATOR . 'http-cache');
+        removeTree(T::$storage . DIRECTORY_SEPARATOR . 'cache');
     });
 }
 
@@ -143,19 +143,23 @@ function testConfig(array $values = []): Config
 {
     $iam = T::$iam->dir;
 
-    return Config::fromArray($values + [
-        'database' => [],
-        'auth' => [
-            'issuer' => TEST_ISSUER,
-            'client_id' => TEST_CLIENT,
-            'jwks_file' => $iam.'/'.TestIam::JWKS_FILE,
-            'application_file' => $iam.'/'.TestIam::APPLICATION_FILE,
-            'anonymized_file' => $iam.'/'.TestIam::ANONYMIZED_FILE,
+    return Config::fromArray(
+        $values + [
+            'database' => [],
+            'auth' => [
+                'issuer' => TEST_ISSUER,
+                'client_id' => TEST_CLIENT,
+                'jwks_file' => $iam . '/' . TestIam::JWKS_FILE,
+                'application_file' => $iam . '/' . TestIam::APPLICATION_FILE,
+                'anonymized_file' => $iam . '/' . TestIam::ANONYMIZED_FILE,
+            ],
+            'fetch' => ['user_agent' => 'build-analyzer-tests', 'delay_ms' => 0],
+            // The upkeep after an answer (the people's scrub, the day's backup): the tests that mean to try it switch it on.
+            'upkeep' => ['people' => false, 'daily_backup' => false],
         ],
-        'fetch' => ['user_agent' => 'build-analyzer-tests', 'delay_ms' => 0],
-        // The upkeep after an answer (the people's scrub, the day's backup): the tests that mean to try it switch it on.
-        'upkeep' => ['people' => false, 'daily_backup' => false],
-    ], (string) realpath(__DIR__.'/..'), T::$storage);
+        (string) realpath(__DIR__ . '/..'),
+        T::$storage,
+    );
 }
 
 // ── Running and checking ─────────────────────────────────────────────────────────────────────────
@@ -178,8 +182,8 @@ function test(string $name, callable $body): void
     } catch (Throwable $e) {
         T::$failures++;
         echo "FAIL  {$name}\n      {$e->getMessage()}\n";
-        if (! $e instanceof AssertionFailed) {
-            echo '      at '.$e->getFile().':'.$e->getLine()."\n";
+        if (!($e instanceof AssertionFailed)) {
+            echo '      at ' . $e->getFile() . ':' . $e->getLine() . "\n";
         }
     } finally {
         Clock::reset();
@@ -190,7 +194,7 @@ final class AssertionFailed extends RuntimeException {}
 
 function check(bool $condition, string $message): void
 {
-    if (! $condition) {
+    if (!$condition) {
         throw new AssertionFailed($message);
     }
 }
@@ -198,7 +202,7 @@ function check(bool $condition, string $message): void
 function same(mixed $expected, mixed $actual, string $message): void
 {
     if ($expected !== $actual) {
-        throw new AssertionFailed($message.' - expected '.json_encode($expected).', got '.json_encode($actual));
+        throw new AssertionFailed($message . ' - expected ' . json_encode($expected) . ', got ' . json_encode($actual));
     }
 }
 
@@ -217,7 +221,7 @@ function throws(string $class, callable $body, string $message): Throwable
         if ($e instanceof $class) {
             return $e;
         }
-        throw new AssertionFailed("{$message} - expected {$class}, got ".get_class($e).': '.$e->getMessage());
+        throw new AssertionFailed("{$message} - expected {$class}, got " . get_class($e) . ': ' . $e->getMessage());
     }
     throw new AssertionFailed("{$message} - expected {$class}, nothing was thrown");
 }
@@ -225,7 +229,7 @@ function throws(string $class, callable $body, string $message): Throwable
 function finishTests(): never
 {
     $failures = T::$failures;
-    echo "\n".T::$count.' tests, '.($failures === 0 ? 'all passed' : "{$failures} failed")."\n";
+    echo "\n" . T::$count . ' tests, ' . ($failures === 0 ? 'all passed' : "{$failures} failed") . "\n";
     exit($failures === 0 ? 0 : 1);
 }
 
@@ -244,10 +248,14 @@ function db(): Db
 function resetDatabase(): void
 {
     // The library's tables where they are there: a test's world of its own may be a database before their files.
-    $there = static fn (string $table): bool => (bool) db()->value('SELECT to_regclass(?) IS NOT NULL', [$table]);
+    $there = static fn(string $table): bool => (bool) db()->value('SELECT to_regclass(?) IS NOT NULL', [$table]);
     $library = array_values(array_filter(['anotoki_audit_log', 'anotoki_feedback', 'anotoki_people_anonymized'], $there));
-    db()->run('TRUNCATE users, game_characters, game_weapons, game_sets, accounts, import_runs, account_characters,
-        account_weapons, account_items, build_sources, builds, sync_runs, cache, cache_locks'.($library === [] ? '' : ', '.implode(', ', $library)).' RESTART IDENTITY CASCADE');
+    db()->run(
+        'TRUNCATE users, game_characters, game_weapons, game_sets, accounts, import_runs, account_characters,
+        account_weapons, account_items, build_sources, builds, sync_runs, cache, cache_locks' .
+            ($library === [] ? '' : ', ' . implode(', ', $library)) .
+            ' RESTART IDENTITY CASCADE',
+    );
     // Where the people's scrub stands is one row its migration made: back to never run.
     if ($there('anotoki_people_sync')) {
         db()->run('UPDATE anotoki_people_sync SET since = NULL, checked_at = NULL, ok_at = NULL, error = NULL, scrubbed = 0');
@@ -263,13 +271,13 @@ function resetDatabase(): void
  */
 function scratchDatabase(array $server, string $suffix, string $options = ''): PDO
 {
-    $name = T::$database.'_'.$suffix;
+    $name = T::$database . '_' . $suffix;
     $postgres = Db::pdo($server, 'postgres', false);
-    $postgres->exec('DROP DATABASE IF EXISTS "'.$name.'" WITH (FORCE)');
-    $postgres->exec('CREATE DATABASE "'.$name.'"'.($options === '' ? '' : ' '.$options));
+    $postgres->exec('DROP DATABASE IF EXISTS "' . $name . '" WITH (FORCE)');
+    $postgres->exec('CREATE DATABASE "' . $name . '"' . ($options === '' ? '' : ' ' . $options));
     register_shutdown_function(static function () use ($server, $name): void {
         try {
-            Db::pdo($server, 'postgres', false)->exec('DROP DATABASE IF EXISTS "'.$name.'" WITH (FORCE)');
+            Db::pdo($server, 'postgres', false)->exec('DROP DATABASE IF EXISTS "' . $name . '" WITH (FORCE)');
         } catch (Throwable $e) {
             fwrite(STDERR, "could not drop {$name}: {$e->getMessage()}\n");
         }
@@ -280,7 +288,7 @@ function scratchDatabase(array $server, string $suffix, string $options = ''): P
 
 function removeTree(string $path): void
 {
-    if (! is_dir($path)) {
+    if (!is_dir($path)) {
         return;
     }
     foreach (new RecursiveIteratorIterator(new RecursiveDirectoryIterator($path, FilesystemIterator::SKIP_DOTS), RecursiveIteratorIterator::CHILD_FIRST) as $item) {
@@ -309,5 +317,5 @@ function iamToken(int $userId, array $roles = [], array $claims = [], string $ty
 /** Another IAM's key under the same kid as the tests' IAM's: a token it signs is nobody's here. */
 function strangerIam(): TestIam
 {
-    return TestIam::create(T::$storage.DIRECTORY_SEPARATOR.'stranger-iam', TEST_ISSUER, TEST_CLIENT, 'test-key');
+    return TestIam::create(T::$storage . DIRECTORY_SEPARATOR . 'stranger-iam', TEST_ISSUER, TEST_CLIENT, 'test-key');
 }

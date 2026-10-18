@@ -110,11 +110,7 @@ export const GUIDES: Record<GameKey, Record<ImportMethodKey, Guide>> = {
           body: 'importGuide.genshin.showcase.step5.body',
         },
       ],
-      troubleshooting: [
-        'importGuide.genshin.showcase.trouble1',
-        'importGuide.genshin.showcase.trouble2',
-        'importGuide.genshin.showcase.trouble3',
-      ],
+      troubleshooting: ['importGuide.genshin.showcase.trouble1', 'importGuide.genshin.showcase.trouble2', 'importGuide.genshin.showcase.trouble3'],
     },
     file: {
       intro: 'importGuide.genshin.file.intro',
@@ -143,11 +139,7 @@ export const GUIDES: Record<GameKey, Record<ImportMethodKey, Guide>> = {
           body: 'importGuide.genshin.file.step4.body',
         },
       ],
-      troubleshooting: [
-        'importGuide.genshin.file.trouble1',
-        'importGuide.genshin.file.trouble2',
-        'importGuide.genshin.file.trouble3',
-      ],
+      troubleshooting: ['importGuide.genshin.file.trouble1', 'importGuide.genshin.file.trouble2', 'importGuide.genshin.file.trouble3'],
     },
   },
   hsr: {
@@ -214,12 +206,7 @@ export const GUIDES: Record<GameKey, Record<ImportMethodKey, Guide>> = {
           body: 'importGuide.hsr.file.step5.body',
         },
       ],
-      troubleshooting: [
-        'importGuide.hsr.file.trouble1',
-        'importGuide.hsr.file.trouble2',
-        'importGuide.hsr.file.trouble3',
-        'importGuide.hsr.file.trouble4',
-      ],
+      troubleshooting: ['importGuide.hsr.file.trouble1', 'importGuide.hsr.file.trouble2', 'importGuide.hsr.file.trouble3', 'importGuide.hsr.file.trouble4'],
     },
   },
 };

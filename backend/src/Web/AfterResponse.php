@@ -37,7 +37,7 @@ final class AfterResponse
     /** The end of a request's handling: the work, unless it is held for after the answer. */
     public static function runUnlessHeld(): void
     {
-        if (! self::$held) {
+        if (!self::$held) {
             self::run();
         }
     }

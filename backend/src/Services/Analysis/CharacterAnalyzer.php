@@ -21,12 +21,7 @@ use App\Support\Stats;
  */
 class CharacterAnalyzer
 {
-    public function __construct(
-        private readonly Accounts $accounts,
-        private readonly Builds $builds,
-        private readonly CatalogRows $rows,
-        private readonly BuildSourceRegistry $registry,
-    ) {}
+    public function __construct(private readonly Accounts $accounts, private readonly Builds $builds, private readonly CatalogRows $rows, private readonly BuildSourceRegistry $registry) {}
 
     /**
      * One row per owned character with its best-matching build.
@@ -37,7 +32,7 @@ class CharacterAnalyzer
     {
         $context = $this->context($account);
         $owned = $this->accounts->characters($account->id);
-        $builds = $this->builds->forCharacters(array_map(fn (AccountCharacter $character) => $character->game_character_id, $owned));
+        $builds = $this->builds->forCharacters(array_map(fn(AccountCharacter $character) => $character->game_character_id, $owned));
 
         $rows = [];
         foreach ($owned as $character) {
@@ -47,20 +42,22 @@ class CharacterAnalyzer
 
             $rows[] = $this->characterSummary($context, $character) + [
                 'builds_count' => count($characterBuilds),
-                'best' => $best ? [
-                    'build_id' => $best['build']['id'],
-                    'source' => $best['build']['source']['name'],
-                    'variant' => $best['build']['variant'],
-                    'overall' => $best['score']['overall'],
-                    'grade' => $best['score']['grade'],
-                    'parts' => $best['score']['parts'],
-                    'top_issue' => $best['recommendations'][0]['message'] ?? null,
-                    // The same recommendation as a kind with its parameters (BuildEvaluator::KINDS), for a
-                    // page to word; both null when there is nothing to recommend.
-                    'top_issue_kind' => $best['recommendations'][0]['kind'] ?? null,
-                    'top_issue_params' => $best['recommendations'][0]['params'] ?? null,
-                    'issues' => count(array_filter($best['recommendations'], fn ($r) => $r['severity'] !== 'low')),
-                ] : null,
+                'best' => $best
+                    ? [
+                        'build_id' => $best['build']['id'],
+                        'source' => $best['build']['source']['name'],
+                        'variant' => $best['build']['variant'],
+                        'overall' => $best['score']['overall'],
+                        'grade' => $best['score']['grade'],
+                        'parts' => $best['score']['parts'],
+                        'top_issue' => $best['recommendations'][0]['message'] ?? null,
+                        // The same recommendation as a kind with its parameters (BuildEvaluator::KINDS), for a
+                        // page to word; both null when there is nothing to recommend.
+                        'top_issue_kind' => $best['recommendations'][0]['kind'] ?? null,
+                        'top_issue_params' => $best['recommendations'][0]['params'] ?? null,
+                        'issues' => count(array_filter($best['recommendations'], fn($r) => $r['severity'] !== 'low')),
+                    ]
+                    : null,
             ];
         }
 
@@ -160,7 +157,7 @@ class CharacterAnalyzer
         foreach ($evaluations as $evaluation) {
             $score = $evaluation['score']['overall'] ?? -1;
             $bestScore = $best['score']['overall'] ?? -1;
-            if ($best === null || $score > $bestScore || ($score === $bestScore && $evaluation['build']['recommended'] && ! $best['build']['recommended'])) {
+            if ($best === null || $score > $bestScore || ($score === $bestScore && $evaluation['build']['recommended'] && !$best['build']['recommended'])) {
                 $best = $evaluation;
             }
         }
@@ -176,7 +173,7 @@ class CharacterAnalyzer
     private function fallbackSubstats(array $builds): ?array
     {
         foreach ($builds as $build) {
-            if (! empty($build->substats)) {
+            if (!empty($build->substats)) {
                 return $build->substats;
             }
         }
@@ -205,15 +202,16 @@ class CharacterAnalyzer
             'icon_url' => Icons::of($catalog),
             'level' => $character->level,
             'rank' => $character->rank,
-            'weapon' => $weapon ? [
-                'name' => $weapon->weapon->name,
-                'icon_url' => Icons::of($weapon->weapon),
-                'rarity' => $weapon->weapon->rarity,
-                'level' => $weapon->level,
-                'refinement' => $weapon->refinement,
-            ] : null,
-            'sets' => array_map(fn ($key, $count) => ['key' => $key, 'name' => $setNames[$key], 'count' => $count],
-                array_keys($counts), $counts),
+            'weapon' => $weapon
+                ? [
+                    'name' => $weapon->weapon->name,
+                    'icon_url' => Icons::of($weapon->weapon),
+                    'rarity' => $weapon->weapon->rarity,
+                    'level' => $weapon->level,
+                    'refinement' => $weapon->refinement,
+                ]
+                : null,
+            'sets' => array_map(fn($key, $count) => ['key' => $key, 'name' => $setNames[$key], 'count' => $count], array_keys($counts), $counts),
             'items_count' => count($items),
         ];
     }
@@ -235,7 +233,7 @@ class CharacterAnalyzer
                 $totals[$substat['key']] = ($totals[$substat['key']] ?? 0) + $substat['value'];
             }
         }
-        $totals = array_map(fn ($value) => round($value, 1), $totals);
+        $totals = array_map(fn($value) => round($value, 1), $totals);
 
         return [
             'totals' => $totals,
@@ -292,16 +290,13 @@ class CharacterAnalyzer
         $sortDesc = function (array $counts): array {
             arsort($counts);
 
-            return array_map(fn ($name, $count) => ['name' => $name, 'count' => $count], array_keys($counts), $counts);
+            return array_map(fn($name, $count) => ['name' => $name, 'count' => $count], array_keys($counts), $counts);
         };
 
         // A set row is {name, pieces, choose, count}: "name" stays the label it was counted by.
         $setRows = [];
         foreach ($sets as $kind => $counts) {
-            $setRows[$kind] = array_map(
-                fn (array $row) => ['name' => $row['name']] + $setParts[$kind][$row['name']] + ['count' => $row['count']],
-                $sortDesc($counts),
-            );
+            $setRows[$kind] = array_map(fn(array $row) => ['name' => $row['name']] + $setParts[$kind][$row['name']] + ['count' => $row['count']], $sortDesc($counts));
         }
 
         $sources = [];
@@ -328,14 +323,14 @@ class CharacterAnalyzer
      */
     private function suggestions(AccountContext $context, AccountCharacter $character, ?Build $build, array $evaluation, ?array $fallback): array
     {
-        if (! $build) {
+        if (!$build) {
             return ['items' => [], 'set_plans' => []];
         }
 
         $game = $context->account->game;
         $element = $character->character->element;
-        $priorities = $build->substats ?: ($fallback ?? []);
-        $priorities = array_map(fn ($e) => ['stat' => Stats::resolveElemental($e['stat'], $element), 'priority' => $e['priority']], $priorities);
+        $priorities = $build->substats ?: $fallback ?? [];
+        $priorities = array_map(fn($e) => ['stat' => Stats::resolveElemental($e['stat'], $element), 'priority' => $e['priority']], $priorities);
         $scorer = new ItemScorer($game, $priorities ?: ItemScorer::fallbackSubstats($game, $build->main_stats));
 
         $equipped = $context->equippedItems($character->game_character_id);
@@ -343,13 +338,13 @@ class CharacterAnalyzer
 
         foreach ($game->slots() as $slot) {
             $kind = $this->setKind($game, $slot);
-            $options = array_values(array_filter($build->sets, fn ($o) => $o['kind'] === $kind));
+            $options = array_values(array_filter($build->sets, fn($o) => $o['kind'] === $kind));
             $mains = $this->mainStatsFor($build, $slot, $element);
 
             // Set pieces in the same group (HSR: cavern relics and planar ornaments are separate).
-            $group = array_filter($equipped, fn ($item, $itemSlot) => $this->setKind($game, $itemSlot) === $kind, ARRAY_FILTER_USE_BOTH);
+            $group = array_filter($equipped, fn($item, $itemSlot) => $this->setKind($game, $itemSlot) === $kind, ARRAY_FILTER_USE_BOTH);
             $countsWith = AccountContext::setCounts($group);
-            $countsWithout = AccountContext::setCounts(array_filter($group, fn ($item, $itemSlot) => $itemSlot !== $slot, ARRAY_FILTER_USE_BOTH));
+            $countsWithout = AccountContext::setCounts(array_filter($group, fn($item, $itemSlot) => $itemSlot !== $slot, ARRAY_FILTER_USE_BOTH));
 
             // Aim for the option already in use; otherwise for the source's top option.
             $target = null;
@@ -367,9 +362,9 @@ class CharacterAnalyzer
             $currentMainOk = $current !== null && $current['main_ok'] !== false;
 
             $completes = null; // a swap that on its own completes the set bonus
-            $sameSet = null;   // the best swap that keeps the set bonus as it is
+            $sameSet = null; // the best swap that keeps the set bonus as it is
             foreach ($context->itemsInSlot($slot) as $item) {
-                if (($current['id'] ?? null) === $item->id || ($mains !== [] && ! in_array($item->main_stat, $mains, true))) {
+                if (($current['id'] ?? null) === $item->id || ($mains !== [] && !in_array($item->main_stat, $mains, true))) {
                     continue;
                 }
 
@@ -386,16 +381,16 @@ class CharacterAnalyzer
                 $completesTarget = $baseline < 1.0 - 1e-9 && $fraction >= 1.0 - 1e-9;
                 // Not on a recommended set yet: the set plan covers switching; single swaps must at least
                 // keep the 2pc / 4pc bonuses the character has now.
-                if (! $completesTarget && $baseline < 1.0 - 1e-9 && ! $this->keepsBonuses($countsWith, $countsWithout, $item->set->key)) {
+                if (!$completesTarget && $baseline < 1.0 - 1e-9 && !$this->keepsBonuses($countsWith, $countsWithout, $item->set->key)) {
                     continue;
                 }
 
                 $candidate = ['item' => $item, 'score' => $scorer->score($item->main_stat, $item->rarity, $item->substats)];
                 if ($completesTarget) {
-                    if (! $completes || $candidate['score']['percent'] > $completes['score']['percent']) {
+                    if (!$completes || $candidate['score']['percent'] > $completes['score']['percent']) {
                         $completes = $candidate;
                     }
-                } elseif (abs($fraction - $baseline) < 1e-9 && (! $sameSet || $candidate['score']['percent'] > $sameSet['score']['percent'])) {
+                } elseif (abs($fraction - $baseline) < 1e-9 && (!$sameSet || $candidate['score']['percent'] > $sameSet['score']['percent'])) {
                     $sameSet = $candidate;
                 }
             }
@@ -405,13 +400,13 @@ class CharacterAnalyzer
 
                 continue;
             }
-            if (! $sameSet) {
+            if (!$sameSet) {
                 continue;
             }
 
             $gain = $sameSet['score']['percent'] - $currentPercent;
             $reason = match (true) {
-                ! $currentMainOk && $sameSet['score']['percent'] >= 25 => 'fixes_main_stat',
+                !$currentMainOk && $sameSet['score']['percent'] >= 25 => 'fixes_main_stat',
                 $currentMainOk && $gain >= 8 => 'better_substats',
                 default => null,
             };
@@ -448,23 +443,23 @@ class CharacterAnalyzer
                     break;
                 }
             }
-            if (! $group || $group['matched_rank'] !== null || ! $option || count($option['pieces']) !== 1) {
+            if (!$group || $group['matched_rank'] !== null || !$option || count($option['pieces']) !== 1) {
                 continue;
             }
 
             $piece = $option['pieces'][0];
-            $slots = array_values(array_filter($game->slots(), fn ($slot) => $this->setKind($game, $slot) === $kind));
+            $slots = array_values(array_filter($game->slots(), fn($slot) => $this->setKind($game, $slot) === $kind));
 
             $picks = [];
             foreach ($slots as $slot) {
                 $mains = $this->mainStatsFor($build, $slot, $element);
                 $best = null;
                 foreach ($context->itemsInSlot($slot) as $item) {
-                    if (! in_array($item->set->key, $piece['keys'], true) || ($mains !== [] && ! in_array($item->main_stat, $mains, true))) {
+                    if (!in_array($item->set->key, $piece['keys'], true) || ($mains !== [] && !in_array($item->main_stat, $mains, true))) {
                         continue;
                     }
                     $score = $scorer->score($item->main_stat, $item->rarity, $item->substats);
-                    if (! $best || $score['percent'] > $best['score']['percent']) {
+                    if (!$best || $score['percent'] > $best['score']['percent']) {
                         $best = ['item' => $item, 'score' => $score];
                     }
                 }
@@ -477,7 +472,7 @@ class CharacterAnalyzer
             }
 
             // Genshin 4pc: keep the four best; the fifth slot stays free for an off-piece. Show them in slot order.
-            uasort($picks, fn ($a, $b) => $b['score']['percent'] <=> $a['score']['percent']);
+            uasort($picks, fn($a, $b) => $b['score']['percent'] <=> $a['score']['percent']);
             $chosen = array_slice($picks, 0, $piece['count'], true);
 
             $pieces = [];
@@ -519,8 +514,7 @@ class CharacterAnalyzer
             'level' => $item->level,
             'main_stat' => $item->main_stat,
             'main_value' => $item->main_value,
-            'equipped_on' => $item->equipped_character_id && $item->equipped_character_id !== $character->game_character_id
-                ? $context->characterName($item->equipped_character_id) : null,
+            'equipped_on' => $item->equipped_character_id && $item->equipped_character_id !== $character->game_character_id ? $context->characterName($item->equipped_character_id) : null,
         ] + $score;
     }
 
@@ -532,7 +526,7 @@ class CharacterAnalyzer
      */
     private function keepsBonuses(array $countsWith, array $countsWithout, string $setKey): bool
     {
-        $tier = fn (int $pieces) => $pieces >= 4 ? 2 : ($pieces >= 2 ? 1 : 0);
+        $tier = fn(int $pieces) => $pieces >= 4 ? 2 : ($pieces >= 2 ? 1 : 0);
         $after = $countsWithout;
         $after[$setKey] = ($after[$setKey] ?? 0) + 1;
 
@@ -555,6 +549,6 @@ class CharacterAnalyzer
      */
     private function mainStatsFor(Build $build, string $slot, ?string $element): array
     {
-        return array_map(fn ($entry) => Stats::resolveElemental($entry['stat'], $element), $build->main_stats[$slot] ?? []);
+        return array_map(fn($entry) => Stats::resolveElemental($entry['stat'], $element), $build->main_stats[$slot] ?? []);
     }
 }

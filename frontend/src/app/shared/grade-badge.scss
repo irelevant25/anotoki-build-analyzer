@@ -1,14 +1,30 @@
-:host { display: inline-flex; align-items: center; gap: 6px; }
+:host {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
 .badge {
   --size: 32px;
-  width: var(--size); height: var(--size);
-  display: inline-grid; place-items: center;
+  width: var(--size);
+  height: var(--size);
+  display: inline-grid;
+  place-items: center;
   border-radius: 50%;
   font-weight: 700;
   color: var(--grade-color);
   border: 2px solid var(--grade-color);
   background: color-mix(in srgb, var(--grade-color) 14%, transparent);
 }
-.badge.lg { --size: 56px; font-size: 1.6rem; border-width: 3px; }
-.badge.sm { --size: 24px; font-size: 0.8rem; }
-.score { font-weight: 500; color: var(--anotoki-muted); }
+.badge.lg {
+  --size: 56px;
+  font-size: 1.6rem;
+  border-width: 3px;
+}
+.badge.sm {
+  --size: 24px;
+  font-size: 0.8rem;
+}
+.score {
+  font-weight: 500;
+  color: var(--anotoki-muted);
+}

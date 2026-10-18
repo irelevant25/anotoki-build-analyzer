@@ -6,8 +6,17 @@ import { SyncDriver } from './sync-driver';
 
 function run(status: SyncRunSummary['status'], done: number): SyncRunSummary {
   return {
-    id: 1, kind: 'builds', game: 'hsr', status, started_at: '2026-09-27T10:00:00Z', finished_at: null, stats: null,
-    progress: { done, total: 2 }, next_step_at: null, last_step_at: null, started_by: null,
+    id: 1,
+    kind: 'builds',
+    game: 'hsr',
+    status,
+    started_at: '2026-09-27T10:00:00Z',
+    finished_at: null,
+    stats: null,
+    progress: { done, total: 2 },
+    next_step_at: null,
+    last_step_at: null,
+    started_by: null,
     source: { key: 'hsr-1', name: 'Source 1', game: 'hsr' },
   };
 }
@@ -32,10 +41,7 @@ describe('SyncDriver', () => {
   afterEach(() => vi.useRealTimers());
 
   it('steps until nothing is active, waiting as long as the server asks (crawl delays)', async () => {
-    steps = [
-      step(true, run('running', 1), 10_000, ['  Kafka: 1 build(s)']),
-      step(false, run('success', 2), null, ['Done: success.']),
-    ];
+    steps = [step(true, run('running', 1), 10_000, ['  Kafka: 1 build(s)']), step(false, run('success', 2), null, ['Done: success.'])];
 
     driver.start();
     await vi.advanceTimersByTimeAsync(0);

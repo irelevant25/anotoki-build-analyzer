@@ -47,9 +47,7 @@ class BuildSourceRegistry
             }
         }
 
-        return $game === null
-            ? $this->sources
-            : array_filter($this->sources, fn (BuildSource $source) => $source->game() === $game);
+        return $game === null ? $this->sources : array_filter($this->sources, fn(BuildSource $source) => $source->game() === $game);
     }
 
     public function get(string $key): BuildSource
@@ -74,7 +72,7 @@ class BuildSourceRegistry
     {
         $this->all();
 
-        return isset($this->numbers[$key]) ? 'Source '.$this->numbers[$key] : 'Retired source';
+        return isset($this->numbers[$key]) ? 'Source ' . $this->numbers[$key] : 'Retired source';
     }
 
     /** "genshin-2", or null for a source no longer configured. */
@@ -82,13 +80,13 @@ class BuildSourceRegistry
     {
         $source = $this->all()[$key] ?? null;
 
-        return $source ? $source->game()->value.'-'.$this->numbers[$key] : null;
+        return $source ? $source->game()->value . '-' . $this->numbers[$key] : null;
     }
 
     /** "Source 2 (Genshin Impact)", for log lines and skip reasons. */
     public function title(BuildSource $source): string
     {
-        return $this->label($source->key()).' ('.$source->game()->label().')';
+        return $this->label($source->key()) . ' (' . $source->game()->label() . ')';
     }
 
     /**

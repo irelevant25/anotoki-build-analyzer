@@ -26,9 +26,7 @@ final class SetMatcher
 
         // Per piece, the equipped sets with enough pieces for it, each once: an option can list many pieces
         // and a piece many sets, but only the few sets worn can take part in a match.
-        $candidates = array_map(fn (array $piece) => array_values(array_unique(array_filter(
-            $piece['keys'], fn ($key) => ($equipped[$key] ?? 0) >= $piece['count'],
-        ))), $pieces);
+        $candidates = array_map(fn(array $piece) => array_values(array_unique(array_filter($piece['keys'], fn($key) => ($equipped[$key] ?? 0) >= $piece['count']))), $pieces);
         $memo = [];
         $matched = self::maxMatched($candidates, 0, [], $required, $memo);
 
@@ -64,7 +62,7 @@ final class SetMatcher
             return 0;
         }
         sort($used);
-        $state = $index.':'.implode(',', $used);
+        $state = $index . ':' . implode(',', $used);
         if (isset($memo[$state])) {
             return $memo[$state];
         }
@@ -77,7 +75,7 @@ final class SetMatcher
             if ($best === $cap) {
                 break;
             }
-            if (! in_array($key, $used, true)) {
+            if (!in_array($key, $used, true)) {
                 $best = max($best, 1 + self::maxMatched($candidates, $index + 1, [...$used, $key], $cap - 1, $memo));
             }
         }

@@ -25,7 +25,7 @@
  * three ways is the same database - and one apply runs at a time, whichever starts it: another is told so.
  */
 
-require __DIR__.'/vendor/autoload.php';
+require __DIR__ . '/vendor/autoload.php';
 
 use Anotoki\Lib\Backups\Backups;
 use App\Cli;
@@ -42,12 +42,12 @@ $config = (array) $app->config->get('database');
 $name = (string) $config['database'];
 
 /** A file as this command names it: the site's by its name, the library's with its set in front. */
-$label = static fn (array $file): string => ($file['set'] === Migrations::SET ? '' : $file['set'].'/').$file['name'];
+$label = static fn(array $file): string => ($file['set'] === Migrations::SET ? '' : $file['set'] . '/') . $file['name'];
 
 Cli::line("== build analyzer database ({$name})");
 
 try {
-    if (! $statusOnly && ! $dryRun && Db::ensureDatabase($config, $name)) {
+    if (!$statusOnly && !$dryRun && Db::ensureDatabase($config, $name)) {
         Cli::info('  Database created.');
     }
     $pdo = Db::pdo($config, $name, false);
@@ -62,7 +62,7 @@ try {
         }
     }
 } catch (Throwable $e) {
-    Cli::fail('  Cannot reach it: '.$e->getMessage());
+    Cli::fail('  Cannot reach it: ' . $e->getMessage());
 }
 
 if ($laravel) {
@@ -76,21 +76,21 @@ $pending = array_map($label, $status['pending']);
 
 if ($statusOnly) {
     foreach ($files as $file) {
-        $done = ! in_array($file, $pending, true);
-        Cli::line('  '.($done ? 'v' : '.').' '.$file.($done ? '' : '   pending'));
+        $done = !in_array($file, $pending, true);
+        Cli::line('  ' . ($done ? 'v' : '.') . ' ' . $file . ($done ? '' : '   pending'));
     }
     Cli::line(sprintf('  %d applied, %d pending', count($files) - count($pending), count($pending)));
     exit(0);
 }
 
 if ($pending === []) {
-    Cli::info('  Up to date - '.count($files).' migrations.');
+    Cli::info('  Up to date - ' . count($files) . ' migrations.');
     exit(0);
 }
 
 if ($dryRun) {
     foreach ($pending as $file) {
-        Cli::warn('  would apply '.$file);
+        Cli::warn('  would apply ' . $file);
     }
     exit(0);
 }
@@ -99,7 +99,7 @@ try {
     $result = $migrator->apply();
 } catch (Throwable $e) {
     // Only the connection (or moving a Laravel table aside) fails this way; a failing file is in $result.
-    Cli::fail('  The update could not be applied: '.$e->getMessage());
+    Cli::fail('  The update could not be applied: ' . $e->getMessage());
 }
 
 if ($result['busy']) {
@@ -111,8 +111,8 @@ foreach ($result['applied'] as $file) {
     Cli::info("  {$label($file)} ... done");
 }
 if ($result['error'] !== null) {
-    Cli::error('  '.($result['failed'] !== null ? $label($result['failed']) : 'The update').' ... FAILED');
-    Cli::error('    '.$result['error']);
+    Cli::error('  ' . ($result['failed'] !== null ? $label($result['failed']) : 'The update') . ' ... FAILED');
+    Cli::error('    ' . $result['error']);
     Cli::warn('    Nothing from this file was applied. The migrations before it stand.');
     exit(1);
 }

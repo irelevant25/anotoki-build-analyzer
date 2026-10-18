@@ -26,14 +26,14 @@ class GenshinGgGenshin extends GenshinGgSource
 
     protected function characterUrl(string $slug): string
     {
-        return $this->baseUrl().'/characters/'.$slug.'/';
+        return $this->baseUrl() . '/characters/' . $slug . '/';
     }
 
     public function fetchBuilds(CharacterRef $character): array
     {
         $raw = $this->raw($character);
         $build = $raw['build'] ?? null;
-        if (! is_array($build) || empty($build['weapons'])) {
+        if (!is_array($build) || empty($build['weapons'])) {
             return [];
         }
 
@@ -45,7 +45,7 @@ class GenshinGgGenshin extends GenshinGgSource
             }
         }
 
-        $sets = array_values(array_filter(array_map(fn ($text) => $this->setOption($text, 'artifact'), $this->lines($build['artifacts'] ?? []))));
+        $sets = array_values(array_filter(array_map(fn($text) => $this->setOption($text, 'artifact'), $this->lines($build['artifacts'] ?? []))));
 
         // stats = [sands, goblet, circlet]; "HP% / Elemental Mastery" lists equal alternatives.
         $mainStats = [];
@@ -58,15 +58,17 @@ class GenshinGgGenshin extends GenshinGgSource
 
         $substatText = implode(' > ', array_map('strval', $build['substats'] ?? []));
 
-        return [new ScrapedBuild(
-            variant: trim((string) ($build['name'] ?? '')) ?: 'Build',
-            role: $raw['role'] ?? null,
-            recommended: true,
-            weapons: $weapons,
-            sets: $sets,
-            mainStats: $mainStats,
-            substats: Stats::parsePriorityList(Game::Genshin, $substatText),
-            sourceUrl: $character->url,
-        )];
+        return [
+            new ScrapedBuild(
+                variant: trim((string) ($build['name'] ?? '')) ?: 'Build',
+                role: $raw['role'] ?? null,
+                recommended: true,
+                weapons: $weapons,
+                sets: $sets,
+                mainStats: $mainStats,
+                substats: Stats::parsePriorityList(Game::Genshin, $substatText),
+                sourceUrl: $character->url,
+            ),
+        ];
     }
 }

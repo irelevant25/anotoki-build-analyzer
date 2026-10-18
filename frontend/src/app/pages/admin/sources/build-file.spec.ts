@@ -61,9 +61,7 @@ describe('the words around an import', () => {
 
   it('asks before replacing the builds, saying what comes instead and when it was exported', () => {
     expect(importQuestion(source, check)).toBe("Replace the 240 builds of Source 2 (Genshin Impact) with the file's 250 builds of 110 characters?");
-    expect(importQuestion({ ...source, builds: 0 }, { ...check, builds: 1, characters: 1 })).toBe(
-      "Import into Source 2 (Genshin Impact) the file's 1 build of 1 character?",
-    );
+    expect(importQuestion({ ...source, builds: 0 }, { ...check, builds: 1, characters: 1 })).toBe("Import into Source 2 (Genshin Impact) the file's 1 build of 1 character?");
     // In the browser's time zone; around noon UTC it is the 29th nearly everywhere.
     expect(importQuestion(source, { ...check, exportedAt: '2026-09-29T12:03:12.123456Z' })).toMatch(
       /^Replace the 240 builds of Source 2 \(Genshin Impact\) with the file's 250 builds of 110 characters, exported 29 September 2026(,| at) \d\d:\d\d\?$/,

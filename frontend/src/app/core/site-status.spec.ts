@@ -12,18 +12,13 @@ const AT = new Date('2026-09-20T12:30:00Z');
 const CLOCK = `${String(AT.getHours()).padStart(2, '0')}:${String(AT.getMinutes()).padStart(2, '0')}`;
 const DAY = `${AT.getFullYear()}-${String(AT.getMonth() + 1).padStart(2, '0')}-${String(AT.getDate()).padStart(2, '0')}`;
 
-const choices = (
-  date_format: AnotokiPreferences['date_format'],
-  time_format: AnotokiPreferences['time_format'],
-) => ({ date_format, time_format });
+const choices = (date_format: AnotokiPreferences['date_format'], time_format: AnotokiPreferences['time_format']) => ({ date_format, time_format });
 
 describe('appliedAt: when a migration was applied, as the Migrations page writes it', () => {
   it("writes it the page's own way for somebody who chose nothing, or for whom no account says", () => {
     expect(appliedAt(AT.toISOString(), null, 'en-GB')).toMatch(/^\d{1,2} Sep 2026, \d\d:\d\d$/);
     expect(appliedAt(AT.toISOString(), null, 'en-GB')).toContain(CLOCK);
-    expect(appliedAt(AT.toISOString(), choices(null, null), 'en-GB')).toBe(
-      appliedAt(AT.toISOString(), null, 'en-GB'),
-    );
+    expect(appliedAt(AT.toISOString(), choices(null, null), 'en-GB')).toBe(appliedAt(AT.toISOString(), null, 'en-GB'));
   });
 
   it("writes it in the account's date order and clock, where the person has chosen them", () => {
@@ -31,9 +26,7 @@ describe('appliedAt: when a migration was applied, as the Migrations page writes
     // Only the order chosen: the page's own clock beside it.
     expect(appliedAt(AT.toISOString(), choices('ymd_dash', null), 'en-GB')).toBe(`${DAY} ${CLOCK}`);
     // Only the clock chosen: the page's own day beside it.
-    expect(appliedAt(AT.toISOString(), choices(null, '12'), 'en-GB')).toMatch(
-      /^\d{1,2} Sep 2026 \d{1,2}:\d\d\s?[ap]m$/i,
-    );
+    expect(appliedAt(AT.toISOString(), choices(null, '12'), 'en-GB')).toMatch(/^\d{1,2} Sep 2026 \d{1,2}:\d\d\s?[ap]m$/i);
   });
 
   it('leaves what is not a date as it came', () => {
@@ -76,11 +69,7 @@ describe('the site status, wired to this site (provideSiteStatus)', () => {
       login: vi.fn(async () => true),
     };
     TestBed.configureTestingModule({
-      providers: [
-        provideSiteStatus(),
-        provideTestTranslations({}, { language: 'sk', english: {} }),
-        { provide: AuthService, useValue: auth },
-      ],
+      providers: [provideSiteStatus(), provideTestTranslations({}, { language: 'sk', english: {} }), { provide: AuthService, useValue: auth }],
     });
     config = TestBed.inject(ANOTOKI_MIGRATIONS_CONFIG);
     i18n = TestBed.inject(TranslationService);
@@ -88,11 +77,7 @@ describe('the site status, wired to this site (provideSiteStatus)', () => {
 
   it("asks this site's status and its Migrations page's API, and shows the Migrations page on the admin panel's route", () => {
     setup(null);
-    expect([config.statusUrl, config.apiBase, config.migrationsRoute]).toEqual([
-      '/api/site-status',
-      '/api/admin/migrations',
-      '/admin/migrations',
-    ]);
+    expect([config.statusUrl, config.apiBase, config.migrationsRoute]).toEqual(['/api/site-status', '/api/admin/migrations', '/admin/migrations']);
     // The setup page is the module's own default: offered only while the site was never installed.
     expect(config.setupUrl).toBeUndefined();
   });

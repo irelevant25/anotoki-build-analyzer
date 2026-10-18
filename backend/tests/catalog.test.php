@@ -6,14 +6,14 @@
 
 declare(strict_types=1);
 
-require __DIR__.'/lib.php';
+require __DIR__ . '/lib.php';
 
 use App\Enums\Game;
 use App\Services\Catalog\Catalog;
 
 bootTests();
 
-$catalog = fn () => T::$app->make(Catalog::class);
+$catalog = fn() => T::$app->make(Catalog::class);
 
 test('resolves Genshin character variants', function () use ($catalog) {
     seedCharacter('genshin', 'Kaedehara Kazuha');

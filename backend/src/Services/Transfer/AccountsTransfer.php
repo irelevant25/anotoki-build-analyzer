@@ -45,12 +45,7 @@ use DateTimeImmutable;
  */
 final class AccountsTransfer
 {
-    public function __construct(
-        private readonly Db $db,
-        private readonly Users $users,
-        private readonly CatalogRows $catalog,
-        private readonly Config $config,
-    ) {}
+    public function __construct(private readonly Db $db, private readonly Users $users, private readonly CatalogRows $catalog, private readonly Config $config) {}
 
     /** The largest file the import reads, and so the largest the export writes. */
     public function maxBytes(): int
@@ -104,21 +99,19 @@ final class AccountsTransfer
         $entries = [];
         foreach ($accounts as $row) {
             $id = (int) $row['id'];
-            if (count($characters[$id] ?? []) > AccountsFile::MAX_CHARACTERS || count($weapons[$id] ?? []) > AccountsFile::MAX_WEAPONS
-                || count($items[$id] ?? []) > AccountsFile::MAX_ITEMS) {
+            if (count($characters[$id] ?? []) > AccountsFile::MAX_CHARACTERS || count($weapons[$id] ?? []) > AccountsFile::MAX_WEAPONS || count($items[$id] ?? []) > AccountsFile::MAX_ITEMS) {
                 throw $this->tooBig();
             }
             $entries[] = AccountsFile::account($row, $characters[$id] ?? [], $weapons[$id] ?? [], $items[$id] ?? [], $runs[$id] ?? []);
         }
 
         $now = Clock::now();
-        $body = json_encode(AccountsFile::file(Version::CURRENT, $now, $entries),
-            JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_INVALID_UTF8_SUBSTITUTE | JSON_THROW_ON_ERROR);
+        $body = json_encode(AccountsFile::file(Version::CURRENT, $now, $entries), JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_INVALID_UTF8_SUBSTITUTE | JSON_THROW_ON_ERROR);
         if (strlen($body) > $this->maxBytes()) {
             throw $this->tooBig();
         }
 
-        return ['body' => $body, 'filename' => 'build-analyzer-accounts-'.$now->format('Y-m-d').'.json'];
+        return ['body' => $body, 'filename' => 'build-analyzer-accounts-' . $now->format('Y-m-d') . '.json'];
     }
 
     /**
@@ -139,7 +132,7 @@ final class AccountsTransfer
         return $this->db->transaction(function () use ($person, $file): array {
             // The plan is made under the lock, from the accounts as they are now. A person whose data an
             // admin deleted while the file was on its way has no row to write under any more.
-            if (! $this->users->lockForWrite($person->id)) {
+            if (!$this->users->lockForWrite($person->id)) {
                 throw Visitors::ownerGone($person);
             }
             $plan = $this->plan($person, $file);
@@ -162,9 +155,9 @@ final class AccountsTransfer
         $byMade = [];
         foreach ($existing as $row) {
             if ($row['uid'] !== null) {
-                $byUid[$row['game'].'|'.$row['uid']] = $row;
+                $byUid[$row['game'] . '|' . $row['uid']] = $row;
             } else {
-                $byMade[$row['game'].'|'.$this->second($row['created_at'])][] = $row;
+                $byMade[$row['game'] . '|' . $this->second($row['created_at'])][] = $row;
             }
         }
 
@@ -175,10 +168,10 @@ final class AccountsTransfer
             /** @var Game $game */
             $game = $account['game'];
             if ($account['uid'] !== null) {
-                $match = $byUid[$game->value.'|'.$account['uid']] ?? null;
+                $match = $byUid[$game->value . '|' . $account['uid']] ?? null;
             } else {
                 // Several made in the same second pair up in order, each with one of the person's.
-                $made = $game->value.'|'.($account['created_at'] ? AccountsFile::time($account['created_at']) : '-');
+                $made = $game->value . '|' . ($account['created_at'] ? AccountsFile::time($account['created_at']) : '-');
                 $match = isset($byMade[$made]) ? array_shift($byMade[$made]) : null;
             }
 
@@ -192,8 +185,13 @@ final class AccountsTransfer
                 $outcome = strcmp($theirs, $ours) > 0 ? 'replaced' : 'kept';
             }
 
-            $step = ['outcome' => $outcome, 'account' => $account, 'id' => $match === null ? null : (int) $match['id'],
-                'meta' => $match === null ? [] : (Json::decode($match['meta']) ?? []), 'skipped' => 0];
+            $step = [
+                'outcome' => $outcome,
+                'account' => $account,
+                'id' => $match === null ? null : (int) $match['id'],
+                'meta' => $match === null ? [] : Json::decode($match['meta']) ?? [],
+                'skipped' => 0,
+            ];
             if ($outcome !== 'kept') {
                 $step = $this->resolve($step, $ids[$game->value]);
             }
@@ -201,8 +199,11 @@ final class AccountsTransfer
         }
 
         if ($added > 0 && count($existing) + $added > AccountsFile::MAX_ACCOUNTS) {
-            throw new AccountsFileException('too_many_accounts', ['max' => AccountsFile::MAX_ACCOUNTS],
-                'After this import you would have more than '.AccountsFile::MAX_ACCOUNTS.' game accounts, more than one file can carry. Delete accounts you no longer need first.');
+            throw new AccountsFileException(
+                'too_many_accounts',
+                ['max' => AccountsFile::MAX_ACCOUNTS],
+                'After this import you would have more than ' . AccountsFile::MAX_ACCOUNTS . ' game accounts, more than one file can carry. Delete accounts you no longer need first.',
+            );
         }
 
         return $plan;
@@ -240,8 +241,7 @@ final class AccountsTransfer
         foreach ($keys as $game => $lists) {
             foreach ($lists as $type => $names) {
                 $names = array_values(array_unique(array_filter($names, 'is_string')));
-                $ids[$game][$type] = array_map(fn ($entry) => $entry->id,
-                    $names === [] ? [] : $this->catalog->byKeys(Game::from($game), $type, $names));
+                $ids[$game][$type] = array_map(fn($entry) => $entry->id, $names === [] ? [] : $this->catalog->byKeys(Game::from($game), $type, $names));
             }
         }
 
@@ -253,7 +253,7 @@ final class AccountsTransfer
     {
         $account = $step['account'];
         $skipped = 0;
-        $equipped = fn (?string $key): ?int => $key === null ? null : ($ids[Catalog::CHARACTER][$key] ?? null);
+        $equipped = fn(?string $key): ?int => $key === null ? null : $ids[Catalog::CHARACTER][$key] ?? null;
 
         $characters = [];
         foreach ($account['characters'] as $character) {
@@ -308,13 +308,16 @@ final class AccountsTransfer
 
             if ($step['outcome'] === 'added') {
                 $meta = $account['meta'];
-                $id = (int) $this->db->insert('accounts', $columns + [
-                    'user_id' => $person->id,
-                    'game' => $game->value,
-                    'uid' => $account['uid'],
-                    'meta' => Json::column($meta === [] ? null : $meta),
-                    'created_at' => $account['created_at'],
-                ]);
+                $id = (int) $this->db->insert(
+                    'accounts',
+                    $columns + [
+                        'user_id' => $person->id,
+                        'game' => $game->value,
+                        'uid' => $account['uid'],
+                        'meta' => Json::column($meta === [] ? null : $meta),
+                        'created_at' => $account['created_at'],
+                    ],
+                );
                 $have = [];
             } else {
                 $id = (int) $step['id'];
@@ -325,58 +328,79 @@ final class AccountsTransfer
                 $this->db->run('DELETE FROM account_items WHERE account_id = ?', [$id]);
                 $have = [];
                 foreach ($this->db->all('SELECT source, created_at FROM import_runs WHERE account_id = ? AND user_id = ?', [$id, $person->id]) as $run) {
-                    $have[$this->second($run['created_at']).'|'.CharacterAnalyzer::importKind((string) $run['source'])] = true;
+                    $have[$this->second($run['created_at']) . '|' . CharacterAnalyzer::importKind((string) $run['source'])] = true;
                 }
             }
 
-            $this->db->insertMany('account_characters', array_map(fn (array $character) => [
-                'account_id' => $id,
-                'game_character_id' => $character['catalog_id'],
-                'level' => $character['level'],
-                'ascension' => $character['ascension'],
-                'rank' => $character['rank'],
-                'talents' => Json::column($character['talents']),
-                'final_stats' => Json::column($character['final_stats']),
-                'source' => self::stored($game, $character['source']),
-                'synced_at' => $character['synced_at'],
-                'created_at' => $now,
-                'updated_at' => $now,
-            ], $step['characters']), 200);
+            $this->db->insertMany(
+                'account_characters',
+                array_map(
+                    fn(array $character) => [
+                        'account_id' => $id,
+                        'game_character_id' => $character['catalog_id'],
+                        'level' => $character['level'],
+                        'ascension' => $character['ascension'],
+                        'rank' => $character['rank'],
+                        'talents' => Json::column($character['talents']),
+                        'final_stats' => Json::column($character['final_stats']),
+                        'source' => self::stored($game, $character['source']),
+                        'synced_at' => $character['synced_at'],
+                        'created_at' => $now,
+                        'updated_at' => $now,
+                    ],
+                    $step['characters'],
+                ),
+                200,
+            );
 
-            $this->db->insertMany('account_weapons', array_map(fn (array $weapon) => [
-                'account_id' => $id,
-                'game_weapon_id' => $weapon['catalog_id'],
-                'level' => $weapon['level'],
-                'ascension' => $weapon['ascension'],
-                'refinement' => $weapon['refinement'],
-                'equipped_character_id' => $weapon['equipped_id'],
-                'locked' => $weapon['locked'],
-                'external_uid' => $weapon['external_uid'],
-                'source' => self::stored($game, $weapon['source']),
-                'created_at' => $now,
-                'updated_at' => $now,
-            ], $step['weapons']), 200);
+            $this->db->insertMany(
+                'account_weapons',
+                array_map(
+                    fn(array $weapon) => [
+                        'account_id' => $id,
+                        'game_weapon_id' => $weapon['catalog_id'],
+                        'level' => $weapon['level'],
+                        'ascension' => $weapon['ascension'],
+                        'refinement' => $weapon['refinement'],
+                        'equipped_character_id' => $weapon['equipped_id'],
+                        'locked' => $weapon['locked'],
+                        'external_uid' => $weapon['external_uid'],
+                        'source' => self::stored($game, $weapon['source']),
+                        'created_at' => $now,
+                        'updated_at' => $now,
+                    ],
+                    $step['weapons'],
+                ),
+                200,
+            );
 
-            $this->db->insertMany('account_items', array_map(fn (array $item) => [
-                'account_id' => $id,
-                'game_set_id' => $item['catalog_id'],
-                'slot' => $item['slot'],
-                'rarity' => $item['rarity'],
-                'level' => $item['level'],
-                'main_stat' => $item['main_stat'],
-                'main_value' => $item['main_value'],
-                'substats' => Json::encode($item['substats']),
-                'equipped_character_id' => $item['equipped_id'],
-                'locked' => $item['locked'],
-                'external_uid' => $item['external_uid'],
-                'source' => self::stored($game, $item['source']),
-                'created_at' => $now,
-                'updated_at' => $now,
-            ], $step['items']), 100);
+            $this->db->insertMany(
+                'account_items',
+                array_map(
+                    fn(array $item) => [
+                        'account_id' => $id,
+                        'game_set_id' => $item['catalog_id'],
+                        'slot' => $item['slot'],
+                        'rarity' => $item['rarity'],
+                        'level' => $item['level'],
+                        'main_stat' => $item['main_stat'],
+                        'main_value' => $item['main_value'],
+                        'substats' => Json::encode($item['substats']),
+                        'equipped_character_id' => $item['equipped_id'],
+                        'locked' => $item['locked'],
+                        'external_uid' => $item['external_uid'],
+                        'source' => self::stored($game, $item['source']),
+                        'created_at' => $now,
+                        'updated_at' => $now,
+                    ],
+                    $step['items'],
+                ),
+                100,
+            );
 
             $runs = [];
             foreach ($account['imports'] as $run) {
-                $same = ($run['created_at'] ? AccountsFile::time($run['created_at']) : '-').'|'.$run['source'];
+                $same = ($run['created_at'] ? AccountsFile::time($run['created_at']) : '-') . '|' . $run['source'];
                 if (isset($have[$same])) {
                     continue;
                 }
@@ -401,7 +425,7 @@ final class AccountsTransfer
     /** @return array{dry_run: bool, added: int, replaced: int, kept: int, skipped: int, accounts: list<array<string, mixed>>} */
     private function answer(array $plan, bool $dryRun): array
     {
-        $count = fn (string $outcome) => count(array_filter($plan, fn (array $step) => $step['outcome'] === $outcome));
+        $count = fn(string $outcome) => count(array_filter($plan, fn(array $step) => $step['outcome'] === $outcome));
 
         return [
             'dry_run' => $dryRun,
@@ -409,13 +433,16 @@ final class AccountsTransfer
             'replaced' => $count('replaced'),
             'kept' => $count('kept'),
             'skipped' => array_sum(array_column($plan, 'skipped')),
-            'accounts' => array_map(fn (array $step) => [
-                'game' => $step['account']['game']->value,
-                'uid' => $step['account']['uid'],
-                'nickname' => $step['account']['nickname'],
-                'outcome' => $step['outcome'],
-                'skipped' => $step['skipped'],
-            ], $plan),
+            'accounts' => array_map(
+                fn(array $step) => [
+                    'game' => $step['account']['game']->value,
+                    'uid' => $step['account']['uid'],
+                    'nickname' => $step['account']['nickname'],
+                    'outcome' => $step['outcome'],
+                    'skipped' => $step['skipped'],
+                ],
+                $plan,
+            ),
         ];
     }
 
@@ -437,7 +464,10 @@ final class AccountsTransfer
     {
         $mb = $this->maxMb();
 
-        return new AccountsFileException('export_too_big', ['max_mb' => $mb, 'max_accounts' => AccountsFile::MAX_ACCOUNTS],
-            "Your accounts take more than one file carries (at most {$mb} MB and ".AccountsFile::MAX_ACCOUNTS.' game accounts). Delete accounts you no longer need, then export again.');
+        return new AccountsFileException(
+            'export_too_big',
+            ['max_mb' => $mb, 'max_accounts' => AccountsFile::MAX_ACCOUNTS],
+            "Your accounts take more than one file carries (at most {$mb} MB and " . AccountsFile::MAX_ACCOUNTS . ' game accounts). Delete accounts you no longer need, then export again.',
+        );
     }
 }

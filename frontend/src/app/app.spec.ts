@@ -27,8 +27,7 @@ const SLOVAK = {
   'common.close': 'Zavrieť',
   'visitor.moved.one': 'Účet importovaný bez prihlásenia je teraz v tvojom anotoki účte ({count}).',
   'visitor.moved.few': 'Účty importované bez prihlásenia sú teraz v tvojom anotoki účte ({count}).',
-  'visitor.moved.other':
-    'Účty importované bez prihlásenia sú teraz v tvojom anotoki účte ({count}).',
+  'visitor.moved.other': 'Účty importované bez prihlásenia sú teraz v tvojom anotoki účte ({count}).',
   'visitor.kept.one': 'Účet, ktorý už bol v tvojom anotoki účte, zostal, ako bol ({count}).',
   'visitor.kept.few': 'Účty, ktoré už boli v tvojom anotoki účte, zostali, ako boli ({count}).',
   'visitor.kept.other': 'Účty, ktoré už boli v tvojom anotoki účte, zostali, ako boli ({count}).',
@@ -51,11 +50,7 @@ type Who = 'nobody' | 'member' | 'admin';
  * Where the site stands, as the server says it: ready, a 503's code (and whether it was installed), or the status
  * path's `unavailable` - the database out of reach.
  */
-type Standing =
-  | { code: 'ready' }
-  | { code: 'update_pending' }
-  | { code: 'unavailable' }
-  | { code: 'not_set_up'; installed: boolean };
+type Standing = { code: 'ready' } | { code: 'update_pending' } | { code: 'unavailable' } | { code: 'not_set_up'; installed: boolean };
 
 /**
  * The page in the site's two real frames, as app.routes.ts nests them: everybody's pages in the AppLayout, the
@@ -174,11 +169,7 @@ describe('the shell', () => {
   };
   const statusPage = () => host.querySelector('anotoki-site-status');
   const buttons = () => [...host.querySelectorAll('anotoki-site-status button')].map(words);
-  const links = () =>
-    [...host.querySelectorAll('anotoki-site-status a')].map((link) => [
-      words(link),
-      link.getAttribute('href'),
-    ]);
+  const links = () => [...host.querySelectorAll('anotoki-site-status a')].map((link) => [words(link), link.getAttribute('href')]);
 
   beforeEach(() => {
     localStorage.clear();
@@ -202,9 +193,7 @@ describe('the shell', () => {
     await setup({ who: 'nobody', site: { code: 'update_pending' } });
     expect(host.querySelector('.the-page')).toBeNull();
     expect(words(statusPage()?.querySelector('h1'))).toBe('Stránku práve aktualizujeme');
-    expect(words(statusPage())).toBe(
-      'Stránku práve aktualizujeme O pár minút bude späť. Táto stránka sa obnoví sama. Prihlásiť sa',
-    );
+    expect(words(statusPage())).toBe('Stránku práve aktualizujeme O pár minút bude späť. Táto stránka sa obnoví sama. Prihlásiť sa');
     expect(buttons()).toEqual(['Prihlásiť sa']);
     expect(links()).toEqual([]);
     expect(words(host)).not.toMatch(/update_pending|503|setup|Migrations/i);
@@ -323,31 +312,16 @@ describe('the shell', () => {
    * Anything of a frame on the page: the family's shell, the bar, the footer, the legal links - or any banner,
    * foot or navigation at all.
    */
-  const frame = () =>
-    [
-      ...host.querySelectorAll(
-        'anotoki-shell, app-top-bar, anotoki-top-bar, anotoki-site-footer, anotoki-legal-links, header, footer, nav',
-      ),
-    ].map((element) => element.localName);
+  const frame = () => [...host.querySelectorAll('anotoki-shell, app-top-bar, anotoki-top-bar, anotoki-site-footer, anotoki-legal-links, header, footer, nav')].map((element) => element.localName);
 
   it("the gate's page is bare - no bar, no footer, nothing of the frame - while an update waits, the database is out of reach or the site is not set up, in the site's real layouts", async () => {
     const closed: [string, Who, Standing, string][] = [
       ['an update waits: a visitor', 'nobody', { code: 'update_pending' }, '/'],
       ['an update waits: a member', 'member', { code: 'update_pending' }, '/accounts/3'],
-      [
-        'an update waits: the ADMIN off the Migrations page',
-        'admin',
-        { code: 'update_pending' },
-        '/admin/sources',
-      ],
+      ['an update waits: the ADMIN off the Migrations page', 'admin', { code: 'update_pending' }, '/admin/sources'],
       ['the database out of reach', 'member', { code: 'unavailable' }, '/builds/genshin'],
       ['never set up', 'nobody', { code: 'not_set_up', installed: false }, '/'],
-      [
-        'installed once, not set up now',
-        'admin',
-        { code: 'not_set_up', installed: true },
-        '/admin/migrations',
-      ],
+      ['installed once, not set up now', 'admin', { code: 'not_set_up', installed: true }, '/admin/migrations'],
     ];
     for (const [what, who, site, path] of closed) {
       TestBed.resetTestingModule();
@@ -417,12 +391,8 @@ describe('the shell', () => {
     visitor.moved.set({ found: true, moved: 2, kept: 1, imports: 3, held: false });
     await fixture.whenStable();
 
-    const said = [...host.querySelectorAll('anotoki-toast-host .anotoki-toast-host__message')].map(
-      words,
-    );
-    expect(said).toEqual([
-      'Účty importované bez prihlásenia sú teraz v tvojom anotoki účte (2). Účet, ktorý už bol v tvojom anotoki účte, zostal, ako bol (1).',
-    ]);
+    const said = [...host.querySelectorAll('anotoki-toast-host .anotoki-toast-host__message')].map(words);
+    expect(said).toEqual(['Účty importované bez prihlásenia sú teraz v tvojom anotoki účte (2). Účet, ktorý už bol v tvojom anotoki účte, zostal, ako bol (1).']);
     expect(visitor.moved()).toBeNull();
   });
 

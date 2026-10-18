@@ -34,8 +34,10 @@ function seedRow(string $table, string $game, string $name, array $attributes): 
         $attributes['meta'] = Json::column($attributes['meta']);
     }
 
-    return (int) db()->insert($table, ['game' => $game, 'key' => $attributes['key'] ?? Key::from($name), 'name' => $name]
-        + array_diff_key($attributes, ['key' => true]) + ['created_at' => $now, 'updated_at' => $now]);
+    return (int) db()->insert(
+        $table,
+        ['game' => $game, 'key' => $attributes['key'] ?? Key::from($name), 'name' => $name] + array_diff_key($attributes, ['key' => true]) + ['created_at' => $now, 'updated_at' => $now],
+    );
 }
 
 function seedGenshinCatalog(): void

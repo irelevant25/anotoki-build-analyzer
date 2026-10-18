@@ -20,7 +20,7 @@ final class CurlHttpClient implements HttpClient
 
         $lines = [];
         foreach ($headers as $name => $value) {
-            $lines[] = $name.': '.$value;
+            $lines[] = $name . ': ' . $value;
         }
 
         curl_setopt_array($handle, [

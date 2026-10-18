@@ -23,18 +23,18 @@ final class DevRouter
         }
 
         $app = $appDir === null ? false : realpath($appDir);
-        if ($app === false || ! is_file($app.DIRECTORY_SEPARATOR.'index.html')) {
+        if ($app === false || !is_file($app . DIRECTORY_SEPARATOR . 'index.html')) {
             return ['no-app', null];
         }
 
-        $file = realpath($app.$path);
-        if ($file !== false && is_file($file) && str_starts_with($file, $app.DIRECTORY_SEPARATOR)) {
+        $file = realpath($app . $path);
+        if ($file !== false && is_file($file) && str_starts_with($file, $app . DIRECTORY_SEPARATOR)) {
             return ['file', $file];
         }
         if (pathinfo($path, PATHINFO_EXTENSION) !== '') {
             return ['missing', null];
         }
 
-        return ['app', $app.DIRECTORY_SEPARATOR.'index.html'];
+        return ['app', $app . DIRECTORY_SEPARATOR . 'index.html'];
     }
 }

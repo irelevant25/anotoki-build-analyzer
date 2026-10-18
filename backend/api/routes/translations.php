@@ -58,15 +58,10 @@ use Psr\Http\Message\ServerRequestInterface as Request;
  * not_set_up - and the app reads its compiled English.
  */
 return function (Slim\App $slim, App $app): void {
-    $translations = fn (): Translations => $app->get(Translations::class);
-    $error = fn (Response $response, Refusal $refusal): Response => JsonResponse::write(
-        $response,
-        $refusal->status,
-        ['message' => $refusal->message, 'code' => $refusal->code] + $refusal->extra,
-    );
-    $actor = fn (Request $request): int => currentUser($request)->id;
-    $audit = fn (Request $request, string $action, ?string $type, ?string $id, array $details) => $app->get(AuditLog::class)
-        ->record($request, currentUser($request)->id, $action, $type, $id, $details);
+    $translations = fn(): Translations => $app->get(Translations::class);
+    $error = fn(Response $response, Refusal $refusal): Response => JsonResponse::write($response, $refusal->status, ['message' => $refusal->message, 'code' => $refusal->code] + $refusal->extra);
+    $actor = fn(Request $request): int => currentUser($request)->id;
+    $audit = fn(Request $request, string $action, ?string $type, ?string $id, array $details) => $app->get(AuditLog::class)->record($request, currentUser($request)->id, $action, $type, $id, $details);
 
     TranslationsRoutes::bundle($slim, $translations, $error);
     TranslationsRoutes::strings($slim, '/api/admin', $translations, $actor, $error, $audit)->add(requireRole($app, ...Role::STAFF));

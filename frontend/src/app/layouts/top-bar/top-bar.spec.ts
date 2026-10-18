@@ -27,8 +27,7 @@ const ENGLISH = {
   'topbar.builds': 'Builds',
   'topbar.backToApp': 'Back to Build Analyzer',
   'topbar.signOutUnsaved.title': 'Sign out without your latest changes?',
-  'topbar.signOutUnsaved.message':
-    "Some changes to the site's strings or languages are not saved - the Translations and Languages pages show them. Signed out, they are lost.",
+  'topbar.signOutUnsaved.message': "Some changes to the site's strings or languages are not saved - the Translations and Languages pages show them. Signed out, they are lost.",
   'topbar.signOutUnsaved.confirm': 'Sign out anyway',
   'topbar.signOutUnsaved.stay': 'Stay',
   'toolbar.syncing': 'Syncing builds (keep this tab open)',
@@ -48,8 +47,7 @@ const SLOVAK = {
   'topbar.builds': 'Buildy',
   'topbar.backToApp': 'Späť na Build Analyzer',
   'topbar.signOutUnsaved.title': 'Odhlásiť sa bez posledných zmien?',
-  'topbar.signOutUnsaved.message':
-    'Niektoré zmeny v textoch alebo jazykoch stránky nie sú uložené - nájdeš ich na stránkach Translations a Languages. Po odhlásení sa stratia.',
+  'topbar.signOutUnsaved.message': 'Niektoré zmeny v textoch alebo jazykoch stránky nie sú uložené - nájdeš ich na stránkach Translations a Languages. Po odhlásení sa stratia.',
   'topbar.signOutUnsaved.confirm': 'Aj tak sa odhlásiť',
   'topbar.signOutUnsaved.stay': 'Zostať',
   'toolbar.syncing': 'Synchronizujú sa buildy (nechaj túto kartu otvorenú)',
@@ -111,10 +109,7 @@ describe("the top bar: the family's bar, told what is this site's", () => {
   const described = (link: HTMLAnchorElement) =>
     `${words(link)} ${link.getAttribute('href')}${link.getAttribute('aria-current') === 'page' ? ' [page]' : ''}${link.classList.contains('anotoki-top-bar__link--active') ? ' [here]' : ''}`;
   /** The pieces of the bar's actions, in order: each as its first class, or its tag. */
-  const actions = () =>
-    Array.from(host.querySelector('.anotoki-top-bar__actions')!.children).map((child) =>
-      child.classList.length ? String(child.classList[0]) : child.tagName.toLowerCase(),
-    );
+  const actions = () => Array.from(host.querySelector('.anotoki-top-bar__actions')!.children).map((child) => (child.classList.length ? String(child.classList[0]) : child.tagName.toLowerCase()));
 
   async function draw(area: 'app' | 'admin' = 'app'): Promise<void> {
     fixture = TestBed.createComponent(TestFrame);
@@ -189,16 +184,9 @@ describe("the top bar: the family's bar, told what is this site's", () => {
     await draw();
     expect(host.querySelector('app-top-bar anotoki-top-bar')).not.toBeNull();
     expect(words(host.querySelector('.anotoki-brand__wordmark'))).toBe('anotoki Build Analyzer');
-    expect(host.querySelector('anotoki-brand a')?.getAttribute('aria-label')).toBe(
-      'anotoki Build Analyzer: úvodná stránka',
-    );
+    expect(host.querySelector('anotoki-brand a')?.getAttribute('aria-label')).toBe('anotoki Build Analyzer: úvodná stránka');
     expect(host.querySelector('.anotoki-top-bar__nav')?.getAttribute('aria-label')).toBe('Časti stránky');
-    expect(actions()).toEqual([
-      'anotoki-language-switcher',
-      'anotoki-theme-toggle',
-      'anotoki-top-bar__person-button',
-      'anotoki-menu',
-    ]);
+    expect(actions()).toEqual(['anotoki-language-switcher', 'anotoki-theme-toggle', 'anotoki-top-bar__person-button', 'anotoki-menu']);
     // The person's button names them in the kit's Slovak words.
     expect(personButton()?.getAttribute('aria-label')).toBe('Tvoja ponuka: mona');
   });
@@ -251,9 +239,7 @@ describe("the top bar: the family's bar, told what is this site's", () => {
     // Short at every width: the area and the part of the site under it, the whole name in the link's name.
     expect(words(host.querySelector('.anotoki-brand__wordmark'))).toBe('Analyzer · admin panel');
     expect(host.querySelector('anotoki-brand a')?.getAttribute('href')).toBe('/admin');
-    expect(host.querySelector('anotoki-brand a')?.getAttribute('aria-label')).toBe(
-      'anotoki Build Analyzer: the admin panel',
-    );
+    expect(host.querySelector('anotoki-brand a')?.getAttribute('aria-label')).toBe('anotoki Build Analyzer: the admin panel');
     expect(host.querySelector('anotoki-language-switcher')).toBeNull();
     expect(links().map(described)).toEqual([
       'Sources /admin/sources [page] [here]',
@@ -351,14 +337,7 @@ describe("the top bar: the family's bar, told what is this site's", () => {
       await draw();
       await at('/');
       await openMenu();
-      expect(items().map(words)).toEqual([
-        'Prehľad',
-        'Import',
-        'Buildy',
-        'Tvoj anotoki účet',
-        'Administrátorský panel',
-        'Odhlásiť sa',
-      ]);
+      expect(items().map(words)).toEqual(['Prehľad', 'Import', 'Buildy', 'Tvoj anotoki účet', 'Administrátorský panel', 'Odhlásiť sa']);
       expect(items()[0].getAttribute('aria-current')).toBe('page');
     });
 
@@ -460,8 +439,7 @@ describe("the top bar: the family's bar, told what is this site's", () => {
 
       expect(ask).toHaveBeenCalledWith({
         title: 'Odhlásiť sa bez posledných zmien?',
-        message:
-          'Niektoré zmeny v textoch alebo jazykoch stránky nie sú uložené - nájdeš ich na stránkach Translations a Languages. Po odhlásení sa stratia.',
+        message: 'Niektoré zmeny v textoch alebo jazykoch stránky nie sú uložené - nájdeš ich na stránkach Translations a Languages. Po odhlásení sa stratia.',
         confirmLabel: 'Aj tak sa odhlásiť',
         cancelLabel: 'Zostať',
         tone: 'danger',
@@ -483,9 +461,7 @@ describe("the top bar: the family's bar, told what is this site's", () => {
       await chooseSignOut('Sign out');
 
       // The kit's question: its title, the stay first.
-      expect(words(document.querySelector('anotoki-confirm-host .anotoki-dialog__title'))).toBe(
-        'Sign out without your latest changes?',
-      );
+      expect(words(document.querySelector('anotoki-confirm-host .anotoki-dialog__title'))).toBe('Sign out without your latest changes?');
       expect(words(document.querySelector('anotoki-confirm-host [data-answer="no"]'))).toBe('Stay');
       document.querySelector<HTMLButtonElement>('anotoki-confirm-host [data-answer="yes"]')!.click();
       await vi.waitFor(() => expect(auth.logout).toHaveBeenCalledTimes(1));
@@ -495,10 +471,7 @@ describe("the top bar: the family's bar, told what is this site's", () => {
 
     it("does not ask over somebody else's drafts left in the tab: they are not this person's to give up", async () => {
       const ask = vi.spyOn(TestBed.inject(ConfirmService), 'ask');
-      sessionStorage.setItem(
-        'build-analyzer-localization-drafts',
-        JSON.stringify({ owner: '99', strings: { 'home.title': { sk: 'Cudzie' } }, languages: {} }),
-      );
+      sessionStorage.setItem('build-analyzer-localization-drafts', JSON.stringify({ owner: '99', strings: { 'home.title': { sk: 'Cudzie' } }, languages: {} }));
       await draw();
       await chooseSignOut('Odhlásiť sa');
       expect(ask).not.toHaveBeenCalled();

@@ -43,7 +43,7 @@ final class SyncBuilds
         if (isset($positional[0])) {
             $source = $registry->find($positional[0]);
             if ($source === null) {
-                Cli::error("Unknown build source {$positional[0]}. Known: ".implode(', ', array_keys($registry->all())));
+                Cli::error("Unknown build source {$positional[0]}. Known: " . implode(', ', array_keys($registry->all())));
 
                 return 1;
             }
@@ -54,7 +54,7 @@ final class SyncBuilds
         $only = array_values(array_filter(array_map('strval', (array) ($options['character'] ?? []))));
         $limit = isset($options['limit']) ? (int) $options['limit'] : null;
 
-        $name = fn (BuildSource $source) => "{$source->name()} ({$source->game()->label()}, {$registry->label($source->key())})";
+        $name = fn(BuildSource $source) => "{$source->name()} ({$source->game()->label()}, {$registry->label($source->key())})";
 
         // ── --check-names ──────────────────────────────────────────────────────────────────────────
         if (isset($options['check-names'])) {
@@ -63,11 +63,11 @@ final class SyncBuilds
                 $refs = $source->listCharacters();
                 $missing = [];
                 foreach ($refs as $ref) {
-                    if (! $catalog->find($source->game(), Catalog::CHARACTER, $ref->name)) {
-                        $missing[] = $ref->name.($ref->released ? '' : ' (unreleased)');
+                    if (!$catalog->find($source->game(), Catalog::CHARACTER, $ref->name)) {
+                        $missing[] = $ref->name . ($ref->released ? '' : ' (unreleased)');
                     }
                 }
-                Cli::info(sprintf('%s: %d characters, %d not matched%s', $name($source), count($refs), count($missing), $missing ? ': '.implode(', ', $missing) : ''));
+                Cli::info(sprintf('%s: %d characters, %d not matched%s', $name($source), count($refs), count($missing), $missing ? ': ' . implode(', ', $missing) : ''));
             }
 
             return 0;
@@ -76,7 +76,7 @@ final class SyncBuilds
         // ── --dry-run ──────────────────────────────────────────────────────────────────────────
         if (isset($options['dry-run'])) {
             $sync = $app->get(BuildSync::class);
-            $onlyKeys = array_map(fn ($value) => Key::from($value), $only);
+            $onlyKeys = array_map(fn($value) => Key::from($value), $only);
             $problems = false;
 
             foreach ($sources as $source) {
@@ -86,10 +86,10 @@ final class SyncBuilds
 
                 foreach ($source->listCharacters() as $ref) {
                     /** @var CharacterRef $ref */
-                    if ($onlyKeys !== [] && ! in_array(Key::from($ref->slug), $onlyKeys, true) && ! in_array(Key::from($ref->name), $onlyKeys, true)) {
+                    if ($onlyKeys !== [] && !in_array(Key::from($ref->slug), $onlyKeys, true) && !in_array(Key::from($ref->name), $onlyKeys, true)) {
                         continue;
                     }
-                    if (! $ref->released || ($limit !== null && $checked >= $limit)) {
+                    if (!$ref->released || ($limit !== null && $checked >= $limit)) {
                         continue;
                     }
                     $checked++;
@@ -108,21 +108,34 @@ final class SyncBuilds
                     }
                     $totals['removed'] += count($result['removed']);
 
-                    $interesting = $result['unknown'] !== [] || $result['removed'] !== [] || $result['character'] === null
-                        || array_filter($result['builds'], fn ($build) => $build['status'] !== 'unchanged');
+                    $interesting =
+                        $result['unknown'] !== [] || $result['removed'] !== [] || $result['character'] === null || array_filter($result['builds'], fn($build) => $build['status'] !== 'unchanged');
                     if ($interesting || $verbose) {
-                        Cli::line(sprintf('  %s%s: %s%s%s',
-                            $ref->name,
-                            $result['character'] === null ? ' (not in catalog)' : '',
-                            $result['builds'] === [] ? 'no builds' : implode(', ', array_map(fn ($b) => "{$b['variant']}={$b['status']}", $result['builds'])),
-                            $result['removed'] ? '; would remove: '.implode(', ', $result['removed']) : '',
-                            $result['unknown'] ? '; '.implode('; ', $result['unknown']) : ''));
+                        Cli::line(
+                            sprintf(
+                                '  %s%s: %s%s%s',
+                                $ref->name,
+                                $result['character'] === null ? ' (not in catalog)' : '',
+                                $result['builds'] === [] ? 'no builds' : implode(', ', array_map(fn($b) => "{$b['variant']}={$b['status']}", $result['builds'])),
+                                $result['removed'] ? '; would remove: ' . implode(', ', $result['removed']) : '',
+                                $result['unknown'] ? '; ' . implode('; ', $result['unknown']) : '',
+                            ),
+                        );
                     }
                 }
 
                 $problems = $problems || $totals['errors'] > 0;
-                Cli::line(sprintf('  %d characters: %d unchanged, %d changed, %d new, %d would be removed, %d errors',
-                    $checked, $totals['unchanged'], $totals['changed'], $totals['new'], $totals['removed'], $totals['errors']));
+                Cli::line(
+                    sprintf(
+                        '  %d characters: %d unchanged, %d changed, %d new, %d would be removed, %d errors',
+                        $checked,
+                        $totals['unchanged'],
+                        $totals['changed'],
+                        $totals['new'],
+                        $totals['removed'],
+                        $totals['errors'],
+                    ),
+                );
             }
 
             return $problems ? 1 : 0;
@@ -143,13 +156,13 @@ final class SyncBuilds
         }
 
         // A catalog run started for a stale game is part of the work to wait for.
-        $ids = array_map(fn (SyncRun $run) => (int) $run->id, $started);
+        $ids = array_map(fn(SyncRun $run) => (int) $run->id, $started);
         foreach ($runner->active() as $run) {
             if ($run->kind === SyncRun::CATALOG) {
                 $ids[] = (int) $run->id;
             }
         }
-        $runner->runUntilDone($ids, fn (string $line) => Cli::line($line));
+        $runner->runUntilDone($ids, fn(string $line) => Cli::line($line));
 
         return $app->get(SyncRuns::class)->anyFailed($ids) ? 1 : 0;
     }

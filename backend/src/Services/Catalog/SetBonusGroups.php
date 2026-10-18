@@ -65,7 +65,7 @@ class SetBonusGroups
             }
 
             if (preg_match('/(Pyro|Hydro|Anemo|Electro|Dendro|Cryo|Geo) DMG Bonus/i', $twoPiece, $m)) {
-                $groups[strtolower($m[1]).'_dmg_'][] = $set->name;
+                $groups[strtolower($m[1]) . '_dmg_'][] = $set->name;
             }
         }
 

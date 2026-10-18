@@ -44,11 +44,7 @@ final class Visitors
 
     private ?bool $ready = null;
 
-    public function __construct(
-        private readonly Users $users,
-        private readonly Cache $cache,
-        private readonly Config $config,
-    ) {}
+    public function __construct(private readonly Users $users, private readonly Cache $cache, private readonly Config $config) {}
 
     /** The key a request sends, or null when it sends none (an empty header is none). */
     public static function keyOf(ServerRequestInterface $request): ?string
@@ -90,7 +86,7 @@ final class Visitors
     /** The visitor of this key, seen now. */
     public function find(string $key): User
     {
-        if (! self::wellFormed($key)) {
+        if (!self::wellFormed($key)) {
             throw self::unknown();
         }
         $this->mustBeReady();
@@ -146,7 +142,7 @@ final class Visitors
     /** The visitor make() made, gone again with whatever its failed import left; its counts given back. */
     public function unmake(User $visitor, ServerRequestInterface $request): void
     {
-        if (! $visitor->isVisitor()) {
+        if (!$visitor->isVisitor()) {
             return;
         }
         $this->users->deleteVisitor($visitor->id);
@@ -160,12 +156,12 @@ final class Visitors
      */
     public function sweep(): int
     {
-        if (! $this->ready()) {
+        if (!$this->ready()) {
             return 0;
         }
 
         $swept = $this->users->sweepVisitors(
-            Clock::now()->modify('-'.$this->keepDays().' days'),
+            Clock::now()->modify('-' . $this->keepDays() . ' days'),
             (int) $this->config->get('visitors.sweep_batch', 20),
             (int) $this->config->get('visitors.sweep_timeout_ms', 2000),
         );
@@ -217,7 +213,7 @@ final class Visitors
             $moved = $this->users->moveVisitor(self::hash($key), $person->id, (int) $this->config->get('visitors.move_lock_timeout_ms', 5000), onlyIntoNothing: $silent);
         } catch (PDOException $e) {
             if (in_array((string) $e->getCode(), ['23505', '40001', '40P01', '55P03'], true)) {
-                Log::info('Visitor move interrupted, to be asked again: SQLSTATE '.$e->getCode());
+                Log::info('Visitor move interrupted, to be asked again: SQLSTATE ' . $e->getCode());
 
                 throw new HttpError(503, 'Moving what this browser imported did not finish this time. Try again in a moment.', ['code' => 'visitor_move_retry'], ['Retry-After' => '2']);
             }
@@ -251,7 +247,12 @@ final class Visitors
     {
         return $owner->isVisitor()
             ? self::unknown()
-            : new HttpError(401, 'Your data here was deleted while this was being saved, and nothing was saved. Sign in to continue.', ['code' => 'sign_in_required'], ['WWW-Authenticate' => 'Bearer']);
+            : new HttpError(
+                401,
+                'Your data here was deleted while this was being saved, and nothing was saved. Sign in to continue.',
+                ['code' => 'sign_in_required'],
+                ['WWW-Authenticate' => 'Bearer'],
+            );
     }
 
     /**
@@ -270,7 +271,7 @@ final class Visitors
     /** A pending migration 004: like the strings' routes before Apply, a 503 with a code - never a 500. */
     public function mustBeReady(): void
     {
-        if (! $this->ready()) {
+        if (!$this->ready()) {
             throw new HttpError(
                 503,
                 'Using the site without signing in is not ready yet: an admin applies the waiting database update on the Migrations page. Sign in to continue.',
@@ -288,6 +289,6 @@ final class Visitors
     private function addressCounter(ServerRequestInterface $request): string
     {
         // A keyed hash of the address, never the address: the cache table and its backups keep the counter.
-        return 'visitors:new:'.ClientAddress::countedKey($request, $this->config);
+        return 'visitors:new:' . ClientAddress::countedKey($request, $this->config);
     }
 }

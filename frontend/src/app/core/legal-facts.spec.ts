@@ -5,23 +5,13 @@ import { RouterTestingHarness } from '@angular/router/testing';
 import { AnotokiAuth } from '@anotoki/lib/auth';
 import { provideTestAnotokiAuth } from '@anotoki/lib/auth/testing';
 import { ANOTOKI_LEGAL_CONFIG } from '@anotoki/lib/legal';
-import {
-  ContactPageComponent,
-  PrivacyPageComponent,
-  TermsPageComponent,
-} from '@anotoki/lib/legal/pages';
+import { ContactPageComponent, PrivacyPageComponent, TermsPageComponent } from '@anotoki/lib/legal/pages';
 import { SiteStatus } from '@anotoki/lib/migrations';
 import { provideTestTranslations } from '@anotoki/lib/translations/testing';
 import { provideFeedback } from './feedback';
 import { TranslationService } from './i18n/translation';
 import { provideLegal } from './legal';
-import {
-  HOSTING,
-  SIGN_IN_HINT_COOKIE,
-  SITE_LEGAL_UPDATED,
-  legalPagesConfig,
-  siteLegalFacts,
-} from './legal-facts';
+import { HOSTING, SIGN_IN_HINT_COOKIE, SITE_LEGAL_UPDATED, legalPagesConfig, siteLegalFacts } from './legal-facts';
 import { MetaStore } from './meta-store';
 
 /** The IAM this test's site signs in with: /api/meta's `auth`. */
@@ -138,11 +128,7 @@ describe('the legal pages, as this site fills them in', () => {
   let fixture: ComponentFixture<unknown> | null = null;
 
   /** `loginRequired`: the IAM requires signing in here - nobody signed in visits, they are signed out. */
-  async function configure(
-    values: Record<string, string> = {},
-    language: 'en' | 'sk' = 'en',
-    loginRequired = false,
-  ): Promise<void> {
+  async function configure(values: Record<string, string> = {}, language: 'en' | 'sk' = 'en', loginRequired = false): Promise<void> {
     TestBed.configureTestingModule({
       providers: [
         // Each page in a frame of its own, on its own path - as app.routes.ts has them.
@@ -151,9 +137,7 @@ describe('the legal pages, as this site fills them in', () => {
           { path: 'privacy', component: PrivacyFrame },
           { path: 'contact', component: ContactFrame },
         ]),
-        language === 'en'
-          ? provideTestTranslations({ ...WORDS, ...values })
-          : provideTestTranslations({ ...WORDS, ...values }, { language: 'sk', english: WORDS }),
+        language === 'en' ? provideTestTranslations({ ...WORDS, ...values }) : provideTestTranslations({ ...WORDS, ...values }, { language: 'sk', english: WORDS }),
         provideLegal(),
         provideFeedback(),
         ...provideTestAnotokiAuth({
@@ -192,10 +176,7 @@ describe('the legal pages, as this site fills them in', () => {
     return harness.fixture.nativeElement as HTMLElement;
   }
 
-  const texts = (host: HTMLElement, selector: string) =>
-    Array.from(host.querySelectorAll(selector)).map((element) =>
-      element.textContent?.replace(/\s+/g, ' ').trim(),
-    );
+  const texts = (host: HTMLElement, selector: string) => Array.from(host.querySelectorAll(selector)).map((element) => element.textContent?.replace(/\s+/g, ' ').trim());
 
   afterEach(() => {
     fixture?.destroy();
@@ -220,11 +201,7 @@ describe('the legal pages, as this site fills them in', () => {
 
   it('the facts: six parts of its own, the visitors for the days the sweep keeps them, feedback, its audit log and backups in its words, its cookies and storage by name, the hosting company, Cloudflare and the showcase service, the fan clause', async () => {
     await configure();
-    const facts = siteLegalFacts(
-      TestBed.inject(TranslationService),
-      TestBed.inject(AnotokiAuth),
-      30,
-    );
+    const facts = siteLegalFacts(TestBed.inject(TranslationService), TestBed.inject(AnotokiAuth), 30);
     expect(facts.site).toBe('Build Analyzer');
     expect(facts.about).toBe(WORDS['legal.about']);
     expect(facts.updated).toBe(SITE_LEGAL_UPDATED);
@@ -249,18 +226,13 @@ describe('the legal pages, as this site fills them in', () => {
       what: WORDS['legal.feedback.what'],
       kept: WORDS['legal.feedback.kept'],
     });
-    expect(
-      siteLegalFacts(TestBed.inject(TranslationService), TestBed.inject(AnotokiAuth), 30, false)
-        .feedback,
-    ).toBe(false);
+    expect(siteLegalFacts(TestBed.inject(TranslationService), TestBed.inject(AnotokiAuth), 30, false).feedback).toBe(false);
     expect(facts.errorLog).toBeUndefined();
     expect(facts.analytics).toBeUndefined();
     expect(facts.fanDisclaimer).toBe('hoyoverse');
     expect(facts.auditLog).toEqual({ what: WORDS['legal.auditLog.what'] });
     expect(facts.backups).toEqual({ what: WORDS['legal.backups.what'] });
-    expect(
-      facts.storage.map((item) => [item.name, item.kind ?? null, item.preset ?? null]),
-    ).toEqual([
+    expect(facts.storage.map((item) => [item.name, item.kind ?? null, item.preset ?? null])).toEqual([
       ['anotoki-auth:build-analyzer', null, 'signIn'],
       ['anotoki-auth:build-analyzer:hint', 'local', null],
       ['anotoki-auth:build-analyzer:login:…, anotoki-auth:discovery:…', 'session', null],
@@ -290,11 +262,7 @@ describe('the legal pages, as this site fills them in', () => {
     const host = await draw(PrivacyFrame);
 
     expect(host.querySelector('h1')?.textContent?.trim()).toBe('Privacy policy');
-    expect(
-      Array.from(host.querySelectorAll('[data-kept]')).map((part) =>
-        part.getAttribute('data-kept'),
-      ),
-    ).toEqual([
+    expect(Array.from(host.querySelectorAll('[data-kept]')).map((part) => part.getAttribute('data-kept'))).toEqual([
       'data-0',
       'data-1',
       'data-2',
@@ -309,14 +277,8 @@ describe('the legal pages, as this site fills them in', () => {
     ]);
     // The site's words, then the library's sentence for plain backups: on the server, out of public reach - never encrypted.
     const backups = texts(host, '[data-kept="backups"] .anotoki-legal-page__text')[0] ?? '';
-    expect([
-      backups.startsWith(`${WORDS['legal.backups.what']} `),
-      backups.includes('out of public reach'),
-      backups.includes('encrypted'),
-    ]).toEqual([true, true, false]);
-    expect(texts(host, '[data-duration="visitors"] dd')).toEqual([
-      'Until a sign-in, or 30 days after the last visit.',
-    ]);
+    expect([backups.startsWith(`${WORDS['legal.backups.what']} `), backups.includes('out of public reach'), backups.includes('encrypted')]).toEqual([true, true, false]);
+    expect(texts(host, '[data-duration="visitors"] dd')).toEqual(['Until a sign-in, or 30 days after the last visit.']);
     expect(texts(host, '[data-duration="feedback"] dd')).toEqual([WORDS['legal.feedback.kept']]);
     // The error log in the library's words: 30 days, the address as a keyed code.
     expect(texts(host, '[data-duration="error-log"] dd')).toEqual(['30 days.']);
@@ -333,28 +295,15 @@ describe('the legal pages, as this site fills them in', () => {
       'build-analyzer-version-seen',
       'build-analyzer-localization-drafts',
     ]);
-    expect(texts(host, '[data-recipient] .anotoki-legal-page__item-name')).toEqual([
-      'WebSupport s.r.o.',
-      'Cloudflare, Inc.',
-      'The showcase service',
-    ]);
+    expect(texts(host, '[data-recipient] .anotoki-legal-page__item-name')).toEqual(['WebSupport s.r.o.', 'Cloudflare, Inc.', 'The showcase service']);
     expect(host.querySelector('[data-analytics]')?.textContent).toContain('umami.anotoki.eu');
 
     // The account: kept by the anotoki account, whose own Privacy page - at the IAM the site signs in with - is linked.
-    expect(host.querySelector('[data-account-privacy]')?.getAttribute('href')).toBe(
-      `${IAM}/privacy`,
-    );
+    expect(host.querySelector('[data-account-privacy]')?.getAttribute('href')).toBe(`${IAM}/privacy`);
     const deletion = host.querySelector<HTMLAnchorElement>('[data-account-page]')!;
-    expect([deletion.getAttribute('href'), deletion.textContent?.trim()]).toEqual([
-      `${IAM}/account`,
-      'Delete it at https://evil.example',
-    ]);
-    expect(host.querySelector('[data-kept="data-1"]')?.textContent).toContain(
-      'See https://evil.example for more.',
-    );
-    const links = Array.from(host.querySelectorAll('a[href]')).map((link) =>
-      link.getAttribute('href')!,
-    );
+    expect([deletion.getAttribute('href'), deletion.textContent?.trim()]).toEqual([`${IAM}/account`, 'Delete it at https://evil.example']);
+    expect(host.querySelector('[data-kept="data-1"]')?.textContent).toContain('See https://evil.example for more.');
+    const links = Array.from(host.querySelectorAll('a[href]')).map((link) => link.getAttribute('href')!);
     expect(links.filter((href) => !href.startsWith('#') && !ADDRESSES.includes(href))).toEqual([]);
     expect(links).not.toContain('https://evil.example');
   });
@@ -363,9 +312,7 @@ describe('the legal pages, as this site fills them in', () => {
     await configure();
     const host = await draw(TermsFrame);
     expect(host.querySelector('[data-about]')?.textContent?.trim()).toBe(WORDS['legal.about']);
-    expect(host.querySelector('[data-section="what"] h2')?.textContent?.trim()).toBe(
-      'What Build Analyzer is',
-    );
+    expect(host.querySelector('[data-section="what"] h2')?.textContent?.trim()).toBe('What Build Analyzer is');
     expect(host.querySelector('[data-fan]')?.textContent?.trim()).toBe(WORDS['legal.fanClause']);
   });
 
@@ -373,19 +320,11 @@ describe('the legal pages, as this site fills them in', () => {
     // A visitor (the IAM lets visitors in here): a message can be sent.
     await configure();
     const host = await open('/contact');
-    expect(
-      host.querySelector('[data-section="feedback"] [data-open-feedback]')?.textContent?.trim(),
-    ).toBe('Send feedback');
-    expect(host.querySelector('[data-section="email"] h2')?.textContent?.trim()).toBe(
-      'Everything else',
-    );
-    expect(host.querySelector('[data-section="email"] a')?.getAttribute('href')).toBe(
-      'mailto:support@anotoki.eu',
-    );
+    expect(host.querySelector('[data-section="feedback"] [data-open-feedback]')?.textContent?.trim()).toBe('Send feedback');
+    expect(host.querySelector('[data-section="email"] h2')?.textContent?.trim()).toBe('Everything else');
+    expect(host.querySelector('[data-section="email"] a')?.getAttribute('href')).toBe('mailto:support@anotoki.eu');
     expect(host.querySelector('[data-account-page]')?.getAttribute('href')).toBe(`${IAM}/account`);
-    expect(host.querySelector('[data-section="delete"]')?.textContent).toContain(
-      'Build Analyzer then keeps what you did here without your name',
-    );
+    expect(host.querySelector('[data-section="delete"]')?.textContent).toContain('Build Analyzer then keeps what you did here without your name');
     expect(host.textContent).toContain(WORDS['legal.fanClause']);
   });
 
@@ -398,9 +337,7 @@ describe('the legal pages, as this site fills them in', () => {
     expect(host.querySelector('[data-section="feedback"]')).toBeNull();
     expect(host.querySelector('[data-open-feedback]')).toBeNull();
     expect(host.querySelector('[data-section="email"] h2')?.textContent?.trim()).toBe('By e-mail');
-    expect(host.querySelector('[data-section="email"] a')?.getAttribute('href')).toBe(
-      'mailto:support@anotoki.eu',
-    );
+    expect(host.querySelector('[data-section="email"] a')?.getAttribute('href')).toBe('mailto:support@anotoki.eu');
 
     // The Privacy page, in the same tab: what a message holds and how long it is kept - said to everybody.
     await TestBed.inject(Router).navigateByUrl('/privacy');
@@ -410,15 +347,10 @@ describe('the legal pages, as this site fills them in', () => {
   });
 
   it("in Slovak: the library's words - which address nobody - around the site's, its {days} filled in", async () => {
-    await configure(
-      { 'legal.visitors.kept': 'Kým ich prihlásenie nepresunie, alebo toľko dní: {days}.' },
-      'sk',
-    );
+    await configure({ 'legal.visitors.kept': 'Kým ich prihlásenie nepresunie, alebo toľko dní: {days}.' }, 'sk');
     const host = await draw(PrivacyFrame);
     expect(host.querySelector('anotoki-privacy-page')?.getAttribute('lang')).toBe('sk');
     expect(host.querySelector('h1')?.textContent?.trim()).toBe('Ochrana osobných údajov');
-    expect(texts(host, '[data-duration="visitors"] dd')).toEqual([
-      'Kým ich prihlásenie nepresunie, alebo toľko dní: 30.',
-    ]);
+    expect(texts(host, '[data-duration="visitors"] dd')).toEqual(['Kým ich prihlásenie nepresunie, alebo toľko dní: 30.']);
   });
 });

@@ -17,7 +17,7 @@
 
 declare(strict_types=1);
 
-require __DIR__.'/lib.php';
+require __DIR__ . '/lib.php';
 
 use Anotoki\Lib\Support\Refusal;
 use Anotoki\Lib\Translations\Cli\EnglishDictionary;
@@ -64,13 +64,13 @@ function isLibraryKey(string $key): bool
 /** @return list<string> every key of the site's own the database has, by name - the library's left out */
 function siteKeys(): array
 {
-    return array_values(array_filter(words()->keyNames(), static fn (string $key): bool => ! isLibraryKey($key)));
+    return array_values(array_filter(words()->keyNames(), static fn(string $key): bool => !isLibraryKey($key)));
 }
 
 /** @return array<string, string> a language's own strings of the site's own keys, by key */
 function siteStrings(string $code): array
 {
-    return array_filter((array) words()->export($code)['values'], static fn (string $key): bool => ! isLibraryKey($key), ARRAY_FILTER_USE_KEY);
+    return array_filter((array) words()->export($code)['values'], static fn(string $key): bool => !isLibraryKey($key), ARRAY_FILTER_USE_KEY);
 }
 
 /** A list in the order of its values: for two lists that must hold the same, whatever order each was written in. */
@@ -89,9 +89,9 @@ function inOrder(array $list): array
  */
 function compiledEnglish(): array
 {
-    $files = glob(SiteTranslations::frontendRoot().'/core/i18n/en/*.json') ?: [];
+    $files = glob(SiteTranslations::frontendRoot() . '/core/i18n/en/*.json') ?: [];
     check($files !== [], 'the frontend has a compiled English (core/i18n/en/*.json)');
-    $english = EnglishDictionary::merge(...array_map(static fn (string $file): array => EnglishDictionary::read($file), $files));
+    $english = EnglishDictionary::merge(...array_map(static fn(string $file): array => EnglishDictionary::read($file), $files));
     ksort($english, SORT_STRING);
 
     return $english;
@@ -101,7 +101,7 @@ function compiledEnglish(): array
 function stringMigrations(): array
 {
     $files = [];
-    foreach (glob(Migrations::directory().'/*.sql') ?: [] as $file) {
+    foreach (glob(Migrations::directory() . '/*.sql') ?: [] as $file) {
         if (preg_match('/^\s*INSERT\s+INTO\s+translation_keys\b/mi', (string) file_get_contents($file))) {
             $files[] = basename($file);
         }
@@ -120,7 +120,7 @@ function stringMigrations(): array
  */
 function migrationKeys(string $file): array
 {
-    return migrationKeysIn((string) file_get_contents(Migrations::directory().'/'.$file));
+    return migrationKeysIn((string) file_get_contents(Migrations::directory() . '/' . $file));
 }
 
 /**
@@ -170,15 +170,19 @@ function checked(mixed $values, array $english = ['test.hello' => 'Hello, {name}
 // ── What the migrations leave ────────────────────────────────────────────────────────────────────
 
 test('the two languages the site is released in, English first, the tables under their names - and the words there to be read', function () {
-    same([
-        ['code' => 'en', 'name' => 'English', 'native_name' => 'English', 'enabled' => true, 'sort_order' => 1],
-        ['code' => 'sk', 'name' => 'Slovak', 'native_name' => 'Slovenčina', 'enabled' => true, 'sort_order' => 2],
-    ], db()->all('SELECT code, name, native_name, enabled, sort_order FROM languages ORDER BY sort_order'), 'the languages');
+    same(
+        [
+            ['code' => 'en', 'name' => 'English', 'native_name' => 'English', 'enabled' => true, 'sort_order' => 1],
+            ['code' => 'sk', 'name' => 'Slovak', 'native_name' => 'Slovenčina', 'enabled' => true, 'sort_order' => 2],
+        ],
+        db()->all('SELECT code, name, native_name, enabled, sort_order FROM languages ORDER BY sort_order'),
+        'the languages',
+    );
     same(true, words()->ready(), 'the tables are there');
     same('en', words()->bundle('en')['language'] ?? null, 'and the words can be read');
 
     // The database keeps its own rules, under the names 003 gave them (the library's 001 made nothing here).
-    $refused = fn (string $sql): string => throws(PDOException::class, fn () => db()->run($sql), $sql)->getMessage();
+    $refused = fn(string $sql): string => throws(PDOException::class, fn() => db()->run($sql), $sql)->getMessage();
     check(str_contains($refused("INSERT INTO languages (code, name, native_name) VALUES ('EN', 'x', 'x')"), 'languages_code_check'), 'a code in capitals');
     check(str_contains($refused("INSERT INTO translations (key_name, language_code, value) VALUES ('no.such', 'en', 'x')"), 'translations_key_name_foreign'), 'a string of no key');
     db()->run("INSERT INTO translation_keys (name) VALUES ('zz.probe')");
@@ -196,31 +200,40 @@ test('the two languages the site is released in, English first, the tables under
     }
     same(0, (int) db()->value("SELECT count(*) FROM translations WHERE key_name = 'zz.probe'"), 'a deleted key takes its strings with it');
 
-    same([
-        'languages_code_check c', 'languages_pkey p', 'translation_keys_pkey p', 'translations_key_name_foreign f',
-        'translations_language_code_foreign f', 'translations_pkey p', 'translations_value_check c',
-    ], db()->column("SELECT c.conname::text || ' ' || c.contype::text FROM pg_constraint c
-        WHERE c.conrelid IN ('languages'::regclass, 'translation_keys'::regclass, 'translations'::regclass) AND c.contype <> 'n' ORDER BY 1"), 'the constraints, by name');
+    same(
+        [
+            'languages_code_check c',
+            'languages_pkey p',
+            'translation_keys_pkey p',
+            'translations_key_name_foreign f',
+            'translations_language_code_foreign f',
+            'translations_pkey p',
+            'translations_value_check c',
+        ],
+        db()->column("SELECT c.conname::text || ' ' || c.contype::text FROM pg_constraint c
+        WHERE c.conrelid IN ('languages'::regclass, 'translation_keys'::regclass, 'translations'::regclass) AND c.contype <> 'n' ORDER BY 1"),
+        'the constraints, by name',
+    );
 });
 
 test('every key has an English string, and every key of the site\'s own a Slovak one', function () {
     same([], words()->keysWithout('en'), 'keys with no English string: nothing to fall back to');
-    same([], array_values(array_filter(words()->keysWithout('sk'), static fn (string $key): bool => ! isLibraryKey($key))), 'the site\'s keys with no Slovak string');
-    check(count(siteKeys()) > 400, 'the site\'s keys are there: '.count(siteKeys()));
+    same([], array_values(array_filter(words()->keysWithout('sk'), static fn(string $key): bool => !isLibraryKey($key))), 'the site\'s keys with no Slovak string');
+    check(count(siteKeys()) > 400, 'the site\'s keys are there: ' . count(siteKeys()));
 });
 
 test('a plural family has .one, .few and .other, and nothing else ends in them', function () {
     $incomplete = function (array $keys): array {
         $families = [];
         foreach ($keys as $key) {
-            if (preg_match('/^(.+)\.('.implode('|', PLURAL_FORMS).')$/D', $key, $m)) {
+            if (preg_match('/^(.+)\.(' . implode('|', PLURAL_FORMS) . ')$/D', $key, $m)) {
                 $families[$m[1]] = true;
             }
         }
         $missing = [];
         foreach (array_keys($families) as $family) {
             foreach (PLURAL_FORMS as $form) {
-                if (! in_array("{$family}.{$form}", $keys, true)) {
+                if (!in_array("{$family}.{$form}", $keys, true)) {
                     $missing[] = "{$family}.{$form}";
                 }
             }
@@ -263,7 +276,7 @@ test('the English compiled into the app is, key for key, the seeded English of t
     $different = [];
     foreach ($seeded as $key => $text) {
         if (($compiled[$key] ?? null) !== $text) {
-            $different[] = "{$key}: seeded \"{$text}\", compiled \"".($compiled[$key] ?? '').'"';
+            $different[] = "{$key}: seeded \"{$text}\", compiled \"" . ($compiled[$key] ?? '') . '"';
         }
     }
     same([], $different, 'the same English both ways');
@@ -274,10 +287,10 @@ test('every key the frontend uses is in the database, and every key of the site\
     same([], $scan['problems'], 'what the scan does not let through');
     same([], $scan['missing'], 'used by the frontend, not in the database - the page would show the key (php translations.php --status)');
     same([], $scan['unused'], 'in the database, used nowhere - delete them with a migration');
-    check(count($scan['used']) > 400, 'the keys are found where they are used: '.count($scan['used']));
-    check(is_file(SiteTranslations::frontendRoot().'/'.SiteTranslations::DYNAMIC_KEYS), 'the keys put together at run time are declared in '.SiteTranslations::DYNAMIC_KEYS);
+    check(count($scan['used']) > 400, 'the keys are found where they are used: ' . count($scan['used']));
+    check(is_file(SiteTranslations::frontendRoot() . '/' . SiteTranslations::DYNAMIC_KEYS), 'the keys put together at run time are declared in ' . SiteTranslations::DYNAMIC_KEYS);
     foreach (array_keys($scan['used']) as $key) {
-        check(! isLibraryKey($key), "{$key}: the library's keys are the library's to ask for");
+        check(!isLibraryKey($key), "{$key}: the library's keys are the library's to ask for");
     }
 });
 
@@ -285,10 +298,10 @@ test('what the server says as a kind is a key the frontend declares: recommendat
     $kinds = ['recommendation.' => BuildEvaluator::KINDS, 'import.error.' => ImportKinds::ERRORS, 'import.warning.' => ImportKinds::WARNINGS];
     same([18, 23, 9], array_map('count', array_values($kinds)), 'how many kinds there are');
 
-    $declared = KeyScanner::dynamic((string) file_get_contents(SiteTranslations::frontendRoot().'/'.SiteTranslations::DYNAMIC_KEYS));
-    same([], $declared['problems'], SiteTranslations::DYNAMIC_KEYS.' can be read');
+    $declared = KeyScanner::dynamic((string) file_get_contents(SiteTranslations::frontendRoot() . '/' . SiteTranslations::DYNAMIC_KEYS));
+    same([], $declared['problems'], SiteTranslations::DYNAMIC_KEYS . ' can be read');
     foreach ($kinds as $prefix => $byKind) {
-        same(inOrder(array_keys($byKind)), inOrder($declared['prefixes'][$prefix] ?? []), "the tails of '{$prefix}' in ".SiteTranslations::DYNAMIC_KEYS.' are the server\'s kinds');
+        same(inOrder(array_keys($byKind)), inOrder($declared['prefixes'][$prefix] ?? []), "the tails of '{$prefix}' in " . SiteTranslations::DYNAMIC_KEYS . ' are the server\'s kinds');
     }
 
     // A sentence can only be filled with what the server sends for its kind.
@@ -296,10 +309,10 @@ test('what the server says as a kind is a key the frontend declares: recommendat
     $wrong = [];
     foreach ($kinds as $prefix => $byKind) {
         foreach ($byKind as $kind => $params) {
-            check(isset($english[$prefix.$kind]), "{$prefix}{$kind} has no English string");
-            $extra = array_diff(Placeholders::names($english[$prefix.$kind]), $params);
+            check(isset($english[$prefix . $kind]), "{$prefix}{$kind} has no English string");
+            $extra = array_diff(Placeholders::names($english[$prefix . $kind]), $params);
             if ($extra !== []) {
-                $wrong[] = "{$prefix}{$kind}: {".implode('}, {', $extra).'}';
+                $wrong[] = "{$prefix}{$kind}: {" . implode('}, {', $extra) . '}';
             }
         }
     }
@@ -330,13 +343,17 @@ test('every stored string passes the checks a save makes, as it is - no placehol
 
 test('a migration with strings writes each key once, in both languages; the gates count the site\'s own keys', function () {
     // The pattern itself, on a text of the test's own.
-    $pattern = "-- INSERT INTO translation_keys (name, description) VALUES ('in.a.comment', 'x')\n"
-        ."INSERT INTO translation_keys (name, description) VALUES\n    -- a namespace\n    ('a.one', 'It''s (one), here'),\n    ('a.two', NULL)\nON CONFLICT (name) DO NOTHING;\n\n"
-        ."INSERT INTO translations (key_name, language_code, value)\nSELECT v.key_name, 'en', v.value FROM (VALUES\n    ('a.one', 'One; ''1'''),\n    ('a.two', 'Two')\n) AS v(key_name, value)\nON CONFLICT (key_name, language_code) DO NOTHING;\n\n"
-        ."INSERT INTO translations (key_name, language_code, value)\nSELECT v.key_name, 'sk', v.value FROM (VALUES\n    ('a.one', 'Jeden')\n) AS v(key_name, value)\nON CONFLICT (key_name, language_code) DO NOTHING;\n\n"
-        ."DO \$\$\nDECLARE\n    expected_keys CONSTANT INTEGER := 2;\nBEGIN\n    NULL;\nEND \$\$;\n";
-    same(['keys' => ['a.one', 'a.two'], 'strings' => ['en' => ['a.one', 'a.two'], 'sk' => ['a.one']], 'expected' => 2], migrationKeysIn(str_replace("\n", "\r\n", $pattern)),
-        'how a string migration is read: its keys, its strings by language, its gate\'s count');
+    $pattern =
+        "-- INSERT INTO translation_keys (name, description) VALUES ('in.a.comment', 'x')\n" .
+        "INSERT INTO translation_keys (name, description) VALUES\n    -- a namespace\n    ('a.one', 'It''s (one), here'),\n    ('a.two', NULL)\nON CONFLICT (name) DO NOTHING;\n\n" .
+        "INSERT INTO translations (key_name, language_code, value)\nSELECT v.key_name, 'en', v.value FROM (VALUES\n    ('a.one', 'One; ''1'''),\n    ('a.two', 'Two')\n) AS v(key_name, value)\nON CONFLICT (key_name, language_code) DO NOTHING;\n\n" .
+        "INSERT INTO translations (key_name, language_code, value)\nSELECT v.key_name, 'sk', v.value FROM (VALUES\n    ('a.one', 'Jeden')\n) AS v(key_name, value)\nON CONFLICT (key_name, language_code) DO NOTHING;\n\n" .
+        "DO \$\$\nDECLARE\n    expected_keys CONSTANT INTEGER := 2;\nBEGIN\n    NULL;\nEND \$\$;\n";
+    same(
+        ['keys' => ['a.one', 'a.two'], 'strings' => ['en' => ['a.one', 'a.two'], 'sk' => ['a.one']], 'expected' => 2],
+        migrationKeysIn(str_replace("\n", "\r\n", $pattern)),
+        'how a string migration is read: its keys, its strings by language, its gate\'s count',
+    );
 
     // The tables' own migration says how many keys it seeds, and that is how many it inserts.
     $tables = migrationKeys('003_languages_and_translations.sql');
@@ -351,7 +368,7 @@ test('a migration with strings writes each key once, in both languages; the gate
         $gates[$file] = $found['expected'];
         if (in_array($file, MOVED_TO_LIBRARY, true)) {
             // They insert no key of the site's own: they copy keys' strings under the library's names.
-            same(['keys' => [], 'strings' => []], array_intersect_key($found, ['keys' => 0, 'strings' => 0]), $file.' writes no row of its own words');
+            same(['keys' => [], 'strings' => []], array_intersect_key($found, ['keys' => 0, 'strings' => 0]), $file . ' writes no row of its own words');
             continue;
         }
         check($found['keys'] !== [], "{$file}: the keys it inserts could not be read");
@@ -370,7 +387,7 @@ test('a migration with strings writes each key once, in both languages; the gate
     $last = array_key_last($gates);
     same(count(siteKeys()), $gates[$last], "{$last}'s gate expects as many keys of the site's own as there are");
     foreach (MOVED_TO_LIBRARY as $file) {
-        check(str_contains((string) file_get_contents(Migrations::directory().'/'.$file), "WHERE name NOT LIKE 'anotoki.%'"), $file.'\'s gate leaves the library\'s keys out of its count');
+        check(str_contains((string) file_get_contents(Migrations::directory() . '/' . $file), "WHERE name NOT LIKE 'anotoki.%'"), $file . '\'s gate leaves the library\'s keys out of its count');
     }
 });
 
@@ -378,8 +395,16 @@ test('a migration with strings writes each key once, in both languages; the gate
 
 test('a string names no other site and holds no web address - checked last, in any language, and in a language\'s names', function () {
     same(['names_another_site', ['key' => 'test.bye', 'language' => 'sk', 'found' => ['prydwen']]], checked(['test.bye' => ['sk' => 'Pozri Prydwen']]), 'a name');
-    same(['names_another_site', ['key' => 'test.bye', 'language' => 'en', 'found' => ['a web address']]], checked(['test.bye' => ['en' => 'See https://elsewhere.example']]), 'an address, in English too');
-    same(['names_another_site', ['key' => 'test.hello', 'language' => 'sk', 'found' => ['enka.network', 'game8']]], checked(['test.hello' => ['sk' => '{name}: enka.network, Game8, GAME8']]), 'every name, once');
+    same(
+        ['names_another_site', ['key' => 'test.bye', 'language' => 'en', 'found' => ['a web address']]],
+        checked(['test.bye' => ['en' => 'See https://elsewhere.example']]),
+        'an address, in English too',
+    );
+    same(
+        ['names_another_site', ['key' => 'test.hello', 'language' => 'sk', 'found' => ['enka.network', 'game8']]],
+        checked(['test.hello' => ['sk' => '{name}: enka.network, Game8, GAME8']]),
+        'every name, once',
+    );
     // After the other checks: what is wrong with the text itself is said first.
     same('unknown_placeholder', checked(['test.bye' => ['sk' => 'Pozri Prydwen {kde}']])[0], 'a placeholder first');
     same('invalid_value', checked(['test.bye' => ['sk' => str_repeat('Prydwen ', 300)]])[0], 'the length first');
@@ -406,7 +431,7 @@ test('the legal pages\' strings (011) hold no address of any kind: where a link 
     // The footer's fan clause, 011's footer.fanMade, is under the library's key since 013.
     $strings = db()->all("SELECT key_name, language_code, value FROM translations
         WHERE key_name LIKE 'legal.%' OR key_name LIKE 'title.%' OR key_name = 'anotoki.footer.fanHoyoverse' ORDER BY key_name, language_code");
-    check(count($strings) >= 104, 'the legal pages\' strings are there, in both languages: '.count($strings));
+    check(count($strings) >= 104, 'the legal pages\' strings are there, in both languages: ' . count($strings));
     $addresses = [];
     foreach ($strings as $row) {
         if (preg_match('~://|\bwww\.|@|\bmailto:|\b[a-z0-9-]+\.(?:eu|sk|com|net|org|io|gg|moe|network)\b~i', (string) $row['value']) === 1) {
@@ -421,29 +446,50 @@ test('the legal pages\' strings (011) hold no address of any kind: where a link 
 test('the scan reads the real frontend: only the files it should, and the library\'s keys it leaves to the library', function () {
     $scanner = SiteTranslations::keyScanner();
     $root = SiteTranslations::frontendRoot();
-    check(is_dir($root), 'the frontend is beside the backend: '.$root);
+    check(is_dir($root), 'the frontend is beside the backend: ' . $root);
     same($root, $scanner->root(), 'it reads the frontend\'s src/app');
     $files = $scanner->sourceFiles();
     check(in_array('app.routes.ts', $files, true) && in_array('pages/dashboard/dashboard-page.html', $files, true), 'the sources are where the scan looks');
     check(in_array('layouts/top-bar/top-bar.ts', $files, true), 'the top bar is read - it asks for the library\'s words (anotoki.topbar.*)');
     foreach ($files as $file) {
         check((bool) preg_match('/\.(ts|html)$/', $file), $file);
-        check(! preg_match('~\.spec\.ts$|^core/i18n/en\.ts$~', $file), "not read: {$file}");
+        check(!preg_match('~\.spec\.ts$|^core/i18n/en\.ts$~', $file), "not read: {$file}");
     }
 
     // The library's words are asked for by their keys, and are never a key this site must have.
     $scan = $scanner->scan(['anotoki.language.button', 'topbar.home']);
-    check(! isset($scan['used']['anotoki.language.button']) && ! isset($scan['missing']['anotoki.language.button']), 'never used, never missing');
+    check(!isset($scan['used']['anotoki.language.button']) && !isset($scan['missing']['anotoki.language.button']), 'never used, never missing');
     same(['topbar.home'], array_keys(array_intersect_key($scan['used'], ['topbar.home' => 0])), 'the site\'s own as ever');
 
     // The words 006, 010 and 013 moved are asked for by the library's names, where the site asks for them at all (the
     // family's bar and footer ask for most themselves). Their old keys are gone from the database, so the scan would
     // take an old literal for no key at all: they are looked for here.
-    $sources = implode("\n", array_map(static fn (string $file): string => (string) file_get_contents("{$root}/{$file}"), $files));
-    foreach (['language.button', 'language.notLoaded', 'topbar.phoneMenu', 'topbar.menuButton', 'topbar.menu', 'topbar.roleAdmin', 'topbar.roleEditor',
-        'topbar.account', 'topbar.admin', 'common.signOut', 'theme.label', 'theme.light', 'theme.dark', 'theme.system', 'stepper.optional', 'stepper.editable',
-        'footer.version', 'footer.feedback', 'footer.fanMade'] as $old) {
-        check(preg_match('/[\'"`]'.preg_quote($old, '/').'[\'"`]/', $sources) !== 1, "nothing asks for {$old}: it is gone (or the library's now)");
+    $sources = implode("\n", array_map(static fn(string $file): string => (string) file_get_contents("{$root}/{$file}"), $files));
+    foreach (
+        [
+            'language.button',
+            'language.notLoaded',
+            'topbar.phoneMenu',
+            'topbar.menuButton',
+            'topbar.menu',
+            'topbar.roleAdmin',
+            'topbar.roleEditor',
+            'topbar.account',
+            'topbar.admin',
+            'common.signOut',
+            'theme.label',
+            'theme.light',
+            'theme.dark',
+            'theme.system',
+            'stepper.optional',
+            'stepper.editable',
+            'footer.version',
+            'footer.feedback',
+            'footer.fanMade',
+        ]
+        as $old
+    ) {
+        check(preg_match('/[\'"`]' . preg_quote($old, '/') . '[\'"`]/', $sources) !== 1, "nothing asks for {$old}: it is gone (or the library's now)");
     }
     foreach (['anotoki.topbar.roleAdmin', 'anotoki.topbar.roleEditor', 'anotoki.topbar.account', 'anotoki.topbar.admin'] as $library) {
         check(str_contains($sources, "'{$library}'"), "{$library} is asked for (the person's menu in the family's bar)");

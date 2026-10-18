@@ -3,20 +3,8 @@ import { HttpTestingController, provideHttpClientTesting } from '@angular/common
 import { ApplicationInitStatus, ErrorHandler } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
 import { Router, TitleStrategy } from '@angular/router';
-import {
-  ANOTOKI_AUTH_BROWSER,
-  ANOTOKI_AUTH_CLIENT_FACTORY,
-  AnotokiAuth,
-  AnotokiAuthEnvironment,
-  AnotokiAuthOptions,
-  AnotokiInitResult,
-} from '@anotoki/lib/auth';
-import {
-  FakeAuthClient,
-  TestAnotokiAuth,
-  TestUser,
-  testAnotokiAuth,
-} from '@anotoki/lib/auth/testing';
+import { ANOTOKI_AUTH_BROWSER, ANOTOKI_AUTH_CLIENT_FACTORY, AnotokiAuth, AnotokiAuthEnvironment, AnotokiAuthOptions, AnotokiInitResult } from '@anotoki/lib/auth';
+import { FakeAuthClient, TestAnotokiAuth, TestUser, testAnotokiAuth } from '@anotoki/lib/auth/testing';
 import { ANOTOKI_ERROR_REPORT } from '@anotoki/lib/error-report';
 import { SiteStatus } from '@anotoki/lib/migrations';
 import { TranslationBundle } from '@anotoki/lib/translations';
@@ -82,10 +70,7 @@ describe('the start of the app (app.config.ts)', () => {
    * The app's own providers - the auth module as the site sets it up - with the IAM's client in memory (signed in
    * as `user`, or nobody) and a browser that only records where it was sent.
    */
-  function start(
-    user: TestUser | null = null,
-    options: { slow?: boolean; cookie?: string } = {},
-  ): void {
+  function start(user: TestUser | null = null, options: { slow?: boolean; cookie?: string } = {}): void {
     browser = testAnotokiAuth(options.cookie ?? '').browser;
     client = null;
     TestBed.configureTestingModule({
@@ -96,9 +81,7 @@ describe('the start of the app (app.config.ts)', () => {
         {
           provide: ANOTOKI_AUTH_CLIENT_FACTORY,
           useValue: (clientOptions: AnotokiAuthOptions, environment: AnotokiAuthEnvironment) =>
-            (client = options.slow
-              ? new SlowClient(clientOptions, environment, user)
-              : new FakeAuthClient(clientOptions, environment, user)),
+            (client = options.slow ? new SlowClient(clientOptions, environment, user) : new FakeAuthClient(clientOptions, environment, user)),
         },
       ],
     });
@@ -107,11 +90,9 @@ describe('the start of the app (app.config.ts)', () => {
   }
 
   const started = () => TestBed.inject(ApplicationInitStatus).donePromise;
-  const translations = () =>
-    requests.match((request) => request.url.startsWith('/api/translations/'));
+  const translations = () => requests.match((request) => request.url.startsWith('/api/translations/'));
   /** The site's status, asked at the start beside /api/meta: what the server says of it. */
-  const site = (state: 'ready' | 'update_pending' | 'not_set_up', installed = false) =>
-    requests.expectOne('/api/site-status').flush({ state, installed });
+  const site = (state: 'ready' | 'update_pending' | 'not_set_up', installed = false) => requests.expectOne('/api/site-status').flush({ state, installed });
 
   beforeEach(() => {
     localStorage.clear();
@@ -163,11 +144,7 @@ describe('the start of the app (app.config.ts)', () => {
     await started();
 
     const auth = TestBed.inject(AnotokiAuth);
-    expect([auth.state(), auth.loginRequired(), auth.signInAvailable()]).toEqual([
-      'visitor',
-      false,
-      true,
-    ]);
+    expect([auth.state(), auth.loginRequired(), auth.signInAvailable()]).toEqual(['visitor', false, true]);
     expect(client?.options).toEqual(
       expect.objectContaining({
         issuer: 'https://iam.example.test',
@@ -217,22 +194,15 @@ describe('the start of the app (app.config.ts)', () => {
     await settle();
 
     // To the IAM without a prompt, back to the page the visitor opened, the silent way - whatever comes back, nothing is said.
-    expect(client?.logins).toEqual([
-      expect.objectContaining({ prompt: 'none', silent: true, returnTo: '/' }),
-    ]);
+    expect(client?.logins).toEqual([expect.objectContaining({ prompt: 'none', silent: true, returnTo: '/' })]);
     // The marker that keeps a hint from going round: this value tried once.
-    expect(JSON.parse(localStorage.getItem('anotoki-auth:build-analyzer:hint') ?? 'null')).toEqual(
-      expect.objectContaining({ value: HINT }),
-    );
+    expect(JSON.parse(localStorage.getItem('anotoki-auth:build-analyzer:hint') ?? 'null')).toEqual(expect.objectContaining({ value: HINT }));
     // The page is leaving: no words are asked for, and the start never ends.
     expect(translations()).toEqual([]);
   });
 
   it('makes no hop for the same hint twice, nor while the site requires a sign-in, nor without the IAM knowing the site', async () => {
-    localStorage.setItem(
-      'anotoki-auth:build-analyzer:hint',
-      JSON.stringify({ value: HINT, at: Date.now() - 3_600_000 }),
-    );
+    localStorage.setItem('anotoki-auth:build-analyzer:hint', JSON.stringify({ value: HINT, at: Date.now() - 3_600_000 }));
     start(null, { cookie: `anotoki_signed_in=${HINT}` });
     site('ready');
     requests.expectOne('changelog.json').flush([]);
@@ -305,10 +275,7 @@ describe('the start of the app (app.config.ts)', () => {
     http.post('/api/imports/showcase', { game: 'genshin', uid: '700000001' }).subscribe();
     await settle();
     const first = requests.expectOne('/api/imports/showcase');
-    expect([
-      first.request.headers.has('Authorization'),
-      first.request.headers.has('X-Visitor-Key'),
-    ]).toEqual([false, false]);
+    expect([first.request.headers.has('Authorization'), first.request.headers.has('X-Visitor-Key')]).toEqual([false, false]);
     const key = 'V'.repeat(43);
     first.flush({ id: 1 }, { headers: { 'X-Visitor-Key': key } });
     await settle();
@@ -317,10 +284,7 @@ describe('the start of the app (app.config.ts)', () => {
     http.get('/api/accounts').subscribe();
     await settle();
     const next = requests.expectOne('/api/accounts');
-    expect([
-      next.request.headers.has('Authorization'),
-      next.request.headers.get('X-Visitor-Key'),
-    ]).toEqual([false, key]);
+    expect([next.request.headers.has('Authorization'), next.request.headers.get('X-Visitor-Key')]).toEqual([false, key]);
     next.flush([]);
   });
 
@@ -484,13 +448,8 @@ describe('the start of the app (app.config.ts)', () => {
     await settle();
 
     const [report] = requests.match('/api/client-errors');
-    expect([
-      report.request.headers.has('Authorization'),
-      report.request.headers.has('X-Visitor-Key'),
-    ]).toEqual([false, false]);
-    expect(report.request.body).toEqual(
-      expect.objectContaining({ type: 'Error', message: 'The dashboard broke' }),
-    );
+    expect([report.request.headers.has('Authorization'), report.request.headers.has('X-Visitor-Key')]).toEqual([false, false]);
+    expect(report.request.body).toEqual(expect.objectContaining({ type: 'Error', message: 'The dashboard broke' }));
     report.flush(null, { status: 204, statusText: 'No Content' });
     expect(requests.match('/api/client-errors')).toEqual([]);
   });

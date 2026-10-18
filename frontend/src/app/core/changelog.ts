@@ -65,10 +65,7 @@ export class Changelog {
     if (!current || (seen !== null && seenAlready(seen, current))) {
       return;
     }
-    const unseen =
-      seen === null
-        ? []
-        : this.entries().filter((entry) => (compareVersions(entry.version, seen) ?? 0) > 0);
+    const unseen = seen === null ? [] : this.entries().filter((entry) => (compareVersions(entry.version, seen) ?? 0) > 0);
     this.open(unseen.length > 0 ? unseen : this.entries().slice(0, 1));
   }
 

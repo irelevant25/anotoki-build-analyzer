@@ -38,11 +38,7 @@ function character(key: string, name: string, builds: number, sources: string[])
   return { key, name, element: 'pyro', rarity: 5, weapon_type: 'polearm', icon_url: null, released_at: null, builds, sources, changed_at: null };
 }
 
-const CHARACTERS = [
-  character('hutao', 'Hu Tao', 1, ['Source 1']),
-  character('xiangling', 'Xiangling', 3, ['Source 1', 'Source 2']),
-  character('bennett', 'Bennett', 7, ['Source 2']),
-];
+const CHARACTERS = [character('hutao', 'Hu Tao', 1, ['Source 1']), character('xiangling', 'Xiangling', 3, ['Source 1', 'Source 2']), character('bennett', 'Bennett', 7, ['Source 2'])];
 
 function builds(count: number): CharacterBuilds {
   return {

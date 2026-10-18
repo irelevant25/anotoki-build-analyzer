@@ -1,14 +1,7 @@
 import { Component, Injector, computed, inject, input, viewChild } from '@angular/core';
 import { Router, RouterLink } from '@angular/router';
 import { FeedbackUnread } from '@anotoki/lib/admin';
-import {
-  TopBarComponent as FamilyTopBar,
-  TopBarBrand,
-  TopBarLink,
-  TopBarMenuItem,
-  TopBarPerson,
-  TopBarPhoneMark,
-} from '@anotoki/lib/shell';
+import { TopBarComponent as FamilyTopBar, TopBarBrand, TopBarLink, TopBarMenuItem, TopBarPerson, TopBarPhoneMark } from '@anotoki/lib/shell';
 import { ConfirmService } from '@anotoki/lib/ui/dialog';
 import { IconComponent } from '@anotoki/lib/ui/icon';
 import { TooltipDirective } from '@anotoki/lib/ui/tooltip';
@@ -129,17 +122,9 @@ export class TopBar {
   private readonly bar = viewChild(FamilyTopBar);
 
   /** Where the bar folds: each row has its own width - the member pages', and the admin panel's (the ADMIN's nine sections, or an editor's two). */
-  protected readonly phoneMax = computed(() =>
-    this.area() === 'admin'
-      ? this.auth.isAdmin()
-        ? ADMIN_PHONE_BAR_MAX
-        : EDITOR_PHONE_BAR_MAX
-      : PHONE_BAR_MAX,
-  );
+  protected readonly phoneMax = computed(() => (this.area() === 'admin' ? (this.auth.isAdmin() ? ADMIN_PHONE_BAR_MAX : EDITOR_PHONE_BAR_MAX) : PHONE_BAR_MAX));
   /** Up to where the brand is the short one: the family's default (the fold) on the member pages, always in the admin panel. */
-  protected readonly shortBrandMax = computed(() =>
-    this.area() === 'admin' ? ADMIN_SHORT_BRAND_MAX : null,
-  );
+  protected readonly shortBrandMax = computed(() => (this.area() === 'admin' ? ADMIN_SHORT_BRAND_MAX : null));
 
   protected readonly brand = computed<TopBarBrand>(() =>
     this.area() === 'admin'
@@ -159,18 +144,11 @@ export class TopBar {
   );
 
   /** The feedback nobody has opened yet - beside Feedback, for the site's ADMIN; none when there is none (or no answer). */
-  private readonly newFeedback = computed(() =>
-    this.auth.isAdmin() ? this.unread.count() || null : null,
-  );
+  private readonly newFeedback = computed(() => (this.auth.isAdmin() ? this.unread.count() || null : null));
 
   /** The area's sections: everybody's in the app; in the admin panel the ones this editor or admin may open, none for anybody else. */
   protected readonly links = computed<TopBarLink[]>(() => {
-    const links =
-      this.area() === 'admin'
-        ? this.auth.isStaff()
-          ? ADMIN_LINKS.filter((link) => !link.admin || this.auth.isAdmin())
-          : []
-        : APP_LINKS;
+    const links = this.area() === 'admin' ? (this.auth.isStaff() ? ADMIN_LINKS.filter((link) => !link.admin || this.auth.isAdmin()) : []) : APP_LINKS;
     return links.map((link) => ({
       id: link.path,
       label: link.key ? this.i18n.t(link.key) : (link.label ?? ''),
@@ -181,9 +159,7 @@ export class TopBar {
   });
 
   /** The language chooser: where members read, with a choice to make. */
-  protected readonly chooser = computed(
-    () => this.area() === 'app' && !this.i18n.englishOnly() && this.i18n.languages().length > 1,
-  );
+  protected readonly chooser = computed(() => this.area() === 'app' && !this.i18n.englishOnly() && this.i18n.languages().length > 1);
   /** The sync this tab drives, for the people who may run one. */
   protected readonly syncing = computed(() => this.auth.isStaff() && this.sync.driving());
   /** The bar is a phone's (the family's bar decides, at the width given it). */
@@ -199,11 +175,7 @@ export class TopBar {
     return {
       name,
       email: user.email && user.email !== name ? user.email : null,
-      role: this.auth.isAdmin()
-        ? this.i18n.t('anotoki.topbar.roleAdmin')
-        : this.auth.isStaff()
-          ? this.i18n.t('anotoki.topbar.roleEditor')
-          : null,
+      role: this.auth.isAdmin() ? this.i18n.t('anotoki.topbar.roleAdmin') : this.auth.isStaff() ? this.i18n.t('anotoki.topbar.roleEditor') : null,
     };
   });
 
@@ -260,9 +232,7 @@ export class TopBar {
    * To the IAM and back to this page, its pages in the language read here; the failure's screen when it cannot
    * start. A promise: the bar's Sign in waits ("Saving…") while a visitor's save on its way gets its answer.
    */
-  protected readonly signIn = computed(() =>
-    this.auth.available() ? () => signInOrSayWhy(this.auth, this.router) : null,
-  );
+  protected readonly signIn = computed(() => (this.auth.available() ? () => signInOrSayWhy(this.auth, this.router) : null));
 
   /**
    * Signs out everywhere (the IAM ends its session). What is typed on the Translations and Languages pages and

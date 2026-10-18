@@ -38,9 +38,7 @@ describe('VisitorKey', () => {
     localStorage.clear();
     signedIn = signal(false);
     loginRequired = signal(false);
-    moveVisitor = vi.fn<(key: string, silent?: boolean) => Observable<VisitorMove>>(() =>
-      of(answer(0, 0, false)),
-    );
+    moveVisitor = vi.fn<(key: string, silent?: boolean) => Observable<VisitorMove>>(() => of(answer(0, 0, false)));
   });
 
   afterEach(() => {
@@ -76,16 +74,12 @@ describe('VisitorKey', () => {
       expect(visitor.key()).toBeNull();
 
       localStorage.setItem(VISITOR_STORAGE_KEY, KEY_A);
-      window.dispatchEvent(
-        new StorageEvent('storage', { key: VISITOR_STORAGE_KEY, newValue: KEY_A }),
-      );
+      window.dispatchEvent(new StorageEvent('storage', { key: VISITOR_STORAGE_KEY, newValue: KEY_A }));
       expect(visitor.key()).toBe(KEY_A);
       expect(visitor.active()).toBe(true);
 
       localStorage.removeItem(VISITOR_STORAGE_KEY);
-      window.dispatchEvent(
-        new StorageEvent('storage', { key: VISITOR_STORAGE_KEY, newValue: null }),
-      );
+      window.dispatchEvent(new StorageEvent('storage', { key: VISITOR_STORAGE_KEY, newValue: null }));
       expect(visitor.key()).toBeNull();
       expect(visitor.active()).toBe(false);
     });
@@ -174,7 +168,7 @@ describe('VisitorKey', () => {
   });
 
   describe('the move after a sign-in', () => {
-    it('moves the key held while the site requires a sign-in too: what the visitor imported becomes the person\'s', async () => {
+    it("moves the key held while the site requires a sign-in too: what the visitor imported becomes the person's", async () => {
       localStorage.setItem(VISITOR_STORAGE_KEY, KEY_A);
       loginRequired.set(true);
       moveVisitor.mockReturnValue(of(answer(1, 0)));
@@ -296,7 +290,7 @@ describe('VisitorKey', () => {
     });
   });
 
-  describe('the move after a silent sign-in (the IAM\'s hint)', () => {
+  describe("the move after a silent sign-in (the IAM's hint)", () => {
     it('says the sign-in was silent - the server then moves nothing into an account with data here', async () => {
       localStorage.setItem(VISITOR_STORAGE_KEY, KEY_A);
       localStorage.setItem(SIGN_IN_KIND_STORAGE_KEY, 'silent');
@@ -312,7 +306,7 @@ describe('VisitorKey', () => {
       expect(visitor.moved()).toEqual(answer(1, 0));
     });
 
-    it('held: the key stays this browser\'s, nothing is said or reloaded, and nothing is asked again in this page load', async () => {
+    it("held: the key stays this browser's, nothing is said or reloaded, and nothing is asked again in this page load", async () => {
       localStorage.setItem(VISITOR_STORAGE_KEY, KEY_A);
       localStorage.setItem(SIGN_IN_KIND_STORAGE_KEY, 'silent');
       moveVisitor.mockReturnValue(of(HELD));

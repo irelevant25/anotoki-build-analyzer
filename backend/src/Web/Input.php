@@ -66,7 +66,7 @@ final class Input
     public function string(string $field, bool $required = false, ?int $max = null, ?string $regex = null, ?string $regexMessage = null): ?string
     {
         $label = self::label($field);
-        if (! $this->filled($field)) {
+        if (!$this->filled($field)) {
             if ($required) {
                 $this->fail($field, "The {$label} field is required.");
             }
@@ -75,7 +75,7 @@ final class Input
         }
 
         $value = $this->data[$field];
-        if (! is_string($value)) {
+        if (!is_string($value)) {
             $this->fail($field, "The {$label} field must be a string.");
 
             return null;
@@ -85,7 +85,7 @@ final class Input
 
             return null;
         }
-        if ($regex !== null && ! preg_match($regex, $value)) {
+        if ($regex !== null && !preg_match($regex, $value)) {
             $this->fail($field, $regexMessage ?? "The {$label} field format is invalid.");
 
             return null;
@@ -98,7 +98,7 @@ final class Input
     public function integer(string $field, bool $required = false): ?int
     {
         $label = self::label($field);
-        if (! $this->filled($field)) {
+        if (!$this->filled($field)) {
             if ($required) {
                 $this->fail($field, "The {$label} field is required.");
             }
@@ -119,7 +119,7 @@ final class Input
     public function boolean(string $field, bool $required = false): ?bool
     {
         $label = self::label($field);
-        if (! $this->has($field) || $this->data[$field] === null || $this->data[$field] === '') {
+        if (!$this->has($field) || $this->data[$field] === null || $this->data[$field] === '') {
             if ($required) {
                 $this->fail($field, "The {$label} field is required.");
             }
@@ -141,9 +141,9 @@ final class Input
 
     public function game(string $field, bool $required = false): ?Game
     {
-        if (! $this->filled($field)) {
+        if (!$this->filled($field)) {
             if ($required) {
-                $this->fail($field, 'The '.self::label($field).' field is required.');
+                $this->fail($field, 'The ' . self::label($field) . ' field is required.');
             }
 
             return null;
@@ -151,7 +151,7 @@ final class Input
 
         $game = is_string($this->data[$field]) ? Game::tryFrom($this->data[$field]) : null;
         if ($game === null) {
-            $this->fail($field, 'The selected '.self::label($field).' is invalid.');
+            $this->fail($field, 'The selected ' . self::label($field) . ' is invalid.');
         }
 
         return $game;
@@ -164,11 +164,11 @@ final class Input
      */
     public function games(string $field): ?array
     {
-        if (! $this->has($field)) {
+        if (!$this->has($field)) {
             return null;
         }
-        if (! is_array($this->data[$field])) {
-            $this->fail($field, 'The '.self::label($field).' field must be an array.');
+        if (!is_array($this->data[$field])) {
+            $this->fail($field, 'The ' . self::label($field) . ' field must be an array.');
 
             return null;
         }

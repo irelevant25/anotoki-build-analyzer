@@ -26,7 +26,7 @@ final class SyncRuns
 
     public function find(int $id): ?SyncRun
     {
-        $row = $this->db->one(self::SELECT.' WHERE r.id = ?', [$id]);
+        $row = $this->db->one(self::SELECT . ' WHERE r.id = ?', [$id]);
 
         return $row === null ? null : SyncRun::fromRow($row);
     }
@@ -38,19 +38,19 @@ final class SyncRuns
      */
     public function active(): array
     {
-        return $this->many(self::SELECT." WHERE r.status = 'running' ORDER BY r.id");
+        return $this->many(self::SELECT . " WHERE r.status = 'running' ORDER BY r.id");
     }
 
     public function activeRun(string $kind, Game $game, ?int $sourceId = null): ?SyncRun
     {
-        $sql = self::SELECT." WHERE r.status = 'running' AND r.kind = ? AND r.game = ?";
+        $sql = self::SELECT . " WHERE r.status = 'running' AND r.kind = ? AND r.game = ?";
         $params = [$kind, $game->value];
         if ($sourceId !== null) {
             $sql .= ' AND r.build_source_id = ?';
             $params[] = $sourceId;
         }
 
-        $row = $this->db->one($sql.' ORDER BY r.id LIMIT 1', $params);
+        $row = $this->db->one($sql . ' ORDER BY r.id LIMIT 1', $params);
 
         return $row === null ? null : SyncRun::fromRow($row);
     }
@@ -89,13 +89,12 @@ final class SyncRuns
             $params[] = $kind;
         }
 
-        return $this->many(self::SELECT.($conditions ? ' WHERE '.implode(' AND ', $conditions) : '')
-            .' ORDER BY r.started_at DESC, r.id DESC LIMIT '.max(1, min(100, $limit)), $params);
+        return $this->many(self::SELECT . ($conditions ? ' WHERE ' . implode(' AND ', $conditions) : '') . ' ORDER BY r.started_at DESC, r.id DESC LIMIT ' . max(1, min(100, $limit)), $params);
     }
 
     public function latestFor(int $sourceId): ?SyncRun
     {
-        $row = $this->db->one(self::SELECT.' WHERE r.build_source_id = ? ORDER BY r.started_at DESC, r.id DESC LIMIT 1', [$sourceId]);
+        $row = $this->db->one(self::SELECT . ' WHERE r.build_source_id = ? ORDER BY r.started_at DESC, r.id DESC LIMIT 1', [$sourceId]);
 
         return $row === null ? null : SyncRun::fromRow($row);
     }
@@ -132,21 +131,25 @@ final class SyncRuns
     /** Writes what a step (or a cancel) changes. */
     public function save(SyncRun $run): void
     {
-        $this->db->update('sync_runs', [
-            'status' => $run->status,
-            'finished_at' => $run->finished_at,
-            'stats' => Json::column($run->stats),
-            'state' => Json::column($run->state),
-            'log' => $run->log,
-            'next_step_at' => $run->next_step_at,
-            'last_step_at' => $run->last_step_at,
-            'updated_at' => Clock::now(),
-        ], ['id' => $run->id]);
+        $this->db->update(
+            'sync_runs',
+            [
+                'status' => $run->status,
+                'finished_at' => $run->finished_at,
+                'stats' => Json::column($run->stats),
+                'state' => Json::column($run->state),
+                'log' => $run->log,
+                'next_step_at' => $run->next_step_at,
+                'last_step_at' => $run->last_step_at,
+                'updated_at' => Clock::now(),
+            ],
+            ['id' => $run->id],
+        );
     }
 
     /** @return list<SyncRun> */
     private function many(string $sql, array $params = []): array
     {
-        return array_map(fn (array $row) => SyncRun::fromRow($row), $this->db->all($sql, $params));
+        return array_map(fn(array $row) => SyncRun::fromRow($row), $this->db->all($sql, $params));
     }
 }

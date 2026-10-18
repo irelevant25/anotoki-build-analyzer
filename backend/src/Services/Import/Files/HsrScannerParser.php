@@ -14,33 +14,57 @@ use App\Support\MainStatValues;
 class HsrScannerParser
 {
     private const SLOTS = [
-        'Head' => 'head', 'Hands' => 'hands', 'Body' => 'body', 'Feet' => 'feet',
-        'Planar Sphere' => 'sphere', 'Link Rope' => 'rope',
+        'Head' => 'head',
+        'Hands' => 'hands',
+        'Body' => 'body',
+        'Feet' => 'feet',
+        'Planar Sphere' => 'sphere',
+        'Link Rope' => 'rope',
     ];
 
     /** Main stats: HP / ATK are flat only on Head / Hands; DEF is always a percentage. */
     private const MAIN = [
-        'SPD' => 'spd', 'DEF' => 'def_', 'CRIT Rate' => 'critRate_', 'CRIT DMG' => 'critDMG_',
-        'Effect Hit Rate' => 'effectHitRate_', 'Outgoing Healing Boost' => 'heal_',
-        'Break Effect' => 'breakEffect_', 'Energy Regeneration Rate' => 'energyRegen_',
-        'Physical DMG Boost' => 'physical_dmg_', 'Fire DMG Boost' => 'fire_dmg_', 'Ice DMG Boost' => 'ice_dmg_',
-        'Lightning DMG Boost' => 'lightning_dmg_', 'Wind DMG Boost' => 'wind_dmg_',
-        'Quantum DMG Boost' => 'quantum_dmg_', 'Imaginary DMG Boost' => 'imaginary_dmg_',
+        'SPD' => 'spd',
+        'DEF' => 'def_',
+        'CRIT Rate' => 'critRate_',
+        'CRIT DMG' => 'critDMG_',
+        'Effect Hit Rate' => 'effectHitRate_',
+        'Outgoing Healing Boost' => 'heal_',
+        'Break Effect' => 'breakEffect_',
+        'Energy Regeneration Rate' => 'energyRegen_',
+        'Physical DMG Boost' => 'physical_dmg_',
+        'Fire DMG Boost' => 'fire_dmg_',
+        'Ice DMG Boost' => 'ice_dmg_',
+        'Lightning DMG Boost' => 'lightning_dmg_',
+        'Wind DMG Boost' => 'wind_dmg_',
+        'Quantum DMG Boost' => 'quantum_dmg_',
+        'Imaginary DMG Boost' => 'imaginary_dmg_',
     ];
 
     /** Substats: a trailing "_" marks a percentage. OCR can drop it for stats that are always %. */
     private const SUB = [
-        'HP' => 'hp', 'ATK' => 'atk', 'DEF' => 'def', 'SPD' => 'spd',
-        'HP_' => 'hp_', 'ATK_' => 'atk_', 'DEF_' => 'def_',
-        'CRIT Rate_' => 'critRate_', 'CRIT DMG_' => 'critDMG_', 'Effect Hit Rate_' => 'effectHitRate_',
-        'Effect RES_' => 'effectRes_', 'Break Effect_' => 'breakEffect_',
-        'CRIT Rate' => 'critRate_', 'CRIT DMG' => 'critDMG_', 'Effect Hit Rate' => 'effectHitRate_',
-        'Effect RES' => 'effectRes_', 'Break Effect' => 'breakEffect_',
+        'HP' => 'hp',
+        'ATK' => 'atk',
+        'DEF' => 'def',
+        'SPD' => 'spd',
+        'HP_' => 'hp_',
+        'ATK_' => 'atk_',
+        'DEF_' => 'def_',
+        'CRIT Rate_' => 'critRate_',
+        'CRIT DMG_' => 'critDMG_',
+        'Effect Hit Rate_' => 'effectHitRate_',
+        'Effect RES_' => 'effectRes_',
+        'Break Effect_' => 'breakEffect_',
+        'CRIT Rate' => 'critRate_',
+        'CRIT DMG' => 'critDMG_',
+        'Effect Hit Rate' => 'effectHitRate_',
+        'Effect RES' => 'effectRes_',
+        'Break Effect' => 'breakEffect_',
     ];
 
     public static function matches(array $json): bool
     {
-        if (! isset($json['relics']) || ! is_array($json['relics'])) {
+        if (!isset($json['relics']) || !is_array($json['relics'])) {
             return false;
         }
 
@@ -52,7 +76,7 @@ class HsrScannerParser
 
     public function parse(array $json): ParsedAccount
     {
-        if (! self::matches($json)) {
+        if (!self::matches($json)) {
             throw new ImportException('This is not a Star Rail inventory export (it has no "relics" and "light_cones").', 'hsr_not_export');
         }
 
@@ -60,7 +84,7 @@ class HsrScannerParser
             game: Game::Hsr,
             source: 'hsr_scanner',
             fullInventory: true,
-            uid: ! empty($json['metadata']['uid']) ? (string) $json['metadata']['uid'] : null,
+            uid: !empty($json['metadata']['uid']) ? (string) $json['metadata']['uid'] : null,
             meta: [
                 'tool' => $json['source'] ?? 'unknown',
                 'tool_version' => $json['build'] ?? null,
@@ -71,18 +95,21 @@ class HsrScannerParser
 
         foreach ($json['characters'] ?? [] as $character) {
             $ref = $this->ref($character['id'] ?? null, $character['name'] ?? ($character['key'] ?? null));
-            if (! $ref) {
+            if (!$ref) {
                 continue;
             }
             $skills = $character['skills'] ?? [];
-            $talents = array_filter([
-                'basic' => $skills['basic'] ?? null,
-                'skill' => $skills['skill'] ?? null,
-                'ultimate' => $skills['ult'] ?? null,
-                'talent' => $skills['talent'] ?? null,
-                'memo_skill' => $character['memosprite']['skill'] ?? null,
-                'memo_talent' => $character['memosprite']['talent'] ?? null,
-            ], fn ($level) => $level !== null);
+            $talents = array_filter(
+                [
+                    'basic' => $skills['basic'] ?? null,
+                    'skill' => $skills['skill'] ?? null,
+                    'ultimate' => $skills['ult'] ?? null,
+                    'talent' => $skills['talent'] ?? null,
+                    'memo_skill' => $character['memosprite']['skill'] ?? null,
+                    'memo_talent' => $character['memosprite']['talent'] ?? null,
+                ],
+                fn($level) => $level !== null,
+            );
 
             $account->characters[] = [
                 'ref' => $ref,
@@ -96,7 +123,7 @@ class HsrScannerParser
 
         foreach ($json['light_cones'] ?? [] as $cone) {
             $ref = $this->ref($cone['id'] ?? null, $cone['name'] ?? ($cone['key'] ?? null));
-            if (! $ref) {
+            if (!$ref) {
                 continue;
             }
             $account->weapons[] = [
@@ -115,7 +142,7 @@ class HsrScannerParser
             $slot = self::SLOTS[$relic['slot'] ?? ''] ?? null;
             $main = $slot ? $this->mainStat($slot, (string) ($relic['mainstat'] ?? '')) : null;
             $set = $this->ref($relic['set_id'] ?? null, $relic['set'] ?? ($relic['name'] ?? null));
-            if (! $slot || ! $main || ! $set) {
+            if (!$slot || !$main || !$set) {
                 $skipped++;
 
                 continue;

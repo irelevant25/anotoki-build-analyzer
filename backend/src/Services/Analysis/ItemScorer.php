@@ -37,7 +37,7 @@ final class ItemScorer
         }
 
         foreach (Stats::FLAT_TO_PERCENT as $flat => $percent) {
-            if (isset($weights[$percent]) && ! isset($weights[$flat])) {
+            if (isset($weights[$percent]) && !isset($weights[$flat])) {
                 $weights[$flat] = round($weights[$percent] * self::FLAT_FACTOR[$game->value], 3);
             }
         }
@@ -168,7 +168,7 @@ final class ItemScorer
         }
         if ($game === Game::Hsr) {
             $result[] = ['stat' => 'spd', 'priority' => $result === [] ? 1 : 2];
-        } elseif (! isset($mainKeys['enerRech_'])) {
+        } elseif (!isset($mainKeys['enerRech_'])) {
             $result[] = ['stat' => 'enerRech_', 'priority' => 3];
         }
 

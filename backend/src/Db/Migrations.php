@@ -56,7 +56,7 @@ final class Migrations
 
     public static function directory(): string
     {
-        return dirname(__DIR__, 2).'/migrations';
+        return dirname(__DIR__, 2) . '/migrations';
     }
 
     /** This site's own set of files: backend/migrations, or a folder of a test's own. */
@@ -74,9 +74,7 @@ final class Migrations
      */
     public static function sets(?string $directory = null, bool $library = true): array
     {
-        return $library
-            ? [AdminSchema::migrationSet(), self::set($directory), TranslationsSchema::migrationSet(), PeopleSchema::migrationSet()]
-            : [self::set($directory)];
+        return $library ? [AdminSchema::migrationSet(), self::set($directory), TranslationsSchema::migrationSet(), PeopleSchema::migrationSet()] : [self::set($directory)];
     }
 
     /**
@@ -95,14 +93,14 @@ final class Migrations
     {
         return new Migrator($pdo, self::sets($directory, $library), [
             'lock' => self::LOCK,
-            ...($beforeApply === null ? [] : ['beforeApply' => $beforeApply]),
+            ...$beforeApply === null ? [] : ['beforeApply' => $beforeApply],
             'prepare' => static function (PDO $pdo): void {
                 self::moveLaravelTableAside($pdo);
             },
             'beforeFile' => static function (PDO $pdo) use ($settings): void {
                 foreach ($settings as $name => $value) {
                     // Local to the file's transaction (the third argument): nothing outlives it.
-                    $pdo->prepare('SELECT set_config(?, ?, true)')->execute(['build_analyzer.'.$name, (string) $value]);
+                    $pdo->prepare('SELECT set_config(?, ?, true)')->execute(['build_analyzer.' . $name, (string) $value]);
                 }
             },
         ]);
@@ -115,11 +113,9 @@ final class Migrations
      */
     public static function moveLaravelTableAside(PDO $pdo): bool
     {
-        $columns = $pdo->query(
-            "SELECT column_name FROM information_schema.columns WHERE table_schema = current_schema() AND table_name = 'migrations'"
-        )->fetchAll(PDO::FETCH_COLUMN);
+        $columns = $pdo->query("SELECT column_name FROM information_schema.columns WHERE table_schema = current_schema() AND table_name = 'migrations'")->fetchAll(PDO::FETCH_COLUMN);
 
-        if (! in_array('batch', $columns, true) || in_array('filename', $columns, true)) {
+        if (!in_array('batch', $columns, true) || in_array('filename', $columns, true)) {
             return false;
         }
 
@@ -153,7 +149,11 @@ final class Migrations
      */
     public static function isLaravelDatabase(PDO $pdo): bool
     {
-        return (bool) $pdo->query("SELECT to_regclass('public.laravel_migrations') IS NOT NULL
-            OR EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema = current_schema() AND table_name = 'migrations' AND column_name = 'batch')")->fetchColumn();
+        return (bool) $pdo
+            ->query(
+                "SELECT to_regclass('public.laravel_migrations') IS NOT NULL
+            OR EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema = current_schema() AND table_name = 'migrations' AND column_name = 'batch')",
+            )
+            ->fetchColumn();
     }
 }

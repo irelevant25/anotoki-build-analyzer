@@ -32,8 +32,7 @@ export function provideFeedback(): EnvironmentProviders {
     return {
       language: () => i18n.effectiveLanguage(),
       translate: (key: string) => i18n.libraryWord(key),
-      sections: () =>
-        FEEDBACK_SECTIONS.map((section) => ({ value: section.value, label: i18n.t(section.key) })),
+      sections: () => FEEDBACK_SECTIONS.map((section) => ({ value: section.value, label: i18n.t(section.key) })),
       signedIn: () => auth.signedIn(),
       email: () => auth.user()?.email ?? null,
     };

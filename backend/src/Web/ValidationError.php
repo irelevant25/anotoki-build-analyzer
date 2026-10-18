@@ -13,8 +13,7 @@ final class ValidationError extends HttpError
     {
         $messages = array_merge(...array_values($errors));
         $more = count($messages) - 1;
-        $message = ($messages[0] ?? 'The given data was invalid.')
-            .($more > 0 ? " (and {$more} more error".($more === 1 ? '' : 's').')' : '');
+        $message = ($messages[0] ?? 'The given data was invalid.') . ($more > 0 ? " (and {$more} more error" . ($more === 1 ? '' : 's') . ')' : '');
 
         parent::__construct(422, $message, ['code' => 'invalid', 'errors' => $errors]);
     }

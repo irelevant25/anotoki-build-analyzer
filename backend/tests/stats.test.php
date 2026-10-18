@@ -7,7 +7,7 @@
 
 declare(strict_types=1);
 
-require __DIR__.'/lib.php';
+require __DIR__ . '/lib.php';
 
 use App\Enums\Game;
 use App\Support\Key;
@@ -62,31 +62,33 @@ foreach ($hsrLabels as [$label, $expected]) {
 }
 
 test('a priority list keeps ties together', function () {
-    same([
-        ['stat' => 'critRate_', 'priority' => 1],
-        ['stat' => 'critDMG_', 'priority' => 1],
-        ['stat' => 'atk_', 'priority' => 2],
-        ['stat' => 'enerRech_', 'priority' => 3],
-        ['stat' => 'eleMas', 'priority' => 3],
-    ], Stats::parsePriorityList(Game::Genshin, 'CRIT Rate = CRIT DMG > ATK% > Energy Recharge / EM'), 'priorities');
+    same(
+        [
+            ['stat' => 'critRate_', 'priority' => 1],
+            ['stat' => 'critDMG_', 'priority' => 1],
+            ['stat' => 'atk_', 'priority' => 2],
+            ['stat' => 'enerRech_', 'priority' => 3],
+            ['stat' => 'eleMas', 'priority' => 3],
+        ],
+        Stats::parsePriorityList(Game::Genshin, 'CRIT Rate = CRIT DMG > ATK% > Energy Recharge / EM'),
+        'priorities',
+    );
 });
 
 test('a priority list strips notes and reads a combined crit', function () {
-    same([
-        ['stat' => 'effectHitRate_', 'priority' => 1],
-        ['stat' => 'spd', 'priority' => 2],
-        ['stat' => 'critRate_', 'priority' => 3],
-        ['stat' => 'critDMG_', 'priority' => 3],
-    ], Stats::parsePriorityList(Game::Hsr, 'Effect Hit Rate (Until 75%) > SPD >= Crit Rate/DMG'), 'priorities');
+    same(
+        [['stat' => 'effectHitRate_', 'priority' => 1], ['stat' => 'spd', 'priority' => 2], ['stat' => 'critRate_', 'priority' => 3], ['stat' => 'critDMG_', 'priority' => 3]],
+        Stats::parsePriorityList(Game::Hsr, 'Effect Hit Rate (Until 75%) > SPD >= Crit Rate/DMG'),
+        'priorities',
+    );
 });
 
 test('an ordered list pairs adjacent crit stats', function () {
-    same([
-        ['stat' => 'enerRech_', 'priority' => 1],
-        ['stat' => 'critDMG_', 'priority' => 2],
-        ['stat' => 'critRate_', 'priority' => 2],
-        ['stat' => 'atk_', 'priority' => 3],
-    ], Stats::ordered(Game::Genshin, ['Energy Recharge', 'CRIT DMG', 'CRIT Rate', 'ATK%']), 'priorities');
+    same(
+        [['stat' => 'enerRech_', 'priority' => 1], ['stat' => 'critDMG_', 'priority' => 2], ['stat' => 'critRate_', 'priority' => 2], ['stat' => 'atk_', 'priority' => 3]],
+        Stats::ordered(Game::Genshin, ['Energy Recharge', 'CRIT DMG', 'CRIT Rate', 'ATK%']),
+        'priorities',
+    );
 });
 
 test('the elemental placeholder becomes the character\'s element', function () {
@@ -95,17 +97,13 @@ test('the elemental placeholder becomes the character\'s element', function () {
 });
 
 test('talent priorities', function () {
-    same([
-        ['talent' => 'ultimate', 'priority' => 1],
-        ['talent' => 'skill', 'priority' => 1],
-        ['talent' => 'talent', 'priority' => 2],
-        ['talent' => 'basic', 'priority' => 3],
-    ], Talents::parsePriority(Game::Hsr, 'Ultimate = Skill > Talent > Basic'), 'Star Rail');
+    same(
+        [['talent' => 'ultimate', 'priority' => 1], ['talent' => 'skill', 'priority' => 1], ['talent' => 'talent', 'priority' => 2], ['talent' => 'basic', 'priority' => 3]],
+        Talents::parsePriority(Game::Hsr, 'Ultimate = Skill > Talent > Basic'),
+        'Star Rail',
+    );
 
-    same([
-        ['talent' => 'skill', 'priority' => 1],
-        ['talent' => 'burst', 'priority' => 2],
-    ], Talents::parsePriority(Game::Genshin, 'Skill >> Burst'), 'Genshin');
+    same([['talent' => 'skill', 'priority' => 1], ['talent' => 'burst', 'priority' => 2]], Talents::parsePriority(Game::Genshin, 'Skill >> Burst'), 'Genshin');
 });
 
 test('keys are normalized names', function () {

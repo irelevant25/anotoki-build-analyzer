@@ -33,21 +33,13 @@ describe("the account's date orders and clocks (the anotoki family's, as the IAM
   });
 
   it('writes a moment as the day and its time, each the account’s where chosen and the page’s own where not', () => {
-    expect(
-      chosenMoment(afternoon, { date_format: 'ymd_dash', time_format: '24' }, 'en-GB', OWN),
-    ).toBe('2026-10-06 14:30');
-    expect(
-      chosenMoment(afternoon, { date_format: 'dmy_dot', time_format: null }, 'en-GB', OWN),
-    ).toBe('6.10.2026 own time');
-    expect(chosenMoment(afternoon, { date_format: null, time_format: '12' }, 'en-GB', OWN)).toMatch(
-      /^own day 2:30\s?pm$/i,
-    );
+    expect(chosenMoment(afternoon, { date_format: 'ymd_dash', time_format: '24' }, 'en-GB', OWN)).toBe('2026-10-06 14:30');
+    expect(chosenMoment(afternoon, { date_format: 'dmy_dot', time_format: null }, 'en-GB', OWN)).toBe('6.10.2026 own time');
+    expect(chosenMoment(afternoon, { date_format: null, time_format: '12' }, 'en-GB', OWN)).toMatch(/^own day 2:30\s?pm$/i);
   });
 
   it('leaves the whole moment to the page when nothing is chosen, or there is no account to ask', () => {
-    expect(
-      chosenMoment(afternoon, { date_format: null, time_format: null }, 'en-GB', OWN),
-    ).toBeNull();
+    expect(chosenMoment(afternoon, { date_format: null, time_format: null }, 'en-GB', OWN)).toBeNull();
     expect(chosenMoment(afternoon, null, 'en-GB', OWN)).toBeNull();
   });
 });
