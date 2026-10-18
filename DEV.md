@@ -129,10 +129,11 @@ longer read and can be deleted.
 
 What the anotoki sites share lives in one library, [irelevant25/anotoki-lib](https://github.com/irelevant25/anotoki-lib),
 in two halves with one version: the Composer package `anotoki/lib` (`backend/composer.json`: a `vcs` repository
-entry and `"anotoki/lib": "^0.6.0"`; installed into `backend/vendor/`, which the upload carries) and the npm
-package `@anotoki/lib` (`frontend/package.json`: the release's tarball). Both halves are 0.6.3 (0.6.0: the legal
+entry and `"anotoki/lib": "^0.7.0"`; installed into `backend/vendor/`, which the upload carries) and the npm
+package `@anotoki/lib` (`frontend/package.json`: the release's tarball). Both halves are 0.7.0 (0.6.0: the legal
 pages - Terms, Privacy, Contact - and the kit's newer pieces; 0.6.1 and 0.6.2: the Privacy page's sentences made
-true on every site; 0.6.3: the family's footer, this site's own made the library's). A minor version is taken by
+true on every site; 0.6.3: the family's footer, this site's own made the library's; 0.7.0: the library's folders
+renamed - its PHP half's files are under `vendor/anotoki/lib/backend/`). A minor version is taken by
 hand while the version is 0.x: `^0.5.0` never took 0.6 by itself;
 never 0.4.0, whose Feedback page fails on PHP 8.2. Besides the translations
 module, the auth module (signing in through the anotoki IAM: the token check, the IAM's switch, the browser's
@@ -199,7 +200,7 @@ fails a test on any request it was not told about. IAM tokens are signed by the 
 (`Anotoki\Lib\Auth\Testing\TestIam`: its key, its tokens - `iamToken()` - and its answers as files - whether
 sign-in is required, `iamRequiresSignIn()`, false unless a test says otherwise; the accounts it deleted);
 `tests/stand_in_iam.test.php` signs in through the library's stand-in IAM
-(`vendor/anotoki/lib/php/testing/stand-in-iam.php`, run as `php -S` on a throwaway port 8590-8599 and stopped
+(`vendor/anotoki/lib/backend/testing/stand-in-iam.php`, run as `php -S` on a throwaway port 8590-8599 and stopped
 at the end) as a browser would, reads whether sign-in is required from it (the library's `SignInRule`: kept a
 minute, 404 = required, out of reach = the last answer), its sign-in hint, and the accounts it deleted (the
 scrub). `setup.test.php`

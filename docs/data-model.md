@@ -1,7 +1,7 @@
 # Data model
 
 The schema is `backend/migrations/*.sql` - the set `build_analyzer` - with the anotoki library's own sets
-around it, in this order (the library's README): `anotoki_admin` first (`vendor/anotoki/lib/php/migrations/admin`:
+around it, in this order (the library's README): `anotoki_admin` first (`vendor/anotoki/lib/backend/migrations/admin`:
 the audit log's and feedback's tables), then this site's, then `anotoki_translations` (`…/translations`: the
 check of the words' tables and the library's words, since version 0.4.0) and `anotoki_people` (`…/people`: where
 the scrub of the IAM's deleted accounts stands), applied in order by one engine - the anotoki family's (anotoki-lib's

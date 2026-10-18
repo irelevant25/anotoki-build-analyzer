@@ -559,10 +559,10 @@ test('006\'s gate refuses a database whose keys are not the ones it expects - an
  */
 const VERSION_04_FILES = ['007_people.sql', '008_drop_laravel_leftovers.sql', '009_sign_in_and_feedback_words.sql', '010_top_bar_words_through_the_library.sql', LEGAL_PAGES_FILE, KIT_PIECES_FILE, FOOTER_FILE];
 
-/** How many keys the library's set writes in all: every key of its words file (anotoki-lib's php/resources/library-words.json). */
+/** How many keys the library's set writes in all: every key of its words file (anotoki-lib's backend/resources/library-words.json). */
 function libraryKeyCount(): int
 {
-    $words = json_decode((string) file_get_contents(dirname(__DIR__).'/vendor/anotoki/lib/php/resources/library-words.json'), true);
+    $words = json_decode((string) file_get_contents(dirname(__DIR__).'/vendor/anotoki/lib/backend/resources/library-words.json'), true);
 
     return count((array) ($words['keys'] ?? []));
 }

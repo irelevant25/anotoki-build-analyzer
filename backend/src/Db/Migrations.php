@@ -23,7 +23,7 @@ use PDO;
  * Nothing un-applies anything.
  *
  * - Four sets of files, in this order (the anotoki library's README gives it): the library's admin tools'
- *   (`anotoki_admin`, anotoki/lib's php/migrations/admin: the audit log's and feedback's tables, which no file
+ *   (`anotoki_admin`, anotoki/lib's backend/migrations/admin: the audit log's and feedback's tables, which no file
  *   of this site's makes - first, as in every anotoki site, so a site's own file may build on them); this
  *   site's own (`build_analyzer`, backend/migrations); the library's translations set (`anotoki_translations`:
  *   its 001 proves the shape of the three tables of the site's words, which this site's 003 made, and its

@@ -1,7 +1,7 @@
 <?php
 
 /**
- * Signing in through the anotoki family's stand-in IAM (the anotoki library's php/testing/stand-in-iam.php, in
+ * Signing in through the anotoki family's stand-in IAM (the anotoki library's backend/testing/stand-in-iam.php, in
  * vendor/), the way a browser does: discovery, the authorize redirect with PKCE, the code for tokens, a refresh -
  * and the access token it hands out is let into this API by the same checker that checks the real IAM's (the
  * library's AccessTokens), its keys downloaded from the stand-in - its public answer about the application,
