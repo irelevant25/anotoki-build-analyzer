@@ -41,7 +41,14 @@
 -- copy of them stays behind.
 --
 -- Once applied anywhere, this file is never edited again: a later change is
--- a migration of its own.
+-- a migration of its own. One correction was made before it ever applied on
+-- the live database (2026-10-18): the gate's two lists of tables are sorted
+-- alike now (COLLATE "C"). The live database's collation, en_US.utf8, sorts
+-- text without the underscore ("accounts" before "account_weapons") while
+-- pg_class.relname, of the type name, always sorts byte by byte, so the same
+-- tables came out in two orders and the gate refused the Apply, which rolled
+-- back whole. What the file does is unchanged; a database that applied it
+-- before is as this one leaves it.
 -- ============================================================================
 
 -- What there is now, for the gate below: every table of this schema, with its rows.
@@ -94,10 +101,11 @@ BEGIN
         RAISE EXCEPTION 'Still here: %', still_here;
     END IF;
 
-    SELECT array_agg(c.relname::TEXT ORDER BY c.relname) INTO now_tables
+    -- Both lists in the same order whatever the database's collation: byte by byte.
+    SELECT array_agg(c.relname::TEXT ORDER BY c.relname::TEXT COLLATE "C") INTO now_tables
       FROM pg_class c JOIN pg_namespace ns ON ns.oid = c.relnamespace
      WHERE ns.nspname = current_schema() AND c.relkind IN ('r', 'p');
-    SELECT array_agg(name ORDER BY name) INTO kept_tables
+    SELECT array_agg(name ORDER BY name COLLATE "C") INTO kept_tables
       FROM laravel_leftovers_before
      WHERE name <> ALL (gone);
     IF now_tables IS DISTINCT FROM kept_tables THEN
