@@ -110,6 +110,11 @@ the site is closed to everybody but its ADMIN on the Migrations page (the site g
   badge), in English and informal Slovak, and deletes `stepper.completed` with its strings - the kit's stepper
   says a step is done in the library's words (`anotoki.stepper.*`, its 007). Gated: both keys in both languages,
   the old one gone, and the site's own keys (485 + 2 - 1 = 486).
+- `013_footer_words_through_the_library.sql` (anotoki-lib 0.6.3: the family's footer in the site's own's place)
+  moves `footer.version`, `footer.feedback` and `footer.fanMade` to `anotoki.footer.version`, `feedback` and
+  `fanHoyoverse`, and copies `whatsNew.title` (which stays) to `anotoki.footer.whatsNew` - 010's way: every string,
+  writer and time, never over an owner's rewording of the library's key. Gated: the same, the three gone, and the
+  site's own keys (486 - 3 = 483). Then the library's `anotoki_translations/012` (the four keys' descriptions).
 
 Rules: never edit a migration that has run somewhere; add `NNN_what.sql`. A migration runs in one transaction
 (PostgreSQL DDL is transactional), so a failing one leaves nothing behind. A migration that changes data ends

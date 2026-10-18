@@ -2,8 +2,12 @@ import { Component, signal } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
 import { Router, provideRouter } from '@angular/router';
 import { FeedbackUnread } from '@anotoki/lib/admin';
+import { SiteStatus } from '@anotoki/lib/migrations';
 import { provideTestTranslations } from '@anotoki/lib/translations/testing';
 import { AuthService } from '../../core/auth';
+import { Changelog } from '../../core/changelog';
+import { TranslationService } from '../../core/i18n/translation';
+import { provideKit } from '../../core/kit';
 import { SyncDriver } from '../../core/sync-driver';
 import { AdminLayout } from './admin-layout';
 
@@ -15,16 +19,21 @@ interface Who {
   roles?: string[];
   /** How many feedback messages nobody opened yet (FeedbackUnread), as the server would say. */
   unread?: number | null;
+  /** A database update waits (the ADMIN on the Migrations page has the panel then). */
+  updateWaits?: boolean;
 }
 
 async function open(who: Who): Promise<{
   host: HTMLElement;
   auth: { login: ReturnType<typeof vi.fn> };
   unread: { count: ReturnType<typeof signal<number | null>>; refresh: ReturnType<typeof vi.fn> };
+  changelog: { open: ReturnType<typeof vi.fn> };
 }> {
   const roles = who.roles ?? [];
   const auth = {
     signedIn: signal(who.signedIn ?? true),
+    // The panel is never shown to a visitor: a session that ended there is signed out.
+    visiting: signal(false),
     isAdmin: signal(roles.includes('ADMIN')),
     isStaff: signal(roles.includes('ADMIN') || roles.includes('EDITOR')),
     available: signal(true),
@@ -45,20 +54,27 @@ async function open(who: Who): Promise<{
     count,
     refresh: vi.fn(async () => count.set(who.unread ?? null)),
   };
+  const changelog = { current: signal('0.4.0'), open: vi.fn() };
   TestBed.configureTestingModule({
     providers: [
       // The layout is the component under test: the route only gives its outlet a page.
       provideRouter([{ path: 'admin/sources', component: TestPage }]),
       provideTestTranslations({}, { language: 'sk', english: {} }),
+      // The kit's words - the footer's among them - in the language the page reads.
+      provideKit(),
       { provide: AuthService, useValue: auth },
       { provide: FeedbackUnread, useValue: unread },
       { provide: SyncDriver, useValue: { driving: signal(false) } },
+      { provide: Changelog, useValue: changelog },
+      { provide: SiteStatus, useValue: { blocked: signal(who.updateWaits ?? false) } },
     ],
   });
+  // The admin panel reads English whatever the reader reads (the title strategy tells the service where it is).
+  TestBed.inject(TranslationService).noteAddress('/admin/sources');
   const fixture = TestBed.createComponent(AdminLayout);
   await TestBed.inject(Router).navigateByUrl('/admin/sources');
   await fixture.whenStable();
-  return { host: fixture.nativeElement, auth, unread };
+  return { host: fixture.nativeElement, auth, unread, changelog };
 }
 
 const text = (element: Element | null | undefined) =>
@@ -83,10 +99,45 @@ describe("the admin panel's frame", () => {
     // The family's frame: its bar on top, the page in <main>, the footer below - no side navigation.
     expect(host.querySelector('anotoki-shell app-top-bar anotoki-top-bar')).not.toBeNull();
     expect(host.querySelector('anotoki-shell main#main .the-page')).not.toBeNull();
-    expect(host.querySelector('anotoki-shell app-footer')).not.toBeNull();
+    expect(host.querySelector('anotoki-shell anotoki-site-footer')).not.toBeNull();
+    expect(host.querySelector('main anotoki-site-footer')).toBeNull();
     expect(host.querySelector('.anotoki-shell__sidenav')).toBeNull();
     // The admin tools are the ADMIN's: nobody asks the server what is new for an editor.
     expect(unread.refresh).not.toHaveBeenCalled();
+  });
+
+  it("has the family's footer, in English as the panel is: the version, What's new - the site's own -, Feedback, Terms · Privacy · Contact and the fan clause", async () => {
+    const { host, changelog } = await open({ roles: ['ADMIN'] });
+
+    const footer = host.querySelector('anotoki-site-footer')!;
+    expect([...footer.querySelectorAll('.anotoki-site-footer__row > *')].map(text)).toEqual([
+      'Version 0.4.0',
+      '·',
+      "What's new",
+      '·',
+      'Feedback',
+    ]);
+    expect([...footer.querySelectorAll('anotoki-legal-links a')].map(text)).toEqual([
+      'Terms',
+      'Privacy',
+      'Contact',
+    ]);
+    expect(text(footer.querySelector('[data-fan]'))).toBe(
+      'This site is a fan-made project and is not affiliated with or endorsed by HoYoverse.',
+    );
+    footer.querySelector<HTMLButtonElement>('[data-whats-new]')!.click();
+    expect(changelog.open).toHaveBeenCalledTimes(1);
+  });
+
+  it('offers no Feedback where no message can be sent: a session that ended ("You are signed out"), or an update waiting', async () => {
+    const feedback = (host: HTMLElement) => host.querySelector('[data-open-feedback]');
+
+    expect(feedback((await open({ signedIn: false })).host)).toBeNull();
+    TestBed.resetTestingModule();
+    expect(feedback((await open({ roles: ['ADMIN'], updateWaits: true })).host)).toBeNull();
+    // Somebody signed in with no role here may still send one.
+    TestBed.resetTestingModule();
+    expect(feedback((await open({ roles: ['MEMBER'] })).host)).not.toBeNull();
   });
 
   it("gives an admin every section - Languages, People, Migrations and the family's admin tools too", async () => {

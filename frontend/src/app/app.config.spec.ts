@@ -41,11 +41,11 @@ const IAM_META: Meta = {
   },
 };
 
-const ENGLISH = { 'footer.feedback': 'Reply' };
+const ENGLISH = { 'whatsNew.title': 'News' };
 const SK_BUNDLE: TranslationBundle = {
   language: 'sk',
   languages: TEST_LANGUAGES,
-  values: { 'footer.feedback': 'Spätná väzba' },
+  values: { 'whatsNew.title': 'Čo je nové' },
   english: ENGLISH,
 };
 const EN_BUNDLE: TranslationBundle = { language: 'en', languages: TEST_LANGUAGES, values: ENGLISH };
@@ -140,7 +140,7 @@ describe('the start of the app (app.config.ts)', () => {
 
     const i18n = TestBed.inject(TranslationService);
     expect(i18n.ready()).toBe(true);
-    expect(i18n.t('footer.feedback')).toBe('Reply');
+    expect(i18n.t('whatsNew.title')).toBe('News');
     // The Router builds the title strategy, which needs the service: no circle.
     expect(TestBed.inject(Router)).toBeTruthy();
     expect(TestBed.inject(TitleStrategy)).toBeInstanceOf(AppTitleStrategy);
@@ -203,7 +203,7 @@ describe('the start of the app (app.config.ts)', () => {
 
     expect(TestBed.inject(AuthService).displayName()).toBe('mona');
     expect(TestBed.inject(TranslationService).language()).toBe('sk');
-    expect(TestBed.inject(TranslationService).t('footer.feedback')).toBe('Spätná väzba');
+    expect(TestBed.inject(TranslationService).t('whatsNew.title')).toBe('Čo je nové');
     TestBed.tick();
     expect(document.documentElement.lang).toBe('sk');
   });
@@ -343,7 +343,7 @@ describe('the start of the app (app.config.ts)', () => {
     const i18n = TestBed.inject(TranslationService);
     expect(i18n.ready()).toBe(false);
     expect(i18n.t('common.cancel')).toBe('Cancel');
-    expect(i18n.t('footer.feedback')).toBe('Feedback');
+    expect(i18n.t('whatsNew.title')).toBe("What's new");
     const status = TestBed.inject(SiteStatus);
     expect([status.state(), status.installed()]).toEqual(['not-set-up', false]);
     expect(TestBed.inject(AnotokiAuth).state()).toBe('unavailable');
@@ -359,7 +359,7 @@ describe('the start of the app (app.config.ts)', () => {
 
     expect(translations()).toEqual([]);
     expect(TestBed.inject(TranslationService).language()).toBe('sk');
-    expect(TestBed.inject(TranslationService).t('footer.feedback')).toBe('Spätná väzba');
+    expect(TestBed.inject(TranslationService).t('whatsNew.title')).toBe('Čo je nové');
     expect(TestBed.inject(SiteStatus).state()).toBe('unavailable');
   });
 
@@ -401,7 +401,7 @@ describe('the start of the app (app.config.ts)', () => {
     expect(translations()).toEqual([]);
     const i18n = TestBed.inject(TranslationService);
     expect(i18n.ready()).toBe(false);
-    expect(i18n.t('footer.feedback')).toBe('Feedback');
+    expect(i18n.t('whatsNew.title')).toBe("What's new");
     expect(i18n.languages()).toEqual([]);
     expect(TestBed.inject(SiteStatus).state()).toBe('update-pending');
   });

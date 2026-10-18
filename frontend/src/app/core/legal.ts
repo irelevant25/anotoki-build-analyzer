@@ -22,8 +22,9 @@ export const SITE_LEGAL_WORDS: Readonly<Record<string, TranslationKey>> = {
 
 /**
  * How this site plugs into the anotoki family's legal pages (@anotoki/lib/legal, anotoki-lib 0.6.0: Terms, Privacy
- * and Contact on the lazy routes /terms, /privacy and /contact - app.routes.ts - and the footer's links to them,
- * layouts/footer). provideAnotokiLegal() runs it in an injection context.
+ * and Contact on the lazy routes /terms, /privacy and /contact - app.routes.ts - and the links to them in the
+ * family's footer, <anotoki-site-footer> in layouts/app-layout and layouts/admin-layout). provideAnotokiLegal() runs
+ * it in an injection context.
  *
  * - The language: the one on the page (English in the admin panel, as the panel is - effectiveLanguage()).
  * - The words: the library's (`anotoki.legal.*`, `anotoki.legalLinks.*`) - the database's string of a library key,

@@ -9,7 +9,8 @@
  *
  * The library's own words (anotoki.*) are the library's: its migration set writes them, its tests hold them to
  * its words file, and its code asks for them - nothing here counts them, but where this site moved its own
- * strings under them (006: the language button's two; 010: the top bar's, when the family's bar took its place).
+ * strings under them (006: the language button's two; 010: the top bar's, when the family's bar took its place; 013:
+ * the footer's, when the family's footer took its place).
  *
  * Nothing here changes what the migrations left.
  */
@@ -36,6 +37,12 @@ const ADOPTION = '006_strings_through_the_library.sql';
 
 /** The file that moved the top bar's words under the library's keys, when the family's bar took the site's place. */
 const BAR_WORDS = '010_top_bar_words_through_the_library.sql';
+
+/** The file that moved the footer's words under the library's keys, when the family's footer took the site's place. */
+const FOOTER_WORDS = '013_footer_words_through_the_library.sql';
+
+/** The files that copy strings of the site's keys under the library's names, and insert no key of the site's own. */
+const MOVED_TO_LIBRARY = [ADOPTION, BAR_WORDS, FOOTER_WORDS];
 
 /** The forms of a plural family, as Intl.PluralRules names the ones English and Slovak have. */
 const PLURAL_FORMS = ['one', 'few', 'other'];
@@ -336,13 +343,13 @@ test('a migration with strings writes each key once, in both languages; the gate
     check($tables['expected'] !== null, '003 does not say how many keys it seeds (expected_keys CONSTANT INTEGER := n)');
     same(count($tables['keys']), $tables['expected'], 'the number of keys 003\'s gate expects is the number of keys it inserts');
 
-    check(in_array(ADOPTION, stringMigrations(), true) && in_array(BAR_WORDS, stringMigrations(), true), 'the files that moved strings under the library\'s keys are among them');
+    same(MOVED_TO_LIBRARY, array_values(array_intersect(stringMigrations(), MOVED_TO_LIBRARY)), 'the files that moved strings under the library\'s keys are among them');
     $all = [];
     $gates = [];
     foreach (stringMigrations() as $file) {
         $found = migrationKeys($file);
         $gates[$file] = $found['expected'];
-        if ($file === ADOPTION || $file === BAR_WORDS) {
+        if (in_array($file, MOVED_TO_LIBRARY, true)) {
             // They insert no key of the site's own: they copy keys' strings under the library's names.
             same(['keys' => [], 'strings' => []], array_intersect_key($found, ['keys' => 0, 'strings' => 0]), $file.' writes no row of its own words');
             continue;
@@ -362,7 +369,7 @@ test('a migration with strings writes each key once, in both languages; the gate
     // and words itself.
     $last = array_key_last($gates);
     same(count(siteKeys()), $gates[$last], "{$last}'s gate expects as many keys of the site's own as there are");
-    foreach ([ADOPTION, BAR_WORDS] as $file) {
+    foreach (MOVED_TO_LIBRARY as $file) {
         check(str_contains((string) file_get_contents(Migrations::directory().'/'.$file), "WHERE name NOT LIKE 'anotoki.%'"), $file.'\'s gate leaves the library\'s keys out of its count');
     }
 });
@@ -396,8 +403,9 @@ test('a string names no other site and holds no web address - checked last, in a
 test('the legal pages\' strings (011) hold no address of any kind: where a link goes is the code\'s, never a string an administrator rewords', function () {
     // The 0.6.0 review of the library: the anotoki account's pages, the hosting company's, the operator's - every
     // address the pages link to is given by the code (core/legal-facts.ts); a string only words what is around it.
+    // The footer's fan clause, 011's footer.fanMade, is under the library's key since 013.
     $strings = db()->all("SELECT key_name, language_code, value FROM translations
-        WHERE key_name LIKE 'legal.%' OR key_name LIKE 'title.%' OR key_name = 'footer.fanMade' ORDER BY key_name, language_code");
+        WHERE key_name LIKE 'legal.%' OR key_name LIKE 'title.%' OR key_name = 'anotoki.footer.fanHoyoverse' ORDER BY key_name, language_code");
     check(count($strings) >= 104, 'the legal pages\' strings are there, in both languages: '.count($strings));
     $addresses = [];
     foreach ($strings as $row) {
@@ -428,12 +436,13 @@ test('the scan reads the real frontend: only the files it should, and the librar
     check(! isset($scan['used']['anotoki.language.button']) && ! isset($scan['missing']['anotoki.language.button']), 'never used, never missing');
     same(['topbar.home'], array_keys(array_intersect_key($scan['used'], ['topbar.home' => 0])), 'the site\'s own as ever');
 
-    // The words 006 and 010 moved are asked for by the library's names, where the site asks for them at all (the
-    // family's bar asks for most itself). Their old keys are gone from the database, so the scan would take an old
-    // literal for no key at all: they are looked for here.
+    // The words 006, 010 and 013 moved are asked for by the library's names, where the site asks for them at all (the
+    // family's bar and footer ask for most themselves). Their old keys are gone from the database, so the scan would
+    // take an old literal for no key at all: they are looked for here.
     $sources = implode("\n", array_map(static fn (string $file): string => (string) file_get_contents("{$root}/{$file}"), $files));
     foreach (['language.button', 'language.notLoaded', 'topbar.phoneMenu', 'topbar.menuButton', 'topbar.menu', 'topbar.roleAdmin', 'topbar.roleEditor',
-        'topbar.account', 'topbar.admin', 'common.signOut', 'theme.label', 'theme.light', 'theme.dark', 'theme.system', 'stepper.optional', 'stepper.editable'] as $old) {
+        'topbar.account', 'topbar.admin', 'common.signOut', 'theme.label', 'theme.light', 'theme.dark', 'theme.system', 'stepper.optional', 'stepper.editable',
+        'footer.version', 'footer.feedback', 'footer.fanMade'] as $old) {
         check(preg_match('/[\'"`]'.preg_quote($old, '/').'[\'"`]/', $sources) !== 1, "nothing asks for {$old}: it is gone (or the library's now)");
     }
     foreach (['anotoki.topbar.roleAdmin', 'anotoki.topbar.roleEditor', 'anotoki.topbar.account', 'anotoki.topbar.admin'] as $library) {

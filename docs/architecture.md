@@ -605,9 +605,12 @@ page's API answers its own: 404 `not_found` (a file that is none of the set's), 
   have not saved, for the tab and the IAM person who typed it, and the one `beforeunload` question) only when
   the tab holds some; the sign-out's question about them is the kit's `ConfirmService`.
 - Feedback (`core/feedback.ts`: `provideFeedback()`, the family's form set up for this site - the language on the
-  page, the four places `FEEDBACK_SECTIONS` with the server's names, the person's address written in):
-  `layouts/footer` opens `shared/feedback-dialog` (the form in the kit's `<anotoki-dialog>`, its heading the
-  form's own words, the dialog's `lang` the language they are in), loaded with the first press.
+  page, the four places `FEEDBACK_SECTIONS` with the server's names, the person's address written in): the
+  family's footer opens it in the kit's dialog, named by its button, loaded with the first press - as the Contact
+  page does. Both only while a message can be sent (`feedbackOffered()`): the form's request says nothing of whom
+  it is for, so the auth interceptor sends it as the page is shown - the person's, or the visitor's
+  (`AuthService.visiting`) - and the server takes one from anybody only while the IAM lets visitors in; never to
+  somebody signed out while it requires a sign-in, nor while the site is not ready (503).
 - The errors the pages meet (`app.config.ts`: `provideBrowserGlobalErrorListeners()` and the family's
   `provideAnotokiErrorReport()`, `@anotoki/lib/error-report`): the app's `ErrorHandler` tells the console, as
   Angular's own does, and sends each error once - scrubbed in the page, at most five a page load, never an HTTP
@@ -621,12 +624,14 @@ page's API answers its own: 404 `not_found` (a file that is none of the set's), 
   host and toast host (`<anotoki-confirm-host>`, `<anotoki-toast-host>` in `app.html`). Two layouts draw the
   rest, each in the family's frame (`<anotoki-shell>`: the bar, the page, the footer):
   `layouts/app-layout/` (every page outside `/admin`: `<app-top-bar area="app">`, the page, the footer) and
-  `layouts/admin-layout/` (`area="admin"`, `lang="en"`). The footer (`layouts/footer/`): "Version 0.4.0 · What's new" - the
-  newest entry of `public/changelog.json` (`core/changelog.ts`). What's new opens by itself with the releases
-  after the one this browser saw last (`build-analyzer-version-seen`), compared by their numbers
+  `layouts/admin-layout/` (`area="admin"`, `lang="en"`). The footer is the family's (`<anotoki-site-footer>`,
+  `@anotoki/lib/footer` - since anotoki-lib 0.6.3 the library's copy of this site's own): "Version 0.4.0 · What's
+  new · Feedback" - the version the newest entry of `public/changelog.json` (`core/changelog.ts`), What's new this
+  site's own dialog (`(whatsNew)`), Feedback while a message can be sent - then Terms · Privacy · Contact and the
+  fan clause (`fan="hoyoverse"`), in the library's words (`anotoki.footer.*`). What's new opens by itself with the
+  releases after the one this browser saw last (`build-analyzer-version-seen`), compared by their numbers
   (`compareVersions()`: MAJOR.MINOR.PATCH, a missing part 0 - so "0.3", kept from before the versions had
-  three numbers, is 0.3.0). Under that row Terms · Privacy · Contact (the family's `<anotoki-legal-links>`) and the
-  fan clause (`footer.fanMade`).
+  three numbers, is 0.3.0).
 - The legal pages (anotoki-lib 0.6's `@anotoki/lib/legal` and `/legal/pages`; the owner's decisions of
   2026-10-13): Terms, Privacy and Contact on `/terms`, `/privacy`, `/contact`, each a lazy route of its own whose
   parent is `layouts/legal-layout/` - everybody's pages' frame (`<app-app-layout>`, whose router outlet draws the
@@ -664,7 +669,7 @@ page's API answers its own: 404 `not_found` (a file that is none of the set's), 
   beside Feedback, needs 1186 px, 1236 with a sync running, so `ADMIN_PHONE_BAR_MAX` = 1270 (a 1280 px screen
   has the whole row; the name from 1471 px), and an editor's two sections 560 px, 610 with a sync running,
   `EDITOR_PHONE_BAR_MAX` = 640 (the name from 841 px). Every member word is a key - the site's (`brand.*`,
-  `topbar.*`, `toolbar.*`, `footer.version`) and the library's (`anotoki.topbar.*`, `anotoki.theme.*`,
+  `topbar.*`, `toolbar.*`) and the library's (`anotoki.topbar.*`, `anotoki.theme.*`,
   `anotoki.language.*`, which 006 and 010 gave the site's own wording); under `/admin` the translation service
   answers in English, so the same keys read English there.
 - `shared/`: `build-detail` (renders a build, optionally annotated with an evaluation), `item-card`,

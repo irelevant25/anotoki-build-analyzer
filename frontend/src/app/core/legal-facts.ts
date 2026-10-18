@@ -1,7 +1,14 @@
 import { inject } from '@angular/core';
+import { ActivatedRoute } from '@angular/router';
 import { AnotokiAuth } from '@anotoki/lib/auth';
-import { ANOTOKI_LEGAL_CONFIG, AnotokiLegalConfig, LegalFacts } from '@anotoki/lib/legal';
+import {
+  ANOTOKI_LEGAL_CONFIG,
+  AnotokiLegalConfig,
+  DEFAULT_LEGAL_PATHS,
+  LegalFacts,
+} from '@anotoki/lib/legal';
 import { CHANGELOG_SEEN_KEY } from './changelog';
+import { feedbackOffered } from './feedback';
 import { BRAND } from './i18n/title-strategy';
 import { TranslationService } from './i18n/translation';
 import { LANGUAGE_STORAGE } from './i18n/translations.config';
@@ -31,13 +38,21 @@ export const HOSTING = { name: 'WebSupport s.r.o.', url: 'https://www.websupport
  * The legal pages' configuration: the app's (core/legal.ts - the page's language, the database's words) with the
  * facts the pages read. Their frame provides it (layouts/legal-layout), so the facts - this code and its strings'
  * keys - load with the pages, never with the first page.
+ *
+ * The frame is made for each page apart (each a route of its own, app.routes.ts), and knows which it frames: on the
+ * Contact page the feedback form is offered only while a message can be sent (core/feedback.ts - never to somebody
+ * signed out while the IAM requires signing in here, whose message the server refuses), the address alone
+ * otherwise; the Privacy page says to everybody what a message holds and how long it is kept.
  */
 export function legalPagesConfig(): AnotokiLegalConfig {
   const root = inject(ANOTOKI_LEGAL_CONFIG, { skipSelf: true });
   const i18n = inject(TranslationService);
   const auth = inject(AnotokiAuth);
   const meta = inject(MetaStore);
-  return { ...root, facts: () => siteLegalFacts(i18n, auth, meta.visitorDays()) };
+  const contact =
+    `/${inject(ActivatedRoute).snapshot.routeConfig?.path ?? ''}` === DEFAULT_LEGAL_PATHS.contact;
+  const form = contact ? feedbackOffered() : () => true;
+  return { ...root, facts: () => siteLegalFacts(i18n, auth, meta.visitorDays(), form()) };
 }
 
 /**
@@ -97,15 +112,17 @@ export function legalPagesConfig(): AnotokiLegalConfig {
  *   asks (config/app.php `showcase`) - described, never named: the site names no other website, service or tool.
  *
  * This site takes feedback: the Contact page opens the family's form in the kit's dialog (configured in
- * core/feedback.ts). Every address the pages link to is the code's - the anotoki account's pages from the IAM's
- * address the site signs in with (/api/meta's `auth`), the hosting company's here, the operator and Cloudflare in
- * the library -, never a string's: a rewording on the Translations page can never change where a link goes (the
- * 0.6.0 review). So are the cookie's and the stored items' names.
+ * core/feedback.ts) - but where `feedbackForm` is false, which only the Contact page's frame says, while no message
+ * can be sent (legalPagesConfig()). Every address the pages link to is the code's - the anotoki account's pages from
+ * the IAM's address the site signs in with (/api/meta's `auth`), the hosting company's here, the operator and
+ * Cloudflare in the library -, never a string's: a rewording on the Translations page can never change where a link
+ * goes (the 0.6.0 review). So are the cookie's and the stored items' names.
  */
 export function siteLegalFacts(
   i18n: TranslationService,
   auth: AnotokiAuth,
   visitorDays: number,
+  feedbackForm = true,
 ): LegalFacts {
   const iam = auth.issuer().replace(/\/+$/, '');
   const client = auth.clientId() || 'build-analyzer';
@@ -158,7 +175,10 @@ export function siteLegalFacts(
       why: i18n.t('legal.visitors.why'),
       kept: i18n.t('legal.visitors.kept', { days: visitorDays }),
     },
-    feedback: { what: i18n.t('legal.feedback.what'), kept: i18n.t('legal.feedback.kept') },
+    // What a message holds and how long it is kept; false, the Contact page gives the address alone.
+    feedback: feedbackForm
+      ? { what: i18n.t('legal.feedback.what'), kept: i18n.t('legal.feedback.kept') }
+      : false,
     // The editors' and administrators' changes - the library's words say the administrators' alone.
     auditLog: { what: i18n.t('legal.auditLog.what') },
     // One on each day the site is used - the library's first sentence says "every day"; its keeping (by count) as it is.

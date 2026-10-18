@@ -43,11 +43,17 @@ const LEGAL_PAGES_FILE = '011_legal_pages.sql';
 /** How many keys of the site's own 011 adds (the legal pages' facts, their tabs' titles, the footer's fan clause). */
 const LEGAL_PAGES_KEYS = 52;
 
-/** The file of the words the kit's stepper and tabs need (two new, the old stepper's one gone): 0.4's last. */
+/** The file of the words the kit's stepper and tabs need (two new, the old stepper's one gone). */
 const KIT_PIECES_FILE = '012_stepper_and_tab_words.sql';
 
 /** What 012 changes in the site's own keys: two added, one taken away. */
 const KIT_PIECES_KEYS = 2 - 1;
+
+/** The file that moves the footer's words under the library's keys, the family's footer in the site's (anotoki-lib 0.6.3): 0.4's last. */
+const FOOTER_FILE = '013_footer_words_through_the_library.sql';
+
+/** How many keys of the site's own 013 takes away: the footer's three, the library's now. */
+const FOOTER_KEYS = 3;
 
 /** Every column, constraint and index of the app's tables, as comparable lines. */
 function schemaOf(PDO $pdo): array
@@ -521,8 +527,9 @@ test('006 moves the two words of the library\'s under its keys with every reword
     check(str_starts_with((string) $pdo->query("SELECT description FROM translation_keys WHERE name = 'anotoki.language.button'")->fetchColumn(), 'The anotoki library\'s language switcher'), 'the library\'s description');
     same('Jazyk sa nepodarilo uložiť do tvojho anotoki účtu - platí len počas tejto návštevy.', $row('anotoki.language.notSaved', 'sk')['value'] ?? null, 'a word of the library\'s this site did not have, in Slovak');
     // 006 moved two of the site's keys; 009 moved five more, retired three and added five; 010 moved twelve and retired
-    // two; 011 added the legal pages' words. The library's keys are every key of its words file (257 with 0.6.2).
-    same(['the site\'s' => $keys - 2 - 8 + 5 - 14 + LEGAL_PAGES_KEYS + KIT_PIECES_KEYS, 'the library\'s' => libraryKeyCount()], [
+    // two; 011 added the legal pages' words; 012 the kit's pieces'; 013 moved the footer's three. The library's keys
+    // are every key of its words file (261 with 0.6.3).
+    same(['the site\'s' => $keys - 2 - 8 + 5 - 14 + LEGAL_PAGES_KEYS + KIT_PIECES_KEYS - FOOTER_KEYS, 'the library\'s' => libraryKeyCount()], [
         'the site\'s' => (int) $pdo->query("SELECT count(*) FROM translation_keys WHERE name NOT LIKE 'anotoki.%'")->fetchColumn(),
         'the library\'s' => (int) $pdo->query("SELECT count(*) FROM translation_keys WHERE name LIKE 'anotoki.%'")->fetchColumn(),
     ], 'the site\'s keys less the two that moved, and the library\'s');
@@ -542,12 +549,15 @@ test('006\'s gate refuses a database whose keys are not the ones it expects - an
     check(str_contains((string) $result['error'], 'There are 451 keys of the site\'s own, and 005 with this file leave 450'), 'the gate says why: '.$result['error']);
     same(2, (int) $pdo->query("SELECT count(*) FROM translation_keys WHERE name IN ('language.button', 'language.notLoaded')")->fetchColumn(), 'the keys did not move');
     same(0, (int) $pdo->query("SELECT count(*) FROM translation_keys WHERE name LIKE 'anotoki.%'")->fetchColumn(), 'and the library\'s files did not run');
-    same([ADOPTION_FILE, '007_people.sql', '008_drop_laravel_leftovers.sql', '009_sign_in_and_feedback_words.sql', '010_top_bar_words_through_the_library.sql', LEGAL_PAGES_FILE, KIT_PIECES_FILE, ...array_column(libraryFiles(), 'name'), ...array_column(peopleFiles(), 'name')],
+    same([ADOPTION_FILE, '007_people.sql', '008_drop_laravel_leftovers.sql', '009_sign_in_and_feedback_words.sql', '010_top_bar_words_through_the_library.sql', LEGAL_PAGES_FILE, KIT_PIECES_FILE, FOOTER_FILE, ...array_column(libraryFiles(), 'name'), ...array_column(peopleFiles(), 'name')],
         array_column(Migrations::migrator($pdo)->status()['pending'], 'name'), 'they all still wait');
 });
 
-/** Version 0.4's files of this site's: the people's column, what Laravel left behind gone, the sign-in's and feedback's words, the top bar's words, the legal pages' words. */
-const VERSION_04_FILES = ['007_people.sql', '008_drop_laravel_leftovers.sql', '009_sign_in_and_feedback_words.sql', '010_top_bar_words_through_the_library.sql', LEGAL_PAGES_FILE, KIT_PIECES_FILE];
+/**
+ * Version 0.4's files of this site's: the people's column, what Laravel left behind gone, the sign-in's and feedback's
+ * words, the top bar's words, the legal pages' words, the kit's pieces', the footer's words under the library's keys.
+ */
+const VERSION_04_FILES = ['007_people.sql', '008_drop_laravel_leftovers.sql', '009_sign_in_and_feedback_words.sql', '010_top_bar_words_through_the_library.sql', LEGAL_PAGES_FILE, KIT_PIECES_FILE, FOOTER_FILE];
 
 /** How many keys the library's set writes in all: every key of its words file (anotoki-lib's php/resources/library-words.json). */
 function libraryKeyCount(): int
@@ -698,8 +708,9 @@ test('version 0.4 on a database as its owner left it: 007 adds the scrub\'s colu
     same(['Signing in did not work', 'Prihlásenie sa nepodarilo'], array_column(stringsOf($pdo, 'anotoki.signIn.failedTitle'), 'value'), 'the library\'s own words on its other keys');
     same(0, (int) $pdo->query("SELECT count(*) FROM translation_keys WHERE name LIKE 'signIn.%'")->fetchColumn(), 'the old sign-in page\'s keys are gone');
     same(0, (int) $pdo->query("SELECT count(*) FROM translations WHERE key_name LIKE 'signIn.%'")->fetchColumn(), 'with their strings');
-    same([['en', 'Feedback'], ['sk', 'Spätná väzba']], array_map(fn ($row) => [$row['language_code'], $row['value']], stringsOf($pdo, 'footer.feedback')), 'the feedback button\'s words');
-    same($keys - 8 + 5 - 14 + LEGAL_PAGES_KEYS + KIT_PIECES_KEYS, (int) $pdo->query("SELECT count(*) FROM translation_keys WHERE name NOT LIKE 'anotoki.%'")->fetchColumn(), 'the site\'s keys: eight gone and five new (009), fourteen gone (010), the legal pages\' words (011), the stepper\'s and tabs\' (012)');
+    // The feedback button's words 009 added - under the library's key since 013, the footer the family's.
+    same([['en', 'Feedback'], ['sk', 'Spätná väzba']], array_map(fn ($row) => [$row['language_code'], $row['value']], stringsOf($pdo, 'anotoki.footer.feedback')), 'the feedback button\'s words');
+    same($keys - 8 + 5 - 14 + LEGAL_PAGES_KEYS + KIT_PIECES_KEYS - FOOTER_KEYS, (int) $pdo->query("SELECT count(*) FROM translation_keys WHERE name NOT LIKE 'anotoki.%'")->fetchColumn(), 'the site\'s keys: eight gone and five new (009), fourteen gone (010), the legal pages\' words (011), the stepper\'s and tabs\' (012), the footer\'s three gone (013)');
     same([], Migrations::migrator($pdo)->applicable(), 'nothing left to apply');
 });
 
@@ -730,7 +741,7 @@ test('009\'s gate refuses a database whose keys are not the ones it expects - no
     check(str_contains((string) $result['error'], 'There are 448 keys of the site\'s own, and 006 with this file leave 447'), 'the gate says why: '.$result['error']);
     same(8, (int) $pdo->query("SELECT count(*) FROM translation_keys WHERE name LIKE 'signIn.%'")->fetchColumn(), 'the old keys stay');
     same(0, (int) $pdo->query("SELECT count(*) FROM translation_keys WHERE name LIKE 'anotoki.signIn.%' OR name LIKE 'feedback.%'")->fetchColumn(), 'nothing of 009, nor the library\'s 003');
-    same(['009_sign_in_and_feedback_words.sql', '010_top_bar_words_through_the_library.sql', LEGAL_PAGES_FILE, KIT_PIECES_FILE, ...array_column(array_slice(libraryFiles(), 2), 'name'), ...array_column(peopleFiles(), 'name')],
+    same(['009_sign_in_and_feedback_words.sql', '010_top_bar_words_through_the_library.sql', LEGAL_PAGES_FILE, KIT_PIECES_FILE, FOOTER_FILE, ...array_column(array_slice(libraryFiles(), 2), 'name'), ...array_column(peopleFiles(), 'name')],
         array_column(Migrations::migrator($pdo)->status()['pending'], 'name'), 'they still wait');
 });
 
@@ -811,7 +822,107 @@ test('010\'s gate refuses a database whose keys are not the ones it expects - no
     same([[], siteFile('010_top_bar_words_through_the_library.sql')], [$result['applied'], $result['failed']], 'stopped at 010');
     check(str_contains((string) $result['error'], 'There are 434 keys of the site\'s own, and 009 with this file leave 433'), 'the gate says why: '.$result['error']);
     same(14, (int) $pdo->query("SELECT count(*) FROM translation_keys WHERE name IN ('topbar.phoneMenu', 'topbar.menuButton', 'topbar.menu', 'topbar.roleAdmin', 'topbar.roleEditor', 'topbar.account', 'topbar.admin', 'common.signOut', 'theme.label', 'theme.light', 'theme.dark', 'theme.system', 'stepper.optional', 'stepper.editable')")->fetchColumn(), 'the keys stay');
-    same(['010_top_bar_words_through_the_library.sql', LEGAL_PAGES_FILE, KIT_PIECES_FILE], array_column(Migrations::migrator($pdo)->status()['pending'], 'name'), 'it still waits, and 011 and 012 after it');
+    same(['010_top_bar_words_through_the_library.sql', LEGAL_PAGES_FILE, KIT_PIECES_FILE, FOOTER_FILE], array_column(Migrations::migrator($pdo)->status()['pending'], 'name'), 'it still waits, and 011 to 013 after it');
+});
+
+/** The three keys 013 moves under the library's - the site's own then gone - by the library's key each goes under. */
+const MOVED_FOOTER_KEYS = [
+    'footer.version' => 'anotoki.footer.version',
+    'footer.feedback' => 'anotoki.footer.feedback',
+    'footer.fanMade' => 'anotoki.footer.fanHoyoverse',
+];
+
+/**
+ * A database as the owner's is before 013 (version 0.4.0 on anotoki-lib 0.6.2): every file of the site's up to 012,
+ * the library's admin and people sets, and its translations set up to its 011 - or, with $library012, its 012 too
+ * (the library's footer words in first: a copy updated in two steps).
+ */
+function upTo012(array $server, string $name, bool $library012 = false): PDO
+{
+    $pdo = scratchDatabase($server, $name);
+    $site = migrationsFolder("migrations-{$name}", array_values(array_filter(allMigrations(), fn (string $file): bool => strcmp($file, '013') < 0)));
+    $library = T::$storage.DIRECTORY_SEPARATOR."library-{$name}";
+    @mkdir($library, 0777, true);
+    foreach (array_column(libraryFiles(), 'name') as $file) {
+        if ($library012 || strcmp($file, '012') < 0) {
+            copy(Schema::directory().'/'.$file, $library.'/'.$file);
+        }
+    }
+    $sets = [AdminSchema::migrationSet(), Migrations::set($site), new MigrationSet(Schema::SET, $library, library: true), PeopleSchema::migrationSet()];
+    $result = (new Migrator($pdo, $sets, ['lock' => Migrations::LOCK]))->apply();
+    same(null, $result['error'], "{$name}: the installed version's files");
+
+    return $pdo;
+}
+
+test('013 on a database as its owner left it: the footer\'s words go under the library\'s keys - an editor\'s rewording, German and a cleared Slovak as they were -, What\'s new\'s copied and the dialog\'s title kept; the three keys go', function () use ($server) {
+    $pdo = upTo012($server, 'to012');
+    // An editor (IAM user 7) reworded the Slovak Feedback; German came with the version's words; the Slovak fan clause
+    // was cleared on purpose (the footer reads the English).
+    $pdo->exec("UPDATE translations SET value = 'Napíš nám', updated_by = 7, updated_at = '2026-10-15 08:15:00+00' WHERE key_name = 'footer.feedback' AND language_code = 'sk'");
+    $pdo->exec("INSERT INTO languages (code, name, native_name, enabled, sort_order) VALUES ('de', 'German', 'Deutsch', FALSE, 3)");
+    $pdo->exec("INSERT INTO translations (key_name, language_code, value, updated_by, updated_at) VALUES ('footer.version', 'de', 'Fassung {version}', 8, '2026-10-16 18:30:00+00')");
+    $pdo->exec("DELETE FROM translations WHERE key_name = 'footer.fanMade' AND language_code = 'sk'");
+    $before = [];
+    foreach ([...array_keys(MOVED_FOOTER_KEYS), 'whatsNew.title'] as $key) {
+        $before[$key] = stringsOf($pdo, $key);
+    }
+    $keys = (int) $pdo->query("SELECT count(*) FROM translation_keys WHERE name NOT LIKE 'anotoki.%'")->fetchColumn();
+
+    $result = Migrations::migrator($pdo)->apply();
+    same(null, $result['error'], 'no error');
+    same([siteFile(FOOTER_FILE), ...array_slice(libraryFiles(), 11)], $result['applied'], '013, then the library\'s 012 - one Apply');
+
+    // Every string under the library's key as it was - words, writer, time; the cleared Slovak stays cleared.
+    foreach (MOVED_FOOTER_KEYS as $old => $new) {
+        same($before[$old], stringsOf($pdo, $new), "{$old} -> {$new}");
+    }
+    same(['en'], array_column(stringsOf($pdo, 'anotoki.footer.fanHoyoverse'), 'language_code'), 'the cleared Slovak: the library did not write its own there');
+    // What's new: the footer's says what the dialog's title says, and the title stays the site's.
+    same($before['whatsNew.title'], stringsOf($pdo, 'whatsNew.title'), 'the dialog\'s title as it was');
+    same(array_column($before['whatsNew.title'], 'value', 'language_code'), wordsOf($pdo, 'anotoki.footer.whatsNew'), 'the footer\'s What\'s new says the same');
+
+    // The three keys gone with their strings; the library's descriptions on its keys (its 012 ran after 013).
+    $in = implode(', ', array_map(fn (string $key): string => $pdo->quote($key), array_keys(MOVED_FOOTER_KEYS)));
+    same(0, (int) $pdo->query("SELECT count(*) FROM translation_keys WHERE name IN ({$in})")->fetchColumn(), 'the three keys are gone');
+    same(0, (int) $pdo->query("SELECT count(*) FROM translations WHERE key_name IN ({$in})")->fetchColumn(), 'with their strings');
+    check(str_starts_with((string) $pdo->query("SELECT description FROM translation_keys WHERE name = 'anotoki.footer.version'")->fetchColumn(), 'The anotoki library\'s footer'), 'the library\'s description');
+    check(str_contains((string) $pdo->query("SELECT description FROM translation_keys WHERE name = 'whatsNew.title'")->fetchColumn(), 'anotoki.footer.whatsNew'), 'whatsNew.title\'s description names the footer\'s word');
+    same($keys - FOOTER_KEYS, (int) $pdo->query("SELECT count(*) FROM translation_keys WHERE name NOT LIKE 'anotoki.%'")->fetchColumn(), 'the site\'s keys less the three');
+    same([], Migrations::migrator($pdo)->applicable(), 'nothing left to apply');
+});
+
+test('013 where the library\'s footer words went in first: the site\'s take their place - never over an owner\'s rewording of the library\'s key', function () use ($server) {
+    $pdo = upTo012($server, 'to012lib', library012: true);
+    same(['en' => 'Feedback', 'sk' => 'Spätná väzba'], wordsOf($pdo, 'anotoki.footer.feedback'), 'the library\'s words, before');
+    // An editor (IAM user 7) had reworded the site's English Feedback; the owner (IAM user 9) one of the library's own
+    // footer words.
+    $pdo->exec("UPDATE translations SET value = 'Tell us', updated_by = 7, updated_at = '2026-10-15 08:15:00+00' WHERE key_name = 'footer.feedback' AND language_code = 'en'");
+    $pdo->exec("UPDATE translations SET value = 'News', updated_by = 9, updated_at = '2026-10-18 12:00:00+00' WHERE key_name = 'anotoki.footer.whatsNew' AND language_code = 'en'");
+    $feedback = stringsOf($pdo, 'footer.feedback');
+
+    $result = Migrations::migrator($pdo)->apply();
+    same(null, $result['error'], 'no error');
+    same([siteFile(FOOTER_FILE)], $result['applied'], '013 alone');
+
+    same($feedback[0], stringsOf($pdo, 'anotoki.footer.feedback')[0], 'the editor\'s English, by whom and when, in place of the library\'s');
+    same('Spätná väzba', wordsOf($pdo, 'anotoki.footer.feedback')['sk'], 'the Slovak, the same words');
+    same([['en', 'News', 9], ['sk', 'Čo je nové', null]],
+        array_map(fn ($row) => [$row['language_code'], $row['value'], $row['updated_by'] === null ? null : (int) $row['updated_by']], stringsOf($pdo, 'anotoki.footer.whatsNew')),
+        'the owner\'s rewording of the library\'s key kept');
+    same(0, (int) $pdo->query("SELECT count(*) FROM translation_keys WHERE name IN ('footer.version', 'footer.feedback', 'footer.fanMade')")->fetchColumn(), 'the three keys are gone');
+});
+
+test('013\'s gate refuses a database whose keys are not the ones it expects - nothing of it, nor the library\'s 012 after it, is applied', function () use ($server) {
+    $pdo = upTo012($server, 'to012gate');
+    $pdo->exec("INSERT INTO translation_keys (name, description) VALUES ('zz.stray', 'Not a migration''s')");
+
+    $result = Migrations::migrator($pdo)->apply();
+    same([[], siteFile(FOOTER_FILE)], [$result['applied'], $result['failed']], 'stopped at 013');
+    check(str_contains((string) $result['error'], 'There are 484 keys of the site\'s own, and 012 with this file leave 483'), 'the gate says why: '.$result['error']);
+    same(3, (int) $pdo->query("SELECT count(*) FROM translation_keys WHERE name IN ('footer.version', 'footer.feedback', 'footer.fanMade')")->fetchColumn(), 'the keys stay');
+    same(0, (int) $pdo->query("SELECT count(*) FROM translation_keys WHERE name LIKE 'anotoki.footer.%'")->fetchColumn(), 'nothing of 013, nor the library\'s 012');
+    same([FOOTER_FILE, '012_footer_words.sql'], array_column(Migrations::migrator($pdo)->status()['pending'], 'name'), 'both still wait');
 });
 
 /**

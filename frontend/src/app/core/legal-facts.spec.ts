@@ -1,6 +1,7 @@
-import { ChangeDetectionStrategy, Component, Type } from '@angular/core';
+import { ChangeDetectionStrategy, Component, Type, signal } from '@angular/core';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
-import { provideRouter } from '@angular/router';
+import { Router, provideRouter } from '@angular/router';
+import { RouterTestingHarness } from '@angular/router/testing';
 import { AnotokiAuth } from '@anotoki/lib/auth';
 import { provideTestAnotokiAuth } from '@anotoki/lib/auth/testing';
 import { ANOTOKI_LEGAL_CONFIG } from '@anotoki/lib/legal';
@@ -9,7 +10,9 @@ import {
   PrivacyPageComponent,
   TermsPageComponent,
 } from '@anotoki/lib/legal/pages';
+import { SiteStatus } from '@anotoki/lib/migrations';
 import { provideTestTranslations } from '@anotoki/lib/translations/testing';
+import { provideFeedback } from './feedback';
 import { TranslationService } from './i18n/translation';
 import { provideLegal } from './legal';
 import {
@@ -134,29 +137,39 @@ class ContactFrame {}
 describe('the legal pages, as this site fills them in', () => {
   let fixture: ComponentFixture<unknown> | null = null;
 
+  /** `loginRequired`: the IAM requires signing in here - nobody signed in visits, they are signed out. */
   async function configure(
     values: Record<string, string> = {},
     language: 'en' | 'sk' = 'en',
+    loginRequired = false,
   ): Promise<void> {
     TestBed.configureTestingModule({
       providers: [
-        provideRouter([]),
+        // Each page in a frame of its own, on its own path - as app.routes.ts has them.
+        provideRouter([
+          { path: 'terms', component: TermsFrame },
+          { path: 'privacy', component: PrivacyFrame },
+          { path: 'contact', component: ContactFrame },
+        ]),
         language === 'en'
           ? provideTestTranslations({ ...WORDS, ...values })
           : provideTestTranslations({ ...WORDS, ...values }, { language: 'sk', english: WORDS }),
         provideLegal(),
+        provideFeedback(),
         ...provideTestAnotokiAuth({
           config: {
             config: () => ({
               issuer: IAM,
               client_id: 'build-analyzer',
-              login_required: false,
+              login_required: loginRequired,
               sign_in_available: true,
             }),
           },
         }),
         // The days a visitor's data is kept after the last visit: /api/meta's word.
         { provide: MetaStore, useValue: { visitorDays: () => 30 } },
+        // The site is ready: the gate shows the pages.
+        { provide: SiteStatus, useValue: { blocked: signal(false) } },
       ],
     });
     await TestBed.inject(AnotokiAuth).init();
@@ -167,6 +180,16 @@ describe('the legal pages, as this site fills them in', () => {
     document.body.appendChild(fixture.nativeElement);
     await fixture.whenStable();
     return fixture.nativeElement as HTMLElement;
+  }
+
+  /** A page as the router shows it, at its address: its frame knows which page it frames by its route. */
+  async function open(path: string): Promise<HTMLElement> {
+    const harness = await RouterTestingHarness.create();
+    fixture = harness.fixture;
+    document.body.appendChild(harness.fixture.nativeElement);
+    await harness.navigateByUrl(path);
+    await harness.fixture.whenStable();
+    return harness.fixture.nativeElement as HTMLElement;
   }
 
   const texts = (host: HTMLElement, selector: string) =>
@@ -220,11 +243,16 @@ describe('the legal pages, as this site fills them in', () => {
       why: WORDS['legal.visitors.why'],
       kept: 'Until a sign-in, or 30 days after the last visit.',
     });
-    // The site takes feedback (the form at the foot of every page): its own words for what a message keeps and how long.
+    // The site takes feedback (Feedback in the family's footer): its own words for what a message keeps and how long -
+    // and none where the Contact page's frame says no message can be sent now (legalPagesConfig()).
     expect(facts.feedback).toEqual({
       what: WORDS['legal.feedback.what'],
       kept: WORDS['legal.feedback.kept'],
     });
+    expect(
+      siteLegalFacts(TestBed.inject(TranslationService), TestBed.inject(AnotokiAuth), 30, false)
+        .feedback,
+    ).toBe(false);
     expect(facts.errorLog).toBeUndefined();
     expect(facts.analytics).toBeUndefined();
     expect(facts.fanDisclaimer).toBe('hoyoverse');
@@ -342,8 +370,9 @@ describe('the legal pages, as this site fills them in', () => {
   });
 
   it("Contact: the feedback form first - the site takes feedback -, then the address, the anotoki account's page to delete the account, and the fan clause", async () => {
+    // A visitor (the IAM lets visitors in here): a message can be sent.
     await configure();
-    const host = await draw(ContactFrame);
+    const host = await open('/contact');
     expect(
       host.querySelector('[data-section="feedback"] [data-open-feedback]')?.textContent?.trim(),
     ).toBe('Send feedback');
@@ -358,6 +387,26 @@ describe('the legal pages, as this site fills them in', () => {
       'Build Analyzer then keeps what you did here without your name',
     );
     expect(host.textContent).toContain(WORDS['legal.fanClause']);
+  });
+
+  it('Contact offers no form to somebody signed out while the IAM requires signing in here - the server would refuse their message: the address alone; Privacy still says what a message holds', async () => {
+    await configure({}, 'en', true);
+    expect(TestBed.inject(AnotokiAuth).state()).toBe('signed-out');
+
+    const host = await open('/contact');
+    expect(host.querySelector('anotoki-contact-page')).not.toBeNull();
+    expect(host.querySelector('[data-section="feedback"]')).toBeNull();
+    expect(host.querySelector('[data-open-feedback]')).toBeNull();
+    expect(host.querySelector('[data-section="email"] h2')?.textContent?.trim()).toBe('By e-mail');
+    expect(host.querySelector('[data-section="email"] a')?.getAttribute('href')).toBe(
+      'mailto:support@anotoki.eu',
+    );
+
+    // The Privacy page, in the same tab: what a message holds and how long it is kept - said to everybody.
+    await TestBed.inject(Router).navigateByUrl('/privacy');
+    await fixture!.whenStable();
+    expect(host.querySelector('anotoki-privacy-page')).not.toBeNull();
+    expect(texts(host, '[data-duration="feedback"] dd')).toEqual([WORDS['legal.feedback.kept']]);
   });
 
   it("in Slovak: the library's words - which address nobody - around the site's, its {days} filled in", async () => {

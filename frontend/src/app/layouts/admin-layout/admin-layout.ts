@@ -1,13 +1,15 @@
 import { Component, effect, inject, untracked } from '@angular/core';
 import { Router, RouterLink, RouterOutlet } from '@angular/router';
 import { FeedbackUnread } from '@anotoki/lib/admin';
+import { SiteFooterComponent } from '@anotoki/lib/footer';
 import { ShellComponent } from '@anotoki/lib/shell';
 import { ButtonComponent } from '@anotoki/lib/ui/button';
 import { CardComponent } from '@anotoki/lib/ui/card';
 import { IconComponent } from '@anotoki/lib/ui/icon';
 import { AuthService } from '../../core/auth';
+import { Changelog } from '../../core/changelog';
+import { feedbackOffered } from '../../core/feedback';
 import { signInOrSayWhy } from '../../core/sign-in';
-import { Footer } from '../footer/footer';
 import { TopBar } from '../top-bar/top-bar';
 
 /**
@@ -17,7 +19,8 @@ import { TopBar } from '../top-bar/top-bar';
  * log, the audit log, feedback and backups). The anotoki family's frame and top bar ("anotoki Build Analyzer ·
  * admin panel", short there: "Analyzer" with "admin panel" under it), with the panel's sections as its links (an
  * editor sees only theirs: ADMIN_LINKS in layouts/top-bar; the count of new feedback beside Feedback, for the
- * ADMIN) and "Back to Build Analyzer" in the person's menu; the footer below. Between them, one of three:
+ * ADMIN) and "Back to Build Analyzer" in the person's menu; the family's footer below, as under everybody's pages
+ * (layouts/app-layout), in English as the panel is. Between them, one of three:
  *
  * - staff: the page;
  * - nobody signed in, with a Sign in button: a session that ended with an admin page open ("You are signed
@@ -35,14 +38,17 @@ import { TopBar } from '../top-bar/top-bar';
     ButtonComponent,
     CardComponent,
     IconComponent,
+    SiteFooterComponent,
     TopBar,
-    Footer,
   ],
   templateUrl: './admin-layout.html',
   styleUrl: './admin-layout.scss',
 })
 export class AdminLayout {
   protected readonly auth = inject(AuthService);
+  protected readonly changelog = inject(Changelog);
+  /** Feedback in the footer: while a message can be sent - never on "You are signed out", nor while an update waits. */
+  protected readonly feedback = feedbackOffered();
   private readonly router = inject(Router);
   private readonly unread = inject(FeedbackUnread);
 

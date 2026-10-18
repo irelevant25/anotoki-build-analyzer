@@ -555,6 +555,13 @@ map, are in [DEV.md](../DEV.md) ("Deploying"); in short:
      to the IAM's own Privacy page (`https://iam.anotoki.eu/privacy`); `/contact` opens the feedback form. The
      facts are the code's (`frontend/src/app/core/legal-facts.ts`): a change to what the site keeps, or for how
      long, changes their `legal.*` strings by a migration and `SITE_LEGAL_UPDATED`.
+   - **The family's footer (anotoki-lib 0.6.3 in `vendor/` and in the app; migration 013, then the library's
+     `anotoki_translations/012`)**: upload with `vendor/`, then **Apply pending** at once: 013 moves the footer's
+     three words (`footer.version`, `footer.feedback`, `footer.fanMade`) under the library's keys
+     (`anotoki.footer.*`) with every rewording, its writer and its time, and copies What's new's (`whatsNew.title`
+     stays the dialog's title); the library's 012 describes the four keys, never writing over a string that is
+     there. Then check: the foot of every page and of the admin panel reads as before; while "Sign-in required" is
+     on, `/privacy` signed out has no Feedback at its foot and `/contact` gives the address alone.
    - **Version 0.3: visitors and the family's bar (migration 004, IAM migration 007)**, in this
      order: (1) before uploading, make sure an account that can sign in holds **ADMIN on `build-analyzer` now**
      (the IAM's admin panel; IAM 007 is what later gives every IAM administrator ADMIN here); (2) upload;

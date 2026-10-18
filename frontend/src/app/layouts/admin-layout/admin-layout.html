@@ -28,5 +28,12 @@
       <a anotokiButton variant="primary" routerLink="/">To your accounts</a>
     </anotoki-card>
   }
-  <app-footer shellFooter />
+  <anotoki-site-footer
+    shellFooter
+    [version]="changelog.current()"
+    [whatsNew]="changelog.current() !== null"
+    (whatsNew)="changelog.open()"
+    [feedback]="feedback()"
+    fan="hoyoverse"
+  />
 </anotoki-shell>

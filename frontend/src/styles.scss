@@ -306,9 +306,9 @@ details.disclosure {
   overflow-wrap: break-word;
 }
 
+// A printed page is its content alone: the family's footer leaves itself out (anotoki-lib 0.6.3), and the bar here.
 @media print {
-  anotoki-top-bar,
-  app-footer {
+  anotoki-top-bar {
     display: none;
   }
 }

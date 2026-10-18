@@ -10,16 +10,16 @@ import { TranslatePipe } from './translate';
 import { TranslationService } from './translation';
 
 const ENGLISH = {
-  'footer.version': 'Version {version}',
-  'footer.feedback': 'Feedback',
+  'whatsNew.version': 'Version {version}',
+  'whatsNew.title': "What's new",
   'buildDetail.optionAny.one': '(any {count})',
   'buildDetail.optionAny.few': '(any {count})',
   'buildDetail.optionAny.other': '(any {count})',
   'recommendation.sets_missing_empty': '{set_label}: use the recommended {best}. Nothing is equipped now.',
 };
 const SLOVAK = {
-  'footer.version': 'Verzia {version}',
-  'footer.feedback': 'Spätná väzba',
+  'whatsNew.version': 'Verzia {version}',
+  'whatsNew.title': 'Čo je nové',
   'buildDetail.optionAny.one': '(ľubovoľný 1)',
   'buildDetail.optionAny.few': '(ľubovoľné {count})',
   'buildDetail.optionAny.other': '(ľubovoľných {count})',
@@ -57,8 +57,8 @@ function pipes(language: 'en' | 'sk', account?: Partial<AnotokiPreferences>) {
 
 describe('the translate pipes', () => {
   it('word a key, and fill its placeholders', () => {
-    expect(pipes('en').translate.transform('footer.version', { version: '0.4.0' })).toBe('Version 0.4.0');
-    expect(pipes('sk').translate.transform('footer.version', { version: '0.4.0' })).toBe('Verzia 0.4.0');
+    expect(pipes('en').translate.transform('whatsNew.version', { version: '0.4.0' })).toBe('Version 0.4.0');
+    expect(pipes('sk').translate.transform('whatsNew.version', { version: '0.4.0' })).toBe('Verzia 0.4.0');
   });
 
   it('pick the plural form, and a sentence takes the whole phrase as a placeholder', () => {
@@ -74,14 +74,14 @@ describe('the translate pipes', () => {
 
   it('answer again when the language on the page changes under the same key', async () => {
     const { i18n, translate, plural } = pipes('sk');
-    expect(translate.transform('footer.feedback')).toBe('Spätná väzba');
+    expect(translate.transform('whatsNew.title')).toBe('Čo je nové');
     i18n.noteAddress('/admin/sources');
-    expect(translate.transform('footer.feedback')).toBe('Feedback');
+    expect(translate.transform('whatsNew.title')).toBe("What's new");
     expect(plural.transform('buildDetail.optionAny', 3)).toBe('(any 3)');
     i18n.noteAddress('/');
-    expect(translate.transform('footer.feedback')).toBe('Spätná väzba');
+    expect(translate.transform('whatsNew.title')).toBe('Čo je nové');
     expect(await i18n.setLanguage('en', { remember: false })).toBe(true);
-    expect(translate.transform('footer.feedback')).toBe('Feedback');
+    expect(translate.transform('whatsNew.title')).toBe("What's new");
   });
 });
 

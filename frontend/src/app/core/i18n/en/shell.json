@@ -27,9 +27,6 @@
   "toolbar.syncing": "Syncing builds (keep this tab open)",
   "toolbar.syncingLabel": "Syncing builds",
 
-  "footer.version": "Version {version}",
-  "footer.feedback": "Feedback",
-
   "feedback.section.dashboard": "Dashboard",
   "feedback.section.import": "Importing an account",
   "feedback.section.accounts": "Your accounts and characters",

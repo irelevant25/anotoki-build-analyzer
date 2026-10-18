@@ -222,10 +222,11 @@ frontend/src/app/
                         visitor key, sync driver, i18n/ (the site's words on anotoki-lib's service: typed keys,
                         pipes, the compiled English), game
                         terms, site-status (anotoki-lib's site gate and Migrations page, wired to this site)
-  layouts/              top-bar, footer (version, What's new, Feedback; Terms · Privacy · Contact), app-layout,
-                        legal-layout (the legal pages with the site's facts), admin-layout (the admin panel's frame)
+  layouts/              top-bar, app-layout, legal-layout (the legal pages with the site's facts), admin-layout (the
+                        admin panel's frame) - each layout with anotoki-lib's footer (version, What's new, Feedback;
+                        Terms · Privacy · Contact)
   shared/               build detail, item card, grade badge, changelog dialog, confirm dialog, the visitor notice,
-                        the ways in for somebody new, the "Your data" card, the feedback form's dialog, ...
+                        the ways in for somebody new, the "Your data" card, ...
   pages/                dashboard, import wizard, account, character analysis, builds;
                         admin/ (sources, translations, languages, migrations - translations, languages and
                         migrations are anotoki-lib's pages, and so are People and the admin tools, routed straight)

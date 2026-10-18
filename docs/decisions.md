@@ -3,6 +3,24 @@
 Short records of choices that shape the code. Add a new entry (newest first) when you make a similar call.
 Older entries describe the Laravel version as it was; where a setting has since moved, the entry says so.
 
+**2026-10-18 — anotoki-lib 0.6.3, both halves: the family's footer in place of this site's own, and Feedback only where a message can be sent (the owner's round 3; version 0.4.0, unreleased).**
+- *The family's footer* (the owner, after the deploy: "I like the footer of builder the most. The order, texts and
+  the top border."): the library's `<anotoki-site-footer>` is a copy of this site's footer, so it takes its place
+  in both layouts with nothing to see changed - the top border, "Version 0.4.0 · What's new · Feedback", Terms ·
+  Privacy · Contact, the fan clause (`fan="hoyoverse"`); What's new is still this site's dialog. Feedback's dialog is
+  the library's now, named by the button ("Feedback", where the site's dialog showed the form's own title).
+  `layouts/footer/` and `shared/feedback-dialog/` went; migration 013 moves their three words under the library's
+  keys (`anotoki.footer.*`) the 010 way - every string, writer and time, never over an owner's rewording of the
+  library's key - and copies What's new's, whose site key stays the dialog's title.
+- *Feedback only where a message can be sent* (the survey's finding, for every site): the form's request says
+  nothing of whom it is for, so the auth interceptor sends it as the page is shown - the person's with their token,
+  the visitor's while the page is shown to one; the server (`optionalSignIn()`) takes one from anybody only while
+  the IAM lets visitors in here, so somebody signed out while it requires a sign-in would press Send into "Sign in to
+  send a message". Feedback in the footer and the Contact page's form are offered only to a person signed in or a
+  visitor, while the site is ready (`feedbackOffered()`: an update waiting answers it 503) - not on a legal page, the
+  sign-in failure's screen or the admin panel's "You are signed out" while sign-in is required. The Privacy page
+  says what a message holds to everybody: only the Contact page's frame leaves the form out (`legalPagesConfig()`).
+
 **2026-10-18 — After the deploy: a cloudflare.local.php that names no usable secret fails closed too; 008's regression test and a rule for every gate; setup's notice decided by the installer; the neutral-names rule's one exception; the status page bare (the owner's round 3; version 0.4.0, unreleased).**
 - *A present cloudflare.local.php without a usable secret fails closed* (the owner's "do as you think is the best"
   of 2026-10-18, asked whether to tighten the rule after the deploy; this changes the entry below): a file read

@@ -1,5 +1,12 @@
 <anotoki-shell>
   <app-top-bar topBar area="app" />
   <router-outlet />
-  <app-footer shellFooter />
+  <anotoki-site-footer
+    shellFooter
+    [version]="changelog.current()"
+    [whatsNew]="changelog.current() !== null"
+    (whatsNew)="changelog.open()"
+    [feedback]="feedback()"
+    fan="hoyoverse"
+  />
 </anotoki-shell>

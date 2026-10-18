@@ -34,6 +34,12 @@ export class AuthService {
   readonly user = this.auth.user;
   readonly signedIn = this.auth.signedIn;
   /**
+   * The page is shown to a visitor: nobody signed in, while the IAM lets visitors in (and the page was never shown
+   * to a person). A request that does not say whom it is for goes as the visitor's then - their key when there is
+   * one, never a token; to somebody signed out otherwise it would go as a person's with no token, and not be sent.
+   */
+  readonly visiting = computed(() => this.auth.state() === 'visitor');
+  /**
    * The token's roles for this site, upper case: EDITOR runs the syncs and rewords the site's strings; ADMIN does
    * that and more. MEMBER, which every account holds, changes nothing (an ordinary person).
    */

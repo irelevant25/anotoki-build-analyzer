@@ -57,6 +57,16 @@ describe("AuthService: the auth module (@anotoki/lib/auth) under the names the s
     expect(nobody.auth.isStaff()).toBe(false);
   });
 
+  it('says when the page is shown to a visitor: nobody signed in, while the IAM lets visitors in', async () => {
+    const visitor = await start({ loginRequired: false });
+    expect([visitor.auth.visiting(), visitor.auth.signedIn()]).toEqual([true, false]);
+    // The IAM requires signing in here: nobody visits - somebody not signed in is signed out.
+    const signedOut = await start({ loginRequired: true });
+    expect([signedOut.auth.visiting(), signedOut.auth.signedIn()]).toEqual([false, false]);
+    const person = await start({ user: { sub: '7' }, loginRequired: false });
+    expect([person.auth.visiting(), person.auth.signedIn()]).toEqual([false, true]);
+  });
+
   it('signs in at the IAM, back to the page asked for - or to this one - and out everywhere', async () => {
     const { handle, auth } = await start({ loginRequired: false });
     expect(await auth.login('/builds/hsr')).toBe(true);

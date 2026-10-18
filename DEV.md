@@ -130,15 +130,17 @@ longer read and can be deleted.
 What the anotoki sites share lives in one library, [irelevant25/anotoki-lib](https://github.com/irelevant25/anotoki-lib),
 in two halves with one version: the Composer package `anotoki/lib` (`backend/composer.json`: a `vcs` repository
 entry and `"anotoki/lib": "^0.6.0"`; installed into `backend/vendor/`, which the upload carries) and the npm
-package `@anotoki/lib` (`frontend/package.json`: the release's tarball). Both halves are 0.6.2 (0.6.0: the legal
+package `@anotoki/lib` (`frontend/package.json`: the release's tarball). Both halves are 0.6.3 (0.6.0: the legal
 pages - Terms, Privacy, Contact - and the kit's newer pieces; 0.6.1 and 0.6.2: the Privacy page's sentences made
-true on every site). A minor version is taken by hand while the version is 0.x: `^0.5.0` never took 0.6 by itself;
+true on every site; 0.6.3: the family's footer, this site's own made the library's). A minor version is taken by
+hand while the version is 0.x: `^0.5.0` never took 0.6 by itself;
 never 0.4.0, whose Feedback page fails on PHP 8.2. Besides the translations
 module, the auth module (signing in through the anotoki IAM: the token check, the IAM's switch, the browser's
 client, interceptor, guards and the sign-in hint), the people module (the People page, the scrub of the accounts
 the IAM deleted, what a restore does again), the admin tools (the error log - the browser's errors too -, the
-audit log, feedback, sealed backups, one reading of a request's address) and the legal pages (with this site's
-facts: `frontend/src/app/core/legal-facts.ts`) - each set up for this site where it is
+audit log, feedback, sealed backups, one reading of a request's address), the legal pages (with this site's
+facts: `frontend/src/app/core/legal-facts.ts`) and the footer (`<anotoki-site-footer>`, in both layouts) - each set
+up for this site where it is
 used - they hold the migrations module, one behaviour for every anotoki site while its database is not ready:
 
 - the engine (`Anotoki\Lib\Migrations\Migrator`), on this site's files and bookkeeping table through

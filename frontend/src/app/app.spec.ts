@@ -59,7 +59,7 @@ type Standing =
 
 /**
  * The page in the site's two real frames, as app.routes.ts nests them: everybody's pages in the AppLayout, the
- * admin panel in the AdminLayout - each with the family's bar and the site's footer.
+ * admin panel in the AdminLayout - each with the family's bar and footer.
  */
 const FRAMED: Routes = [
   { path: 'admin', component: AdminLayout, children: [{ path: '**', component: TestPage }] },
@@ -126,6 +126,8 @@ describe('the shell', () => {
             user,
             available: signal(true),
             signedIn: () => user() !== null,
+            // Nobody signed in uses the site as a visitor here (the IAM lets visitors in).
+            visiting: () => user() === null,
             displayName: () => user()?.preferred_username ?? null,
             isAdmin: computed(() => roles().includes('ADMIN')),
             isStaff: computed(() => roles().includes('ADMIN') || roles().includes('EDITOR')),
@@ -324,7 +326,7 @@ describe('the shell', () => {
   const frame = () =>
     [
       ...host.querySelectorAll(
-        'anotoki-shell, app-top-bar, anotoki-top-bar, app-footer, anotoki-legal-links, header, footer, nav',
+        'anotoki-shell, app-top-bar, anotoki-top-bar, anotoki-site-footer, anotoki-legal-links, header, footer, nav',
       ),
     ].map((element) => element.localName);
 
@@ -363,18 +365,21 @@ describe('the shell', () => {
     const framed = () => ({
       bar: host.querySelector('anotoki-shell app-top-bar anotoki-top-bar') !== null,
       page: host.querySelector('anotoki-shell main .the-page') !== null,
-      footer: host.querySelector('anotoki-shell app-footer anotoki-legal-links') !== null,
+      footer: host.querySelector('anotoki-shell anotoki-site-footer anotoki-legal-links') !== null,
       gate: statusPage() !== null,
     });
     const whole = { bar: true, page: true, footer: true, gate: false };
 
+    const feedback = () => host.querySelector('anotoki-site-footer [data-open-feedback]') !== null;
+
     await setup({ who: 'member', path: '/accounts/3', framed: true });
-    expect(framed()).toEqual(whole);
+    expect([framed(), feedback()]).toEqual([whole, true]);
 
     TestBed.resetTestingModule();
     await setup({ who: 'admin', path: '/admin/sources', framed: true });
-    expect(framed()).toEqual(whole);
+    expect([framed(), feedback()]).toEqual([whole, true]);
 
+    // The ADMIN's Migrations page while an update waits: the frame, but no Feedback - the gate would answer it 503.
     TestBed.resetTestingModule();
     await setup({
       who: 'admin',
@@ -382,7 +387,7 @@ describe('the shell', () => {
       path: '/admin/migrations',
       framed: true,
     });
-    expect(framed()).toEqual(whole);
+    expect([framed(), feedback()]).toEqual([whole, false]);
 
     // Closed while a page was open: the frame goes with the page, and comes back with it.
     TestBed.resetTestingModule();
