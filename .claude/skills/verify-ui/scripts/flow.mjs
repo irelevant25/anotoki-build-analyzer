@@ -75,7 +75,12 @@ function pageErrors() {
   const folder = join(WORK, 'config', 'storage', 'logs');
   return (existsSync(folder) ? readdirSync(folder) : [])
     .filter((file) => /^errors-.*\.jsonl$/.test(file))
-    .flatMap((file) => readFileSync(join(folder, file), 'utf8').split('\n').filter((line) => line.trim() !== '').map((line) => JSON.parse(line)))
+    .flatMap((file) =>
+      readFileSync(join(folder, file), 'utf8')
+        .split('\n')
+        .filter((line) => line.trim() !== '')
+        .map((line) => JSON.parse(line)),
+    )
     .filter((line) => line.source === 'client');
 }
 
@@ -128,8 +133,17 @@ const GOOD = JSON.stringify({
   weapons: [{ key: 'StaffOfHoma', level: 90, ascension: 6, refinement: 1, location: 'HuTao', lock: true }],
   artifacts: [
     {
-      setKey: 'CrimsonWitchOfFlames', slotKey: 'flower', level: 20, rarity: 5, mainStatKey: 'hp', location: 'HuTao', lock: true,
-      substats: [{ key: 'critRate_', value: 10.5 }, { key: 'critDMG_', value: 14.0 }],
+      setKey: 'CrimsonWitchOfFlames',
+      slotKey: 'flower',
+      level: 20,
+      rarity: 5,
+      mainStatKey: 'hp',
+      location: 'HuTao',
+      lock: true,
+      substats: [
+        { key: 'critRate_', value: 10.5 },
+        { key: 'critDMG_', value: 14.0 },
+      ],
     },
   ],
 });
@@ -295,7 +309,10 @@ function describeLayout(layout) {
 
 async function checkBar(page, label) {
   const layout = await barLayout(page);
-  check(layout.overlaps.length === 0 && layout.outside.length === 0 && layout.scroll <= layout.width, `${label}: the bar fits - ${describeLayout(layout)}${layout.overlaps.length ? ` OVERLAP ${layout.overlaps}` : ''}${layout.outside.length ? ` OUTSIDE ${layout.outside}` : ''}, scroll ${layout.scroll}`);
+  check(
+    layout.overlaps.length === 0 && layout.outside.length === 0 && layout.scroll <= layout.width,
+    `${label}: the bar fits - ${describeLayout(layout)}${layout.overlaps.length ? ` OVERLAP ${layout.overlaps}` : ''}${layout.outside.length ? ` OUTSIDE ${layout.outside}` : ''}, scroll ${layout.scroll}`,
+  );
   return layout;
 }
 
@@ -337,7 +354,7 @@ async function rowNeeds(page) {
 
 try {
   if (MEASURE) {
-    step('What the row needs (the person\'s name aside), at 1600 px');
+    step("What the row needs (the person's name aside), at 1600 px");
     // Feedback nobody has opened: the ADMIN's row as it is with the count beside Feedback.
     await fetch(`${SITE}/api/feedback`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ kind: 'idea', message: 'Measuring the bar.' }) });
     for (const language of ['en', 'sk']) {
@@ -430,7 +447,7 @@ try {
     }
 
     // ── A visitor's first import ───────────────────────────────────────────────────────────────────────
-    step("A visitor: the first import, its key, its notice");
+    step('A visitor: the first import, its key, its notice');
     const visitor = await newContext();
     const tab = await visitor.newPage();
     await open(tab, '/import?lang=en');
@@ -457,7 +474,7 @@ try {
     step('A second tab of the same browser');
     const second = await visitor.newPage();
     await open(second, '/');
-    check((await second.locator('.account-grid .account-main').count()) === 1, 'it sees the same account (the key is the browser\'s)');
+    check((await second.locator('.account-grid .account-main').count()) === 1, "it sees the same account (the key is the browser's)");
     await second.close();
 
     step('Two tabs that import first, one after the other: the first key stays');
@@ -482,13 +499,17 @@ try {
     await twins.close();
 
     // ── The move at sign-in ────────────────────────────────────────────────────────────────────────────
-    step('Signing in moves what the visitor imported into the person\'s account');
+    step("Signing in moves what the visitor imported into the person's account");
     await signIn(tab, MONA);
-    const toast = await tab.locator(TOAST).first().innerText({ timeout: 10000 }).catch(() => '');
+    const toast = await tab
+      .locator(TOAST)
+      .first()
+      .innerText({ timeout: 10000 })
+      .catch(() => '');
     check(toast.includes('now in your anotoki account'), `a toast says so: "${toast.replace(/\s+/g, ' ').trim()}"`);
     check((await tab.evaluate(() => localStorage.getItem('build-analyzer-visitor'))) === null, 'the key is gone from the browser');
     check(sql('SELECT count(*) AS n FROM users WHERE visitor_key_hash = ?', [hash])[0].n == 0, 'the visitor row is gone');
-    check(sql('SELECT count(*) AS n FROM accounts WHERE user_id = 7')[0].n == 1, 'the account is mona\'s now');
+    check(sql('SELECT count(*) AS n FROM accounts WHERE user_id = 7')[0].n == 1, "the account is mona's now");
     check((await tab.locator('app-visitor-notice').count()) === 0 && (await tab.locator('app-data-card').count()) === 1, 'no notice; the "Your data" card');
     await shot(tab, '05-member-dashboard-after-move', { fullPage: true });
 
@@ -525,7 +546,10 @@ try {
             const chooser = tab.locator(LANGUAGE_BUTTON);
             const shown = (await chooser.innerText()).trim();
             const name = await chooser.getAttribute('aria-label');
-            check(shown === language.toUpperCase() && name === (language === 'sk' ? 'Jazyk: Slovenčina (SK)' : 'Language: English (EN)'), `${language}: the language button shows ${shown}, and its name says it too - ${name}`);
+            check(
+              shown === language.toUpperCase() && name === (language === 'sk' ? 'Jazyk: Slovenčina (SK)' : 'Language: English (EN)'),
+              `${language}: the language button shows ${shown}, and its name says it too - ${name}`,
+            );
           }
           if (language === 'sk' || width === 1280) {
             await shot(tab, `bar-${width}-${scheme}-${language}-signed-in`, { clip: { x: 0, y: 0, width, height: 120 } });
@@ -575,7 +599,7 @@ try {
     await tab.waitForTimeout(200);
     check((await tab.locator(BAR_MENU).count()) === 0 && (await onMenuButton()), 'Shift+Tab: the same');
 
-    step('The person\'s menu at 1280 px, and a real Tab press out of it');
+    step("The person's menu at 1280 px, and a real Tab press out of it");
     await tab.setViewportSize({ width: 1280, height: 800 });
     await open(tab, '/?lang=en');
     await tab.click(PERSON_BUTTON);
@@ -588,7 +612,10 @@ try {
     await tab.keyboard.press('End');
     await tab.keyboard.press('Tab');
     await tab.waitForTimeout(200);
-    check((await tab.locator(BAR_MENU).count()) === 0 && (await tab.evaluate(() => document.activeElement?.classList.contains('anotoki-top-bar__person-button'))), 'Tab from the last item: closed, the focus on the person\'s button, never <body>');
+    check(
+      (await tab.locator(BAR_MENU).count()) === 0 && (await tab.evaluate(() => document.activeElement?.classList.contains('anotoki-top-bar__person-button'))),
+      "Tab from the last item: closed, the focus on the person's button, never <body>",
+    );
 
     // ── Slovak ─────────────────────────────────────────────────────────────────────────────────────────
     step('Slovak at 390 px: no key where a word should be');
@@ -627,7 +654,10 @@ try {
       await page.waitForSelector('anotoki-feedback-form [data-thanks]', { timeout: 15000 });
       await shot(page, '22-feedback-sent-390-dark');
       const kept = sql('SELECT kind, message, language, user_id, contact_email, page FROM anotoki_feedback ORDER BY id DESC LIMIT 1')[0];
-      check(kept?.message === 'Import sa zastaví pri druhom kroku.' && kept?.language === 'sk' && kept?.user_id === null && kept?.contact_email === null && kept?.page === '/import', `kept: ${JSON.stringify(kept)}`);
+      check(
+        kept?.message === 'Import sa zastaví pri druhom kroku.' && kept?.language === 'sk' && kept?.user_id === null && kept?.contact_email === null && kept?.page === '/import',
+        `kept: ${JSON.stringify(kept)}`,
+      );
       await page.click('anotoki-feedback-form [data-close]');
       await page.waitForSelector(DIALOG, { state: 'detached' });
       await page.setViewportSize({ width: 1280, height: 900 });
@@ -656,7 +686,9 @@ try {
       const kept = await keeper.newPage();
       /** The theme as the page has it: the switch's choice (light, dark or auto), and the colours drawn (<html data-theme>). */
       const theme = () =>
-        kept.evaluate(() => `${document.querySelector('app-top-bar anotoki-theme-toggle [role=radio][aria-checked=true]')?.getAttribute('data-value')}/${document.documentElement.getAttribute('data-theme')}`);
+        kept.evaluate(
+          () => `${document.querySelector('app-top-bar anotoki-theme-toggle [role=radio][aria-checked=true]')?.getAttribute('data-value')}/${document.documentElement.getAttribute('data-theme')}`,
+        );
       /** What the stand-in IAM's account now says, once it says `done` (or after five seconds). */
       const account = async (done) => {
         let user = null;
@@ -689,7 +721,7 @@ try {
       await kept.waitForFunction(() => document.documentElement.getAttribute('data-theme') === 'light', null, { timeout: 2000 }).catch(() => {});
       check((await theme()) === 'light/light', `the switch: light at once (${await theme()})`);
       const lit = await account((user) => user?.preferences?.theme === 'light');
-      check(lit?.preferences?.theme === 'light', "...and saved to the account, across origins (POST /api/oidc/preferences at the stand-in IAM)");
+      check(lit?.preferences?.theme === 'light', '...and saved to the account, across origins (POST /api/oidc/preferences at the stand-in IAM)');
 
       await kept.click(LANGUAGE_BUTTON);
       await kept.click(`${LANGUAGE_MENU} [role=menuitemradio][lang=sk]`);
@@ -709,7 +741,14 @@ try {
       // says so under itself (the family's note, role alert).
       await iamState({ down: true });
       await kept.click(`${THEME_SWITCH} [role=radio][data-value=dark]`);
-      const note = (await kept.locator(`${THEME_SWITCH} .anotoki-theme-toggle__note`).innerText({ timeout: 10000 }).catch(() => '')).replace(/\s+/g, ' ').trim();
+      const note = (
+        await kept
+          .locator(`${THEME_SWITCH} .anotoki-theme-toggle__note`)
+          .innerText({ timeout: 10000 })
+          .catch(() => '')
+      )
+        .replace(/\s+/g, ' ')
+        .trim();
       await shot(kept, '08c-account-theme-refused-390-sk');
       await iamState({ down: false });
       check(note.length > 0 && (await theme()) === 'light/light', `a save the IAM could not take: the account's theme is back, and the switch says "${note}"`);
@@ -729,7 +768,7 @@ try {
     await open(ed, '/?lang=sk');
     await signIn(ed, EDDIE);
     await open(ed, '/admin');
-    check((await ed.locator(BAR_LINK).allInnerTexts()).join('|') === 'Sources|Translations', 'an editor\'s sections: Sources, Translations');
+    check((await ed.locator(BAR_LINK).allInnerTexts()).join('|') === 'Sources|Translations', "an editor's sections: Sources, Translations");
     check((await ed.evaluate(() => document.documentElement.lang)) === 'en', '<html lang="en"> in the admin panel');
     check((await ed.locator('app-top-bar anotoki-language-switcher').count()) === 0, 'no language chooser in the admin panel');
     await ed.click(PERSON_BUTTON);
@@ -747,7 +786,8 @@ try {
     await open(ed, '/admin/migrations');
     check(new URL(ed.url()).pathname === '/admin/sources', 'Migrations sends an editor to Sources');
     const refused = await ed.evaluate(async () => {
-      const token = JSON.parse(localStorage.getItem('anotoki-auth:build-analyzer') ?? '{}').access_token ?? JSON.parse(localStorage.getItem('anotoki-auth:build-analyzer') ?? '{}').tokens?.access_token;
+      const token =
+        JSON.parse(localStorage.getItem('anotoki-auth:build-analyzer') ?? '{}').access_token ?? JSON.parse(localStorage.getItem('anotoki-auth:build-analyzer') ?? '{}').tokens?.access_token;
       const people = await fetch('/api/admin/people', { headers: { Authorization: `Bearer ${token}` } });
       const migrations = await fetch('/api/admin/migrations', { headers: { Authorization: `Bearer ${token}` } });
       return [people.status, (await people.json()).code, migrations.status];
@@ -761,16 +801,28 @@ try {
     await ad.click(PERSON_BUTTON);
     await ad.waitForSelector(`${BAR_MENU} [role=menuitem]`);
     const adminItems = (await ad.locator(`${BAR_MENU} [role=menuitem]`).allInnerTexts()).map((item) => item.replace(/\s+/g, ' ').trim());
-    check(adminItems.some((item) => item.endsWith('Admin panel')), `the person's menu leads into the "Admin panel" (${adminItems.join(' | ')})`);
+    check(
+      adminItems.some((item) => item.endsWith('Admin panel')),
+      `the person's menu leads into the "Admin panel" (${adminItems.join(' | ')})`,
+    );
     await ad.keyboard.press('Escape');
     await ad.setViewportSize({ width: ADMIN_PHONE_BAR_MAX + 201, height: 900 });
     await open(ad, '/admin/people');
     // Each section by its own words: a count beside one (Feedback's badge, and what it counts for the ear) is not
     // its name.
     const sections = await ad.locator(BAR_LINK).evaluateAll((links) =>
-      links.map((link) => [...link.childNodes].filter((node) => node.nodeType === Node.TEXT_NODE).map((node) => node.textContent).join('').trim()),
+      links.map((link) =>
+        [...link.childNodes]
+          .filter((node) => node.nodeType === Node.TEXT_NODE)
+          .map((node) => node.textContent)
+          .join('')
+          .trim(),
+      ),
     );
-    check(sections.join('|') === 'Sources|Translations|Languages|People|Migrations|Errors|Audit|Feedback|Backups', `an admin's sections: all nine - the family's admin tools too (${sections.join(', ')})`);
+    check(
+      sections.join('|') === 'Sources|Translations|Languages|People|Migrations|Errors|Audit|Feedback|Backups',
+      `an admin's sections: all nine - the family's admin tools too (${sections.join(', ')})`,
+    );
     // The family's brand of an admin panel, short at every width beside nine sections: the site's short name with
     // "admin panel" under it; the app's whole name in the link's accessible name.
     const wordmark = (await ad.locator('app-top-bar anotoki-brand .anotoki-brand__wordmark').innerText()).replace(/\s+/g, ' ').trim();
@@ -783,7 +835,11 @@ try {
     check((await ad.locator('[data-person="7"] [data-delete]').count()) === 1, "mona's row: Delete their data");
     check((await ad.locator('[data-person="1"] [data-you]').count()) === 1 || people.includes('you'), 'the reader\'s own row says "you"');
     await shot(ad, '10-admin-people', { fullPage: true });
-    for (const [scheme, width] of [['dark', 1280], ['light', 390], ['dark', 390]]) {
+    for (const [scheme, width] of [
+      ['dark', 1280],
+      ['light', 390],
+      ['dark', 390],
+    ]) {
       await ad.setViewportSize({ width, height: 900 });
       await ad.emulateMedia({ colorScheme: scheme });
       await open(ad, '/admin/people');
@@ -794,7 +850,9 @@ try {
     }
     await ad.emulateMedia({ colorScheme: 'light' });
 
-    step(`The admin panel's bar at 390, 1024, 1280, ${ADMIN_PHONE_BAR_MAX}, ${ADMIN_PHONE_BAR_MAX + 1} and ${ADMIN_PHONE_BAR_MAX + 201} px for the ADMIN, light and dark - and an editor's at ${EDITOR_PHONE_BAR_MAX} and ${EDITOR_PHONE_BAR_MAX + 1} px`);
+    step(
+      `The admin panel's bar at 390, 1024, 1280, ${ADMIN_PHONE_BAR_MAX}, ${ADMIN_PHONE_BAR_MAX + 1} and ${ADMIN_PHONE_BAR_MAX + 201} px for the ADMIN, light and dark - and an editor's at ${EDITOR_PHONE_BAR_MAX} and ${EDITOR_PHONE_BAR_MAX + 1} px`,
+    );
     for (const scheme of ['light', 'dark']) {
       for (const width of [390, 1024, 1280, ADMIN_PHONE_BAR_MAX, ADMIN_PHONE_BAR_MAX + 1, ADMIN_PHONE_BAR_MAX + 201]) {
         await ad.setViewportSize({ width, height: 760 });
@@ -813,7 +871,10 @@ try {
       await ed.setViewportSize({ width, height: 760 });
       await open(ed, '/admin/sources');
       const layout = await checkBar(ed, `admin panel, an editor, ${width} px`);
-      check((await ed.locator(MENU_BUTTON).count()) === (width <= EDITOR_PHONE_BAR_MAX ? 1 : 0), `admin panel, an editor, ${width} px: ${width <= EDITOR_PHONE_BAR_MAX ? "a phone's bar" : "a desktop's bar"}`);
+      check(
+        (await ed.locator(MENU_BUTTON).count()) === (width <= EDITOR_PHONE_BAR_MAX ? 1 : 0),
+        `admin panel, an editor, ${width} px: ${width <= EDITOR_PHONE_BAR_MAX ? "a phone's bar" : "a desktop's bar"}`,
+      );
       if (width === EDITOR_PHONE_BAR_MAX + 201) {
         check(layout.nameCut === false, `admin panel, an editor, ${width} px: the person's name shows, whole (${layout.nameCut})`);
       }
@@ -828,7 +889,7 @@ try {
       await ad.setViewportSize({ width: 1280, height: 900 });
       await open(ad, '/admin/translations');
       await ad.waitForSelector('anotoki-translations-page textarea', { timeout: 15000 });
-      check((await ad.locator('anotoki-translations-page h1').innerText()).trim() === 'Translations', 'the page: Translations, in the admin panel\'s frame');
+      check((await ad.locator('anotoki-translations-page h1').innerText()).trim() === 'Translations', "the page: Translations, in the admin panel's frame");
       check((await ad.title()) === 'Translations · Admin panel · Build Analyzer', `its title: ${await ad.title()}`);
       check((await ad.evaluate(() => document.documentElement.lang)) === 'en', '<html lang="en">');
       const coverage = (await ad.locator('.anotoki-translations-page__languages').innerText()).replace(/\s+/g, ' ').trim();
@@ -858,7 +919,11 @@ try {
       check(back === before, `and back as it was (${back})`);
       await ad.getByLabel('Find a key or a text').fill('');
 
-      for (const [scheme, width] of [['dark', 1280], ['light', 390], ['dark', 390]]) {
+      for (const [scheme, width] of [
+        ['dark', 1280],
+        ['light', 390],
+        ['dark', 390],
+      ]) {
         await ad.setViewportSize({ width, height: 900 });
         await ad.emulateMedia({ colorScheme: scheme });
         await open(ad, '/admin/translations');
@@ -871,13 +936,20 @@ try {
         await shot(ad, `17-admin-translations-${width}-${scheme}`);
       }
 
-      for (const [scheme, width] of [['light', 1280], ['dark', 1280], ['light', 390], ['dark', 390]]) {
+      for (const [scheme, width] of [
+        ['light', 1280],
+        ['dark', 1280],
+        ['light', 390],
+        ['dark', 390],
+      ]) {
         await ad.setViewportSize({ width, height: 900 });
         await ad.emulateMedia({ colorScheme: scheme });
         await open(ad, '/admin/languages');
         await ad.waitForSelector('anotoki-languages-page [data-language]', { timeout: 15000 });
         if (width === 1280 && scheme === 'light') {
-          const rows = await ad.locator('[data-language]').evaluateAll((list) => list.map((row) => `${row.dataset.language}: ${[...row.querySelectorAll('anotoki-badge')].map((badge) => badge.textContent.trim()).join(', ')}`));
+          const rows = await ad
+            .locator('[data-language]')
+            .evaluateAll((list) => list.map((row) => `${row.dataset.language}: ${[...row.querySelectorAll('anotoki-badge')].map((badge) => badge.textContent.trim()).join(', ')}`));
           check(rows.join(' | ') === 'en: en, Fallback | sk: sk, Released with the site', `the languages: ${rows.join(' | ')}`);
           check((await ad.title()) === 'Languages · Admin panel · Build Analyzer', `its title: ${await ad.title()}`);
         }
@@ -898,7 +970,10 @@ try {
         await tab.emulateMedia({ colorScheme: 'dark' });
         await open(tab, '/builds/genshin?lang=sk');
         const shown = await keysShown(tab);
-        check(shown.length === 0 && (await tab.evaluate(() => document.documentElement.lang)) === 'sk', `/builds/genshin, ${width} px, dark: Slovak, no keys${shown.length ? ` - ${shown.join(', ')}` : ''}`);
+        check(
+          shown.length === 0 && (await tab.evaluate(() => document.documentElement.lang)) === 'sk',
+          `/builds/genshin, ${width} px, dark: Slovak, no keys${shown.length ? ` - ${shown.join(', ')}` : ''}`,
+        );
         await shot(tab, `sk-${width}-dark-builds`, { fullPage: true });
       }
       await tab.emulateMedia({ colorScheme: 'light' });
@@ -917,14 +992,20 @@ try {
       // (@anotoki/lib/error-report) sends it scrubbed, through the app's HttpClient - so with ada's token - and the
       // error log writes it as the browser's, by her account.
       const reported = ad.waitForResponse((answer) => answer.url() === `${SITE}/api/client-errors` && answer.request().method() === 'POST', { timeout: 15000 });
-      await ad.evaluate((message) => setTimeout(() => {
-        throw new Error(message);
-      }, 0), THROWN);
+      await ad.evaluate(
+        (message) =>
+          setTimeout(() => {
+            throw new Error(message);
+          }, 0),
+        THROWN,
+      );
       const report = await reported;
       check(report.status() === 204 && /^Bearer \S+$/.test((await report.request().allHeaders()).authorization ?? ''), `the page's error reported, with ada's token (${report.status()})`);
       const thrown = pageErrors().filter((line) => line.message === THROWN_SCRUBBED);
-      check(thrown.length === 1 && thrown[0].user_id === 1 && thrown[0].path === '/admin/sources' && !JSON.stringify(pageErrors()).includes('@example.test'),
-        `the error log has it as the browser's - scrubbed, by ada, on its page (${JSON.stringify(pageErrors().map((line) => [line.message, line.user_id, line.path]))})`);
+      check(
+        thrown.length === 1 && thrown[0].user_id === 1 && thrown[0].path === '/admin/sources' && !JSON.stringify(pageErrors()).includes('@example.test'),
+        `the error log has it as the browser's - scrubbed, by ada, on its page (${JSON.stringify(pageErrors().map((line) => [line.message, line.user_id, line.path]))})`,
+      );
       await ad.waitForSelector('app-top-bar a[href="/admin/feedback"] .anotoki-top-bar__badge', { timeout: 15000 });
       const count = (await ad.locator('app-top-bar a[href="/admin/feedback"] .anotoki-top-bar__badge').innerText()).trim();
       // The family's bar (anotoki-lib 0.6.0): the number seen beside Feedback, and what it counts heard after the
@@ -940,7 +1021,12 @@ try {
         ['/admin/backups', 'anotoki-backups-page', 'Backups'],
       ];
       for (const [path, element, title] of tools) {
-        for (const [scheme, width] of [['light', 1280], ['dark', 1280], ['light', 390], ['dark', 390]]) {
+        for (const [scheme, width] of [
+          ['light', 1280],
+          ['dark', 1280],
+          ['light', 390],
+          ['dark', 390],
+        ]) {
           await ad.setViewportSize({ width, height: 900 });
           await ad.emulateMedia({ colorScheme: scheme });
           await open(ad, path);
@@ -981,7 +1067,11 @@ try {
       await shot(ad, '19-admin-feedback-opened');
       await ad.keyboard.press('Escape');
       await ad.setViewportSize({ width: wide, height: 900 });
-      await ad.waitForFunction(() => document.querySelector('app-top-bar a[href="/admin/feedback"]') !== null && document.querySelector('app-top-bar a[href="/admin/feedback"] .anotoki-top-bar__badge') === null, null, { timeout: 10000 });
+      await ad.waitForFunction(
+        () => document.querySelector('app-top-bar a[href="/admin/feedback"]') !== null && document.querySelector('app-top-bar a[href="/admin/feedback"] .anotoki-top-bar__badge') === null,
+        null,
+        { timeout: 10000 },
+      );
       check(sql("SELECT status FROM anotoki_feedback WHERE message = 'Import sa zastaví pri druhom kroku.'")[0]?.status === 'read', 'opened: read, and no count beside Feedback any more');
       await ad.setViewportSize({ width: 1280, height: 900 });
 
@@ -1013,7 +1103,10 @@ try {
       // list is read again after the outcome shows, so it is waited for: the day's own backup, made by itself when
       // the check began, stands first until then.
       await ad.waitForFunction(() => (document.querySelector('[data-backups] [data-backup]')?.textContent ?? '').includes('ada'), null, { timeout: 10000 }).catch(() => {});
-      check((await ad.locator('[data-backups] [data-backup]').first().innerText()).includes('ada'), `listed with its maker's name (${(await ad.locator('[data-backups] [data-backup]').first().innerText()).replace(/\s+/g, ' ')})`);
+      check(
+        (await ad.locator('[data-backups] [data-backup]').first().innerText()).includes('ada'),
+        `listed with its maker's name (${(await ad.locator('[data-backups] [data-backup]').first().innerText()).replace(/\s+/g, ' ')})`,
+      );
       await shot(ad, '19-admin-backups-made', { fullPage: true });
 
       // An editor has none of them: sent to Sources, and the server refuses them.
@@ -1023,10 +1116,15 @@ try {
       }
       const edRefused = await ed.evaluate(async () => {
         const token = JSON.parse(localStorage.getItem('anotoki-auth:build-analyzer') ?? '{}').access_token;
-        const answers = await Promise.all(['/api/admin/errors', '/api/admin/audit', '/api/admin/feedback', '/api/admin/backups'].map((path) => fetch(path, { headers: { Authorization: `Bearer ${token}` } })));
+        const answers = await Promise.all(
+          ['/api/admin/errors', '/api/admin/audit', '/api/admin/feedback', '/api/admin/backups'].map((path) => fetch(path, { headers: { Authorization: `Bearer ${token}` } })),
+        );
         return Promise.all(answers.map(async (answer) => `${answer.status} ${(await answer.json()).code}`));
       });
-      check(edRefused.every((answer) => answer === '403 admin_only'), `the server refuses an editor every one of them (${edRefused.join(', ')})`);
+      check(
+        edRefused.every((answer) => answer === '403 admin_only'),
+        `the server refuses an editor every one of them (${edRefused.join(', ')})`,
+      );
     }
 
     // ── The Migrations page, and the site while an update waits ────────────────────────────────────────
@@ -1040,15 +1138,21 @@ try {
     // Four sets, in the order they run - the library's admin tools', the site's own, the library's translations and
     // people - each file named as its set's records name it: the site's by its name, the library's with its set.
     const appliedFiles = (await ad.locator('[data-applied] .anotoki-migrations-page__files code').allInnerTexts()).map((name) => name.trim());
-    const sqlFiles = (folder) => readdirSync(folder).filter((file) => file.endsWith('.sql')).sort();
-    const library = (set, folder) => sqlFiles(join(backend, 'vendor/anotoki/lib/php/migrations', folder)).map((file) => `${set}/${file}`);
+    const sqlFiles = (folder) =>
+      readdirSync(folder)
+        .filter((file) => file.endsWith('.sql'))
+        .sort();
+    const library = (set, folder) => sqlFiles(join(backend, 'vendor/anotoki/lib/backend/migrations', folder)).map((file) => `${set}/${file}`);
     const migrationFiles = [...library('anotoki_admin', 'admin'), ...sqlFiles(join(backend, 'migrations')), ...library('anotoki_translations', 'translations'), ...library('anotoki_people', 'people')];
-    check(appliedFiles.join('|') === migrationFiles.join('|'), `every file applied, in order - the admin tools' first, the translations' and the people's after the site's: ${appliedFiles.join(', ')}`);
+    check(
+      appliedFiles.join('|') === migrationFiles.join('|'),
+      `every file applied, in order - the admin tools' first, the translations' and the people's after the site's: ${appliedFiles.join(', ')}`,
+    );
     check(await ad.locator('[data-apply]').isDisabled(), 'Apply pending cannot be pressed with nothing pending');
     // The site's 005 by its whole name: the library's translations set has a 005 of its own since 0.6.0.
     await ad.locator('[data-applied]').getByRole('button', { name: 'View 005_retire_not_set_up_page.sql', exact: true }).click();
     await ad.waitForSelector('anotoki-dialog[data-sql] pre');
-    check((await ad.locator('anotoki-dialog[data-sql] pre').innerText()).includes("DELETE FROM translation_keys"), 'View shows a file\'s SQL (005)');
+    check((await ad.locator('anotoki-dialog[data-sql] pre').innerText()).includes('DELETE FROM translation_keys'), "View shows a file's SQL (005)");
     await shot(ad, '11-admin-migrations-file');
     await ad.click('anotoki-dialog[data-sql] [data-close]');
     await shot(ad, '11-admin-migrations-current', { fullPage: true });
@@ -1092,7 +1196,10 @@ try {
       check(gate.title === 'Stránku práve aktualizujeme' && gate.buttons.length === 0 && gate.links.length === 0, `mona, signed in: the same, with no button ("${gate.text}")`);
       check(!/update_pending|503|setup|migration/i.test(gate.page), 'and no error, code, setup or Migrations');
       paths = apiPaths();
-      check(paths.every((path) => OPEN_WHILE_WAITING.test(path)), `no dashboard of hers made behind it: the API asked for ${paths.join(', ')} only`);
+      check(
+        paths.every((path) => OPEN_WHILE_WAITING.test(path)),
+        `no dashboard of hers made behind it: the API asked for ${paths.join(', ')} only`,
+      );
       await shot(tab, '12c-update-waiting-member', { fullPage: true });
 
       step('An update waits: the ADMIN reads that a database update is waiting, and reaches the Migrations page - the one page that shows');
@@ -1101,7 +1208,10 @@ try {
       gate = await gatePage(ad);
       check(gate.title === 'A database update is waiting' && gate.links.join('|') === 'Open Migrations -> /admin/migrations', `the ADMIN: "${gate.text}" (${gate.links.join(', ')})`);
       paths = apiPaths();
-      check(paths.every((path) => OPEN_WHILE_WAITING.test(path)), `no Sources page made behind it: the API asked for ${paths.join(', ')} only`);
+      check(
+        paths.every((path) => OPEN_WHILE_WAITING.test(path)),
+        `no Sources page made behind it: the API asked for ${paths.join(', ')} only`,
+      );
       await shot(ad, '12d-update-waiting-admin', { fullPage: true });
       await ad.click('anotoki-site-status a');
       await ad.waitForURL('**/admin/migrations');
@@ -1109,10 +1219,10 @@ try {
       // Pending is one list in the order the files run (anotoki-lib 0.4), each named as its set's records name it.
       const pendingFiles = (await ad.locator('[data-pending] .anotoki-migrations-page__files li').allInnerTexts()).map((line) => line.replace(/\s+/g, ' ').trim());
       check(pendingFiles.join('|') === '004_visitors_and_family_bar.sql pending', `Migrations: 004 pending (${pendingFiles.join(', ')})`);
-      check((await ad.locator(BAR).count()) === 1, 'in the admin panel\'s frame');
+      check((await ad.locator(BAR).count()) === 1, "in the admin panel's frame");
       await shot(ad, '13-admin-migrations-pending', { fullPage: true });
 
-      step('An update waits: a signed-out ADMIN presses Sign in on the waiting page and comes back to it - now the ADMIN\'s');
+      step("An update waits: a signed-out ADMIN presses Sign in on the waiting page and comes back to it - now the ADMIN's");
       const comeback = await newContext();
       const returning = await comeback.newPage();
       await openGated(returning, '/?lang=en');
@@ -1136,7 +1246,10 @@ try {
       await ad.click('[data-confirm-apply]');
       await ad.waitForSelector('[data-result]', { timeout: 30000 });
       const outcome = await ad.locator('[data-result]').innerText();
-      check(outcome.includes('Stopped at 004_visitors_and_family_bar.sql') && outcome.includes('Nothing was applied.') && outcome.includes('rolled back as a whole') && /already exists/.test(outcome), `the failure, named: ${outcome.replace(/\s+/g, ' ').slice(0, 160)}`);
+      check(
+        outcome.includes('Stopped at 004_visitors_and_family_bar.sql') && outcome.includes('Nothing was applied.') && outcome.includes('rolled back as a whole') && /already exists/.test(outcome),
+        `the failure, named: ${outcome.replace(/\s+/g, ' ').slice(0, 160)}`,
+      );
       check((await ad.locator('[data-result]').getAttribute('role')) === 'alert', 'said aloud: role alert');
       check((await ad.locator('[data-pending] .anotoki-migrations-page__files li').count()) === 1, 'still pending after the failed apply');
       await shot(ad, '15-admin-migrations-stopped', { fullPage: true });
@@ -1155,14 +1268,14 @@ try {
     step('The update applied: the waiting pages reload by themselves, and the site is back');
     // The visitor's page asks again every 30 seconds, and starts afresh once the site is ready.
     await guest.waitForSelector(BAR, { timeout: 45000 });
-    check((await guest.locator('anotoki-site-status').count()) === 0, 'the visitor\'s page came back by itself');
+    check((await guest.locator('anotoki-site-status').count()) === 0, "the visitor's page came back by itself");
     await guests.close();
     await ad.setViewportSize({ width: 1280, height: 900 });
     await open(ad, '/admin/migrations');
     await ad.waitForSelector('anotoki-migrations-page [data-pending]');
     check((await ad.locator('[data-pending]').innerText()).includes('Nothing pending'), 'the database as it was: nothing pending');
     await open(tab, '/');
-    check((await tab.locator('anotoki-site-status').count()) === 0, 'mona\'s dashboard again');
+    check((await tab.locator('anotoki-site-status').count()) === 0, "mona's dashboard again");
 
     // ── The served path ────────────────────────────────────────────────────────────────────────────────
     step('Served by router.php: X-Visitor-Key passes, and a sweep runs after an answer');
@@ -1170,7 +1283,7 @@ try {
     const servedKey = made.headers.get('x-visitor-key');
     check(made.status === 201 && /^[A-Za-z0-9_-]{43}$/.test(servedKey ?? ''), 'an import with no sign-in answers its key in X-Visitor-Key');
     const mine = await fetch(`${SITE}/api/accounts`, { headers: { 'X-Visitor-Key': servedKey } });
-    check(mine.status === 200 && (await mine.json()).length === 1, 'the key sent back in X-Visitor-Key opens that visitor\'s accounts');
+    check(mine.status === 200 && (await mine.json()).length === 1, "the key sent back in X-Visitor-Key opens that visitor's accounts");
     // The twins' second visitor (its key was never kept) - a month and a half unseen.
     sql("UPDATE users SET last_seen_at = now() - interval '45 days' WHERE id < 0 AND visitor_key_hash <> ?", [createHash('sha256').update(servedKey).digest('hex')]);
     const before = sql('SELECT count(*) AS n FROM users WHERE id < 0')[0].n;
@@ -1183,7 +1296,7 @@ try {
     check(logged.includes('Visitors unseen for 30 days deleted') && !logged.includes(servedKey) && !logged.includes(key), 'the log says so, and holds no key');
 
     // ── Signing in from a visitor's page waits for the save on its way ─────────────────────────────────
-    step('Sign in pressed while a visitor\'s first import is on its way: it waits for the key, which then moves');
+    step("Sign in pressed while a visitor's first import is on its way: it waits for the key, which then moves");
     const hurry = await newContext();
     const rushed = await hurry.newPage();
     await open(rushed, '/import?lang=en');
@@ -1206,7 +1319,7 @@ try {
     await rushed.waitForLoadState('networkidle');
     await rushed.waitForTimeout(500);
     check(/^[A-Za-z0-9_-]{43}$/.test(rushedKey), 'the import made a visitor and answered its key');
-    check(sql('SELECT count(*) AS n FROM accounts WHERE user_id = 10')[0].n == 1, 'after the sign-in the account is sam\'s: the key was kept before the page left, and moved');
+    check(sql('SELECT count(*) AS n FROM accounts WHERE user_id = 10')[0].n == 1, "after the sign-in the account is sam's: the key was kept before the page left, and moved");
     check(sql('SELECT count(*) AS n FROM users WHERE visitor_key_hash = ?', [createHash('sha256').update(rushedKey).digest('hex')])[0].n == 0, 'that visitor row is gone');
     await hurry.close();
 
@@ -1233,11 +1346,18 @@ try {
     await away.waitForURL((url) => url.href.startsWith(SITE) && url.pathname === '/sign-in', { timeout: 15000 });
     await away.waitForSelector('anotoki-sign-in-failure [role=alert]');
     let seen = await failureScreen();
-    check(seen.title === 'Signing in did not work' && seen.message.startsWith('The sign-in was not completed.') && seen.buttons.join('|') === 'Try again|Back', `back from the IAM: the failure's screen says why ("${seen.title}: ${seen.message}" - ${seen.buttons.join(', ')})`);
+    check(
+      seen.title === 'Signing in did not work' && seen.message.startsWith('The sign-in was not completed.') && seen.buttons.join('|') === 'Try again|Back',
+      `back from the IAM: the failure's screen says why ("${seen.title}: ${seen.message}" - ${seen.buttons.join(', ')})`,
+    );
     check(seen.robots === 'noindex', `search engines are asked not to index it (${seen.robots})`);
     check((await away.locator(BAR).count()) === 1 && (await away.title()) === 'Sign in · Build Analyzer', `in the site's frame, under its bar ("${await away.title()}")`);
     await shot(away, '17-visitor-sign-in-refused-1280-light', { fullPage: true });
-    for (const [scheme, width] of [['dark', 1280], ['light', 390], ['dark', 390]]) {
+    for (const [scheme, width] of [
+      ['dark', 1280],
+      ['light', 390],
+      ['dark', 390],
+    ]) {
       await away.setViewportSize({ width, height: 800 });
       await away.emulateMedia({ colorScheme: scheme });
       await away.waitForTimeout(200);
@@ -1255,18 +1375,21 @@ try {
     await away.waitForSelector(SIGN_IN, { timeout: 10000 });
     check(new URL(away.url()).pathname === '/builds/genshin', 'Back: on to the page the sign-in started on, visiting');
     await open(away, '/?lang=sk');
-    check(new URL(away.url()).pathname === '/' && (await away.locator('app-visitor-hero').count()) === 1, 'said once: the next page is the visitor\'s again');
+    check(new URL(away.url()).pathname === '/' && (await away.locator('app-visitor-hero').count()) === 1, "said once: the next page is the visitor's again");
     // In Slovak: the screen reads the site's own words, moved under the library's keys by 009.
     await away.click(SIGN_IN);
     await away.waitForURL((url) => url.href.startsWith(SITE) && url.pathname === '/sign-in', { timeout: 15000 });
     await away.waitForSelector('anotoki-sign-in-failure [role=alert]');
     seen = await failureScreen();
-    check(seen.lang === 'sk' && seen.message.startsWith('Prihlásenie sa nedokončilo.') && seen.buttons.join('|') === 'Skúsiť znova|Späť', `in Slovak: "${seen.title}: ${seen.message}" (${seen.buttons.join(', ')})`);
+    check(
+      seen.lang === 'sk' && seen.message.startsWith('Prihlásenie sa nedokončilo.') && seen.buttons.join('|') === 'Skúsiť znova|Späť',
+      `in Slovak: "${seen.title}: ${seen.message}" (${seen.buttons.join(', ')})`,
+    );
     await shot(away, '17-visitor-sign-in-refused-sk-1280-light', { fullPage: true });
     await away.goto(`${SITE}/admin`);
     await away.waitForURL((url) => url.href.startsWith(SITE) && url.pathname === '/sign-in', { timeout: 15000 });
     await away.waitForSelector('anotoki-sign-in-failure [role=alert]');
-    check((await failureScreen()).message.length > 0, 'a visitor at /admin is sent to sign in; refused, the failure\'s screen says so');
+    check((await failureScreen()).message.length > 0, "a visitor at /admin is sent to sign in; refused, the failure's screen says so");
     check((await away.locator(BAR_LINK, { hasText: 'Sources' }).count()) === 0, 'and no section of the panel shows');
     await iamState({ deny: false });
     await turned.close();
@@ -1301,7 +1424,10 @@ try {
     await lateTab.goto(`${SITE}/builds/genshin`);
     await lateTab.waitForURL((url) => url.href.startsWith(SITE) && url.pathname === '/sign-in', { timeout: 15000 });
     await lateTab.waitForSelector('anotoki-sign-in-failure [role=alert]');
-    check((await lateTab.locator('anotoki-sign-in-failure [role=alert]').innerText()).trim().startsWith('The sign-in was not completed.'), "a page load went to the IAM by itself, and came back refused to the failure's screen");
+    check(
+      (await lateTab.locator('anotoki-sign-in-failure [role=alert]').innerText()).trim().startsWith('The sign-in was not completed.'),
+      "a page load went to the IAM by itself, and came back refused to the failure's screen",
+    );
     check((await lateTab.evaluate(() => localStorage.getItem('build-analyzer-visitor'))) === lateKey, 'the key is kept while sign-in is required');
     await shot(lateTab, '18-required-refused', { fullPage: true });
     await iamState({ deny: false });
@@ -1313,7 +1439,7 @@ try {
     await lateTab.waitForSelector(PERSON_BUTTON, { timeout: 15000 });
     await lateTab.waitForLoadState('networkidle');
     await lateTab.waitForTimeout(500);
-    check(sql('SELECT count(*) AS n FROM accounts WHERE user_id = 11')[0].n == 1, 'signed in, back on /builds/genshin: the visitor\'s account is rita\'s (the move works while sign-in is required)');
+    check(sql('SELECT count(*) AS n FROM accounts WHERE user_id = 11')[0].n == 1, "signed in, back on /builds/genshin: the visitor's account is rita's (the move works while sign-in is required)");
     check((await lateTab.evaluate(() => localStorage.getItem('build-analyzer-visitor'))) === null, 'and the key is gone');
     await shot(lateTab, '19-required-signed-in', { fullPage: true });
     await late.close();
@@ -1323,7 +1449,7 @@ try {
     await iamState({ deny: true });
     await strangerTab.goto(`${SITE}/`);
     await strangerTab.waitForURL((url) => url.href.startsWith(SITE) && url.pathname === '/sign-in', { timeout: 15000 });
-    check((await strangerTab.locator('app-visitor-hero').count()) === 0, 'somebody new never sees the visitors\' dashboard');
+    check((await strangerTab.locator('app-visitor-hero').count()) === 0, "somebody new never sees the visitors' dashboard");
     await iamState({ deny: false });
     await stranger.close();
 
@@ -1332,17 +1458,23 @@ try {
     const readerTab = await reader.newPage();
     await iamState({ deny: true });
     await open(readerTab, '/privacy?lang=en');
-    check(new URL(readerTab.url()).pathname === '/privacy' && (await readerTab.locator('anotoki-privacy-page h1').innerText()).trim() === 'Privacy policy',
-      `while sign-in is required, /privacy is read without going to the IAM (${new URL(readerTab.url()).pathname})`);
-    check((await readerTab.locator(SIGN_IN).count()) === 1, 'with the bar\'s Sign in, nobody signed in');
+    check(
+      new URL(readerTab.url()).pathname === '/privacy' && (await readerTab.locator('anotoki-privacy-page h1').innerText()).trim() === 'Privacy policy',
+      `while sign-in is required, /privacy is read without going to the IAM (${new URL(readerTab.url()).pathname})`,
+    );
+    check((await readerTab.locator(SIGN_IN).count()) === 1, "with the bar's Sign in, nobody signed in");
     // No message can be sent now by somebody signed out (the server refuses it): no Feedback at the foot, nor on Contact.
-    check((await readerTab.locator('anotoki-site-footer [data-open-feedback]').count()) === 0 && (await readerTab.locator('anotoki-site-footer [data-whats-new]').count()) === 1,
-      "the footer offers no Feedback to somebody signed out now - What's new all the same");
+    check(
+      (await readerTab.locator('anotoki-site-footer [data-open-feedback]').count()) === 0 && (await readerTab.locator('anotoki-site-footer [data-whats-new]').count()) === 1,
+      "the footer offers no Feedback to somebody signed out now - What's new all the same",
+    );
     await shot(readerTab, '18b-required-privacy', { fullPage: true });
     await open(readerTab, '/contact?lang=en');
     await readerTab.waitForSelector('anotoki-contact-page h1', { timeout: 15000 });
-    check((await readerTab.locator('anotoki-contact-page [data-open-feedback]').count()) === 0 && (await readerTab.locator('anotoki-contact-page [data-section="email"]').count()) === 1,
-      'and Contact gives the address alone');
+    check(
+      (await readerTab.locator('anotoki-contact-page [data-open-feedback]').count()) === 0 && (await readerTab.locator('anotoki-contact-page [data-section="email"]').count()) === 1,
+      'and Contact gives the address alone',
+    );
     await iamState({ deny: false });
     await reader.close();
 
@@ -1352,7 +1484,7 @@ try {
     const again = await newContext();
     const againTab = await again.newPage();
     await open(againTab, '/?lang=en');
-    check(new URL(againTab.url()).pathname === '/' && (await againTab.locator('app-visitor-hero').count()) === 1, 'the dashboard\'s hero, no sign-in asked for');
+    check(new URL(againTab.url()).pathname === '/' && (await againTab.locator('app-visitor-hero').count()) === 1, "the dashboard's hero, no sign-in asked for");
     await again.close();
 
     // ── Not set up ─────────────────────────────────────────────────────────────────────────────────────
@@ -1367,8 +1499,10 @@ try {
       const freshTab = await fresh.newPage();
       await openGated(freshTab, '/?lang=en');
       let gate = await gatePage(freshTab);
-      check(gate.title === 'This site is not set up yet' && gate.links.join('|') === 'Open the setup page -> /setup.php' && gate.buttons.join('|') === 'Try again',
-        `never installed: "${gate.text}" (${gate.links.join(', ')})`);
+      check(
+        gate.title === 'This site is not set up yet' && gate.links.join('|') === 'Open the setup page -> /setup.php' && gate.buttons.join('|') === 'Try again',
+        `never installed: "${gate.text}" (${gate.links.join(', ')})`,
+      );
       const answer = await (await fetch(`${SITE}/api/meta`)).json();
       check(answer.code === 'not_set_up' && answer.installed === false && answer.setup === '/setup.php', `the API: 503 not_set_up with the setup page (${JSON.stringify(answer)})`);
       await shot(freshTab, '20-not-set-up-never-installed', { fullPage: true });
@@ -1389,7 +1523,7 @@ try {
     check(back.state === 'ready', `set up again: ${JSON.stringify(back)}`);
 
     // ── The legal pages ────────────────────────────────────────────────────────────────────────────────
-    step('Terms, Privacy and Contact: the family\'s pages with this site\'s facts, from the footer, at 1280 and 390 px, light and dark, English and Slovak');
+    step("Terms, Privacy and Contact: the family's pages with this site's facts, from the footer, at 1280 and 390 px, light and dark, English and Slovak");
     {
       const legal = await newContext();
       const tab = await legal.newPage();
@@ -1399,33 +1533,44 @@ try {
       check((await tab.locator('anotoki-site-footer [data-fan]').innerText()).includes('not affiliated with or endorsed by HoYoverse'), 'and the fan clause under them');
       await tab.click('anotoki-site-footer anotoki-legal-links a[href="/privacy"]');
       await tab.waitForSelector('anotoki-privacy-page h1', { timeout: 15000 });
-      check(new URL(tab.url()).pathname === '/privacy' && (await tab.title()) === 'Privacy policy · Build Analyzer', `the footer's Privacy opens the page in the site's frame, titled "${await tab.title()}"`);
+      check(
+        new URL(tab.url()).pathname === '/privacy' && (await tab.title()) === 'Privacy policy · Build Analyzer',
+        `the footer's Privacy opens the page in the site's frame, titled "${await tab.title()}"`,
+      );
       check((await tab.locator('anotoki-site-footer anotoki-legal-links a[aria-current="page"]').innerText()).trim() === 'Privacy', 'the open page marked in the footer');
       // The Contact page's form: the family's feedback form in the kit's dialog.
       await open(tab, '/contact?lang=en');
       await tab.click('anotoki-contact-page [data-open-feedback]');
       await tab.waitForSelector(`${DIALOG} dialog[open] anotoki-feedback-form`, { timeout: 10000 });
-      check(true, 'Contact\'s Send feedback opens the family\'s form in a dialog');
+      check(true, "Contact's Send feedback opens the family's form in a dialog");
       await tab.keyboard.press('Escape');
       await legal.close();
 
-      for (const [language, scheme, width] of [['en', 'light', 1280], ['en', 'dark', 390], ['sk', 'dark', 1280], ['sk', 'light', 390]]) {
+      for (const [language, scheme, width] of [
+        ['en', 'light', 1280],
+        ['en', 'dark', 390],
+        ['sk', 'dark', 1280],
+        ['sk', 'light', 390],
+      ]) {
         const context = await newContext({ width, scheme, height: width < 600 ? 844 : 900 });
         const page = await context.newPage();
         for (const name of ['terms', 'privacy', 'contact']) {
           await open(page, `/${name}?lang=${language}`);
           await page.waitForSelector(`anotoki-${name}-page h1`, { timeout: 15000 });
-          const facts = await page.evaluate((name) => ({
-            title: document.querySelector(`anotoki-${name}-page h1`)?.textContent?.trim(),
-            lang: document.documentElement.lang,
-            scroll: document.documentElement.scrollWidth,
-            width: window.innerWidth,
-            fan: document.querySelector('[data-fan]')?.textContent?.trim() ?? null,
-            kept: document.querySelectorAll('[data-kept]').length,
-            stored: [...document.querySelectorAll('[data-stored] code')].map((code) => code.textContent.trim()),
-            recipients: [...document.querySelectorAll('[data-recipient] .anotoki-legal-page__item-name')].map((item) => item.textContent.trim()),
-            accountPrivacy: document.querySelector('[data-account-privacy]')?.getAttribute('href') ?? null,
-          }), name);
+          const facts = await page.evaluate(
+            (name) => ({
+              title: document.querySelector(`anotoki-${name}-page h1`)?.textContent?.trim(),
+              lang: document.documentElement.lang,
+              scroll: document.documentElement.scrollWidth,
+              width: window.innerWidth,
+              fan: document.querySelector('[data-fan]')?.textContent?.trim() ?? null,
+              kept: document.querySelectorAll('[data-kept]').length,
+              stored: [...document.querySelectorAll('[data-stored] code')].map((code) => code.textContent.trim()),
+              recipients: [...document.querySelectorAll('[data-recipient] .anotoki-legal-page__item-name')].map((item) => item.textContent.trim()),
+              accountPrivacy: document.querySelector('[data-account-privacy]')?.getAttribute('href') ?? null,
+            }),
+            name,
+          );
           const label = `${name}, ${language}, ${scheme}, ${width} px`;
           check(facts.lang === language && facts.title && facts.scroll <= facts.width, `${label}: "${facts.title}", <html lang="${facts.lang}">, no sideways scroll (${facts.scroll}/${facts.width})`);
           const keys = await keysShown(page);
@@ -1433,9 +1578,14 @@ try {
           if (name !== 'privacy') {
             check(facts.fan !== null && facts.fan.includes('Honkai: Star Rail'), `${label}: the site's fan clause, naming both games`);
           } else {
-            check(facts.kept === 11 && facts.stored.includes('build-analyzer-visitor') && facts.recipients.length === 3 && facts.recipients[0] === 'WebSupport s.r.o.'
-              && facts.accountPrivacy === `${IAM}/privacy`,
-              `${label}: the site's six parts with visitors, feedback and the three logs (${facts.kept}), its storage (${facts.stored.length}), ${facts.recipients.join(', ')}, the account's own Privacy page ${facts.accountPrivacy}`);
+            check(
+              facts.kept === 11 &&
+                facts.stored.includes('build-analyzer-visitor') &&
+                facts.recipients.length === 3 &&
+                facts.recipients[0] === 'WebSupport s.r.o.' &&
+                facts.accountPrivacy === `${IAM}/privacy`,
+              `${label}: the site's six parts with visitors, feedback and the three logs (${facts.kept}), its storage (${facts.stored.length}), ${facts.recipients.join(', ')}, the account's own Privacy page ${facts.accountPrivacy}`,
+            );
           }
           if (scheme === 'dark') {
             check(await darkSurface(page, 'body'), `${label}: the dark theme`);
@@ -1447,7 +1597,9 @@ try {
     }
 
     // ── The kit's newer pieces ────────────────────────────────────────────────────────────────────────
-    step("The kit's newer pieces in place of the site's own (anotoki-lib 0.6.0): the account's element filter with its marks, its link cards and score bars, its import history; a build's tab with its badge; the import guide's stepper and disclosures; the builds' link cards - at 1280 and 390 px, light and dark");
+    step(
+      "The kit's newer pieces in place of the site's own (anotoki-lib 0.6.0): the account's element filter with its marks, its link cards and score bars, its import history; a build's tab with its badge; the import guide's stepper and disclosures; the builds' link cards - at 1280 and 390 px, light and dark",
+    );
     {
       const monaAccount = sql('SELECT id FROM accounts WHERE user_id = 7')[0].id;
       const kit = await newContext();
@@ -1481,7 +1633,12 @@ try {
           });
         }, selector);
 
-      for (const [language, scheme, width] of [['en', 'light', 1280], ['sk', 'dark', 390], ['en', 'dark', 1280], ['sk', 'light', 390]]) {
+      for (const [language, scheme, width] of [
+        ['en', 'light', 1280],
+        ['sk', 'dark', 390],
+        ['en', 'dark', 1280],
+        ['sk', 'light', 390],
+      ]) {
         await page.setViewportSize({ width, height: width < 600 ? 844 : 900 });
         await page.emulateMedia({ colorScheme: scheme });
         const label = `${language}, ${scheme}, ${width} px`;
@@ -1506,12 +1663,21 @@ try {
         }));
         check(account.group !== null && account.radios >= 2, `the account, ${label}: the element filter is the kit's radio group "${account.group}" (${account.radios} choices)`);
         check(account.cards.length > 0 && account.cards.every(Boolean), `the account, ${label}: every character is one link card to its page (${account.cards.length})`);
-        check(account.bars.length > 0 && account.bars.every((text) => text !== null), `the account, ${label}: the score bars are the kit's progress bars, each with its words (${account.bars.slice(0, 3).join(', ')}...)`);
+        check(
+          account.bars.length > 0 && account.bars.every((text) => text !== null),
+          `the account, ${label}: the score bars are the kit's progress bars, each with its words (${account.bars.slice(0, 3).join(', ')}...)`,
+        );
         const marks = await contrastOf(page, '.element .anotoki-segmented__mark');
         const faint = marks.filter((mark) => mark.lowest < 3);
-        check(marks.length === account.radios - 1 && faint.length === 0, `the account, ${label}: every element's mark 3:1 on the control (lowest ${Math.min(...marks.map((mark) => mark.lowest)).toFixed(2)}${faint.length ? `; FAINT ${faint.map((mark) => `${mark.value} ${mark.lowest.toFixed(2)}`).join(', ')}` : ''})`);
+        check(
+          marks.length === account.radios - 1 && faint.length === 0,
+          `the account, ${label}: every element's mark 3:1 on the control (lowest ${Math.min(...marks.map((mark) => mark.lowest)).toFixed(2)}${faint.length ? `; FAINT ${faint.map((mark) => `${mark.value} ${mark.lowest.toFixed(2)}`).join(', ')}` : ''})`,
+        );
         const history = page.locator('.history .anotoki-disclosure__button');
-        check((await history.getAttribute('aria-expanded')) === 'false' && (await page.locator('.history-table tr').count()) === 0, `the account, ${label}: the import history closed, its table not made`);
+        check(
+          (await history.getAttribute('aria-expanded')) === 'false' && (await page.locator('.history-table tr').count()) === 0,
+          `the account, ${label}: the import history closed, its table not made`,
+        );
         await history.click();
         await page.waitForSelector('.history-table tr', { timeout: 5000 });
         check((await history.getAttribute('aria-expanded')) === 'true', `the account, ${label}: opened, the history's runs (${await page.locator('.history-table tr').count()})`);
@@ -1531,8 +1697,10 @@ try {
             heard: tab.querySelector('.anotoki-visually-hidden')?.textContent?.trim() ?? null,
           })),
         );
-        check(tabs.length === 1 && /^\d+$/.test(tabs[0].badge ?? '') && tabs[0].tone === 'primary' && tabs[0].icon && (tabs[0].heard ?? '').includes(tabs[0].badge),
-          `the character, ${label}: the build's tab shows its score as the kit's badge, the closest build marked (${JSON.stringify(tabs)})`);
+        check(
+          tabs.length === 1 && /^\d+$/.test(tabs[0].badge ?? '') && tabs[0].tone === 'primary' && tabs[0].icon && (tabs[0].heard ?? '').includes(tabs[0].badge),
+          `the character, ${label}: the build's tab shows its score as the kit's badge, the closest build marked (${JSON.stringify(tabs)})`,
+        );
         check((await page.locator('app-score-bar [role=progressbar]').count()) === 5, `the character, ${label}: the five score bars, the kit's progress bars`);
         await fits('the character');
         await shot(page, `24-kit-character-${language}-${width}-${scheme}`, { fullPage: true });
@@ -1543,14 +1711,21 @@ try {
         await page.locator('button.choice').first().click();
         await page.locator('button.choice.method').nth(1).click();
         // The guide's step is drawn a moment after the choice (the page draws on its next turn, zoneless).
-        const settled = (condition, argument) => page.waitForFunction(condition, argument, { timeout: 10000 }).then(() => true, () => false);
+        const settled = (condition, argument) =>
+          page.waitForFunction(condition, argument, { timeout: 10000 }).then(
+            () => true,
+            () => false,
+          );
         await settled(() => document.querySelectorAll('.anotoki-stepper__step--done').length === 2);
         const steps = await page.evaluate(() => ({
           name: document.querySelector('.anotoki-stepper__steps')?.getAttribute('aria-label') ?? null,
           done: document.querySelectorAll('.anotoki-stepper__step--done .anotoki-stepper__button').length,
           current: document.querySelector('.anotoki-stepper__step[aria-current=step] .anotoki-stepper__label')?.textContent?.trim() ?? null,
         }));
-        check(steps.name !== null && steps.done === 2 && steps.current !== null, `the import guide, ${label}: the kit's stepper "${steps.name}", two steps done with a way back, the one in hand "${steps.current}"`);
+        check(
+          steps.name !== null && steps.done === 2 && steps.current !== null,
+          `the import guide, ${label}: the kit's stepper "${steps.name}", two steps done with a way back, the one in hand "${steps.current}"`,
+        );
         /** A disclosure of the kit opened, its panel shown (the attribute and the panel follow on the page's next turn). */
         const opened = (selector) =>
           settled((selector) => {
@@ -1559,7 +1734,10 @@ try {
             return button?.getAttribute('aria-expanded') === 'true' && panel !== null && !panel.hidden;
           }, selector);
         await page.click('.trouble .anotoki-disclosure__button');
-        check((await opened('.trouble')) && (await page.locator('.trouble li').count()) > 0, `the import guide, ${label}: what to do when it goes wrong, opened (${await page.locator('.trouble li').count()} points)`);
+        check(
+          (await opened('.trouble')) && (await page.locator('.trouble li').count()) > 0,
+          `the import guide, ${label}: what to do when it goes wrong, opened (${await page.locator('.trouble li').count()} points)`,
+        );
         await fits('the import guide');
         await shot(page, `24-kit-import-guide-${language}-${width}-${scheme}`, { fullPage: true });
         if (language === 'en') {

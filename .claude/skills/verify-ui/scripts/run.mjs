@@ -5,7 +5,7 @@
 //
 // It builds the frontend (unless --no-build), makes a throwaway database (build_analyzer_test_browser, from
 // the migrations, with a small catalog and one build - backend/tests/tools/browser-db.php), starts the
-// anotoki family's stand-in IAM (anotoki-lib's php/testing/stand-in-iam.php, in backend/vendor, with a test key
+// anotoki family's stand-in IAM (anotoki-lib's backend/testing/stand-in-iam.php, in backend/vendor, with a test key
 // of its own - Anotoki\Lib\Auth\Testing\TestIam) on 8597 and the site on 8590 - or on IAM_PORT and
 // SITE_PORT, each in 8590-8599, when another check holds those (router.php: the built app
 // and the API on one origin, as on the hosting, with BUILD_ANALYZER_TEST_CONFIG pointing at the throwaway
@@ -127,9 +127,15 @@ try {
   // The stand-in's key pair and files, under its issuer (TestIam::create writes key.json, which it signs with).
   const iamDir = join(work, 'stand-in-iam');
   mkdirSync(iamDir, { recursive: true });
-  run(php, ['-r', 'require "vendor/autoload.php"; Anotoki\\Lib\\Auth\\Testing\\TestIam::create($argv[1], $argv[2], "build-analyzer", "browser-check");', iamDir, `http://127.0.0.1:${IAM}`], { cwd: backend });
+  run(php, ['-r', 'require "vendor/autoload.php"; Anotoki\\Lib\\Auth\\Testing\\TestIam::create($argv[1], $argv[2], "build-analyzer", "browser-check");', iamDir, `http://127.0.0.1:${IAM}`], {
+    cwd: backend,
+  });
 
-  start(php, ['-S', `127.0.0.1:${IAM}`, 'vendor/anotoki/lib/php/testing/stand-in-iam.php'], { name: 'stand-in-iam', cwd: backend, env: { ...process.env, STAND_IN_DIR: iamDir, STAND_IN_ISSUER: `http://127.0.0.1:${IAM}` } });
+  start(php, ['-S', `127.0.0.1:${IAM}`, 'vendor/anotoki/lib/backend/testing/stand-in-iam.php'], {
+    name: 'stand-in-iam',
+    cwd: backend,
+    env: { ...process.env, STAND_IN_DIR: iamDir, STAND_IN_ISSUER: `http://127.0.0.1:${IAM}` },
+  });
   start(php, ['-S', `127.0.0.1:${SITE}`, 'router.php'], { name: 'site', cwd: backend, env: { ...process.env, BUILD_ANALYZER_TEST_CONFIG: config } });
   await waitForUrl(`http://127.0.0.1:${IAM}/.well-known/openid-configuration`, 'The stand-in IAM');
   // The stand-in says by default that a site requires signing in; this site lets visitors in - as the check

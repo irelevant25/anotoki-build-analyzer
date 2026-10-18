@@ -193,8 +193,8 @@ Then quality:
 
 - Tests cover the change (`backend/tests/*.test.php`, `frontend/src/**/*.spec.ts`) with synthetic fixtures (no
   copied site content, no network: `FakeHttpClient`; API tests sign their own tokens with `iamToken()` /
-  `Client::asIam()`). Run `cd backend && php tests/run.php` and `cd frontend && npx ng build && npx ng test
-  --watch=false` (start each with `cd <repo root> &&`) and report failures verbatim.
+  `Client::asIam()`). Run `cd backend && php tests/run.php`, `cd frontend && npx ng build && npx ng test
+  --watch=false` and `bun run format:check` (start each with `cd <repo root> &&`) and report failures verbatim.
 - Scraper or normalization changes: `cd backend && php sync-builds.php --dry-run --cache-hours=96` must show
   `changed` only where the change intends it (it writes nothing).
 - PHP conventions of the surrounding code (`declare(strict_types=1)` where the file has it, typed properties,

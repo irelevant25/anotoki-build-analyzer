@@ -8,7 +8,7 @@ description: Check the build analyzer in a real browser, end to end, on a throwa
 Type checks and unit tests don't show overflowing columns, empty panels, a bar whose pieces paint over each
 other, or focus that falls to `<body>`; a browser does. Sign-in is the IAM's only, and the backend lets in
 only tokens it can verify - so the check signs in through the anotoki family's **stand-in IAM** (anotoki-lib's
-`backend/vendor/anotoki/lib/php/testing/stand-in-iam.php`) against a **throwaway database**, never the owner's.
+`backend/vendor/anotoki/lib/backend/testing/stand-in-iam.php`) against a **throwaway database**, never the owner's.
 
 ## 1. Run it
 
