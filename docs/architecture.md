@@ -283,7 +283,10 @@ The UI names no other website, service or tool - not in labels, links, credits, 
 changelog. The one exception is the legal pages (`/terms`, `/privacy`, `/contact`), which name who else handles
 the data, as the law asks: the hosting company WebSupport s.r.o. (`HOSTING` in `core/legal-facts.ts`, its address
 the code's), Cloudflare and Umami (the library's words) - never a build source, a data provider, a tool or the
-showcase service, which they describe without naming. So the API never sends a site's name or address either:
+showcase service, which they describe without naming. The family's About and Support pages (`/about`, `/support`,
+anotoki-lib 0.8.0: the owner's words, the same on every anotoki site) name and link the anotoki sites and the
+owner's Ko-fi page - the library's words and addresses, nothing of the site's. So the API never sends a site's
+name or address either:
 
 - Build sources are "Source 1", "Source 2" … per game, numbered in the order of `config/app.php` `sources`
   (add new ones at the end of their game so the numbers stay). Their API key is `{game}-{n}` (`genshin-2`); the
@@ -630,9 +633,9 @@ page's API answers its own: 404 `not_found` (a file that is none of the set's), 
   `@anotoki/lib/footer` - since anotoki-lib 0.6.3 the library's copy of this site's own): "v0.4.0 · What's new ·
   Feedback" (a screen reader hears "Version 0.4.0", the library's `anotoki.footer.version`) - the version the newest
   entry of `public/changelog.json` (`core/changelog.ts`), What's new this
-  site's own dialog (`(whatsNew)`), Feedback while a message can be sent - then Terms · Privacy · Contact and the
-  fan clause (`fan="hoyoverse"`), in the library's words (`anotoki.footer.*`). What's new opens by itself with the
-  releases after the one this browser saw last (`build-analyzer-version-seen`), compared by their numbers
+  site's own dialog (`(whatsNew)`), Feedback while a message can be sent - then About · Support · Terms · Privacy ·
+  Contact and the fan clause (`fan="hoyoverse"`), in the library's words (`anotoki.footer.*`). What's new opens by
+  itself with the releases after the one this browser saw last (`build-analyzer-version-seen`), compared by their numbers
   (`compareVersions()`: MAJOR.MINOR.PATCH, a missing part 0 - so "0.3", kept from before the versions had
   three numbers, is 0.3.0).
 - The legal pages (anotoki-lib 0.6's `@anotoki/lib/legal` and `/legal/pages`; the owner's decisions of
@@ -646,6 +649,11 @@ page's API answers its own: 404 `not_found` (a file that is none of the set's), 
   company, Cloudflare, the public showcase service a UID import asks - described, never named), the anotoki
   account's pages at the IAM's address `/api/meta` names - each fact with the code it rests on in its comment;
   the words are the site's `legal.*` (migration 011), every address the code's, never a string.
+- The About and Support pages (anotoki-lib 0.8.0's `@anotoki/lib/legal/about` and `/legal/support`, the same on
+  every anotoki site): on `/about` and `/support`, routed as the legal pages are, in the same frame, with no guard;
+  their words are the library's (`anotoki.about.*`, `anotoki.support.*`, its `anotoki_translations/013`), their
+  tabs' titles its keys `anotoki.about.title` and `anotoki.support.title`, every address they link the library's
+  code.
 - The top bar (`layouts/top-bar/`) is the anotoki family's own, `<anotoki-top-bar>` from `@anotoki/lib/shell`
   (since 0.4.0; before, a copy of it built from Angular Material's pieces), told what is this site's: the brand
   (the anotoki mark, "anotoki" and `brand.area`; on a phone and in the admin panel the family's short form,

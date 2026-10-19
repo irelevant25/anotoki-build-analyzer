@@ -3,8 +3,11 @@ import { DEFAULT_LEGAL_PATHS, provideAnotokiLegal } from '@anotoki/lib/legal';
 import { TranslationKey } from './i18n/en';
 import { TranslationService } from './i18n/translation';
 
-/** The legal pages' addresses: the library's own paths (app.routes.ts puts each page there, the footer's links go there). */
-export const LEGAL_PAGE_PATHS: readonly string[] = [DEFAULT_LEGAL_PATHS.terms, DEFAULT_LEGAL_PATHS.privacy, DEFAULT_LEGAL_PATHS.contact];
+/**
+ * The addresses of the pages the footer links - About, Support and the legal pages, in its order: the library's own
+ * paths (app.routes.ts puts each page there, the footer's links go there).
+ */
+export const LEGAL_PAGE_PATHS: readonly string[] = [DEFAULT_LEGAL_PATHS.about, DEFAULT_LEGAL_PATHS.support, DEFAULT_LEGAL_PATHS.terms, DEFAULT_LEGAL_PATHS.privacy, DEFAULT_LEGAL_PATHS.contact];
 
 /**
  * The library's legal words this site says in its own (`legal.*`, migration 011), each read from the site's key in
@@ -19,14 +22,15 @@ export const SITE_LEGAL_WORDS: Readonly<Record<string, TranslationKey>> = {
 /**
  * How this site plugs into the anotoki family's legal pages (@anotoki/lib/legal, anotoki-lib 0.6.0: Terms, Privacy
  * and Contact on the lazy routes /terms, /privacy and /contact - app.routes.ts - and the links to them in the
- * family's footer, <anotoki-site-footer> in layouts/app-layout and layouts/admin-layout). provideAnotokiLegal() runs
- * it in an injection context.
+ * family's footer, <anotoki-site-footer> in layouts/app-layout and layouts/admin-layout) and, since 0.8.0, its About
+ * and Support pages on /about and /support, which the footer links first. provideAnotokiLegal() runs it in an
+ * injection context.
  *
  * - The language: the one on the page (English in the admin panel, as the panel is - effectiveLanguage()).
- * - The words: the library's (`anotoki.legal.*`, `anotoki.legalLinks.*`) - the database's string of a library key,
- *   an owner's rewording on the Translations page, before the library's built-in English and Slovak - but for the
- *   few this site says itself (SITE_LEGAL_WORDS), its own key's string. That Slovak addresses nobody ("ty" or
- *   "Vy"), so it reads well beside this site's informal Slovak.
+ * - The words: the library's (`anotoki.legal.*`, `anotoki.legalLinks.*`, `anotoki.about.*`, `anotoki.support.*`) -
+ *   the database's string of a library key, an owner's rewording on the Translations page, before the library's
+ *   built-in English and Slovak - but for the few this site says itself (SITE_LEGAL_WORDS), its own key's string.
+ *   That Slovak addresses nobody ("ty" or "Vy"), so it reads well beside this site's informal Slovak.
  * - The paths: the library's own; the operator: the family's (Code Hero s.r.o., its address kept in two parts in
  *   the library).
  * - The facts - what this site keeps and for how long, its cookies and browser storage, who else handles data, the

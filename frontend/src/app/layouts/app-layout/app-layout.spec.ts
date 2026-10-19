@@ -110,11 +110,13 @@ describe("everybody's pages' frame", () => {
     expect(shell.querySelector('main anotoki-site-footer')).toBeNull();
   });
 
-  it("has the family's footer in the reader's language: the version, What's new - the site's own -, Feedback; Terms · Privacy · Contact; the fan clause", async () => {
+  it("has the family's footer in the reader's language: the version, What's new - the site's own -, Feedback; About · Support · Terms · Privacy · Contact; the fan clause", async () => {
     const { host, changelog } = await draw({ who: 'visitor', language: 'sk' });
 
     expect(row(host)).toEqual(['v0.3Verzia 0.3', '·', 'Čo je nové', '·', 'Spätná väzba']);
     expect([...host.querySelectorAll('anotoki-site-footer anotoki-legal-links a')].map((link) => [text(link), link.getAttribute('href')])).toEqual([
+      ['O projekte', '/about'],
+      ['Podporiť', '/support'],
       ['Podmienky', '/terms'],
       ['Súkromie', '/privacy'],
       ['Kontakt', '/contact'],
@@ -150,7 +152,7 @@ describe("everybody's pages' frame", () => {
       expect(host.querySelector('anotoki-site-footer [data-open-feedback]') !== null, who).toBe(offered);
       // The rest of the footer is everybody's.
       expect(row(host).slice(0, 3), who).toEqual(['v0.3Version 0.3', '·', "What's new"]);
-      expect(host.querySelectorAll('anotoki-site-footer anotoki-legal-links a'), who).toHaveLength(3);
+      expect(host.querySelectorAll('anotoki-site-footer anotoki-legal-links a'), who).toHaveLength(5);
     }
   });
 

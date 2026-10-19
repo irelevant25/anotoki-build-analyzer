@@ -8,7 +8,8 @@ import { AppLayout } from '../app-layout/app-layout';
  * a lazy route of its own in app.routes.ts): everybody's pages' frame (layouts/app-layout: the family's shell, the
  * top bar with the app's sections, the footer with the links to these pages), which draws the page in its router
  * outlet - with this site's facts (core/legal-facts.ts), which only the pages read: they load with the first of
- * them that is opened, out of the first load.
+ * them that is opened, out of the first load. The About and Support pages (@anotoki/lib/legal/about, /legal/support,
+ * anotoki-lib 0.8.0) are drawn in it too, as the library asks: they read none of the facts.
  *
  * Anybody may read them, signed in or not, a visitor or not - also while the IAM requires signing in here: what a
  * site keeps is said before anybody signs in to it. So no guard stands in front of them (app.routes.ts), and

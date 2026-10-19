@@ -97,13 +97,20 @@ describe("the admin panel's frame", () => {
     expect(unread.refresh).not.toHaveBeenCalled();
   });
 
-  it("has the family's footer, in English as the panel is: the version, What's new - the site's own -, Feedback, Terms · Privacy · Contact and the fan clause", async () => {
+  it("has the family's footer, in English as the panel is: the version, What's new - the site's own -, Feedback, About · Support · Terms · Privacy · Contact and the fan clause", async () => {
     const { host, changelog } = await open({ roles: ['ADMIN'] });
 
     const footer = host.querySelector('anotoki-site-footer')!;
     // The version reads "v0.4.0" on screen and "Version 0.4.0" to a screen reader (anotoki-lib 0.7.1): its text holds both.
     expect([...footer.querySelectorAll('.anotoki-site-footer__row > *')].map(text)).toEqual(['v0.4.0Version 0.4.0', '·', "What's new", '·', 'Feedback']);
-    expect([...footer.querySelectorAll('anotoki-legal-links a')].map(text)).toEqual(['Terms', 'Privacy', 'Contact']);
+    // The links go to everybody's pages, outside the admin panel.
+    expect([...footer.querySelectorAll('anotoki-legal-links a')].map((link) => [text(link), link.getAttribute('href')])).toEqual([
+      ['About', '/about'],
+      ['Support', '/support'],
+      ['Terms', '/terms'],
+      ['Privacy', '/privacy'],
+      ['Contact', '/contact'],
+    ]);
     expect(text(footer.querySelector('[data-fan]'))).toBe('This site is a fan-made project and is not affiliated with or endorsed by HoYoverse.');
     footer.querySelector<HTMLButtonElement>('[data-whats-new]')!.click();
     expect(changelog.open).toHaveBeenCalledTimes(1);

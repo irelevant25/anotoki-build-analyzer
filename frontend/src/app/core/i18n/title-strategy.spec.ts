@@ -1,6 +1,8 @@
 import { TestBed } from '@angular/core/testing';
 import { Title } from '@angular/platform-browser';
 import { Route, Router, TitleStrategy, provideRouter } from '@angular/router';
+import { aboutKey } from '@anotoki/lib/legal/about';
+import { supportKey } from '@anotoki/lib/legal/support';
 import { isAdminArea } from '@anotoki/lib/translations';
 import { provideTestTranslations } from '@anotoki/lib/translations/testing';
 import { routes } from '../../app.routes';
@@ -8,8 +10,9 @@ import { isTranslationKey } from './en';
 import { ADMIN_PANEL, AppTitleStrategy, BRAND } from './title-strategy';
 import { TranslationService } from './translation';
 
-const ENGLISH = { 'title.import': 'Import account', 'title.builds': 'Builds' };
-const SLOVAK = { 'title.import': 'Import účtu', 'title.builds': 'Buildy' };
+// The About page's title is the library's word, from the bundle; the Support page's is not in these bundles.
+const ENGLISH = { 'title.import': 'Import account', 'title.builds': 'Builds', 'anotoki.about.title': 'About anotoki' };
+const SLOVAK = { 'title.import': 'Import účtu', 'title.builds': 'Buildy', 'anotoki.about.title': 'O projekte anotoki' };
 
 describe('AppTitleStrategy: the browser tab’s title', () => {
   async function at(url: string) {
@@ -24,6 +27,8 @@ describe('AppTitleStrategy: the browser tab’s title', () => {
           { path: 'admin/sources', title: 'Build sources', children: [] },
           { path: 'admin/migrations', title: 'Migrations', children: [] },
           { path: 'sign-in', title: 'title.signIn', children: [] },
+          { path: 'about', title: 'anotoki.about.title', children: [] },
+          { path: 'support', title: 'anotoki.support.title', children: [] },
         ]),
         { provide: TitleStrategy, useClass: AppTitleStrategy },
       ],
@@ -82,6 +87,18 @@ describe('AppTitleStrategy: the browser tab’s title', () => {
     expect((await at('/sign-in')).title).toBe('title.signIn · Build Analyzer');
     expect(warn.mock.calls).toEqual([["[i18n] no string for 'title.signIn'"]]);
   });
+
+  it('words the library’s key of its own pages (About, Support) from the bundle, in the language on the page - and is the brand alone while the bundle has no word for it, never the key', async () => {
+    const { title, go, i18n } = await at('/about');
+    expect(title).toBe('O projekte anotoki · Build Analyzer');
+
+    expect(await i18n.setLanguage('en', { remember: false })).toBe(true);
+    TestBed.tick();
+    expect(TestBed.inject(Title).getTitle()).toBe('About anotoki · Build Analyzer');
+
+    expect(await go('/support')).toBe(BRAND);
+    expect(warn).not.toHaveBeenCalled();
+  });
 });
 
 describe('the routes’ titles', () => {
@@ -93,12 +110,18 @@ describe('the routes’ titles', () => {
     });
   const titled = flat(routes as Route[]).filter((route) => route.title !== undefined);
 
-  it('are keys on the pages members read, and plain English in the admin panel', () => {
+  it('are keys on the pages members read - on About and Support the library’s, which their headings say -, and plain English in the admin panel', () => {
+    const library: Record<string, string> = { about: aboutKey('title'), support: supportKey('title') };
     for (const route of titled) {
       const english = isAdminArea(`/${route.path}`);
       expect(typeof route.title, route.path).toBe('string');
-      expect(isTranslationKey(route.title as string), route.path).toBe(!english);
+      if (Object.hasOwn(library, route.path!)) {
+        expect(route.title, route.path).toBe(library[route.path!]);
+      } else {
+        expect(isTranslationKey(route.title as string), route.path).toBe(!english);
+      }
     }
+    expect(titled.map((route) => route.path)).toEqual(expect.arrayContaining(['about', 'support']));
     expect(titled.map((route) => route.path)).toEqual(expect.arrayContaining(['admin/sources', 'admin/translations', 'admin/languages', 'admin/people', 'admin/migrations']));
   });
 

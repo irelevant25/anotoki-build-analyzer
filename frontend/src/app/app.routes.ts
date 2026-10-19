@@ -1,6 +1,7 @@
 import { Routes } from '@angular/router';
 import { AuthCallbackComponent, SignInFailureComponent, adminGuard, personGuard } from '@anotoki/lib/auth';
 import { anotokiUnsavedChangesGuard } from '@anotoki/lib/translations';
+import type { LibraryKey } from '@anotoki/lib/ui/config';
 import { CALLBACK_PATH, SIGN_IN_FAILED_PATH, sitePagesGuard } from './core/auth.guards';
 import { AppLayout } from './layouts/app-layout/app-layout';
 
@@ -26,13 +27,39 @@ import { AppLayout } from './layouts/app-layout/app-layout';
  * with no guard (the survey's lesson, 2026-10-17; app.routes.spec.ts). They come before everybody's pages and the
  * "**" at the end, which would take them. Their paths are the library's (DEFAULT_LEGAL_PATHS, core/legal.ts), the
  * footer's links go there.
+ *
+ * The About and Support pages (anotoki-lib 0.8.0: @anotoki/lib/legal/about, /legal/support - the same on every
+ * anotoki site, in the library's words) are anybody's too, in the same frame, the same way; the footer links them
+ * first. Their titles are the library's own keys, the words the pages' headings say (core/i18n/title-strategy.ts).
  */
 
 /** The legal pages' frame, loaded with the first of them that is opened (and the site's facts with it, out of the first load). */
 const legalFrame = () => import('./layouts/legal-layout/legal-layout').then((m) => m.LegalLayout);
 
 export const routes: Routes = [
-  // The legal pages: anybody's, each a path of its own in the frame that gives them the site's facts (see above).
+  // About, Support and the legal pages: anybody's, each a path of its own in the frame that gives them the site's facts (see above).
+  {
+    path: 'about',
+    loadComponent: legalFrame,
+    children: [
+      {
+        path: '',
+        title: 'anotoki.about.title' satisfies LibraryKey,
+        loadComponent: () => import('@anotoki/lib/legal/about').then((m) => m.AboutPageComponent),
+      },
+    ],
+  },
+  {
+    path: 'support',
+    loadComponent: legalFrame,
+    children: [
+      {
+        path: '',
+        title: 'anotoki.support.title' satisfies LibraryKey,
+        loadComponent: () => import('@anotoki/lib/legal/support').then((m) => m.SupportPageComponent),
+      },
+    ],
+  },
   {
     path: 'terms',
     loadComponent: legalFrame,

@@ -1124,7 +1124,7 @@ test('013 where the library\'s footer words went in first: the site\'s take thei
     same(0, (int) $pdo->query("SELECT count(*) FROM translation_keys WHERE name IN ('footer.version', 'footer.feedback', 'footer.fanMade')")->fetchColumn(), 'the three keys are gone');
 });
 
-test('013\'s gate refuses a database whose keys are not the ones it expects - nothing of it, nor the library\'s 012 after it, is applied', function () use ($server) {
+test('013\'s gate refuses a database whose keys are not the ones it expects - nothing of it, nor the library\'s files from its 012 on, is applied', function () use ($server) {
     $pdo = upTo012($server, 'to012gate');
     $pdo->exec("INSERT INTO translation_keys (name, description) VALUES ('zz.stray', 'Not a migration''s')");
 
@@ -1133,7 +1133,9 @@ test('013\'s gate refuses a database whose keys are not the ones it expects - no
     check(str_contains((string) $result['error'], 'There are 484 keys of the site\'s own, and 012 with this file leave 483'), 'the gate says why: ' . $result['error']);
     same(3, (int) $pdo->query("SELECT count(*) FROM translation_keys WHERE name IN ('footer.version', 'footer.feedback', 'footer.fanMade')")->fetchColumn(), 'the keys stay');
     same(0, (int) $pdo->query("SELECT count(*) FROM translation_keys WHERE name LIKE 'anotoki.footer.%'")->fetchColumn(), 'nothing of 013, nor the library\'s 012');
-    same([FOOTER_FILE, '012_footer_words.sql'], array_column(Migrations::migrator($pdo)->status()['pending'], 'name'), 'both still wait');
+    // The library's 012 and every file of its set after it (anotoki-lib 0.8.0's 013, the About and Support pages' words).
+    same([FOOTER_FILE, ...array_column(array_slice(libraryFiles(), 11), 'name')], array_column(Migrations::migrator($pdo)->status()['pending'], 'name'), 'they all still wait');
+    same('012_footer_words.sql', array_column(libraryFiles(), 'name')[11], 'the library\'s 012 the first of them');
 });
 
 /**
