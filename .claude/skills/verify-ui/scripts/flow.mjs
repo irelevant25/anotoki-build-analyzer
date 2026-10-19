@@ -1529,7 +1529,7 @@ try {
       const tab = await legal.newPage();
       await open(tab, '/?lang=en');
       const links = await tab.locator('anotoki-site-footer anotoki-legal-links a').evaluateAll((all) => all.map((link) => `${link.textContent.trim()} -> ${link.getAttribute('href')}`));
-      check(links.join('|') === 'Terms -> /terms|Privacy -> /privacy|Contact -> /contact', `the footer's links: ${links.join(', ')}`);
+      check(links.join('|') === 'About -> /about|Support -> /support|Terms -> /terms|Privacy -> /privacy|Contact -> /contact', `the footer's links: ${links.join(', ')}`);
       check((await tab.locator('anotoki-site-footer [data-fan]').innerText()).includes('not affiliated with or endorsed by HoYoverse'), 'and the fan clause under them');
       await tab.click('anotoki-site-footer anotoki-legal-links a[href="/privacy"]');
       await tab.waitForSelector('anotoki-privacy-page h1', { timeout: 15000 });
