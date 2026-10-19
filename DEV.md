@@ -130,7 +130,7 @@ longer read and can be deleted.
 What the anotoki sites share lives in one library, [irelevant25/anotoki-lib](https://github.com/irelevant25/anotoki-lib),
 in two halves with one version: the Composer package `anotoki/lib` (`backend/composer.json`: a `vcs` repository
 entry and `"anotoki/lib": "^0.8.0"`; installed into `backend/vendor/`, which the upload carries) and the npm
-package `@anotoki/lib` (`frontend/package.json`: the release's tarball). Both halves are 0.8.0 (0.6.0: the legal
+package `@anotoki/lib` (`frontend/package.json`: the release's tarball). Both halves are 0.8.1 (0.6.0: the legal
 pages - Terms, Privacy, Contact - and the kit's newer pieces; 0.6.1 and 0.6.2: the Privacy page's sentences made
 true on every site; 0.6.3: the family's footer, this site's own made the library's; 0.7.0: the library's folders
 renamed - its PHP half's files are under `vendor/anotoki/lib/backend/`; 0.7.1: the footer's version written short,

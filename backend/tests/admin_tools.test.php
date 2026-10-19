@@ -437,7 +437,13 @@ test('feedback on the admin side: the list, the unread count (the badge), a mess
     $opened = admin()
         ->get("/api/admin/feedback/{$mona}")
         ->status(200);
-    same(['The wizard stops.', 'mona', 'read'], [$opened->json('message.message'), $opened->json('message.user_name'), $opened->json('message.status')], 'opened: who sent it, read now');
+    // Opening one only reads it (anotoki-lib 0.8.1); the page marks a new one read by a PUT of its own, sent as it sends it ({}).
+    same(['The wizard stops.', 'mona', 'new'], [$opened->json('message.message'), $opened->json('message.user_name'), $opened->json('message.status')], 'opened: who sent it, still new');
+    same(['unread' => 2], admin()->get('/api/admin/feedback/unread')->status(200)->json(), 'a GET marks nothing read');
+    $marked = admin()
+        ->request('PUT', "/api/admin/feedback/{$mona}/read", null, ['body' => '{}'])
+        ->status(200);
+    same('read', $marked->json('message.status'), 'marked read by its own write');
     same(['unread' => 1], admin()->get('/api/admin/feedback/unread')->status(200)->json(), 'one new');
 
     admin()
