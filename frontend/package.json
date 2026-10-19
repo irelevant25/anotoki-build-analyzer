@@ -24,6 +24,7 @@
     "@angular/build": "^21.2.22",
     "@angular/cli": "^21.2.22",
     "@angular/compiler-cli": "^21.2.0",
+    "@anotoki/deploy": "https://github.com/irelevant25/anotoki-lib/releases/download/v0.9.0/anotoki-deploy-0.9.0.tgz",
     "jsdom": "^28.0.0",
     "typescript": "~5.9.2",
     "vitest": "^4.0.8"

@@ -8,7 +8,7 @@ Material, no CDK). See [DEV.md](../DEV.md) for setting up, running, testing and 
 bun ci                     # the packages, from bun.lock (npm start runs it first)
 npm start                  # http://localhost:4600 (proxies /api and /setup.php to http://localhost:8400)
 npx ng test --watch=false  # unit tests (Vitest)
-npx ng build               # production build into dist/frontend/browser (npx anotoki-deploy build uses it)
+npx ng build               # production build into dist/frontend/browser (bun run anotoki-deploy build uses it)
 cd .. && bun run format:check  # Prettier on every file of both halves, at the root (bun install there first)
 ```
 

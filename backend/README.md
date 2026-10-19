@@ -14,7 +14,7 @@ php import-account.php <game> <uid|file> --user=IAM_ID [--account=ID]
 php translations.php --status          # the site's strings (--export=sk [file], --import=sk file)
 php backup.php --list                  # the database's backups (--create, --inspect=, --extract=, --restore=)
 php tests/run.php                      # every test file, each on its own throwaway database
-# the release: cd ../frontend && npx anotoki-deploy build / deploy (../DEV.md, "Deploying")
+# the release: cd ../frontend && bun run anotoki-deploy build / deploy (../DEV.md, "Deploying")
 ```
 
 | Path | What |

@@ -162,7 +162,7 @@ again after `setup.php` finished on a host.
 ## Deploying
 
 The host needs only Apache, PHP 8.4 and PostgreSQL, with files uploaded by FTP: no shell, cron or worker.
-`npx anotoki-deploy build` (in `frontend/`; anotoki-lib's deploy tool) assembles the release in `dist/` - `frontend/` and
+`bun run anotoki-deploy build` (in `frontend/`; anotoki-lib's deploy tool) assembles the release in `dist/` - `frontend/` and
 `backend/`, with `vendor/` and the built frontend, and no configuration or tests - replaced whole on the host; `setup.php` writes the host's configuration and builds the database; later database
 updates are applied on the admin panel's Migrations page by an ADMIN, at once after the upload - until then the
 site tells everybody else it is being updated. The steps and the upload map: [DEV.md](DEV.md)

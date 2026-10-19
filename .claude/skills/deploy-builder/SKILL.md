@@ -27,24 +27,24 @@ live site.
 ## 1. Build
 
 ```bash
-cd backend && tools/php.sh tests/run.php   # green first
-cd ../frontend && npx anotoki-deploy build # the frontend's build, the neutral-names check, the release -> ../dist/
+cd backend && tools/php.sh tests/run.php       # green first
+cd ../frontend && bun run anotoki-deploy build # the frontend's build, the neutral-names check, the release -> ../dist/
 ```
 
-(Until `@anotoki/deploy` is a dev dependency of `frontend/` - from anotoki-lib
-0.9.0's release - `node ../../anotoki-lib/deploy/cli.mjs` stands for
-`npx anotoki-deploy`.) The build stops if the app names another site, service
+(`@anotoki/deploy`: a dev dependency of `frontend/`, from anotoki-lib's release.
+`bun run` finds it whichever tool installed `node_modules/`; on Windows, `npx`
+misses bun's links.) The build stops if the app names another site, service
 or tool (`backend/tools/check-release.php`, with a PHP 8.4+:
 `BUILD_ANALYZER_PHP`, else `php8`, else `php`).
 
 ## 2. Release
 
 ```bash
-npx anotoki-deploy deploy --backups <folder>        # a dry run: what goes up
-npx anotoki-deploy deploy --backups <folder> --go   # the live frontend/ and backend/ copied into <folder>,
-                                                    # the release up as .new, checked, swapped in, the site checked
-npx anotoki-deploy rollback --go                    # if it is wrong: the release before (kept as .old) back in
-npx anotoki-deploy status                           # what is on the host
+bun run anotoki-deploy deploy --backups <folder>        # a dry run: what goes up
+bun run anotoki-deploy deploy --backups <folder> --go   # the live frontend/ and backend/ copied into <folder>,
+                                                        # the release up as .new, checked, swapped in, the site checked
+bun run anotoki-deploy rollback --go                    # if it is wrong: the release before (kept as .old) back in
+bun run anotoki-deploy status                           # what is on the host
 ```
 
 ## 3. The database
@@ -54,10 +54,11 @@ npx anotoki-deploy status                           # what is on the host
   database up first). Once applied, `rollback` is no longer clean - check the
   release before pressing it.
 - **First install**: the database in the hosting panel; `deploy --go`, then
-  `npx anotoki-deploy switch --go` once; then `https://builder.anotoki.eu/setup.php`
-  with the token it writes into `config/setup-token.local.php` (read it over
-  SFTP), the database and the IAM (`https://iam.anotoki.eu`, client id
-  `build-analyzer`). It checks that `storage/` is not served.
+  `bun run anotoki-deploy switch --go` once; then
+  `https://builder.anotoki.eu/setup.php` with the token it writes into
+  `config/setup-token.local.php` (read it over SFTP), the database and the IAM
+  (`https://iam.anotoki.eu`, client id `build-analyzer`). It checks that
+  `storage/` is not served.
 
 ## 4. Check
 

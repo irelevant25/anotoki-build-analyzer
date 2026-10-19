@@ -170,7 +170,7 @@ cd backend && php sync-catalog.php [genshin|hsr] [--force]
 cd backend && php import-account.php <genshin|hsr> <uid|file> --user=IAM_ID [--account=ID]
 cd backend && php translations.php [--status | --export=sk [file] | --import=sk file]   # the site's strings
 cd backend && php backup.php [--list | --create ["why"] | --inspect=<id> | --extract=<id> <folder> | --restore=<id> --confirm=<last 6>]
-cd frontend && npx anotoki-deploy build   # ../dist/frontend + ../dist/backend: the release (deploy-builder skill)
+cd frontend && bun run anotoki-deploy build   # ../dist/frontend + ../dist/backend: the release (deploy-builder skill)
 ```
 
 ## Code map (backend paths under `backend/`)
