@@ -40,7 +40,14 @@ final class Installer
         'zlib' => 'the database\'s backups (each is compressed)',
     ];
 
-    public function __construct(public readonly string $root, private readonly ?HttpClient $http = null) {}
+    /** Where config/ and storage/ are: beside backend/ on the host (a release), backend/ itself in a checkout - Config::stateRoot(). */
+    private readonly string $state;
+
+    /** @param string $root the code's folder - backend/, or the release's backend/ on the host */
+    public function __construct(public readonly string $root, private readonly ?HttpClient $http = null)
+    {
+        $this->state = Config::stateRoot($root);
+    }
 
     // ── where it runs ─────────────────────────────────────────────────────────────────────────────
 
@@ -98,12 +105,12 @@ final class Installer
 
     public function lockFile(): string
     {
-        return $this->root . '/storage/installed.lock';
+        return $this->state . '/storage/installed.lock';
     }
 
     public function tokenFile(): string
     {
-        return $this->root . '/config/setup-token.local.php';
+        return $this->state . '/config/setup-token.local.php';
     }
 
     // ── the values ────────────────────────────────────────────────────────────────────────────────
@@ -227,7 +234,7 @@ final class Installer
         }
         $said = [];
         foreach (['database.local.php', 'auth.local.php'] as $file) {
-            $path = $this->root . '/config/' . $file;
+            $path = $this->state . '/config/' . $file;
             if (is_file($path) && ($problem = Config::readLocalFile($path)['problem']) !== null) {
                 $said[] = "config/{$file} {$problem}";
             }
@@ -244,7 +251,7 @@ final class Installer
      */
     private function readConfig(string $file): array
     {
-        $path = $this->root . '/config/' . $file;
+        $path = $this->state . '/config/' . $file;
         if (!is_file($path)) {
             return [];
         }
@@ -287,7 +294,7 @@ final class Installer
             'database.local.php' => [$settings['database'], 'the database connection', null],
             'auth.local.php' => [$settings['auth'], 'where people sign in: the anotoki IAM', null],
         ];
-        if (!is_file($this->root . '/config/fetch.local.php')) {
+        if (!is_file($this->state . '/config/fetch.local.php')) {
             $fetch = ['user_agent' => $userAgent] + array_intersect_key(Config::FETCH_DEFAULTS, array_flip(['delay_ms', 'cache_hours', 'step_seconds', 'stale_hours']));
             $files['fetch.local.php'] = [$fetch, 'outgoing requests and sync steps, the defaults', 'Edit it by hand (step_seconds 12-120); setup.php keeps it as it is.'];
         }
@@ -295,7 +302,7 @@ final class Installer
         $written = [];
         foreach ($files as $name => [$values, $what, $change]) {
             $contents = $change === null ? self::phpFile($values, $what) : self::phpFile($values, $what, $change);
-            if (!$this->writeSecret($this->root . '/config/' . $name, $contents)) {
+            if (!$this->writeSecret($this->state . '/config/' . $name, $contents)) {
                 throw new RuntimeException("config/{$name} could not be written. Make the config/ folder writable for the web server and try again.");
             }
             $written[] = 'config/' . $name;
@@ -381,7 +388,8 @@ final class Installer
             $checks[] = ['label' => "PHP extension {$extension}", 'ok' => extension_loaded($extension), 'detail' => "needed for {$why}; enable it in the hosting panel"];
         }
         foreach (['config', 'storage'] as $folder) {
-            $path = $this->root . '/' . $folder;
+            $path = $this->state . '/' . $folder;
+            $this->ensureStateFolder($path);
             $checks[] = ['label' => "{$folder}/ writable", 'ok' => is_dir($path) && is_writable($path), 'detail' => 'the web server must be able to write here (FTP: permissions 755 or 775)'];
         }
         $checks[] = ['label' => 'vendor/ uploaded', 'ok' => is_file($this->root . '/vendor/autoload.php'), 'detail' => 'upload the whole build, with its vendor/ folder'];
@@ -498,7 +506,7 @@ final class Installer
     {
         $name = 'setup-probe-' . bin2hex(random_bytes(6)) . '.txt';
         $secret = bin2hex(random_bytes(16));
-        if (@file_put_contents($this->root . '/storage/' . $name, $secret) === false) {
+        if (@file_put_contents($this->state . '/storage/' . $name, $secret) === false) {
             return;
         }
 
@@ -508,7 +516,7 @@ final class Installer
         } catch (Throwable) {
             $served = false;
         } finally {
-            @unlink($this->root . '/storage/' . $name);
+            @unlink($this->state . '/storage/' . $name);
         }
 
         if ($served) {
@@ -575,5 +583,19 @@ final class Installer
     public function config(): Config
     {
         return Config::load($this->root);
+    }
+
+    /**
+     * A folder of the state made if it is missing - the first setup of a site, whose release never brings one. On the
+     * host (a release) it gets a deny-all .htaccess of its own, though the site's switch never sends a request into it.
+     */
+    private function ensureStateFolder(string $path): void
+    {
+        if (!is_dir($path)) {
+            @mkdir($path, 0775, true);
+        }
+        if ($this->state !== rtrim(str_replace('\\', '/', $this->root), '/') && is_dir($path) && !is_file($path . '/.htaccess')) {
+            @file_put_contents($path . '/.htaccess', "# Not for the web: only PHP reads these files.\n<IfModule mod_authz_core.c>\n    Require all denied\n</IfModule>\n<IfModule !mod_authz_core.c>\n    Order allow,deny\n    Deny from all\n</IfModule>\n");
+        }
     }
 }

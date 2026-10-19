@@ -36,6 +36,17 @@
     "sort-packages": true,
     "platform-check": false
   },
+  "extra": {
+    "anotoki-deploy": {
+      "site": "build-analyzer",
+      "remote": "/anotoki.eu/sub/builder",
+      "url": "https://builder.anotoki.eu",
+      "frontendBuild": "npm run build && node ../backend/tools/check-release.mjs",
+      "headers": { "Referrer-Policy": "strict-origin-when-cross-origin" },
+      "noCache": ["changelog.json"],
+      "smoke": ["/api/site-status"]
+    }
+  },
   "minimum-stability": "stable",
   "prefer-stable": true,
   "scripts": {

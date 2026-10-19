@@ -49,7 +49,7 @@ other anotoki sites (the genshin site, the IAM).
 | Output | `src/Presenters/*` (accounts, builds, sync runs, icon addresses), `src/Support/Neutral.php` | what the API sends, in the shapes of `frontend/src/app/core/models.ts` |
 | Command line | `migration.php`, `sync-builds.php`, `sync-catalog.php`, `import-account.php`, `translations.php`, `backup.php` (→ `src/Commands/*`; `translations.php` is anotoki-lib's `TranslationsCommand`, `backup.php` its `BackupsCommand`) | loop over the same steps as the Sources page; nothing is scheduled |
 | Setup | `setup.php` + `src/Setup/Installer.php` | writes `config/*.local.php`, builds the database; see [operations.md](operations.md) |
-| Deploy | `tools/build.php` | `dist/` (beside `backend/`), the web root to upload; see DEV.md "Deploying" |
+| Deploy | anotoki-deploy (anotoki-lib's), `composer.json`'s `extra["anotoki-deploy"]`, `tools/check-release.mjs` | `dist/frontend/` and `dist/backend/`, a release replaced whole on the host; see DEV.md "Deploying" |
 
 ### The site gate
 
@@ -298,7 +298,7 @@ name or address either:
   no tool name, every text through `Neutral::text()` on the way out and again on the way in.
 - Text that came from elsewhere (errors, notes copied from a page, old run logs) passes through
   `Neutral::text()` on the way out: web addresses become "the source page", names of sites and tools "the
-  source". `backend/tools/build.php` refuses a frontend build that contains one of those names.
+  source". `backend/tools/check-release.php` (run with every release's frontend build) refuses a frontend build that contains one of those names.
 - Icons: the catalog stores the provider's icon address; the API sends `/api/icons/{c|w|s}/{id}`, which fetches
   the image once into `storage/icons/` and serves it from this site.
 - The site's words: no string names another site or holds a web address, whether a migration seeded it or the
@@ -730,4 +730,4 @@ page's API answers its own: 404 `not_found` (a file that is none of the set's), 
   nothing is loaded from another site.
 - The dev server (http://localhost:4600) proxies `/api` and `/setup.php` to `http://localhost:8400`
   (`proxy.conf.json`). `ng build` writes `dist/frontend/browser/`, which `router.php` serves in development and
-  `backend/tools/build.php` puts into the upload.
+  a release carries in `backend/vendor/`.

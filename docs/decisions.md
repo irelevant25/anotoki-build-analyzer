@@ -3,6 +3,20 @@
 Short records of choices that shape the code. Add a new entry (newest first) when you make a similar call.
 Older entries describe the Laravel version as it was; where a setting has since moved, the entry says so.
 
+**2026-10-19 — A release is `frontend/` and `backend/`, each replaced whole; the state is beside them, never in one
+(the owner's decision).** An upload of `dist/build-analyzer/*` over the old files (FTP never deletes) left every
+earlier build's hashed bundles and removed PHP files on the host, mixed with `config/*.local.php` and `storage/` -
+nothing could be deleted wholesale, and nobody could tell what was stale. Now anotoki-lib's anotoki-deploy builds
+the release from `backend/composer.json`'s `extra["anotoki-deploy"]` (the same tool for every site), puts it up
+beside the live one, checks it and swaps it in by renames (the one before kept for a rollback); the folder's
+`.htaccess` - the switch, as Japanese Academy has run since 2026-10-04 - sends every request into `frontend/`, so
+`backend/`, `config/` and `storage/` are never served. The PHP finds its state with one rule,
+`Config::stateRoot()`: with `release.json` in `backend/`, the folder above it; in a checkout, `backend/` itself.
+`tools/build.php` went; what of it was this site's own - the frontend names no other site, service or tool - is
+`tools/check-release.php`, run with every release's frontend build. `setup.php` is in `backend/` (served at
+`/setup.php` by `frontend/index.php`) and still deletes itself; the Installer keeps the code's folder
+(`vendor/`) and the state's apart, and makes `config/` and `storage/` if they are missing.
+
 **2026-10-18 — anotoki-lib 0.6.3, both halves: the family's footer in place of this site's own, and Feedback only where a message can be sent (the owner's round 3; version 0.4.0, unreleased).**
 - *The family's footer* (the owner, after the deploy: "I like the footer of builder the most. The order, texts and
   the top border."): the library's `<anotoki-site-footer>` is a copy of this site's footer, so it takes its place

@@ -172,8 +172,9 @@ Correctness first:
   `**`.
 - The IAM's SDKs are not vendored here any more: signing in, people and the admin tools come from anotoki-lib
   (`backend/vendor/anotoki/lib`, `@anotoki/lib` - one version for both halves), never edited in place.
-- Deploy: `backend/tools/build.php` output never contains `*.local.php`, logs, tests or command-line scripts, and
-  keeps the deny `.htaccess` files; `setup.php` keeps its token / lock / self-delete protections on a host and
+- Deploy: a release (anotoki-deploy, its include list in `composer.json`'s `extra["anotoki-deploy"]`) never contains
+  `*.local.php`, logs, tests or command-line scripts; state is reached only through `Config::stateRoot()` /
+  `Config::storage()` (on the host it is beside `backend/`, never in it); `setup.php` keeps its token / lock / self-delete protections on a host and
   writes secrets with owner-only permissions.
 - Analysis: scores stay 0–100, missing data yields `null` parts, suggestions never worsen set bonuses.
 - API changes are mirrored in `frontend/src/app/core/models.ts`; routes validate input (`Web\Input`).

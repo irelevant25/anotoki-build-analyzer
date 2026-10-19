@@ -162,8 +162,8 @@ again after `setup.php` finished on a host.
 ## Deploying
 
 The host needs only Apache, PHP 8.4 and PostgreSQL, with files uploaded by FTP: no shell, cron or worker.
-`php tools/build.php` (in `backend/`) assembles `dist/` (the whole web root, with `vendor/` and the built frontend, and no
-configuration or tests); `setup.php` writes the host's configuration and builds the database; later database
+`npx anotoki-deploy build` (in `frontend/`; anotoki-lib's deploy tool) assembles the release in `dist/` - `frontend/` and
+`backend/`, with `vendor/` and the built frontend, and no configuration or tests - replaced whole on the host; `setup.php` writes the host's configuration and builds the database; later database
 updates are applied on the admin panel's Migrations page by an ADMIN, at once after the upload - until then the
 site tells everybody else it is being updated. The steps and the upload map: [DEV.md](DEV.md)
 ("Deploying").
@@ -214,7 +214,7 @@ backend/
   migrations/           the schema and the site's words, as SQL files applied in order
   tests/                php tests/run.php: throwaway PostgreSQL databases, fixtures, a fake network, the
                         library's test IAM (and its stand-in IAM, in vendor/)
-  tools/                build.php (the upload), php.sh (PHP 8.4+ for bash)
+  tools/                check-release.php/.mjs (the release names no other site), php.sh (PHP 8.4+ for bash)
   setup.php, router.php, migration.php, sync-builds.php, sync-catalog.php, import-account.php, translations.php,
   backup.php
 frontend/src/app/

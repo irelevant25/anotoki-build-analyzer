@@ -14,7 +14,7 @@ php import-account.php <game> <uid|file> --user=IAM_ID [--account=ID]
 php translations.php --status          # the site's strings (--export=sk [file], --import=sk file)
 php backup.php --list                  # the database's backups (--create, --inspect=, --extract=, --restore=)
 php tests/run.php                      # every test file, each on its own throwaway database
-php tools/build.php [--skip-frontend]  # the upload for the FTP-only host, into ../dist/
+# the release: cd ../frontend && npx anotoki-deploy build / deploy (../DEV.md, "Deploying")
 ```
 
 | Path | What |
@@ -26,7 +26,7 @@ php tools/build.php [--skip-frontend]  # the upload for the FTP-only host, into 
 | `migrations/` | the schema and the site's strings, as SQL files applied in order (`001` adopts a database of the Laravel version), between the library's own sets (`vendor/anotoki/lib/backend/migrations/`: `admin` first, then `translations` and `people`); while one waits the site is closed but for its ADMIN on the Migrations page |
 | `storage/` | what the running app writes: `cache/iam/` (the IAM's keys, its answer whether sign-in is required here, kept a minute, and where the scrub of its deleted accounts stands), `cache/` (feedback's limits; `config-said-*.stamp`, the day a settings file passed over was last said in PHP's error log), `http-cache/` (fetched pages), `icons/`, `logs/app.log` (what the site did) and `logs/errors-*.jsonl` (the error log; `client-errors.json` counts the pages' reports), `backups/` (the database's backups), `anotoki-lib.key` (the installation's key: the counters' and the error log's keyed hashes, the backups' seal) |
 | `tests/` | the tests (`*.test.php`), their harness (`lib.php`, `run.php`, `support/`), fixtures, and `tools/` - `browser-db.php`, the browser check's throwaway database (`build_analyzer_test_browser`) and the settings folder `BUILD_ANALYZER_TEST_CONFIG` points the site at (honoured by `App\Config` only for a `build_analyzer_test_` database) |
-| `tools/` | `build.php` (assembles `../dist/`, what to upload) and `php.sh` (runs `BUILD_ANALYZER_PHP` where the `php` on PATH is older than 8.4) |
+| `tools/` | `check-release.php` / `.mjs` (a release's frontend names no other site - run by anotoki-deploy's build) and `php.sh` (runs `BUILD_ANALYZER_PHP` where the `php` on PATH is older than 8.4) |
 | `setup.php` | the installer: the database and the IAM, needed once on every installation, this computer included |
 | `router.php` | makes PHP's built-in server behave like the host's Apache (development only) |
 | `migration.php`, `sync-builds.php`, `sync-catalog.php`, `import-account.php`, `translations.php`, `backup.php` | the command line (`src/Commands/`, and the library's commands) |

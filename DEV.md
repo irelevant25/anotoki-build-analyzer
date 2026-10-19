@@ -238,29 +238,46 @@ key families, and every seeded string against the checks a save makes. A new str
 
 - `cd frontend && npx ng build` writes the app to `frontend/dist/frontend/browser/`; the PHP server on :8400
   then serves it too (`router.php`), without the Angular dev server.
-- `cd backend && php tools/build.php` builds the upload into `dist/` at the repository root - see below.
+- `cd frontend && npx anotoki-deploy build` builds the release into `dist/` at the repository root - see below.
 
 ## Deploying (FTP-only hosting)
 
 The host needs Apache with `.htaccess` support (`mod_rewrite`), **PHP 8.4+** with `pdo_pgsql`, `openssl`,
 `mbstring`, `curl`, `dom` and `zlib` (the backups), and a **PostgreSQL** database made in the hosting panel - the
 setup page checks each extension. No shell, cron job,
-queue worker or long-running process is needed: files go up by FTP, the database is built by `setup.php` and
-later changed on the admin panel's Migrations page.
+queue worker or long-running process is needed: a release goes up by SFTP, the database is built by `setup.php`
+and later changed on the admin panel's Migrations page.
 
-1. **Build** on your computer: `cd backend && php tools/build.php`. It builds the frontend and assembles:
+A release is built and put up by **anotoki-deploy**, the anotoki library's deploy tool (the same for every
+site; anotoki-lib's `deploy/README.md`); this site's facts are in `backend/composer.json`,
+`extra["anotoki-deploy"]`. The site's folder on the host, `anotoki.eu/sub/builder/`:
 
-   | Local | Upload to | |
-   | --- | --- | --- |
-   | `dist/build-analyzer/*` (with its `.htaccess` files) | the site's web root, e.g. `~/builder.anotoki.eu/` | the app, `api/`, `src/`, `config/app.php`, `migrations/`, `vendor/`, an empty `storage/` |
-   | `dist/setup.php` | the same web root | the first install only; it deletes itself |
+```
+.htaccess   the switch: every request -> frontend/ (written once: anotoki-deploy switch)
+frontend/   the built app, index.php (the front controller), .htaccess        } a release:
+backend/    api/, src/, config/app.php, migrations/, vendor/, setup.php,       } replaced whole
+            release.json                                                       }
+config/     *.local.php - the settings: setup.php writes them                  never in a release
+storage/    the lock, logs, caches, backups, the library's key                 never in a release
+```
 
-   The `.htaccess` files send `/api` to `api/index.php`, every other path that is not a file to the app (a
-   missing `.js`, `.css`, font or image is a 404), and deny `src/`, `config/`, `migrations/`, `vendor/` and
-   `storage/` to the web. The build contains no `config/*.local.php`, no command-line scripts and no tests.
+1. **Build** on your computer, in `frontend/`: `npx anotoki-deploy build` (until `@anotoki/deploy` is a dev
+   dependency of `frontend/` - from anotoki-lib 0.9.0's release - `node ../../anotoki-lib/deploy/cli.mjs` stands
+   for `npx anotoki-deploy`). It runs the frontend's build and `backend/tools/check-release.mjs` (the app names
+   no other site, service or tool - else the build stops), then assembles `dist/frontend/` and `dist/backend/`.
+   No `config/*.local.php`, no command-line scripts and no tests are ever in a release. The PHP finds its state
+   with one rule (`Config::stateRoot()`): with `release.json` in `backend/`, `config/` and `storage/` are the
+   ones beside it; in a checkout, `backend/`'s own.
 
-2. **Permissions**: `config/` and `storage/` (with its folders) must be writable for the web server (FTP: 755
-   or 775).
+2. **Release**: `npx anotoki-deploy deploy --backups <folder> --go` - the live `frontend/` and `backend/` copied
+   into `<folder>`, the release up beside them, checked, swapped in, and the site checked
+   (`npx anotoki-deploy rollback --go` brings the release before back; `status` says what is on the host). The
+   first time: `npx anotoki-deploy switch --go` once - the folder's `.htaccess` becomes the switch, which sends
+   every request into `frontend/` (`/api` to `index.php`, every other path that is not a file to the app; a
+   missing `.js`, `.css`, font or image is a 404); `backend/`, `config/` and `storage/` are never served. The
+   SFTP login is never in a repository: `ANOTOKI_DEPLOY_SECRETS` names a `secrets.json`, with the host's pinned
+   key in `hostkey.txt` beside it. `config/` and `storage/` must be writable for the web server - the setup page
+   makes them if they are missing.
 
 3. **Register the site at the IAM** (its admin panel, client `build-analyzer`): redirect URI
    `https://builder.anotoki.eu/auth/callback`, post-logout URI `https://builder.anotoki.eu/`, web origin
@@ -282,9 +299,9 @@ later changed on the admin panel's Migrations page.
    sync it on your own computer, **Export** it there and **Import** the file on the site's Sources page
    ([docs/operations.md](docs/operations.md), "Moving builds between installations").
 
-**A new version**: build again and upload `dist/build-analyzer/*` over the old files (FTP never deletes remote
-files; old hashed `*.js` do no harm). When it brings new migrations, **the site is closed from the moment the
-files are up until they are applied** (the site gate, as on every anotoki site): everybody else reads "The
+**A new version**: build again and `npx anotoki-deploy deploy --backups <folder> --go` (the release replaces
+`frontend/` and `backend/` whole - nothing of the version before stays). When it brings new migrations, **the site
+is closed from the moment the release is in until they are applied** (the site gate, as on every anotoki site): everybody else reads "The
 site is being updated" in their language, and their page comes back by itself once the update is in;
 signed in as the site's ADMIN you read "A database update is waiting" with **Open Migrations** - the one page
 that works then (not signed in: that page's **Sign in** brings you back to it); it too asks again by itself,

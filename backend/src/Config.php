@@ -89,15 +89,28 @@ final class Config
     private function __construct(private array $values, private readonly string $root, private readonly array $problems, private readonly ?string $storageRoot = null) {}
 
     /**
-     * The configuration of this checkout or installation (backend/config/).
+     * The folder this installation's state is in - its config/*.local.php and storage/. On the host a release's
+     * backend/ carries release.json (anotoki-deploy) and the state is beside it, in the site's folder, never part of
+     * an upload; in a checkout (and wherever release.json is missing) it is backend/ itself.
+     */
+    public static function stateRoot(?string $root = null): string
+    {
+        $root = rtrim(str_replace('\\', '/', $root ?? dirname(__DIR__)), '/');
+
+        return is_file($root . '/release.json') ? dirname($root) : $root;
+    }
+
+    /**
+     * The configuration of this checkout or installation (its *.local.php in stateRoot()'s config/).
      */
     public static function load(?string $root = null): self
     {
         $root = rtrim(str_replace('\\', '/', $root ?? dirname(__DIR__)), '/');
+        $state = self::stateRoot($root);
         $testDir = self::testConfigDir();
-        $dir = $testDir ?? $root . '/config';
+        $dir = $testDir ?? $state . '/config';
 
-        $storage = $testDir !== null ? $testDir . '/storage' : null;
+        $storage = $testDir !== null ? $testDir . '/storage' : ($state !== $root ? $state . '/storage' : null);
         $app = self::readLocalFile($root . '/config/app.php');
         $values = is_array($app['value']) ? $app['value'] : [];
         $problems = [];

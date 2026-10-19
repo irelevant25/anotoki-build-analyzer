@@ -21,7 +21,7 @@ page is the reference behind it.
 | Tests | – | `cd backend && php tests/run.php` and `cd frontend && npx ng test --watch=false` |
 | The browser check | – | `node .claude/skills/verify-ui/scripts/run.mjs [--no-build] [--keep] [--measure]` (the `verify-ui` skill: a throwaway database, the stand-in IAM on 8597, the site on 8590) |
 | Frontend build | – | `cd frontend && npx ng build` (then the API server alone serves everything on :8400) |
-| Build for the host | – | `cd backend && php tools/build.php [--skip-frontend]` (into `dist/` at the repo root) |
+| Build for the host | – | `cd frontend && npx anotoki-deploy build` (into `dist/` at the repo root: `frontend/` and `backend/`) |
 | Look at the data | – | `psql` against the database of `config/database.local.php`, or a scratch PHP file using `App\Cli::app()->db()` |
 
 `backend/tools/php.sh` runs PHP 8.4+ from `$BUILD_ANALYZER_PHP`, else the `php` on PATH, and refuses older
@@ -173,7 +173,7 @@ https://iam.anotoki.eu/api/public/applications/build-analyzer` (200, `"login_req
   it, nor makes a new row for an id the IAM deleted.
 - The verifier caches the IAM's keys in `storage/cache/iam/`, and the reader the IAM's sign-in answer
   (`anotoki-iam-application-<sha1>.json`). The folder must be the site's own - a kept "not required" is what
-  opens the site to visitors; the upload denies `storage/` to the web (`tools/build.php`), and setup checks it. Deleting the file makes the
+  opens the site to visitors; the switch never serves `storage/` (it sends every request into `frontend/`), and setup checks it. Deleting the file makes the
   next request ask the IAM again.
 - **The account's theme, dates and language** (an IAM with its migration 015; the library's auth module): for a
   signed-in person the theme (on every page, the admin panel's too), the date order and clock and the
@@ -462,11 +462,14 @@ The host: Apache with `.htaccess` support (`mod_rewrite`), **PHP 8.4** (the scra
 it), and a PostgreSQL database made in the hosting panel. No shell, cron, queue worker or long-running process is needed. The steps, with the upload
 map, are in [DEV.md](../DEV.md) ("Deploying"); in short:
 
-1. `cd backend && php tools/build.php` assembles `dist/build-analyzer/` - the whole web root:
-   the Angular build, `api/`, `src/`, `config/app.php`, `migrations/`, `vendor/`, an empty `storage/` and the
-   `.htaccess` files - and `dist/setup.php`. It refuses a build with a `*.local.php`, a log, a Laravel component
-   or a frontend that names another site.
-2. Upload `dist/build-analyzer/*` into the site's web root (and, the first time, `dist/setup.php` beside it).
+1. `cd frontend && npx anotoki-deploy build` (anotoki-lib's deploy tool, set up in `backend/composer.json`'s
+   `extra["anotoki-deploy"]`) runs the frontend's build and `backend/tools/check-release.mjs` (it refuses a
+   frontend that names another site), then assembles the release: `dist/frontend/` (the Angular build,
+   `index.php`, `.htaccess`) and `dist/backend/` (`api/`, `src/`, `config/app.php`, `migrations/`, `vendor/`,
+   `setup.php`, `release.json`) - never a `*.local.php`.
+2. `npx anotoki-deploy deploy --backups <folder> --go` puts it into `anotoki.eu/sub/builder/`: `frontend/` and
+   `backend/` replaced whole beside `config/` and `storage/`, which no release writes (the first time,
+   `npx anotoki-deploy switch --go` once: the folder's `.htaccess` sends every request into `frontend/`).
    `config/` and `storage/` must be writable for the web server.
 3. First install: open `https://builder.anotoki.eu/setup.php`, read the token from
    `config/setup-token.local.php` over FTP, fill in the database and the IAM, test both, press "Set up". It
@@ -474,8 +477,9 @@ map, are in [DEV.md](../DEV.md) ("Deploying"); in short:
    (owner-only where PHP runs as the FTP account), writes `storage/installed.lock` and deletes the token and
    itself.
 4. Sign in with the ADMIN account, press **Refresh catalog**, then **Sync all**, and keep the tab open.
-5. A new version: upload `dist/build-analyzer/*` again (FTP never deletes remote files; old hashed `*.js` are
-   harmless). **While a new migration waits the site is closed** (the site gate - the anotoki family's one
+5. A new version: `npx anotoki-deploy deploy --backups <folder> --go` again - the release replaces `frontend/` and
+   `backend/` whole, nothing stale stays, and `rollback --go` brings the one before back. **While a new
+   migration waits the site is closed** (the site gate - the anotoki family's one
    behaviour, the owner's decision of 2026-10-07): the API answers every path 503 `update_pending` (`Retry-After:
    60`) but `/api/meta`, a language's strings, `/api/site-status` and the Migrations page's API; everybody reads
    "The site is being updated" in their language - their page asks again every 30 seconds and comes back by
