@@ -607,10 +607,12 @@ page's API answers its own: 404 `not_found` (a file that is none of the set's), 
 - Feedback (`core/feedback.ts`: `provideFeedback()`, the family's form set up for this site - the language on the
   page, the four places `FEEDBACK_SECTIONS` with the server's names, the person's address written in): the
   family's footer opens it in the kit's dialog, named by its button, loaded with the first press - as the Contact
-  page does. Both only while a message can be sent (`feedbackOffered()`): the form's request says nothing of whom
-  it is for, so the auth interceptor sends it as the page is shown - the person's, or the visitor's
-  (`AuthService.visiting`) - and the server takes one from anybody only while the IAM lets visitors in; never to
-  somebody signed out while it requires a sign-in, nor while the site is not ready (503).
+  page does. Both only while a message can be sent (`feedbackOffered()`): the form says its message is anybody's
+  (`issuedAs('anybody')`, anotoki-lib 0.7.2) - the person's with their token while somebody is signed in, the
+  visitor's while the page is shown to one (`AuthService.visiting`), nobody's otherwise - and the server takes one
+  from anybody only while the IAM lets visitors in, from a person signed in only while it requires a sign-in; so
+  never to somebody signed out while it requires a sign-in (the server would refuse it, 401 `sign_in_required`:
+  "Sign in to send a message"), nor while the site is not ready (503).
 - The errors the pages meet (`app.config.ts`: `provideBrowserGlobalErrorListeners()` and the family's
   `provideAnotokiErrorReport()`, `@anotoki/lib/error-report`): the app's `ErrorHandler` tells the console, as
   Angular's own does, and sends each error once - scrubbed in the page, at most five a page load, never an HTTP
@@ -625,8 +627,9 @@ page's API answers its own: 404 `not_found` (a file that is none of the set's), 
   rest, each in the family's frame (`<anotoki-shell>`: the bar, the page, the footer):
   `layouts/app-layout/` (every page outside `/admin`: `<app-top-bar area="app">`, the page, the footer) and
   `layouts/admin-layout/` (`area="admin"`, `lang="en"`). The footer is the family's (`<anotoki-site-footer>`,
-  `@anotoki/lib/footer` - since anotoki-lib 0.6.3 the library's copy of this site's own): "Version 0.4.0 · What's
-  new · Feedback" - the version the newest entry of `public/changelog.json` (`core/changelog.ts`), What's new this
+  `@anotoki/lib/footer` - since anotoki-lib 0.6.3 the library's copy of this site's own): "v0.4.0 · What's new ·
+  Feedback" (a screen reader hears "Version 0.4.0", the library's `anotoki.footer.version`) - the version the newest
+  entry of `public/changelog.json` (`core/changelog.ts`), What's new this
   site's own dialog (`(whatsNew)`), Feedback while a message can be sent - then Terms · Privacy · Contact and the
   fan clause (`fan="hoyoverse"`), in the library's words (`anotoki.footer.*`). What's new opens by itself with the
   releases after the one this browser saw last (`build-analyzer-version-seen`), compared by their numbers

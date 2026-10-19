@@ -20,6 +20,8 @@ Older entries describe the Laravel version as it was; where a setting has since 
   visitor, while the site is ready (`feedbackOffered()`: an update waiting answers it 503) - not on a legal page, the
   sign-in failure's screen or the admin panel's "You are signed out" while sign-in is required. The Privacy page
   says what a message holds to everybody: only the Contact page's frame leaves the form out (`legalPagesConfig()`).
+  Since anotoki-lib 0.7.2 the form says its message is anybody's (`issuedAs('anybody')`); the server's rule, and so
+  this one, stand.
 
 **2026-10-18 — After the deploy: a cloudflare.local.php that names no usable secret fails closed too; 008's regression test and a rule for every gate; setup's notice decided by the installer; the neutral-names rule's one exception; the status page bare (the owner's round 3; version 0.4.0, unreleased).**
 - *A present cloudflare.local.php without a usable secret fails closed* (the owner's "do as you think is the best"

@@ -104,7 +104,8 @@ describe("everybody's pages' frame", () => {
     expect(shell.querySelector('app-top-bar anotoki-top-bar')).not.toBeNull();
     expect([...shell.querySelectorAll('.anotoki-top-bar__nav a')].map((link) => link.textContent?.trim())).toEqual(['Dashboard', 'Import', 'Builds']);
     expect(shell.querySelector('main#main .the-page')).not.toBeNull();
-    expect(text(shell.querySelector('anotoki-site-footer [data-version]'))).toBe('Version 0.3');
+    // The version reads "v0.3" on screen and "Version 0.3" to a screen reader (anotoki-lib 0.7.1): its text holds both.
+    expect(text(shell.querySelector('anotoki-site-footer [data-version]'))).toBe('v0.3Version 0.3');
     // The footer under the page, outside <main>.
     expect(shell.querySelector('main anotoki-site-footer')).toBeNull();
   });
@@ -112,7 +113,7 @@ describe("everybody's pages' frame", () => {
   it("has the family's footer in the reader's language: the version, What's new - the site's own -, Feedback; Terms · Privacy · Contact; the fan clause", async () => {
     const { host, changelog } = await draw({ who: 'visitor', language: 'sk' });
 
-    expect(row(host)).toEqual(['Verzia 0.3', '·', 'Čo je nové', '·', 'Spätná väzba']);
+    expect(row(host)).toEqual(['v0.3Verzia 0.3', '·', 'Čo je nové', '·', 'Spätná väzba']);
     expect([...host.querySelectorAll('anotoki-site-footer anotoki-legal-links a')].map((link) => [text(link), link.getAttribute('href')])).toEqual([
       ['Podmienky', '/terms'],
       ['Súkromie', '/privacy'],
@@ -148,7 +149,7 @@ describe("everybody's pages' frame", () => {
       const { host } = await draw(options);
       expect(host.querySelector('anotoki-site-footer [data-open-feedback]') !== null, who).toBe(offered);
       // The rest of the footer is everybody's.
-      expect(row(host).slice(0, 3), who).toEqual(['Version 0.3', '·', "What's new"]);
+      expect(row(host).slice(0, 3), who).toEqual(['v0.3Version 0.3', '·', "What's new"]);
       expect(host.querySelectorAll('anotoki-site-footer anotoki-legal-links a'), who).toHaveLength(3);
     }
   });

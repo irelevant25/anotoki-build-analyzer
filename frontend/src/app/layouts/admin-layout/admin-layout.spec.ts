@@ -101,7 +101,8 @@ describe("the admin panel's frame", () => {
     const { host, changelog } = await open({ roles: ['ADMIN'] });
 
     const footer = host.querySelector('anotoki-site-footer')!;
-    expect([...footer.querySelectorAll('.anotoki-site-footer__row > *')].map(text)).toEqual(['Version 0.4.0', '·', "What's new", '·', 'Feedback']);
+    // The version reads "v0.4.0" on screen and "Version 0.4.0" to a screen reader (anotoki-lib 0.7.1): its text holds both.
+    expect([...footer.querySelectorAll('.anotoki-site-footer__row > *')].map(text)).toEqual(['v0.4.0Version 0.4.0', '·', "What's new", '·', 'Feedback']);
     expect([...footer.querySelectorAll('anotoki-legal-links a')].map(text)).toEqual(['Terms', 'Privacy', 'Contact']);
     expect(text(footer.querySelector('[data-fan]'))).toBe('This site is a fan-made project and is not affiliated with or endorsed by HoYoverse.');
     footer.querySelector<HTMLButtonElement>('[data-whats-new]')!.click();
