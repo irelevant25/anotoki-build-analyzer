@@ -275,15 +275,15 @@ cd backend && php tools/build.php [--skip-frontend]  # ../dist/: what to upload 
   here any more. A hook the library calls (the People page's delete, the scrub's) works on the `$pdo` it is
   given and begins no transaction of its own: a restore runs them on its own connection, its locks held.
 - Feedback is offered only while a message can be sent (`feedbackOffered()`, `core/feedback.ts`; the survey's
-  finding for every site, 2026-10-18): the library's form says nothing of whom its request is for, so the auth
-  interceptor sends it as the page is shown - the person's with their token, the visitor's while the page is shown
-  to one (`AuthService.visiting`) - and the server (`POST /api/feedback`, `optionalSignIn()`) takes a message from
-  anybody only while the IAM lets visitors in here, from a person signed in only while it requires a sign-in. So the
-  footer's Feedback and the Contact page's form are there for a person signed in or a visitor, and only while the
-  site is ready (an update waiting answers 503) - never for somebody signed out while sign-in is required (a legal
-  page, the sign-in failure's screen, the admin panel's "You are signed out"), who would press Send into "Sign in to
-  send a message". The Privacy page says what a message holds to everybody: only the Contact page's frame leaves
-  the form out.
+  finding for every site, 2026-10-18): since anotoki-lib 0.7.2 the library's form says its message is anybody's
+  (`issuedAs('anybody')`) - the person's with their token while somebody is signed in, the visitor's while the page
+  is shown to one (`AuthService.visiting`), nobody's otherwise - and the server (`POST /api/feedback`,
+  `optionalSignIn()`) takes a message from anybody only while the IAM lets visitors in here, from a person signed in
+  only while it requires a sign-in. So the footer's Feedback and the Contact page's form are there for a person
+  signed in or a visitor, and only while the site is ready (an update waiting answers 503) - never for somebody
+  signed out while sign-in is required (a legal page, the sign-in failure's screen, the admin panel's "You are signed
+  out"), whose message the server would refuse (401 `sign_in_required`: the form says "Sign in to send a message").
+  The Privacy page says what a message holds to everybody: only the Contact page's frame leaves the form out.
 - What a member reads is a key, worded by the page in the reader's language: never a sentence written into a
   template or a component, and never one kept in state (state holds keys, kinds and errors; a template or a
   `computed()` words them). Recommendations, import errors and import warnings are **kinds with params** that
