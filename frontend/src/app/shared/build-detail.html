@@ -177,11 +177,12 @@
               {{ ' ' }}<anotoki-badge class="t-rank">{{ rank }}</anotoki-badge>
             }</span
           >
+          <!-- A range is the goal ("260.0% – 280.0%"); "+" only where there is no top ("70.0%+"). -->
           <span class="t-goal">
             {{ target.min | statValue: game() : target.stat
             }}@if (target.max) {
               – {{ target.max | statValue: game() : target.stat }}
-            }+
+            } @else {+}
           </span>
           @if (target.current !== undefined && target.current !== null) {
             <span class="t-current">{{

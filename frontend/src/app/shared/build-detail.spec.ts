@@ -246,6 +246,22 @@ describe('BuildDetail: a recommended build in the reader’s words, the game’s
     expect(text('.t-goal')).toEqual(['70.0%+', '60.0%+']);
   });
 
+  it('writes a target with a top as its range, without the "+" of one that has none', async () => {
+    await show(
+      'en',
+      'genshin',
+      build({
+        stat_targets: [
+          { stat: 'enerRech_', min: 260, max: 280, text: '', from_rank: 0 },
+          { stat: 'enerRech_', min: 200, max: 220, text: '', from_rank: 1 },
+          { stat: 'critRate_', min: 70, max: null, text: '', from_rank: 0 },
+        ],
+      }),
+    );
+
+    expect(text('.t-goal')).toEqual(['260.0% – 280.0%', '200.0% – 220.0%', '70.0%+']);
+  });
+
   it('says "(any N)" and the qualifying sets in the form the number asks for', async () => {
     const pieces = (count: number) => Array.from({ length: count }, (_, index) => ({ label: `Set ${index + 1}`, count: 2, keys: [`s${index}`], names: [`Set ${index + 1}`] }));
     const many = { label: 'Any', count: 2, keys: ['x'], names: ['One', 'Two', 'Three', 'Four', 'Five'] };
