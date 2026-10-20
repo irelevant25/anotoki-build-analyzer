@@ -26,6 +26,7 @@ import { recommendationText } from '../../core/i18n/recommendation-words';
 import { TranslatePipe } from '../../core/i18n/translate';
 import { TranslatePluralPipe } from '../../core/i18n/translate-plural';
 import { TranslationService, Worded } from '../../core/i18n/translation';
+import { variationLabel } from '../../core/i18n/variation-words';
 import { MetaStore } from '../../core/meta-store';
 import { AccountDetail, CharacterOverview, ImportRun } from '../../core/models';
 import { BUILD_TERMS } from '../../shared/build-terms';
@@ -216,6 +217,18 @@ export class AccountPage {
   protected readonly withoutBuilds = computed(() => (this.account()?.characters ?? []).filter((c) => c.builds_count === 0).length);
 
   protected readonly unbuiltCount = computed(() => (this.account()?.characters ?? []).filter((c) => c.items_count === 0).length);
+
+  /** Each character's best build as its variation reads ("Main DPS · Melt · C2+"), by character id. */
+  protected readonly bestBuilds = computed(() => {
+    const prefix = this.gameMeta()?.rank_prefix ?? this.fallbackTerms().rankPrefix;
+    const builds = new Map<number, string>();
+    for (const character of this.account()?.characters ?? []) {
+      if (character.best) {
+        builds.set(character.id, variationLabel(this.i18n, character.best, prefix));
+      }
+    }
+    return builds;
+  });
 
   /**
    * The first thing each character's best build recommends, by character id - worded from its kind and

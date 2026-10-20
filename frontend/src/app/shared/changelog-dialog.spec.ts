@@ -87,7 +87,7 @@ describe('the What’s-new dialog: a frame in the reader’s language around ent
 
   it('is English on the English pages, whatever the reader’s language', async () => {
     await open('sk');
-    TestBed.inject(TranslationService).noteAddress('/admin/sources');
+    TestBed.inject(TranslationService).noteAddress('/admin/builds');
     await stable();
 
     expect(texts('h2')).toEqual(["What's new"]);

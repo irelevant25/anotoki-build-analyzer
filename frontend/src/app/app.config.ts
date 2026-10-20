@@ -46,7 +46,7 @@ export const appConfig: ApplicationConfig = {
     // once with the game metadata (MetaStore); this site lets visitors in, with its own visitor key store, so the
     // IAM's sign-in hint signs a person who is signed in there in here too, with one silent hop (the hint is on
     // by default: the IAM's anotoki_signed_in). The callback is /auth/callback; a sign-in that came back without
-    // one is said on /sign-in, in the site's frame; an editor sent from an ADMIN page goes to the Sources page.
+    // one is said on /sign-in, in the site's frame; an editor sent from an ADMIN page goes to the Builds page.
     provideAnotokiAuth(() => {
       const i18n = inject(TranslationService);
       const meta = inject(MetaStore);
@@ -61,7 +61,7 @@ export const appConfig: ApplicationConfig = {
         // Read with no credentials at all: where the site stands, the strings of a language, the boot answer.
         api: { skip: [SITE_STATUS_URL, '/api/translations/', '/api/meta'] },
         failureRoute: `/${SIGN_IN_FAILED_PATH}`,
-        forbiddenRoute: '/admin/sources',
+        forbiddenRoute: '/admin/builds',
       };
     }),
     // The module's own client, with what its callback says noted: whether the sign-in was the hint's silent hop

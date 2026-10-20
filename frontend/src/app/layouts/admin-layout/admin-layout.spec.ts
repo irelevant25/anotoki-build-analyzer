@@ -8,7 +8,6 @@ import { AuthService } from '../../core/auth';
 import { Changelog } from '../../core/changelog';
 import { TranslationService } from '../../core/i18n/translation';
 import { provideKit } from '../../core/kit';
-import { SyncDriver } from '../../core/sync-driver';
 import { AdminLayout } from './admin-layout';
 
 @Component({ selector: 'app-test-page', template: '<p class="the-page">the page</p>' })
@@ -54,21 +53,20 @@ async function open(who: Who): Promise<{
   TestBed.configureTestingModule({
     providers: [
       // The layout is the component under test: the route only gives its outlet a page.
-      provideRouter([{ path: 'admin/sources', component: TestPage }]),
+      provideRouter([{ path: 'admin/builds', component: TestPage }]),
       provideTestTranslations({}, { language: 'sk', english: {} }),
       // The kit's words - the footer's among them - in the language the page reads.
       provideKit(),
       { provide: AuthService, useValue: auth },
       { provide: FeedbackUnread, useValue: unread },
-      { provide: SyncDriver, useValue: { driving: signal(false) } },
       { provide: Changelog, useValue: changelog },
       { provide: SiteStatus, useValue: { blocked: signal(who.updateWaits ?? false) } },
     ],
   });
   // The admin panel reads English whatever the reader reads (the title strategy tells the service where it is).
-  TestBed.inject(TranslationService).noteAddress('/admin/sources');
+  TestBed.inject(TranslationService).noteAddress('/admin/builds');
   const fixture = TestBed.createComponent(AdminLayout);
-  await TestBed.inject(Router).navigateByUrl('/admin/sources');
+  await TestBed.inject(Router).navigateByUrl('/admin/builds');
   await fixture.whenStable();
   return { host: fixture.nativeElement, auth, unread, changelog };
 }
@@ -82,7 +80,7 @@ describe("the admin panel's frame", () => {
     const { host, unread } = await open({ roles: ['EDITOR'] });
 
     expect(links(host)).toEqual([
-      ['Sources', '/admin/sources'],
+      ['Builds', '/admin/builds'],
       ['Translations', '/admin/translations'],
     ]);
     expect(host.querySelector('.admin')?.getAttribute('lang')).toBe('en');
@@ -131,7 +129,7 @@ describe("the admin panel's frame", () => {
     const { host } = await open({ roles: ['ADMIN'] });
 
     expect(links(host)).toEqual([
-      ['Sources', '/admin/sources'],
+      ['Builds', '/admin/builds'],
       ['Translations', '/admin/translations'],
       ['Languages', '/admin/languages'],
       ['People', '/admin/people'],

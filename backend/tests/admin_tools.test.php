@@ -22,7 +22,6 @@ use Anotoki\Lib\ErrorLog\ErrorLog;
 use Anotoki\Lib\Migrations\Migrator;
 use App\Auth\Role;
 use App\Db\Migrations;
-use App\Support\Clock;
 use Tests\Support\Answer;
 use Tests\Support\Client;
 
@@ -283,44 +282,89 @@ test('the error log is cleared by an admin - everything, or the days before one 
 
 // ── The audit log ────────────────────────────────────────────────────────────────────────────────
 
-test('the audit log: what was done in the admin panel, by whom - sources, syncs, languages - read with filters, an ADMIN\'s', function () {
+test('the audit log: what was done in the admin panel, by whom and when - builds imported, a language - read with filters, an ADMIN\'s; nothing refused or only tried', function () {
     seedGenshinCatalog();
-    admin()
-        ->patch('/api/sources/genshin-1', ['enabled' => false])
-        ->status(200);
-    admin()
-        ->patch('/api/sources/genshin-1', ['enabled' => false])
-        ->status(200); // no change: nothing recorded
-    admin()
-        ->patch('/api/sources/genshin-1', ['enabled' => true])
-        ->status(200);
+    $eddie = fn(): Client => (new Client())->asIam(EDITOR, [Role::EDITOR], ['preferred_username' => 'eddie']);
+    // A builds file of one build (format version 2, App\Services\Builds\BuildFile) of a character the catalog has.
+    $file = [
+        'format' => 'build-analyzer.builds',
+        'format_version' => 2,
+        'game' => 'genshin',
+        'exported_at' => '2026-10-01T10:00:00Z',
+        'builds' => [
+            [
+                'character' => 'hutao',
+                'character_name' => 'Hu Tao',
+                'role' => 'main_dps',
+                'qualifier' => '',
+                'min_rank' => 0,
+                'weapons' => [['key' => 'staffofhoma', 'name' => 'Staff of Homa', 'refinement' => 1, 'note' => null]],
+                'sets' => [
+                    [
+                        'kind' => 'artifact',
+                        'choose' => null,
+                        'pieces' => [['label' => 'Crimson Witch of Flames', 'count' => 4, 'keys' => ['crimsonwitchofflames'], 'names' => ['Crimson Witch of Flames']]],
+                        'note' => null,
+                    ],
+                ],
+                'main_stats' => ['sands' => [['stat' => 'hp_', 'priority' => 1]], 'goblet' => [['stat' => 'pyro_dmg_', 'priority' => 1]], 'circlet' => [['stat' => 'critRate_', 'priority' => 1]]],
+                'substats' => [['stat' => 'critRate_', 'priority' => 1]],
+                'talent_priority' => null,
+                'stat_targets' => [['stat' => 'enerRech_', 'min' => 120, 'max' => null, 'text' => '', 'from_rank' => 0]],
+                'notes' => null,
+                'game_version' => '5.4',
+            ],
+        ],
+    ];
+
+    // Refused, or only tried: nothing recorded - a person with no editor's role, a file that does not fit, a dry run.
+    (new Client())
+        ->asIam(MEMBER, ['MEMBER'])
+        ->post('/api/admin/builds/genshin/import', $file)
+        ->status(403)
+        ->path('code', 'editor_only');
+    $refused = $eddie()
+        ->post('/api/admin/builds/genshin/import', ['format_version' => 1] + $file)
+        ->status(422);
+    check(str_contains((string) $refused->json('message'), 'format version 1'), 'refused for its version: ' . $refused->body);
+    $eddie()->post('/api/admin/builds/genshin/import?dry_run=1', $file)->status(200)->path('created', 1);
+    same(0, (int) db()->value('SELECT count(*) FROM anotoki_audit_log'), 'nothing recorded');
+
+    $eddie()->post('/api/admin/builds/genshin/import', $file)->status(200)->path('created', 1);
     admin()
         ->post('/api/admin/languages', ['code' => 'de', 'name' => 'German', 'native_name' => 'Deutsch'])
         ->status(201);
-    $source = (int) db()->value("SELECT min(id) FROM build_sources WHERE game = 'genshin'");
-    $run = (int) db()->insert('sync_runs', ['build_source_id' => $source, 'kind' => 'builds', 'game' => 'genshin', 'status' => 'running', 'started_by' => ADMIN, 'started_at' => Clock::now()]);
-    (new Client())
-        ->asIam(EDITOR, [Role::EDITOR], ['preferred_username' => 'eddie'])
-        ->post("/api/sync-runs/{$run}/cancel")
-        ->status(200);
+    // The build changed, and a character this installation's catalog lacks: skipped.
+    $changed = $file;
+    $changed['builds'][0]['weapons'][] = ['key' => 'dragonsbane', 'name' => "Dragon's Bane", 'refinement' => 5, 'note' => null];
+    $changed['builds'][] = ['character' => 'brandnewcharacter', 'character_name' => 'Brand New Character'] + $file['builds'][0];
+    admin()->post('/api/admin/builds/genshin/import', $changed)->status(200)->path('updated', 1);
 
     $page = admin()->get('/api/admin/audit')->status(200);
     same(['total', 'page', 'pageSize', 'items'], array_keys($page->json()), 'the answer');
     same(
-        [
-            ['sync.cancelled', 'eddie', 'sync_run', (string) $run],
-            ['language.created', 'ada', 'language', 'de'],
-            ['source.enabled', 'ada', 'source', 'genshin-1'],
-            ['source.disabled', 'ada', 'source', 'genshin-1'],
-        ],
+        [['builds.imported', 'ada', 'game', 'genshin'], ['language.created', 'ada', 'language', 'de'], ['builds.imported', 'eddie', 'game', 'genshin']],
         array_map(fn($item) => [$item['action'], $item['actor_username'], $item['target_type'], $item['target_id']], $page->json('items')),
         'newest first, each by whom',
     );
+    same(
+        [[EDITOR, ['characters' => 1, 'created' => 1, 'removed' => 0, 'skipped' => 0, 'updated' => 0]], [ADMIN, ['characters' => 1, 'created' => 0, 'removed' => 0, 'skipped' => 1, 'updated' => 1]]],
+        array_map(function (array $row): array {
+            $details = json_decode((string) $row['details'], true);
+            ksort($details); // JSONB keeps its own order of keys
+
+            return [(int) $row['actor_id'], $details];
+        }, entries('builds.imported')),
+        'what each import did',
+    );
+    foreach ($page->json('items') as $item) {
+        check(preg_match('/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/', (string) $item['created_at']) === 1, "{$item['action']}: when, in UTC - {$item['created_at']}");
+    }
     same([null], array_values(array_unique(array_column($page->json('items'), 'ip'))), 'no address kept');
-    same(['source.enabled', 'source.disabled'], array_column(admin()->get('/api/admin/audit?action=source.')->status(200)->json('items'), 'action'), 'filtered by an action\'s beginning');
-    same(['sync.cancelled'], array_column(admin()->get('/api/admin/audit?actor=eddie')->status(200)->json('items'), 'action'), 'by a name');
+    same(['builds.imported', 'builds.imported'], array_column(admin()->get('/api/admin/audit?action=builds.')->status(200)->json('items'), 'action'), 'filtered by an action\'s beginning');
+    same(['builds.imported'], array_column(admin()->get('/api/admin/audit?actor=eddie')->status(200)->json('items'), 'action'), 'by a name');
     $facets = admin()->get('/api/admin/audit/facets')->status(200)->json();
-    same(['language.created', 'source.disabled', 'source.enabled', 'sync.cancelled'], $facets['actions'], 'the facets\' actions');
+    same(['builds.imported', 'language.created'], $facets['actions'], 'the facets\' actions');
     same([['id' => ADMIN, 'username' => 'ada'], ['id' => EDITOR, 'username' => 'eddie']], $facets['actors'], 'and who');
 });
 
@@ -484,11 +528,11 @@ test('a backup: made, listed, downloaded once by its ticket, deleted - each behi
     same(['kind' => 'recent_sign_in'], admin()->get('/api/admin/backups/proof')->status(200)->json(), 'what the page asks for');
 
     $made = admin()
-        ->post('/api/admin/backups', ['description' => 'Before the big sync'])
+        ->post('/api/admin/backups', ['description' => 'Before the builds import'])
         ->status(201)
         ->json('backup');
     check(preg_match('/^\d{8}-\d{6}Z-manual-[0-9a-f]{32}$/', (string) $made['id']) === 1, 'its name: ' . $made['id']);
-    same(['manual', 'Before the big sync'], [$made['kind'], $made['description']], 'a manual backup, described');
+    same(['manual', 'Before the builds import'], [$made['kind'], $made['description']], 'a manual backup, described');
     check(is_file(T::$storage . '/backups/' . $made['id'] . '.anotoki-backup'), 'the file in storage/backups');
 
     $list = admin()->get('/api/admin/backups')->status(200);
@@ -875,6 +919,31 @@ test('the day\'s backup, after an answer: once a UTC day, by nobody', function (
     (new Client())->get('/api/meta')->status(200);
     same(1, count(glob(T::$storage . '/backups/*-daily-*.anotoki-backup') ?: []), 'and only one a day');
     same([null], array_values(array_unique(db()->column("SELECT actor_id FROM anotoki_audit_log WHERE action = 'backup.created'"))), 'made by nobody');
+});
+
+test('the day\'s tidying up, after an answer: once a UTC day, what has expired in the cache and the downloaded files older than three days', function () {
+    $cache = T::$app->get(App\Cache\Cache::class);
+    $cache->put('a-count', 1, 60);
+    db()->run("INSERT INTO cache (key, value, expiration) VALUES ('an-old-count', '1', 1)");
+    $pages = T::$storage . '/http-cache';
+    @mkdir($pages, 0777, true);
+    file_put_contents("{$pages}/old.cache", 'old');
+    touch("{$pages}/old.cache", time() - 4 * 86400);
+    file_put_contents("{$pages}/fresh.cache", 'fresh');
+    $kept = fn(): array => [db()->column('SELECT key FROM cache ORDER BY key'), array_map('basename', glob("{$pages}/*.cache") ?: [])];
+
+    (new Client())->get('/api/meta')->status(200);
+    same([['a-count', 'an-old-count'], ['fresh.cache', 'old.cache']], $kept(), 'switched off (config upkeep.prune): nothing goes');
+
+    T::$app->config->set('upkeep.prune', true);
+    (new Client())->get('/api/meta')->status(200);
+    [$keys, $files] = $kept();
+    same(['a-count'], array_values(array_filter($keys, fn(string $key): bool => !str_starts_with($key, 'prune:'))), 'what had expired went, after that answer');
+    same(['fresh.cache'], $files, 'and the file older than three days');
+
+    db()->run("INSERT INTO cache (key, value, expiration) VALUES ('another-old-count', '1', 1)");
+    (new Client())->get('/api/meta')->status(200);
+    check(in_array('another-old-count', $kept()[0], true), 'once a day: the next answer tidies nothing');
 });
 
 test('while an update waits the day\'s backup waits too, and the error log and the backups still answer an ADMIN - but a restore', function () {

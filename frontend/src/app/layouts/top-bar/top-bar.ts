@@ -1,17 +1,14 @@
 import { Component, Injector, computed, inject, input, viewChild } from '@angular/core';
-import { Router, RouterLink } from '@angular/router';
+import { Router } from '@angular/router';
 import { FeedbackUnread } from '@anotoki/lib/admin';
 import { TopBarComponent as FamilyTopBar, TopBarBrand, TopBarLink, TopBarMenuItem, TopBarPerson, TopBarPhoneMark } from '@anotoki/lib/shell';
 import { ConfirmService } from '@anotoki/lib/ui/dialog';
-import { IconComponent } from '@anotoki/lib/ui/icon';
-import { TooltipDirective } from '@anotoki/lib/ui/tooltip';
 import { AuthService } from '../../core/auth';
 import { TranslationKey } from '../../core/i18n/en';
 import { TranslatePipe } from '../../core/i18n/translate';
 import { TranslationService } from '../../core/i18n/translation';
 import { localizationDrafts } from '../../core/localization-drafts';
 import { signInOrSayWhy } from '../../core/sign-in';
-import { SyncDriver } from '../../core/sync-driver';
 
 /**
  * A section in the bar: its words, where it goes, and the address beginnings that belong to it too (an
@@ -41,7 +38,7 @@ export const APP_LINKS: readonly BarLink[] = [
  * the error log, the audit log, feedback (with the count of new messages) and backups - are ADMIN's.
  */
 export const ADMIN_LINKS: readonly BarLink[] = [
-  { label: 'Sources', path: '/admin/sources', under: [] },
+  { label: 'Builds', path: '/admin/builds', under: [] },
   { label: 'Translations', path: '/admin/translations', under: [] },
   { label: 'Languages', path: '/admin/languages', under: [], admin: true },
   { label: 'People', path: '/admin/people', under: [], admin: true },
@@ -55,10 +52,9 @@ export const ADMIN_LINKS: readonly BarLink[] = [
 /**
  * Up to this width the bar is a phone's: the links and the person's menu fold into one menu button. This
  * site's own number, measured in the browser with the real labels in the family's bar (verify-ui's run.mjs
- * --measure): the row without the person's name needs 793 px in English and 803 px in Slovak signed out, and
- * 818 px for an admin with a sync running - and room for a scrollbar, and for a language added on the Languages
- * page whose words run longer. Above it the whole row fits and only the person's name gives way; it shows from
- * PHONE_BAR_MAX + 201 (the family's bar's own rule).
+ * --measure): the row without the person's name needs 793 px in English and 803 px in Slovak signed out - and
+ * room for a scrollbar, and for a language added on the Languages page whose words run longer. Above it the whole
+ * row fits and only the person's name gives way; it shows from PHONE_BAR_MAX + 201 (the family's bar's own rule).
  */
 export const PHONE_BAR_MAX = 880;
 
@@ -67,14 +63,14 @@ export const PHONE_BAR_MAX = 880;
  * tools among them, the count of new feedback beside Feedback. Its brand is the family's "anotoki Build Analyzer
  * · admin panel", short at every width there ("Analyzer" with "admin panel" under it, ADMIN_SHORT_BRAND_MAX): the
  * whole wordmark does not fit beside nine sections in the family's row (84rem). Measured as above (the panel
- * reads English whichever language is chosen): 1186 px with a count beside Feedback, 1236 px with a sync running
- * too - and room for a scrollbar and a count of two digits. A 1280 px screen has the whole row.
+ * reads English whichever language is chosen): 1171 px with a count beside Feedback - and room for a scrollbar and
+ * a count of two digits. A 1280 px screen has the whole row.
  */
 export const ADMIN_PHONE_BAR_MAX = 1270;
 
 /**
- * The admin panel's row for an editor, who has two sections (Sources, Translations): 560 px measured as above,
- * 610 px with a sync running - and room for a scrollbar.
+ * The admin panel's row for an editor, who has two sections (Builds, Translations): 545 px measured as above - and
+ * room for a scrollbar.
  */
 export const EDITOR_PHONE_BAR_MAX = 640;
 
@@ -83,18 +79,17 @@ export const ADMIN_SHORT_BRAND_MAX = 100000;
 
 /**
  * The bar across the top of every page: the anotoki family's one bar (@anotoki/lib/shell's <anotoki-top-bar>),
- * told what is this site's - its brand, its sections, who is signed in and what they may do, and the one widget it
- * carries before the language: the sync this tab drives, for an editor or an admin. The family's bar draws the row
- * in the family's order - the brand, the sections, the widget, the language (where members read, with more than
- * one on offer; never in the admin panel, which is English), the theme switch, and the person's menu (name,
- * address, role; their anotoki account; the way into the admin panel for staff, or back from it; Sign out) or
- * Sign in - folds into one menu button up to the row's measured width (PHONE_BAR_MAX, and the admin panel's), and
- * has the family's menus and keys: the focus into a menu as it opens, the arrows, Home and End, Escape back to
- * its button, and Tab or Shift+Tab closing it with the focus on its button - never on <body>.
+ * told what is this site's - its brand, its sections, who is signed in and what they may do. The family's bar draws
+ * the row in the family's order - the brand, the sections, the language (where members read, with more than one on
+ * offer; never in the admin panel, which is English), the theme switch, and the person's menu (name, address, role;
+ * their anotoki account; the way into the admin panel for staff, or back from it; Sign out) or Sign in - folds into
+ * one menu button up to the row's measured width (PHONE_BAR_MAX, and the admin panel's), and has the family's menus
+ * and keys: the focus into a menu as it opens, the arrows, Home and End, Escape back to its button, and Tab or
+ * Shift+Tab closing it with the focus on its button - never on <body>.
  *
- * On a phone the sync is an item of the menu (and a dot on its button), and the count of new feedback a badge on
- * the button in the admin panel. Signing out asks first, in the language on the page (the kit's "Are you
- * sure?"), when the Translations or Languages page holds what was typed and not saved: signed out, it is lost.
+ * On a phone the count of new feedback is a badge on the menu button in the admin panel. Signing out asks first, in
+ * the language on the page (the kit's "Are you sure?"), when the Translations or Languages page holds what was typed
+ * and not saved: signed out, it is lost.
  *
  * Every member word is a key; under /admin the translation service answers in English (the library's English
  * areas), so the same keys read English there. The family's own words - the role, "Your anotoki account",
@@ -103,7 +98,7 @@ export const ADMIN_SHORT_BRAND_MAX = 100000;
  */
 @Component({
   selector: 'app-top-bar',
-  imports: [FamilyTopBar, RouterLink, IconComponent, TooltipDirective, TranslatePipe],
+  imports: [FamilyTopBar, TranslatePipe],
   templateUrl: './top-bar.html',
   styleUrl: './top-bar.scss',
 })
@@ -113,7 +108,6 @@ export class TopBar {
 
   protected readonly auth = inject(AuthService);
   protected readonly i18n = inject(TranslationService);
-  protected readonly sync = inject(SyncDriver);
   private readonly router = inject(Router);
   private readonly unread = inject(FeedbackUnread);
   private readonly confirm = inject(ConfirmService);
@@ -160,10 +154,6 @@ export class TopBar {
 
   /** The language chooser: where members read, with a choice to make. */
   protected readonly chooser = computed(() => this.area() === 'app' && !this.i18n.englishOnly() && this.i18n.languages().length > 1);
-  /** The sync this tab drives, for the people who may run one. */
-  protected readonly syncing = computed(() => this.auth.isStaff() && this.sync.driving());
-  /** The bar is a phone's (the family's bar decides, at the width given it). */
-  private readonly phone = computed(() => this.bar()?.phone() ?? false);
 
   /** Who is signed in: their name (worded only when the token names nobody), the address when it is not the name, the role. */
   protected readonly person = computed<TopBarPerson | null>(() => {
@@ -180,9 +170,8 @@ export class TopBar {
   });
 
   /**
-   * Between the person's name and Sign out: their anotoki account (a new tab); for an editor or an admin the way
-   * into the admin panel, or back from it; and on a phone the sync this tab drives (on a wider bar it stands in the
-   * row itself).
+   * Between the person's name and Sign out: their anotoki account (a new tab), and for an editor or an admin the way
+   * into the admin panel, or back from it.
    */
   protected readonly menuItems = computed<TopBarMenuItem[]>(() => {
     const items: TopBarMenuItem[] = [];
@@ -208,24 +197,13 @@ export class TopBar {
             },
       );
     }
-    if (this.syncing() && this.phone()) {
-      items.push({
-        id: 'sync',
-        label: this.i18n.t('toolbar.syncingLabel'),
-        icon: 'refresh',
-        path: '/admin/sources',
-      });
-    }
     return items;
   });
 
-  /** On a phone's menu button: the count of new feedback in the admin panel, or a dot while this tab syncs. */
+  /** On a phone's menu button: the count of new feedback in the admin panel. */
   protected readonly phoneMark = computed<TopBarPhoneMark | null>(() => {
     const count = this.area() === 'admin' ? this.newFeedback() : null;
-    if (count) {
-      return { badge: count, label: `Menu: ${count} new feedback` };
-    }
-    return this.syncing() ? { dot: true, description: this.i18n.t('toolbar.syncingLabel') } : null;
+    return count ? { badge: count, label: `Menu: ${count} new feedback` } : null;
   });
 
   /**

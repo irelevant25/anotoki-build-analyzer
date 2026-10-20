@@ -32,8 +32,8 @@ use Psr\Http\Message\ServerRequestInterface;
  * The scrub (the library's Scrubber, after an answer at most hourly - PeopleUpkeep in api/middleware/upkeep.php -
  * and at once after a restore, People::afterRestore()): every account the IAM deleted, thirty days after its owner
  * asked, is nobody's here from then on - its row's name the IAM's placeholder `deleted-{id}`, and the copies of who
- * they were blanked by the hooks below; their game accounts and imports stay, nobody's now (the owner's rule: the
- * data stays). The hooks run inside the account's transaction on the scrub's connection - the site's own, or a
+ * they were blanked by the hook below; their game accounts and imports stay, nobody's now (the owner's rule: the
+ * data stays), and so do the builds imports they made, which keep their id and never their name. The hooks run inside the account's transaction on the scrub's connection - the site's own, or a
  * restore's after it committed - so they write on the $pdo they are given, never on the site's own (App\Db\Db),
  * and are idempotent: an id comes again.
  *
@@ -44,9 +44,6 @@ use Psr\Http\Message\ServerRequestInterface;
  */
 final class SitePeople
 {
-    /** What a sync's log says of the person who started or cancelled it, once the IAM deleted their account. */
-    public const DELETED_PERSON = 'a deleted person';
-
     public static function table(): PeopleTable
     {
         return new PeopleTable(name: 'name', firstSeen: 'created_at', lastSeen: 'last_seen_at', updatedAt: 'updated_at', nameFallback: static fn(int $sub): string => "user {$sub}");
@@ -59,7 +56,6 @@ final class SitePeople
             static fn(): PDO => $app->db()->raw(),
             $app->get(IamClient::class),
             hooks: [
-                self::syncLogHook(),
                 // What the library's admin tools keep of the person: the address and browser a feedback message
                 // was sent with (the message stays: it is the site's), the details naming them in the audit log -
                 // both on the scrub's connection, in the account's transaction.
@@ -73,34 +69,6 @@ final class SitePeople
                 },
             ],
         );
-    }
-
-    /**
-     * The scrub's hook for the syncs' logs: a run's log says who started it ("Started by {name}.", written by
-     * SyncRunner and BuildTransfer) and who cancelled it ("Cancelled by {name} after ..." / "Cancelled by
-     * {name}."), as free text. Once the IAM deleted the person's account, those lines name "a deleted person"
-     * instead - every line with their name as their row last had it (the row's name before the scrub,
-     * $former). A run's starter is also its started_by, which keeps pointing at the row, now nobody's.
-     *
-     * @return \Closure(PDO, int, ?array<string, mixed>): void
-     */
-    public static function syncLogHook(): \Closure
-    {
-        return static function (PDO $pdo, int $sub, ?array $former): void {
-            $name = is_string($former['name'] ?? null) ? trim($former['name']) : '';
-            if ($name === '' || str_starts_with($name, 'deleted-')) {
-                return;
-            }
-            $deleted = self::DELETED_PERSON;
-            $pdo->prepare(
-                "UPDATE sync_runs
-                    SET log = replace(replace(replace(log,
-                              'Started by ' || CAST(? AS text) || '.', 'Started by {$deleted}.'),
-                              'Cancelled by ' || CAST(? AS text) || ' after ', 'Cancelled by {$deleted} after '),
-                              'Cancelled by ' || CAST(? AS text) || '.', 'Cancelled by {$deleted}.')
-                  WHERE log LIKE '%' || CAST(? AS text) || '%'",
-            )->execute([$name, $name, $name, $name]);
-        };
     }
 
     /**
@@ -166,11 +134,11 @@ final class SitePeople
     /**
      * The People page's Delete: an IAM person's row and, by the foreign keys, their game accounts with
      * everything imported into them and their import runs - their anotoki account stays, and signing in
-     * again starts them afresh, with nothing. The syncs they started and the strings they saved stay, by
-     * nobody, and so does what they sent through the feedback form - but nothing of the person stays with
-     * them: the syncs' logs say "a deleted person" where they named them (the scrub's own hook, with the name
-     * their row had), and their feedback loses the address and browser it was sent with (the library does that
-     * itself, in the same transaction). Null for an id that is no person's here (a visitor's row never is one).
+     * again starts them afresh, with nothing. The builds they imported and the strings they saved stay, by
+     * nobody (build_imports.imported_by goes NULL with the row), and so does what they sent through the feedback
+     * form - but nothing of the person stays with them: their feedback loses the address and browser it was sent
+     * with (the library does that itself, in the same transaction). Null for an id that is no person's here (a
+     * visitor's row never is one).
      *
      * It runs inside the library's transaction (People::delete(), anotoki-lib 0.5.0), on the $pdo that holds it:
      * the People page's connection - or a restore's, which holds every restored table locked until it commits.
@@ -182,17 +150,12 @@ final class SitePeople
      */
     public static function deleteData(PDO $pdo, int $sub): ?array
     {
-        $db = new Db($pdo);
-        // Who they were here, before the row goes: the name the syncs' logs wrote down.
-        $former = $db->one('SELECT name FROM users WHERE id = ? AND id > 0 FOR UPDATE', [$sub]);
-        $deleted = (new Users($db))->deletePerson($sub);
+        $deleted = (new Users(new Db($pdo)))->deletePerson($sub);
         if ($deleted === null) {
             return null;
         }
-        // The strings they saved stay, saved by nobody ...
+        // The strings they saved stay, saved by nobody.
         SiteTranslations::make($pdo)->forgetWriter($sub);
-        // ... and the syncs' logs no longer name them.
-        self::syncLogHook()($pdo, $sub, $former);
 
         return [
             'deleted' => [

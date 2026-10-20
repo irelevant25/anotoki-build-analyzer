@@ -4,7 +4,8 @@
  * The browser check's throwaway installation (.claude/skills/verify-ui/scripts/run.mjs runs it; from backend/):
  *
  *   php tests/tools/browser-db.php make <dir> <issuer>   a database build_analyzer_test_browser made afresh from
- *                                                        the migrations, with a small catalog and one build, and
+ *                                                        the migrations, with a small catalog and Hu Tao's two
+ *                                                        builds (the second needs C2) imported as a file, and
  *                                                        <dir> as the settings folder BUILD_ANALYZER_TEST_CONFIG
  *                                                        names (database.local.php, auth.local.php -> <issuer>,
  *                                                        storage/)
@@ -24,8 +25,13 @@ require __DIR__ . '/../../vendor/autoload.php';
 use App\Config;
 use App\Db\Db;
 use App\Db\Migrations;
-use App\Support\Clock;
-use App\Support\Json;
+use App\Enums\Game;
+use App\Models\User;
+use App\Repositories\Builds;
+use App\Repositories\CatalogRows;
+use App\Services\Builds\BuildFile;
+use App\Services\Builds\BuildImport;
+use App\Support\Stats;
 
 const BROWSER_DATABASE = Config::TEST_DATABASE_PREFIX . 'browser';
 
@@ -100,7 +106,8 @@ if ($result['busy'] || $result['error'] !== null) {
     exit(1);
 }
 
-// The catalog the tests use (tests/support/seed.php), and one build for Hu Tao from the first Genshin source.
+// The catalog the tests use (tests/support/seed.php), and Hu Tao's builds as an editor imports them: a main DPS
+// build, and a Sub DPS one that needs C2 - with an Energy Recharge target from C0 and a lower one from C1.
 $db = new Db($pdo);
 function db(): Db
 {
@@ -108,49 +115,46 @@ function db(): Db
 }
 require __DIR__ . '/../support/seed.php';
 seedGenshinCatalog();
-$now = Clock::now();
-$source = (int) $db->insert('build_sources', [
-    'key' => 'prydwen.genshin',
-    'game' => 'genshin',
-    'name' => 'Source 1',
-    'base_url' => 'https://example.invalid',
-    'enabled' => true,
-    'last_synced_at' => $now,
-    'last_status' => 'success',
-    'created_at' => $now,
-    'updated_at' => $now,
-]);
-$db->insert('builds', [
-    'build_source_id' => $source,
-    'game_character_id' => idOf('game_characters', 'hutao'),
-    'variant' => 'DPS',
-    'recommended' => true,
-    'position' => 0,
-    'weapons' => Json::encode([
-        ['key' => 'staffofhoma', 'name' => 'Staff of Homa', 'rank' => 1, 'refinement' => null, 'note' => null, 'known' => true],
-        ['key' => 'dragonsbane', 'name' => "Dragon's Bane", 'rank' => 2, 'refinement' => 5, 'note' => null, 'known' => true],
-    ]),
-    'sets' => Json::encode([
+$hutao = static fn(array $fields) => $fields + [
+    'character' => 'hutao',
+    'character_name' => 'Hu Tao',
+    'qualifier' => '',
+    'min_rank' => 0,
+    'weapons' => [['key' => 'staffofhoma', 'name' => 'Staff of Homa', 'refinement' => null, 'note' => null], ['key' => 'dragonsbane', 'name' => "Dragon's Bane", 'refinement' => 5, 'note' => null]],
+    'sets' => [
         [
-            'rank' => 1,
             'kind' => 'artifact',
             'choose' => null,
-            'note' => null,
             'pieces' => [['label' => 'Crimson Witch of Flames', 'count' => 4, 'keys' => ['crimsonwitchofflames'], 'names' => ['Crimson Witch of Flames']]],
+            'note' => null,
         ],
-    ]),
-    'main_stats' => Json::encode([
+    ],
+    'main_stats' => [
         'sands' => [['stat' => 'hp_', 'priority' => 1]],
-        'goblet' => [['stat' => 'pyro_dmg_', 'priority' => 1]],
+        'goblet' => [['stat' => Stats::ELEMENTAL_DMG, 'priority' => 1]],
         'circlet' => [['stat' => 'critRate_', 'priority' => 1], ['stat' => 'critDMG_', 'priority' => 1]],
-    ]),
-    'substats' => Json::encode([['stat' => 'critRate_', 'priority' => 1], ['stat' => 'critDMG_', 'priority' => 1], ['stat' => 'hp_', 'priority' => 2]]),
-    'content_hash' => str_repeat('b', 64),
-    'fetched_at' => $now,
-    'changed_at' => $now,
-    'created_at' => $now,
-    'updated_at' => $now,
-]);
+    ],
+    'substats' => [['stat' => 'critRate_', 'priority' => 1], ['stat' => 'critDMG_', 'priority' => 1], ['stat' => 'hp_', 'priority' => 2]],
+    'talent_priority' => [['talent' => 'skill', 'priority' => 1], ['talent' => 'burst', 'priority' => 2]],
+    'stat_targets' => [['stat' => 'enerRech_', 'min' => 120, 'max' => null, 'text' => '', 'from_rank' => 0], ['stat' => 'enerRech_', 'min' => 110, 'max' => null, 'text' => '', 'from_rank' => 1]],
+    'notes' => null,
+    'game_version' => '5.4',
+];
+(new BuildImport($db, new Builds($db), new CatalogRows($db)))->import(
+    [
+        'format' => BuildFile::FORMAT,
+        'format_version' => BuildFile::VERSION,
+        'game' => 'genshin',
+        'exported_at' => '2026-10-01T10:00:00Z',
+        'builds' => [
+            $hutao(['role' => 'main_dps']),
+            $hutao(['role' => 'sub_dps', 'min_rank' => 2, 'weapons' => [['key' => 'dragonsbane', 'name' => "Dragon's Bane", 'refinement' => 5, 'note' => null]]]),
+        ],
+    ],
+    Game::Genshin,
+    // Nobody's: no person is there yet.
+    new User(0, 'seed'),
+);
 
 @mkdir("{$dir}/storage", 0777, true);
 file_put_contents("{$dir}/database.local.php", '<?php return ' . var_export(['database' => BROWSER_DATABASE, 'persistent' => false] + $server, true) . ";\n");

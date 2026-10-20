@@ -5,6 +5,7 @@ use Anotoki\Lib\Migrations\Http\SiteState;
 use Anotoki\Lib\People\Http\PeopleUpkeep;
 use Anotoki\Lib\People\People;
 use App\App;
+use App\Cache\Prune;
 use App\Support\Log;
 use App\Web\AfterResponse;
 use Psr\Http\Message\ResponseInterface;
@@ -18,10 +19,12 @@ use Psr\Http\Server\RequestHandlerInterface;
  *   with a stamp in storage/cache/iam, only while the site is ready - never in the middle of an update):
  *   thirty days after its owner asked, an account the IAM deleted is nobody's here (App\People\SitePeople);
  * - the day's backup (the library's backups: the first request of a UTC day that finds none made, while
- *   nothing waits to be applied; 14 kept).
+ *   nothing waits to be applied; 14 kept);
+ * - the day's tidying up (App\Cache\Prune: what has expired in the cache table, the downloaded files older than
+ *   three days - the first request of a UTC day, while the site is ready).
  *
- * config/app.php `upkeep` switches each off (the tests do, but where they mean to try it). Neither ever fails
- * the answer: a failure is a line in the log.
+ * config/app.php `upkeep` switches each off (the tests do, but where they mean to try it). None ever fails the
+ * answer: a failure is a line in the log.
  */
 function upkeepAfterAnswer(App $app, SiteState $state): Closure
 {
@@ -34,6 +37,10 @@ function upkeepAfterAnswer(App $app, SiteState $state): Closure
             }
             if ($app->config->get('upkeep.daily_backup', true)) {
                 $app->get(Backups::class)->dailyIfDue();
+            }
+            // Only while the site is ready: it reads the database, which a site not set up may not even have.
+            if ($app->config->get('upkeep.prune', true) && $state->state() === SiteState::READY) {
+                $app->get(Prune::class)->dailyIfDue();
             }
         } catch (Throwable $e) {
             Log::exception($e, 'The upkeep after an answer');

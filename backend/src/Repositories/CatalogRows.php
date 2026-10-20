@@ -103,37 +103,6 @@ final class CatalogRows
     }
 
     /**
-     * The row with this key, made from $attributes when there is none. Two syncs racing for the same new
-     * name cannot make it twice: the unique (game, key) turns the second insert into a no-op.
-     *
-     * @param  array<string, mixed>  $attributes
-     */
-    public function firstOrCreate(Game $game, string $type, string $key, array $attributes): CatalogEntry
-    {
-        $existing = $this->findByKey($game, $type, $key);
-        if ($existing) {
-            return $existing;
-        }
-
-        $now = Clock::now();
-        $row = ['game' => $game->value, 'key' => $key] + $this->columns($type, $attributes) + ['created_at' => $now, 'updated_at' => $now];
-        $columns = array_keys($row);
-        $this->db->run(
-            'INSERT INTO ' .
-                self::table($type) .
-                ' ("' .
-                implode('", "', $columns) .
-                '") VALUES (' .
-                implode(', ', array_fill(0, count($columns), '?')) .
-                ')
-            ON CONFLICT (game, key) DO NOTHING',
-            array_values($row),
-        );
-
-        return $this->findByKey($game, $type, $key) ?? throw new \RuntimeException("Could not store {$type} {$key}");
-    }
-
-    /**
      * Writes these columns of a row; updated_at moves only when something changed.
      *
      * @param  array<string, mixed>  $attributes

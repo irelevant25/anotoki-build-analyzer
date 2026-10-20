@@ -13,7 +13,6 @@ import { AnotokiUser } from '@anotoki/lib/auth';
 import { VisitorMove } from './core/models';
 import { provideShell } from './core/shell';
 import { provideSiteStatus } from './core/site-status';
-import { SyncDriver } from './core/sync-driver';
 import { VisitorKey } from './core/visitor-key';
 import { AdminLayout } from './layouts/admin-layout/admin-layout';
 import { AppLayout } from './layouts/app-layout/app-layout';
@@ -136,8 +135,7 @@ describe('the shell', () => {
         },
         { provide: Changelog, useValue: changelog },
         { provide: VisitorKey, useValue: visitor },
-        // What the layouts' bar asks: the sync this tab drives, and the feedback nobody opened.
-        { provide: SyncDriver, useValue: { driving: signal(false) } },
+        // What the layouts' bar asks: the feedback nobody opened.
         { provide: FeedbackUnread, useValue: { count: signal(null), refresh: vi.fn() } },
       ],
     });
@@ -224,7 +222,7 @@ describe('the shell', () => {
     expect(statusPage()).toBeNull();
 
     // Any other page: still the gate's.
-    await TestBed.inject(Router).navigateByUrl('/admin/sources');
+    await TestBed.inject(Router).navigateByUrl('/admin/builds');
     await fixture.whenStable();
     expect(host.querySelector('.the-page')).toBeNull();
     expect(words(statusPage()?.querySelector('h1'))).toBe('A database update is waiting');
@@ -236,7 +234,7 @@ describe('the shell', () => {
 
     TestBed.resetTestingModule();
     pagesMade = 0;
-    await setup({ who: 'admin', site: { code: 'update_pending' }, path: '/admin/sources' });
+    await setup({ who: 'admin', site: { code: 'update_pending' }, path: '/admin/builds' });
     expect(pagesMade).toBe(0);
     await TestBed.inject(Router).navigateByUrl('/admin/migrations');
     await fixture.whenStable();
@@ -246,7 +244,7 @@ describe('the shell', () => {
     TestBed.inject(SiteStatus).markReady();
     await fixture.whenStable();
     expect(pagesMade).toBe(1);
-    await TestBed.inject(Router).navigateByUrl('/admin/sources');
+    await TestBed.inject(Router).navigateByUrl('/admin/builds');
     await fixture.whenStable();
     expect(host.querySelector('.the-page')).not.toBeNull();
     expect(statusPage()).toBeNull();
@@ -318,7 +316,7 @@ describe('the shell', () => {
     const closed: [string, Who, Standing, string][] = [
       ['an update waits: a visitor', 'nobody', { code: 'update_pending' }, '/'],
       ['an update waits: a member', 'member', { code: 'update_pending' }, '/accounts/3'],
-      ['an update waits: the ADMIN off the Migrations page', 'admin', { code: 'update_pending' }, '/admin/sources'],
+      ['an update waits: the ADMIN off the Migrations page', 'admin', { code: 'update_pending' }, '/admin/builds'],
       ['the database out of reach', 'member', { code: 'unavailable' }, '/builds/genshin'],
       ['never set up', 'nobody', { code: 'not_set_up', installed: false }, '/'],
       ['installed once, not set up now', 'admin', { code: 'not_set_up', installed: true }, '/admin/migrations'],
@@ -350,7 +348,7 @@ describe('the shell', () => {
     expect([framed(), feedback()]).toEqual([whole, true]);
 
     TestBed.resetTestingModule();
-    await setup({ who: 'admin', path: '/admin/sources', framed: true });
+    await setup({ who: 'admin', path: '/admin/builds', framed: true });
     expect([framed(), feedback()]).toEqual([whole, true]);
 
     // The ADMIN's Migrations page while an update waits: the frame, but no Feedback - the gate would answer it 503.

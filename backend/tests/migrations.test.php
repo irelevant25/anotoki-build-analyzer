@@ -56,12 +56,16 @@ const FOOTER_FILE = '013_footer_words_through_the_library.sql';
 const FOOTER_KEYS = 3;
 
 /**
- * Version 0.5's files of this site's, in the order they run after 0.4's: Star Rail gone (014), with its words (015).
+ * Version 0.5's files of this site's, in the order they run after 0.4's: Star Rail gone (014), with its words (015);
+ * the builds as variations, imported from a file, the sources and syncs gone (016), with their words (017).
  */
-const VERSION_05_FILES = ['014_star_rail_removed.sql', '015_star_rail_words.sql'];
+const VERSION_05_FILES = ['014_star_rail_removed.sql', '015_star_rail_words.sql', '016_builds_without_sources.sql', '017_builds_without_sources_words.sql'];
 
-/** What version 0.5's files do to the count of the site's own keys: 015 retires 56. */
-const VERSION_05_KEYS = -56;
+/** The tables 016 takes away: the build sources, the syncs, the syncs' locks. */
+const SYNC_TABLES = ['build_sources', 'sync_runs', 'cache_locks'];
+
+/** What version 0.5's files do to the count of the site's own keys: 015 retires 56, 017 retires 23 and adds 18. */
+const VERSION_05_KEYS = -56 - 23 + 18;
 
 /** Every column, constraint and index of the app's tables, as comparable lines. */
 function schemaOf(PDO $pdo): array
@@ -1316,12 +1320,15 @@ foreach ([6 => 'the version first committed', 7 => 'with sign-in through the IAM
         $pdo = laravelDatabase($server, $level);
         $migrator = Migrations::migrator($pdo, null, ['local_user_id' => 1]);
         $before = [];
-        foreach (
-            ['game_characters', 'game_weapons', 'game_sets', 'accounts', 'import_runs', 'account_characters', 'account_weapons', 'account_items', 'build_sources', 'builds', 'sync_runs']
-            as $table
-        ) {
+        foreach (['game_characters', 'game_weapons', 'game_sets', 'accounts', 'import_runs', 'account_characters', 'account_weapons', 'account_items'] as $table) {
             $before[$table] = (int) $pdo->query("SELECT count(*) FROM {$table}")->fetchColumn();
         }
+        // What 016 takes away: the sources' builds and the syncs (the builds come back with an import).
+        $synced = [];
+        foreach (['build_sources', 'builds', 'sync_runs'] as $table) {
+            $synced[$table] = (int) $pdo->query("SELECT count(*) FROM {$table}")->fetchColumn();
+        }
+        check(min($synced) > 0, 'the old builds and syncs were there: ' . json_encode($synced));
 
         // Looking does not change anything: Laravel's table has no file column, so nothing counts as applied.
         check(Migrations::isLaravelDatabase($pdo), 'recognised');
@@ -1336,10 +1343,11 @@ foreach ([6 => 'the version first committed', 7 => 'with sign-in through the IAM
         same(true, (bool) $pdo->query("SELECT to_regclass('public.laravel_migrations') IS NOT NULL")->fetchColumn(), 'Laravel\'s table moved aside');
         check(Migrations::isLaravelDatabase($pdo), 'and still known for what it was');
 
-        // Nothing lost.
+        // Nothing lost - but what 016 takes away on purpose.
         foreach ($before as $table => $count) {
             same($count, (int) $pdo->query("SELECT count(*) FROM {$table}")->fetchColumn(), "rows of {$table}");
         }
+        same([[], 0], [relationsThere($pdo, SYNC_TABLES), (int) $pdo->query('SELECT count(*) FROM builds')->fetchColumn()], 'the sources, the syncs and their builds gone (016)');
         same($level, (int) $pdo->query('SELECT count(*) FROM laravel_migrations')->fetchColumn(), 'Laravel\'s record, kept aside');
         same(0, (int) $pdo->query('SELECT count(*) FROM cache')->fetchColumn(), 'the cache is emptied');
         // Laravel's login and queue tables with rows - an old session, a reset asked for, jobs - kept aside by 001,
@@ -1359,14 +1367,9 @@ foreach ([6 => 'the version first committed', 7 => 'with sign-in through the IAM
         same(0, (int) $pdo->query('SELECT count(*) FROM accounts WHERE user_id IS NULL')->fetchColumn(), 'every account has an owner');
         if ($level === 6) {
             same([1], array_map('intval', $pdo->query('SELECT id FROM users')->fetchAll(PDO::FETCH_COLUMN)), 'the owner was made');
-            same('failed', $pdo->query('SELECT status FROM sync_runs ORDER BY id DESC LIMIT 1')->fetchColumn(), 'a queue run left running is closed');
         } else {
             same([1, 42], array_map('intval', $pdo->query('SELECT id FROM users ORDER BY id')->fetchAll(PDO::FETCH_COLUMN)), 'the IAM users');
             same(2, (int) $pdo->query("SELECT count(*) FROM accounts WHERE uid = '700000001'")->fetchColumn(), 'two people, one UID');
-        }
-        if ($level === 8) {
-            same('running', $pdo->query('SELECT status FROM sync_runs ORDER BY id DESC LIMIT 1')->fetchColumn(), 'a stepped run keeps going');
-            same('2026-09-26 04:30:10+00', $pdo->query('SELECT next_step_at FROM sync_runs ORDER BY id DESC LIMIT 1')->fetchColumn(), 'with its place');
         }
 
         // The same database as a new one, down to the names of its constraints and indexes - the bookkeeping
@@ -1396,6 +1399,17 @@ function upTo013(array $server, string $name): PDO
 
     return $pdo;
 }
+
+/** The migrator of a database of upTo013()'s with the site's files before $before alone (another of the site's folders). */
+function siteFilesBefore(PDO $pdo, string $name, string $before): Migrator
+{
+    $site = migrationsFolder("migrations-{$name}-{$before}", array_values(array_filter(allMigrations(), fn(string $file): bool => strcmp($file, $before) < 0)));
+
+    return new Migrator($pdo, [AdminSchema::migrationSet(), Migrations::set($site), Schema::migrationSet(), PeopleSchema::migrationSet()], ['lock' => Migrations::LOCK]);
+}
+
+/** Star Rail's two files: 014 and its words. */
+const STAR_RAIL_FILES = ['014_star_rail_removed.sql', '015_star_rail_words.sql'];
 
 /**
  * Both games' rows as 0.4 kept them: a catalog each, an account each with a character, a weapon and an item (the
@@ -1467,9 +1481,10 @@ test(
         $before = rowsByGame($pdo);
         same(['genshin' => 1, 'hsr' => 2], $before['import_runs'], 'an import of each, and Star Rail\'s failed one');
 
-        $result = Migrations::migrator($pdo)->apply();
+        // Its own files first, so the rows can be counted where 016 would take the sources away.
+        $result = siteFilesBefore($pdo, 'to013', '016')->apply();
         same(null, $result['error'], 'no error');
-        same(array_map('siteFile', VERSION_05_FILES), $result['applied'], 'version 0.5\'s files, in one Apply');
+        same(array_map('siteFile', STAR_RAIL_FILES), $result['applied'], '014 and 015, in one Apply');
 
         $after = rowsByGame($pdo);
         foreach ($before as $table => $byGame) {
@@ -1508,8 +1523,90 @@ test('014\'s gate refuses a database where Star Rail\'s rows would take a Genshi
     same(
         VERSION_05_FILES,
         array_values(array_filter(array_column(Migrations::migrator($pdo)->status()['pending'], 'name'), fn(string $name): bool => in_array($name, VERSION_05_FILES, true))),
-        'both still wait',
+        'they all still wait',
     );
+});
+
+test('016 on a database as the owner left it before 0.5: the sources go with their builds and syncs, and the locks - every other row stays; the builds are variations now', function () use ($server) {
+    $pdo = upTo013($server, 'to013builds');
+    bothGames($pdo);
+    $kept = static fn(): array => array_map(
+        fn(string $table): int => (int) $pdo->query("SELECT count(*) FROM {$table}")->fetchColumn(),
+        array_combine(['users', 'game_characters', 'accounts', 'account_items'], ['users', 'game_characters', 'accounts', 'account_items']),
+    );
+    siteFilesBefore($pdo, 'to013builds', '016')->apply();
+    $before = $kept();
+
+    $result = Migrations::migrator($pdo)->apply();
+    same(null, $result['error'], 'no error');
+    same(siteFile('016_builds_without_sources.sql'), $result['applied'][0] ?? null, '016 first');
+    same([], relationsThere($pdo, SYNC_TABLES), 'the sources, the syncs and the locks, gone');
+    same($before, $kept(), 'everything else as it was');
+    same(0, (int) $pdo->query('SELECT count(*) FROM builds')->fetchColumn(), 'no build: the first import brings them');
+    same(
+        [
+            'id',
+            'game_character_id',
+            'role',
+            'qualifier',
+            'min_rank',
+            'position',
+            'weapons',
+            'sets',
+            'main_stats',
+            'substats',
+            'talent_priority',
+            'stat_targets',
+            'notes',
+            'game_version',
+            'content_hash',
+            'checked_at',
+            'changed_at',
+            'created_at',
+            'updated_at',
+        ],
+        $pdo->query("SELECT column_name FROM information_schema.columns WHERE table_name = 'builds' ORDER BY ordinal_position")->fetchAll(PDO::FETCH_COLUMN),
+        'a build is a variation',
+    );
+
+    // A build's identity: its character, role, qualifier without regard to case, and constellation - once.
+    $hutao = (int) $pdo->query("SELECT id FROM game_characters WHERE key = 'hutao'")->fetchColumn();
+    $insert = fn(string $role, string $qualifier, int $minRank) => $pdo->exec(
+        "INSERT INTO builds (game_character_id, role, qualifier, min_rank, weapons, sets, main_stats, substats, content_hash, checked_at, changed_at, created_at, updated_at)
+         VALUES ({$hutao}, '{$role}', '{$qualifier}', {$minRank}, '[]', '[]', '{}', '[]', 'x', now(), now(), now(), now())",
+    );
+    $insert('main_dps', 'Melt', 0);
+    $insert('main_dps', 'Melt', 2);
+    $insert('sub_dps', 'Melt', 0);
+    foreach (
+        [
+            'the same identity, its case aside' => fn() => $insert('main_dps', 'MELT', 0),
+            'a role the game does not have' => fn() => $insert('healer', '', 0),
+            'a constellation the game does not have' => fn() => $insert('support', '', 7),
+            'a qualifier with a space around it' => fn() => $insert('support', ' Melt', 0),
+        ]
+        as $case => $refused
+    ) {
+        throws(PDOException::class, $refused, $case);
+    }
+
+    // An import is nobody's once its person is gone; a visitor never imports.
+    $pdo->exec("INSERT INTO build_imports (game, file_exported_at, summary, imported_by, created_at) VALUES ('genshin', now(), '{}', 1, now())");
+    $pdo->exec('DELETE FROM users WHERE id = 1');
+    same([null], $pdo->query('SELECT imported_by FROM build_imports')->fetchAll(PDO::FETCH_COLUMN), 'nobody\'s');
+    throws(PDOException::class, fn() => $pdo->exec("INSERT INTO build_imports (game, file_exported_at, summary, imported_by, created_at) VALUES ('genshin', now(), '{}', -5, now())"), 'a visitor\'s');
+});
+
+test('016 never takes anything along: a view on the sync runs stops it - and nothing of it is applied', function () use ($server) {
+    $pdo = upTo013($server, 'to013view');
+    siteFilesBefore($pdo, 'to013view', '016')->apply();
+    $pdo->exec('CREATE VIEW owners_runs AS SELECT id, started_by FROM sync_runs');
+
+    $result = Migrations::migrator($pdo)->apply();
+    same([[], siteFile('016_builds_without_sources.sql')], [$result['applied'], $result['failed']], 'stopped at 016');
+    check(str_contains((string) $result['error'], 'depend'), 'the database says why: ' . $result['error']);
+    same(SYNC_TABLES, relationsThere($pdo, SYNC_TABLES), 'the tables, all there');
+    same(1, (int) $pdo->query("SELECT count(*) FROM information_schema.columns WHERE table_name = 'builds' AND column_name = 'build_source_id'")->fetchColumn(), 'the builds as they were');
 });
 
 finishTests();

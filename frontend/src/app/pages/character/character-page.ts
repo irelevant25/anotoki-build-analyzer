@@ -11,14 +11,15 @@ import { TooltipDirective } from '@anotoki/lib/ui/tooltip';
 import { Api } from '../../core/api';
 import { AuthService } from '../../core/auth';
 import { titleCase } from '../../core/format';
-import { GAME_TERMS, SET_KIND_TERMS, level } from '../../core/game-terms';
+import { GAME_TERMS, level } from '../../core/game-terms';
 import { TranslationKey } from '../../core/i18n/en';
 import { ErrorTextPipe, isSignInRefusal } from '../../core/i18n/error-text';
 import { LocalDatePipe } from '../../core/i18n/local-date';
-import { recommendationText, setOptionText } from '../../core/i18n/recommendation-words';
+import { recommendationText } from '../../core/i18n/recommendation-words';
 import { TranslatePipe } from '../../core/i18n/translate';
 import { TranslatePluralPipe } from '../../core/i18n/translate-plural';
 import { TranslationService } from '../../core/i18n/translation';
+import { variationLabel } from '../../core/i18n/variation-words';
 import { MetaStore } from '../../core/meta-store';
 import { CharacterAnalysis, Evaluation, GameKey, Recommendation, Suggestion } from '../../core/models';
 import { BuildDetail } from '../../shared/build-detail';
@@ -63,10 +64,11 @@ const SEVERITY_ICONS = new Map<string, string>([
 
 /**
  * One character of an account, against the recommended builds: its head (the game's facts, the grade against the
- * build in hand), a tab a build (its score the tab's badge, the closest build marked), what to improve, the gear it
- * wears and the better pieces the account already owns, the build itself (the site's own build sheet), what the
- * sources agree on and the stats. Drawn with the anotoki family's kit - cards, tabs, badges, progress bars (the
- * score bars), alerts, tooltips, icons - around the site's own pieces: the grade badge and the item cards.
+ * build in hand), a tab a build (named by its variation, its score the tab's badge, the closest build marked, a
+ * build the character's constellation does not reach locked and said so), what to improve, the gear it wears and
+ * the better pieces the account already owns, the build itself (the site's own build sheet) and the stats. Drawn
+ * with the anotoki family's kit - cards, tabs, badges, progress bars (the score bars), alerts, tooltips, icons -
+ * around the site's own pieces: the grade badge and the item cards.
  */
 @Component({
   selector: 'app-character-page',
@@ -138,9 +140,10 @@ export class CharacterPage {
   });
 
   /**
-   * A tab a build (the kit's tabs, anotoki-lib 0.6.0's icon and badge): its source and variant, its score beside them
-   * as the kit's badge - heard after the name, "Source 1 · DPS, score 87" -; the build closest to the character's
-   * setup marked by an icon and a filled badge, and heard so ("..., score 87, Closest match to your current setup").
+   * A tab a build (the kit's tabs, anotoki-lib 0.6.0's icon and badge): its variation ("Main DPS · Melt · C2+"), its
+   * score beside it as the kit's badge - heard after the name, "Main DPS, score 87" -; the build closest to the
+   * character's setup marked by an icon and a filled badge, and heard so ("..., score 87, Closest match to your
+   * current setup"); a build whose constellation the character does not reach locked, and heard so ("..., needs C2").
    */
   protected readonly buildTabs = computed<TabItem[]>(() => {
     const data = this.data();
@@ -149,15 +152,37 @@ export class CharacterPage {
       const overall = evaluation.score.overall;
       // A build that could not be judged has no score: no badge (as the bare number was none before).
       const score = overall === null ? null : this.i18n.t('character.tabScore', { score: this.i18n.number(overall) });
+      const heard = [
+        score,
+        closest ? this.i18n.t('character.closestMatch') : null,
+        evaluation.build.applies ? null : this.i18n.t('character.needsRank', { rank: `${this.rankPrefix()}${evaluation.build.min_rank}` }),
+      ].filter((part): part is string => !!part);
       return {
         id: String(evaluation.build.id),
-        label: `${evaluation.build.source.name} · ${evaluation.build.variant}`,
-        icon: closest ? 'checkCircle' : null,
+        label: variationLabel(this.i18n, evaluation.build, this.rankPrefix()),
+        icon: closest ? 'checkCircle' : evaluation.build.applies ? null : 'lock',
         badge: overall,
         badgeTone: closest ? 'primary' : 'neutral',
-        badgeLabel: score && closest ? `${score}, ${this.i18n.t('character.closestMatch')}` : score,
+        badgeLabel: heard.length > 0 ? heard.join(', ') : null,
       };
     });
+  });
+
+  /** The build in hand, as its variation reads ("Main DPS · Melt · C2+"). */
+  protected readonly variation = computed(() => {
+    const evaluation = this.evaluation();
+    return evaluation ? variationLabel(this.i18n, evaluation.build, this.rankPrefix()) : '';
+  });
+
+  /** "This build needs C2; Hu Tao is C0." - above a build whose constellation the character does not reach. */
+  protected readonly notReached = computed(() => {
+    const evaluation = this.evaluation();
+    const character = this.data()?.character;
+    if (!evaluation || !character || evaluation.build.applies) {
+      return null;
+    }
+    const prefix = this.rankPrefix();
+    return this.i18n.t('character.rankNotReached', { rank: `${prefix}${evaluation.build.min_rank}`, name: character.name, current: `${prefix}${character.rank}` });
   });
 
   /** The tab of the build in hand. */
@@ -214,27 +239,7 @@ export class CharacterPage {
 
   protected readonly totals = computed(() => Object.entries(this.data()?.equipment.totals ?? {}).sort(([, a], [, b]) => b - a));
 
-  protected readonly consensusSlots = computed(() => {
-    const consensus = this.data()?.consensus;
-    return this.slots()
-      .filter((slot) => consensus?.main_stats[slot.key]?.length)
-      .map((slot) => ({ label: slot.label, stats: consensus!.main_stats[slot.key] }));
-  });
-
-  /**
-   * The sets the builds agree on, by kind: the kind's heading is the game's term (a kind a newer server
-   * adds reads "Sets"), and each set is its pieces with the "(any N)" phrase where only some are needed.
-   */
-  protected readonly consensusSets = computed(() => {
-    const sets = this.data()?.consensus.sets ?? {};
-    return Object.entries(sets).map(([kind, list]) => ({
-      kind,
-      title: Object.hasOwn(SET_KIND_TERMS, kind) ? SET_KIND_TERMS[kind as keyof typeof SET_KIND_TERMS] : this.i18n.t('character.consensus.sets'),
-      list: list.map((set) => ({ name: set.name, count: set.count, text: setOptionText(this.i18n, set.pieces ?? set.name, set.choose) })),
-    }));
-  });
-
-  /** "No builds for {name} yet. ... (admins start one on the [Sources] page).", cut where the link stands. */
+  /** "No builds for {name} yet. They appear once an editor imports them (on the [Builds] page).", cut where the link stands. */
   protected readonly noBuilds = computed(() => this.i18n.around('character.noBuilds', 'link', { name: this.data()?.character.name }));
 
   /** "Substats in [color] matter most for this build; ...", cut where the coloured word stands. */

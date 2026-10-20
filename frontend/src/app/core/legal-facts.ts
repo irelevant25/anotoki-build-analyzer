@@ -65,14 +65,14 @@ export function legalPagesConfig(): AnotokiLegalConfig {
  *   import replaces what it brings (App\Services\Import\AccountImporter), an ADMIN's delete on the People page takes
  *   all of it; when the account is deleted it stays, the row it hangs on nobody's (the owner's rule: the data
  *   stays);
- * - the editors' and administrators' traces: sync_runs.started_by and the run's log ("Started by {name}.",
- *   "Cancelled by {name} ...") - the scrub and the People delete write "a deleted person" there
- *   (SitePeople::syncLogHook(); the delete also sets started_by NULL) -, translations.updated_by (the People delete
- *   forgets it: SiteTranslations::forgetWriter());
+ * - the editors' and administrators' traces: build_imports.imported_by (migration 016: who imported a builds file,
+ *   never a name - the Builds page names them by their row, which the scrub makes the IAM's placeholder; the People
+ *   delete sets it NULL by the foreign key), translations.updated_by (the People delete forgets it:
+ *   SiteTranslations::forgetWriter());
  * - the limits: the cache table's counts (rate:{name}:user:{id} or :ip:{keyed hash}, a minute; visitors:new:{keyed
  *   hash}, an hour - App\Web\ClientAddress::countedKey()) and the library's feedback and error-report counts (a day
- *   of keyed hashes, in storage/cache); the cache table's expired rows go when a sync run ends
- *   (SyncRunner: Cache::prune()), the library's at its next count;
+ *   of keyed hashes, in storage/cache); the cache table's expired rows go with the day's tidying up (App\Cache\Prune,
+ *   after the first answer of a UTC day: api/middleware/upkeep.php), the library's at its next count;
  * - the showcase answers: the cache table's showcase:{game}:{uid} (App\Services\Import\Enka\EnkaClient - the
  *   service's whole answer, kept for the ttl it sends, at least 60 seconds), pruned with the rest;
  * - the site's own log: storage/logs/app.log (App\Support\Log - rotated past 5 MB, one old file kept);
@@ -87,8 +87,8 @@ export function legalPagesConfig(): AnotokiLegalConfig {
  *   and browser forgotten by the scrub and by the People delete;
  * - the error log: the library's words and its 30 days (AdminTools::errorLog() sets no `days`); never an address, a
  *   keyed hash of its bucket;
- * - the audit log: sources switched, syncs started and cancelled, a source's builds imported, the strings and
- *   languages, a person's data deleted, migrations applied, the tools' own - editors' too, so in this site's words;
+ * - the audit log: builds imported from a file, the catalog refreshed, the strings and languages, a person's data
+ *   deleted, migrations applied, the tools' own - editors' too, so in this site's words;
  *   no address (AdminTools::auditLog() sets no recordAddress), never pruned;
  * - backups: the library's, plain (sealed, not encrypted), its keeping by count - 14 daily (made after an answer
  *   on a UTC day the site is used), 5 before an update, 5 before a restore, by hand until deleted

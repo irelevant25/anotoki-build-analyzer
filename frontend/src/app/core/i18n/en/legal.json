@@ -15,20 +15,20 @@
   "legal.accounts.why": "To compare your characters with the recommended builds, and keep them for your next visit - on every device you sign in on.",
   "legal.accounts.kept": "Until you delete the game account, or an administrator deletes your data here; a new import replaces what it brings again. When your anotoki account is deleted, your game accounts stay - with their UIDs and in-game nicknames, but no longer tied to your name.",
 
-  "legal.staff.name": "If you run syncs or keep the site's words",
-  "legal.staff.what": "Editors and administrators sync the builds and reword the site's words in its admin panel: each sync keeps who started it and who stopped it, and each word who saved it last, and when.",
+  "legal.staff.name": "If you import builds or keep the site's words",
+  "legal.staff.what": "Editors and administrators import the builds and reword the site's words in its admin panel: each import of builds keeps who made it, and each word who saved it last, and when.",
   "legal.staff.why": "So that the people who look after the site know who did what.",
-  "legal.staff.kept": "With no set time limit. When your anotoki account is deleted, the syncs' notes no longer name you; when an administrator deletes your data here, the syncs and words stay, by nobody.",
+  "legal.staff.kept": "With no set time limit. When your anotoki account is deleted, they no longer show your name; when an administrator deletes your data here, the imports and words stay, by nobody.",
 
   "legal.limits.name": "Limits against floods",
   "legal.limits.what": "How many imports each person or address makes, how many people start without an account from one address, and how many feedback messages and error reports each sender sends - counted by the account, or by a code made from the IP address with a secret key, never the address itself.",
   "legal.limits.why": "To keep the site working for everybody when somebody sends too much.",
-  "legal.limits.kept": "A minute, an hour or a day each. Counts that have run out are deleted the next time the site tidies up - with the next count, or when an editor's next sync of the builds ends.",
+  "legal.limits.kept": "A minute, an hour or a day each. Counts that have run out are deleted the next time the site tidies up - with the next count, or once a day.",
 
   "legal.showcase.name": "Showcase answers",
   "legal.showcase.what": "When you import by UID: a copy of the showcase service's answer for that UID - what the game shows everybody (the in-game nickname, level, signature and the showcase characters with their gear) and what the service itself says of the UID. Nothing of who asked.",
   "legal.showcase.why": "So that the site does not ask the service for the same UID twice within a few minutes.",
-  "legal.showcase.kept": "As long as the service asks - a few minutes -, then deleted the next time the site tidies up (when an editor's next sync of the builds ends).",
+  "legal.showcase.kept": "As long as the service asks - a few minutes -, then deleted the next time the site tidies up (once a day).",
 
   "legal.log.name": "The site's own log",
   "legal.log.what": "Lines about what the site does by itself: visitors' data deleted, updates applied, a setting it could not read - and, rarely, an anotoki account's id where taking a deleted account's name out went wrong. Never an IP address or what you imported.",
@@ -42,7 +42,7 @@
   "legal.feedback.what": "What you send with the form at the foot of every page: your message (and its subject, if you give one), its kind and the part of the site it is about, the page's address without anything after ? or #, the page's language and your browser's name; your account's id, unless you send it without your name; and an address to answer you at, only if you leave one (signed in, the form writes your account's in - you may change it or clear it).",
   "legal.feedback.kept": "Until an administrator deletes it - a message marked as spam goes 30 days later, a resolved one a year later (with the first message sent after that day). When your anotoki account is deleted, or an administrator deletes your data here, the reply address and the browser go from your messages; the words stay.",
 
-  "legal.auditLog.what": "What the site's editors and administrators do in its admin panel - syncs started and stopped, sources switched on or off, builds brought in from a file, the words and languages saved, a person's data deleted, an update applied, the backups, the error log and feedback handled: who, what and when. Never an IP address.",
+  "legal.auditLog.what": "What the site's editors and administrators do in its admin panel - builds imported from a file and the game catalog refreshed, the words and languages saved, a person's data deleted, an update applied, the backups, the error log and feedback handled: who, what and when. Never an IP address.",
 
   "legal.backups.what": "A copy of the site's whole database: one on each day the site is used, one before every update and every restore, and one whenever an administrator makes it. Each copy holds what the site kept when it was made.",
 

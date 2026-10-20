@@ -214,12 +214,12 @@ test('an ADMIN signed in at the stand-in is an admin here; a MEMBER is an ordina
     standInUser($issuer, ['id' => 7, 'username' => 'mona', 'roles' => ['MEMBER']]);
     $mona = (new Client())->withToken(signIn($issuer)['access_token'] ?? '');
     $mona->get('/api/accounts')->status(200);
-    $mona->get('/api/sync')->status(403)->path('code', 'editor_only');
+    $mona->get('/api/admin/builds')->status(403)->path('code', 'editor_only');
     $mona->get('/api/admin/backups')->status(403)->path('code', 'admin_only');
 
     standInUser($issuer, ['id' => 4, 'username' => 'eda', 'roles' => ['MEMBER', 'EDITOR']]);
     $editor = (new Client())->withToken(signIn($issuer)['access_token'] ?? '');
-    $editor->get('/api/sync')->status(200);
+    $editor->get('/api/admin/builds')->status(200);
     $editor->get('/api/admin/migrations')->status(403)->path('code', 'admin_only');
     $editor->get('/api/admin/feedback')->status(403)->path('code', 'admin_only');
 

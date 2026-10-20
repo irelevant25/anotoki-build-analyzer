@@ -35,8 +35,9 @@ export class AuthService {
    */
   readonly visiting = computed(() => this.auth.state() === 'visitor');
   /**
-   * The token's roles for this site, upper case: EDITOR runs the syncs and rewords the site's strings; ADMIN does
-   * that and more. MEMBER, which every account holds, changes nothing (an ordinary person).
+   * The token's roles for this site, upper case: EDITOR imports the builds files, refreshes the game catalog and
+   * rewords the site's strings; ADMIN does that and more. MEMBER, which every account holds, changes nothing (an
+   * ordinary person).
    */
   readonly roles = this.auth.roles;
   readonly isAdmin = this.auth.isAdmin;

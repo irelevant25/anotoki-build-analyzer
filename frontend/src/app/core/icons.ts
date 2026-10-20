@@ -14,7 +14,6 @@ import {
   iconLock,
   iconMinus,
   iconMoreHorizontal,
-  iconPause,
   iconPencil,
   iconPlay,
   iconSave,
@@ -29,8 +28,7 @@ import {
  * provideAnotokiUi in app.config.ts). The kit draws its own (sun, user, search, plus, check, alert, info,
  * refresh, chevrons, ...) without being told; these are the family's other icons the site uses - data from
  * @anotoki/lib/ui/icons, one constant each, so nothing else of that set lands in the build. Since anotoki-lib 0.6.0
- * the ones this site drew itself are the family's too: upload (the imports), lightbulb (a tip), pause (a sync
- * waiting, a guide's "pause the capture"), minus (what an import method lacks, beside the kit's check), wrench
+ * the ones this site drew itself are the family's too: upload (the imports), lightbulb (a tip), minus (what an import method lacks, beside the kit's check), wrench
  * ("Fixed" in What's new), gamepad (the game itself, in the wizard's guides) and save (saving the export). A game's
  * mark is the kit's own (Genshin Impact's sparkle).
  */
@@ -53,7 +51,6 @@ export const SITE_ICONS: IconSet = {
   users: iconUsers,
   upload: iconUpload,
   lightbulb: iconLightbulb,
-  pause: iconPause,
   minus: iconMinus,
   wrench: iconWrench,
   gamepad: iconGamepad,

@@ -1,7 +1,7 @@
 <?php
 
 /**
- * Finding catalog rows by the many names the sites and exports use.
+ * Finding catalog rows by the many names the exports use - and never adding one.
  */
 
 declare(strict_types=1);
@@ -49,13 +49,18 @@ test('resolves set abbreviations and prefixes', function () use ($catalog) {
     same('viridescentvenerer', $catalog->find(Game::Genshin, Catalog::SET, 'VV')?->key, 'VV');
 });
 
-test('unknown names are created and reported', function () use ($catalog) {
+test('unknown names are reported, never created: the catalog is the game data provider\'s', function () use ($catalog) {
     $catalog = $catalog();
-    $created = $catalog->character(Game::Genshin, 'Brand New Character');
 
-    same('brandnewcharacter', $created->key, 'key');
-    same(['genshin:characters' => ['Brand New Character']], $catalog->unmatched(), 'unmatched');
-    same(1, (int) db()->value("SELECT count(*) FROM game_characters WHERE key = 'brandnewcharacter'"), 'stored');
+    same(null, $catalog->character(Game::Genshin, 'Brand New Character'), 'no character');
+    same(null, $catalog->weapon(Game::Genshin, 'Brand New Weapon'), 'no weapon');
+    same(null, $catalog->set(Game::Genshin, 'Brand New Set'), 'no set');
+    same(['genshin:characters' => ['Brand New Character'], 'genshin:weapons' => ['Brand New Weapon'], 'genshin:sets' => ['Brand New Set']], $catalog->unmatched(), 'unmatched');
+    same(
+        [0, 0, 0],
+        [(int) db()->value('SELECT count(*) FROM game_characters'), (int) db()->value('SELECT count(*) FROM game_weapons'), (int) db()->value('SELECT count(*) FROM game_sets')],
+        'nothing stored',
+    );
 });
 
 finishTests();

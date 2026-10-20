@@ -12,11 +12,11 @@ use App\Repositories\CatalogRows;
 use App\Support\Key;
 
 /**
- * Resolves names coming from imports and scraped builds to catalog rows.
+ * Resolves names coming from imports to catalog rows; it never adds one (the catalog is the game data provider's,
+ * CatalogSync).
  *
  * Resolution order: special cases (the Travelers) -> configured aliases ->
- * exact key -> unique prefix / suffix / infix match. Unknown names can be created on the fly so
- * nothing is lost; they are reported via unmatched().
+ * exact key -> unique prefix / suffix / infix match. Names nothing matches are reported via unmatched().
  *
  * The rows are cached in memory for the length of one request (or command).
  */
@@ -39,22 +39,22 @@ class Catalog
 
     public function __construct(private readonly CatalogRows $rows, private readonly Config $config) {}
 
-    public function character(Game $game, string $name, array $attributes = [], bool $create = true): ?GameCharacter
+    public function character(Game $game, string $name): ?GameCharacter
     {
         /** @var GameCharacter|null */
-        return $this->resolve($game, self::CHARACTER, $name, $attributes, $create);
+        return $this->resolve($game, self::CHARACTER, $name);
     }
 
-    public function weapon(Game $game, string $name, array $attributes = [], bool $create = true): ?GameWeapon
+    public function weapon(Game $game, string $name): ?GameWeapon
     {
         /** @var GameWeapon|null */
-        return $this->resolve($game, self::WEAPON, $name, $attributes, $create);
+        return $this->resolve($game, self::WEAPON, $name);
     }
 
-    public function set(Game $game, string $name, array $attributes = [], bool $create = true): ?GameSet
+    public function set(Game $game, string $name): ?GameSet
     {
         /** @var GameSet|null */
-        return $this->resolve($game, self::SET, $name, $attributes + ['kind' => $game->setKinds()[0]], $create);
+        return $this->resolve($game, self::SET, $name);
     }
 
     public function byExternalId(Game $game, string $type, string|int $id): ?CatalogEntry
@@ -101,7 +101,7 @@ class Catalog
     }
 
     /**
-     * Names that had to be created because nothing in the catalog matched.
+     * Names nothing in the catalog matched, by "game:list".
      *
      * @return array<string, list<string>>
      */
@@ -124,7 +124,7 @@ class Catalog
         $this->byExternalId = [];
     }
 
-    private function resolve(Game $game, string $type, string $name, array $attributes, bool $create): ?CatalogEntry
+    private function resolve(Game $game, string $type, string $name): ?CatalogEntry
     {
         $name = trim(html_entity_decode($name, ENT_QUOTES | ENT_HTML5, 'UTF-8'));
         if ($name === '') {
@@ -136,17 +136,9 @@ class Catalog
             return $found;
         }
 
-        $bucket = $game->value . ':' . $type;
-        $this->unmatched[$bucket][] = $name;
+        $this->unmatched[$game->value . ':' . $type][] = $name;
 
-        if (!$create) {
-            return null;
-        }
-
-        $entry = $this->rows->firstOrCreate($game, $type, $this->normalize($game, $type, $name), ['name' => $name] + $attributes);
-        $this->byKey[$bucket][$entry->key] = $entry;
-
-        return $entry;
+        return null;
     }
 
     private function load(Game $game, string $type): void

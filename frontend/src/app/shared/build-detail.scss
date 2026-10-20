@@ -149,6 +149,11 @@ ol li.matched {
   font-weight: 500;
 }
 
+// "C1+": the constellation a target holds from, after the stat's name (and a space).
+.t-rank {
+  margin-left: 2px;
+}
+
 .t-goal {
   text-align: right;
   font-weight: 500;

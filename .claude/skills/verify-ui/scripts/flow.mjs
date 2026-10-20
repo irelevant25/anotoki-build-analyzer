@@ -272,7 +272,6 @@ async function barLayout(page) {
     const pieces = [
       ...pick('app-top-bar anotoki-brand'),
       ...pick('app-top-bar .anotoki-top-bar__link'),
-      ...pick('app-top-bar .sync-widget'),
       ...pick('app-top-bar .anotoki-language-switcher__switcher'),
       ...pick('app-top-bar anotoki-theme-toggle'),
       ...pick('app-top-bar .anotoki-top-bar__person-button'),
@@ -363,22 +362,19 @@ try {
       await open(page, `/?lang=${language}`);
       console.log(`  ${language}, signed out: ${await rowNeeds(page)} px`);
       await signIn(page, ADA);
-      const staff = await rowNeeds(page);
-      console.log(`  ${language}, an admin: ${staff} px; with the sync spinner (40 px and a gap): ${staff + 40 + 9.6} px`);
+      console.log(`  ${language}, an admin: ${await rowNeeds(page)} px`);
       // The admin panel reads English whichever language was chosen: measured from both.
-      await open(page, '/admin/sources');
+      await open(page, '/admin/builds');
       await page.waitForSelector('app-top-bar .anotoki-top-bar__badge', { timeout: 5000 }).catch(() => null);
-      const area = await rowNeeds(page);
-      console.log(`  the admin panel (English, every section, the count beside Feedback), an admin who chose ${language}: ${area} px; with the sync spinner: ${area + 40 + 9.6} px`);
+      console.log(`  the admin panel (English, every section, the count beside Feedback), an admin who chose ${language}: ${await rowNeeds(page)} px`);
       await context.close();
 
       const editing = await newContext({ width: 1800 });
       const editor = await editing.newPage();
       await open(editor, `/?lang=${language}`);
       await signIn(editor, EDDIE);
-      await open(editor, '/admin/sources');
-      const own = await rowNeeds(editor);
-      console.log(`  the admin panel, an editor (two sections) who chose ${language}: ${own} px; with the sync spinner: ${own + 40 + 9.6} px`);
+      await open(editor, '/admin/builds');
+      console.log(`  the admin panel, an editor (two sections) who chose ${language}: ${await rowNeeds(editor)} px`);
       await editing.close();
     }
   } else {
@@ -767,7 +763,7 @@ try {
     await open(ed, '/?lang=sk');
     await signIn(ed, EDDIE);
     await open(ed, '/admin');
-    check((await ed.locator(BAR_LINK).allInnerTexts()).join('|') === 'Sources|Translations', "an editor's sections: Sources, Translations");
+    check((await ed.locator(BAR_LINK).allInnerTexts()).join('|') === 'Builds|Translations', "an editor's sections: Builds, Translations");
     check((await ed.evaluate(() => document.documentElement.lang)) === 'en', '<html lang="en"> in the admin panel');
     check((await ed.locator('app-top-bar anotoki-language-switcher').count()) === 0, 'no language chooser in the admin panel');
     await ed.click(PERSON_BUTTON);
@@ -776,14 +772,14 @@ try {
       (await ed.locator(`${BAR_MENU} .anotoki-top-bar__menu-role`).innerText()).trim() === 'Editor' && (await ed.locator(BAR_MENU).innerText()).includes('Back to Build Analyzer'),
       'the role pill "Editor", "Back to Build Analyzer"',
     );
-    await shot(ed, '09-admin-editor-sources', { fullPage: true });
+    await shot(ed, '09-admin-editor-builds', { fullPage: true });
     await ed.keyboard.press('Escape');
     await open(ed, '/admin/languages');
-    check(new URL(ed.url()).pathname === '/admin/sources', 'Languages sends an editor to Sources');
+    check(new URL(ed.url()).pathname === '/admin/builds', 'Languages sends an editor to Builds');
     await open(ed, '/admin/people');
-    check(new URL(ed.url()).pathname === '/admin/sources', 'People sends an editor to Sources');
+    check(new URL(ed.url()).pathname === '/admin/builds', 'People sends an editor to Builds');
     await open(ed, '/admin/migrations');
-    check(new URL(ed.url()).pathname === '/admin/sources', 'Migrations sends an editor to Sources');
+    check(new URL(ed.url()).pathname === '/admin/builds', 'Migrations sends an editor to Builds');
     const refused = await ed.evaluate(async () => {
       const token =
         JSON.parse(localStorage.getItem('anotoki-auth:build-analyzer') ?? '{}').access_token ?? JSON.parse(localStorage.getItem('anotoki-auth:build-analyzer') ?? '{}').tokens?.access_token;
@@ -792,6 +788,60 @@ try {
       return [people.status, (await people.json()).code, migrations.status];
     });
     check(refused[0] === 403 && refused[1] === 'admin_only' && refused[2] === 403, `the server refuses an editor ADMIN's routes (${refused.join(', ')})`);
+
+    // ── The Builds page: a game's builds out to a file and the same file back in ──────────────────────────
+    step("The admin panel's Builds page: the builds exported, the same file imported - a preview that changes nothing, then the import, recorded by its editor - at 1280 and 390 px, light and dark");
+    {
+      await open(ed, '/admin/builds');
+      await ed.waitForSelector('section.game .builds button.export', { timeout: 15000 });
+      check((await ed.locator('h1').innerText()).trim() === 'Builds', 'the page: Builds');
+      const tiles = (await ed.locator('section.game .builds .counts').innerText()).replace(/\s+/g, ' ');
+      check(tiles.includes('Characters with builds') && tiles.includes('1') && tiles.includes('2'), `its counts: one character, two builds (${tiles})`);
+      await shot(ed, '25-admin-builds-1280-light', { fullPage: true });
+
+      const [download] = await Promise.all([ed.waitForEvent('download'), ed.click('section.game .builds button.export')]);
+      const saved = join(WORK, download.suggestedFilename());
+      await download.saveAs(saved);
+      check(/^builds-genshin-\d{4}-\d{2}-\d{2}\.json$/.test(download.suggestedFilename()), `the file's name: ${download.suggestedFilename()}`);
+      const builds = JSON.parse(readFileSync(saved, 'utf8'));
+      check(
+        builds.format === 'build-analyzer.builds' &&
+          builds.format_version === 2 &&
+          builds.game === 'genshin' &&
+          builds.builds.map((build) => `${build.character} ${build.role} C${build.min_rank}`).join('|') === 'hutao main_dps C0|hutao sub_dps C2',
+        `the file: Hu Tao's two builds as variations (${builds.builds.map((build) => `${build.role} C${build.min_rank}`).join(', ')})`,
+      );
+      check(!/"(id|source|variant)"\s*:/.test(readFileSync(saved, 'utf8')), 'no id, no source, no variant in it');
+
+      await ed.setInputFiles('section.game .builds input[type=file]', saved);
+      await ed.waitForSelector('section.game .preview', { timeout: 15000 });
+      const summary = (await ed.locator('section.game .preview .summary').innerText()).trim();
+      check(summary.endsWith('0 new, 0 updated, 2 unchanged, 0 removed.'), `the preview: ${summary}`);
+      check((await ed.locator('section.game .preview .no-changes').count()) === 1, 'it says nothing changes');
+      await shot(ed, '25-admin-builds-preview-1280-light', { fullPage: true });
+      await ed.click('section.game .preview button.confirm');
+      await ed.waitForSelector('section.game .preview', { state: 'detached', timeout: 15000 });
+      const recorded = sql('SELECT imported_by, summary FROM build_imports ORDER BY id DESC LIMIT 1')[0];
+      check(recorded?.imported_by === EDDIE.id && JSON.parse(recorded.summary).unchanged === 2, `recorded, by the editor: ${JSON.stringify(recorded)}`);
+      const lines = await ed.locator('section.game .imports .import-list li').allInnerTexts();
+      check(lines.length === 2 && lines[0].includes('by eddie'), `the recent imports, the newest first (${lines.map((line) => line.replace(/\s+/g, ' ')).join(' | ')})`);
+
+      for (const scheme of ['light', 'dark']) {
+        await ed.setViewportSize({ width: 390, height: 860 });
+        await ed.emulateMedia({ colorScheme: scheme });
+        await open(ed, '/admin/builds');
+        await ed.waitForSelector('section.game .builds button.export', { timeout: 15000 });
+        await ed.setInputFiles('section.game .builds input[type=file]', saved);
+        await ed.waitForSelector('section.game .preview', { timeout: 15000 });
+        const scroll = await ed.evaluate(() => document.documentElement.scrollWidth);
+        check(scroll <= 390, `390 px, ${scheme}, with the preview: no sideways scroll (${scroll})`);
+        await shot(ed, `25-admin-builds-390-${scheme}`, { fullPage: true });
+        await ed.click('section.game .preview button.cancel');
+        await ed.waitForSelector('section.game .preview', { state: 'detached', timeout: 10000 });
+      }
+      await ed.setViewportSize({ width: 1280, height: 900 });
+      await ed.emulateMedia({ colorScheme: 'light' });
+    }
 
     const admin = await newContext();
     const ad = await admin.newPage();
@@ -819,7 +869,7 @@ try {
       ),
     );
     check(
-      sections.join('|') === 'Sources|Translations|Languages|People|Migrations|Errors|Audit|Feedback|Backups',
+      sections.join('|') === 'Builds|Translations|Languages|People|Migrations|Errors|Audit|Feedback|Backups',
       `an admin's sections: all nine - the family's admin tools too (${sections.join(', ')})`,
     );
     // The family's brand of an admin panel, short at every width beside nine sections: the site's short name with
@@ -868,7 +918,7 @@ try {
     await ad.emulateMedia({ colorScheme: 'light' });
     for (const width of [EDITOR_PHONE_BAR_MAX, EDITOR_PHONE_BAR_MAX + 1, EDITOR_PHONE_BAR_MAX + 201]) {
       await ed.setViewportSize({ width, height: 760 });
-      await open(ed, '/admin/sources');
+      await open(ed, '/admin/builds');
       const layout = await checkBar(ed, `admin panel, an editor, ${width} px`);
       check(
         (await ed.locator(MENU_BUTTON).count()) === (width <= EDITOR_PHONE_BAR_MAX ? 1 : 0),
@@ -986,7 +1036,7 @@ try {
       const wide = ADMIN_PHONE_BAR_MAX + 201;
       await ad.setViewportSize({ width: wide, height: 900 });
       await ad.emulateMedia({ colorScheme: 'light' });
-      await open(ad, '/admin/sources');
+      await open(ad, '/admin/builds');
       // And an error a page meets, thrown outside Angular's own code (window's error event): the family's reporter
       // (@anotoki/lib/error-report) sends it scrubbed, through the app's HttpClient - so with ada's token - and the
       // error log writes it as the browser's, by her account.
@@ -1002,7 +1052,7 @@ try {
       check(report.status() === 204 && /^Bearer \S+$/.test((await report.request().allHeaders()).authorization ?? ''), `the page's error reported, with ada's token (${report.status()})`);
       const thrown = pageErrors().filter((line) => line.message === THROWN_SCRUBBED);
       check(
-        thrown.length === 1 && thrown[0].user_id === 1 && thrown[0].path === '/admin/sources' && !JSON.stringify(pageErrors()).includes('@example.test'),
+        thrown.length === 1 && thrown[0].user_id === 1 && thrown[0].path === '/admin/builds' && !JSON.stringify(pageErrors()).includes('@example.test'),
         `the error log has it as the browser's - scrubbed, by ada, on its page (${JSON.stringify(pageErrors().map((line) => [line.message, line.user_id, line.path]))})`,
       );
       await ad.waitForSelector('app-top-bar a[href="/admin/feedback"] .anotoki-top-bar__badge', { timeout: 15000 });
@@ -1108,10 +1158,10 @@ try {
       );
       await shot(ad, '19-admin-backups-made', { fullPage: true });
 
-      // An editor has none of them: sent to Sources, and the server refuses them.
+      // An editor has none of them: sent to Builds, and the server refuses them.
       for (const path of ['/admin/errors', '/admin/audit', '/admin/feedback', '/admin/backups']) {
         await open(ed, path);
-        check(new URL(ed.url()).pathname === '/admin/sources', `${path} sends an editor to Sources`);
+        check(new URL(ed.url()).pathname === '/admin/builds', `${path} sends an editor to Builds`);
       }
       const edRefused = await ed.evaluate(async () => {
         const token = JSON.parse(localStorage.getItem('anotoki-auth:build-analyzer') ?? '{}').access_token;
@@ -1203,13 +1253,13 @@ try {
 
       step('An update waits: the ADMIN reads that a database update is waiting, and reaches the Migrations page - the one page that shows');
       apiPaths = apiAsked(ad);
-      await openGated(ad, '/admin/sources');
+      await openGated(ad, '/admin/builds');
       gate = await gatePage(ad);
       check(gate.title === 'A database update is waiting' && gate.links.join('|') === 'Open Migrations -> /admin/migrations', `the ADMIN: "${gate.text}" (${gate.links.join(', ')})`);
       paths = apiPaths();
       check(
         paths.every((path) => OPEN_WHILE_WAITING.test(path)),
-        `no Sources page made behind it: the API asked for ${paths.join(', ')} only`,
+        `no Builds page made behind it: the API asked for ${paths.join(', ')} only`,
       );
       await shot(ad, '12d-update-waiting-admin', { fullPage: true });
       await ad.click('anotoki-site-status a');
@@ -1388,7 +1438,7 @@ try {
     await away.waitForURL((url) => url.href.startsWith(SITE) && url.pathname === '/sign-in', { timeout: 15000 });
     await away.waitForSelector('anotoki-sign-in-failure [role=alert]');
     check((await failureScreen()).message.length > 0, "a visitor at /admin is sent to sign in; refused, the failure's screen says so");
-    check((await away.locator(BAR_LINK, { hasText: 'Sources' }).count()) === 0, 'and no section of the panel shows');
+    check((await away.locator(BAR_LINK, { hasText: 'Translations' }).count()) === 0, 'and no section of the panel shows');
     await iamState({ deny: false });
     await turned.close();
 
@@ -1683,21 +1733,35 @@ try {
         await page.evaluate(() => window.scrollTo(0, 0));
         await shot(page, `24-kit-account-${language}-${width}-${scheme}`, { fullPage: true });
 
-        // A character: a build's tab with its score as the kit's badge, the closest build marked; the score bars.
+        // A character: a tab a build, named by its variation - Hu Tao (C1) has a main DPS build and a Sub DPS one that
+        // needs C2 -, its score as the kit's badge, the closest build marked and the one she does not reach locked; the
+        // stat target of her constellation marked "C1+"; the score bars.
         await open(page, `/accounts/${monaAccount}/characters/hutao?lang=${language}`);
         await page.waitForSelector('[role=tab]', { timeout: 15000 });
         const tabs = await page.evaluate(() =>
           [...document.querySelectorAll('[role=tab]')].map((tab) => ({
+            label: tab.querySelector('.anotoki-tabs__label')?.textContent?.trim() ?? null,
             badge: tab.querySelector('.anotoki-tabs__badge')?.textContent?.trim() ?? null,
             tone: tab.querySelector('.anotoki-tabs__badge')?.getAttribute('data-tone') ?? null,
             icon: tab.querySelector('anotoki-icon') !== null,
             heard: tab.querySelector('.anotoki-visually-hidden')?.textContent?.trim() ?? null,
           })),
         );
+        const variations = language === 'sk' ? ['Hlavný DPS', 'Vedľajší DPS · C2+'] : ['Main DPS', 'Sub DPS · C2+'];
         check(
-          tabs.length === 1 && /^\d+$/.test(tabs[0].badge ?? '') && tabs[0].tone === 'primary' && tabs[0].icon && (tabs[0].heard ?? '').includes(tabs[0].badge),
-          `the character, ${label}: the build's tab shows its score as the kit's badge, the closest build marked (${JSON.stringify(tabs)})`,
+          tabs.length === 2 &&
+            tabs.map((tab) => tab.label).join('|') === variations.join('|') &&
+            /^\d+$/.test(tabs[0].badge ?? '') &&
+            tabs[0].tone === 'primary' &&
+            tabs[0].icon &&
+            (tabs[0].heard ?? '').includes(tabs[0].badge) &&
+            tabs[1].tone === 'neutral' &&
+            tabs[1].icon &&
+            (tabs[1].heard ?? '').includes('C2'),
+          `the character, ${label}: a tab a build by its variation, its score as the kit's badge, the closest build marked, the one needing C2 locked (${JSON.stringify(tabs)})`,
         );
+        const targetMarks = await page.locator('.build-card .t-rank').allInnerTexts();
+        check(targetMarks.join('|') === 'C1+', `the character, ${label}: the stat target of her constellation, marked C1+ (${targetMarks.join(', ')})`);
         check((await page.locator('app-score-bar [role=progressbar]').count()) === 5, `the character, ${label}: the five score bars, the kit's progress bars`);
         await fits('the character');
         await shot(page, `24-kit-character-${language}-${width}-${scheme}`, { fullPage: true });

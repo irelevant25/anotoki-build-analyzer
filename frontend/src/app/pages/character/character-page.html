@@ -57,9 +57,7 @@
             <app-grade-badge [grade]="e.score.grade" size="lg" />
             <div>
               <div class="big-score">{{ e.score.overall ?? '–' }}<span class="muted">/100</span></div>
-              <div class="muted small">
-                {{ 'character.versus' | translate: { build: e.build.source.name + ' · ' + e.build.variant } }}
-              </div>
+              <div class="muted small">{{ 'character.versus' | translate: { build: variation() } }}</div>
             </div>
           </div>
         }
@@ -69,15 +67,15 @@
     @if (d.evaluations.length === 0) {
       <anotoki-card class="no-builds">
         <anotoki-icon class="no-builds-icon" name="clock" [size]="28" />
-        <!-- The Sources page is the admin panel's: a link for an editor or an admin, its name alone for everybody else. -->
+        <!-- The Builds page is the admin panel's: a link for an editor or an admin, its name alone for everybody else. -->
         <p>
-          {{ noBuilds()[0] }}@if (noBuilds()[2]) {@if (auth.isStaff()) {<a routerLink="/admin/sources">{{
-                'builds.sourcesPage' | translate
-              }}</a>} @else {<span>{{ 'builds.sourcesPage' | translate }}</span>}}{{ noBuilds()[1] }}
+          {{ noBuilds()[0] }}@if (noBuilds()[2]) {@if (auth.isStaff()) {<a routerLink="/admin/builds">{{
+                'builds.adminPage' | translate
+              }}</a>} @else {<span>{{ 'builds.adminPage' | translate }}</span>}}{{ noBuilds()[1] }}
         </p>
       </anotoki-card>
     } @else {
-      <!-- Build selector: one tab a build, its score beside its name. -->
+      <!-- Build selector: one tab a build, its score beside its variation. -->
       <anotoki-tabs
         #tabs="anotokiTabs"
         class="build-tabs"
@@ -94,6 +92,9 @@
           [id]="tabs.panelId(activeTab())"
           [attr.aria-labelledby]="tabs.tabId(activeTab())"
         >
+          @if (notReached(); as notice) {
+            <anotoki-alert class="not-reached" tone="info">{{ notice }}</anotoki-alert>
+          }
           <div class="top-grid">
             <!-- Score breakdown -->
             <anotoki-card [heading]="'character.scoreBreakdown' | translate">
@@ -261,15 +262,10 @@
 
           <!-- Recommended build -->
           @if (build(); as b) {
-            <anotoki-card class="build-card" [heading]="b.source.name + ' · ' + b.variant">
-              @if ((b.role && b.role !== b.variant) || e.build.id === d.best_build_id) {
+            <anotoki-card class="build-card" [heading]="variation()">
+              @if (e.build.id === d.best_build_id) {
                 <div cardActions class="cluster">
-                  @if (e.build.id === d.best_build_id) {
-                    <anotoki-badge tone="primary">{{ 'character.closestMatch' | translate }}</anotoki-badge>
-                  }
-                  @if (b.role && b.role !== b.variant) {
-                    <anotoki-badge>{{ b.role }}</anotoki-badge>
-                  }
+                  <anotoki-badge tone="primary">{{ 'character.closestMatch' | translate }}</anotoki-badge>
                 </div>
               }
               <app-build-detail [build]="b" [game]="game()" [evaluation]="e" [element]="d.character.element" />
@@ -278,49 +274,8 @@
         </div>
       }
 
-      <!-- Consensus + stats -->
+      <!-- Stats -->
       <div class="bottom-grid">
-        @if (d.consensus.builds > 1) {
-          <anotoki-card [heading]="'character.consensus.title' | translate">
-            <p class="muted small">
-              {{
-                'character.consensus.builds'
-                  | translatePlural: d.consensus.builds : { sources: d.consensus.sources.join(', ') }
-              }}
-            </p>
-            @for (slot of consensusSlots(); track slot.label) {
-              <div class="consensus-row">
-                <span class="muted">{{ slot.label }}</span>
-                <span class="cluster">
-                  @for (stat of slot.stats; track stat.name) {
-                    <anotoki-badge>{{ stat.name | statLabel: game() }} <b>{{ stat.count }}×</b></anotoki-badge>
-                  }
-                </span>
-              </div>
-            }
-            @for (group of consensusSets(); track group.kind) {
-              <div class="consensus-row">
-                <span class="muted">{{ group.title }}</span>
-                <span class="cluster">
-                  @for (set of group.list; track set.name) {
-                    <anotoki-badge>{{ set.text }} <b>{{ set.count }}×</b></anotoki-badge>
-                  }
-                </span>
-              </div>
-            }
-            <div class="consensus-row">
-              <span class="muted">{{
-                'character.consensus.bestWeapon' | translate: { weapon_label: weaponTerm() }
-              }}</span>
-              <span class="cluster">
-                @for (weapon of d.consensus.weapons; track weapon.name) {
-                  <anotoki-badge>{{ weapon.name }} <b>{{ weapon.count }}×</b></anotoki-badge>
-                }
-              </span>
-            </div>
-          </anotoki-card>
-        }
-
         <anotoki-card [heading]="'character.stats.title' | translate">
           @if (finalStats().length > 0) {
             <p class="muted small">

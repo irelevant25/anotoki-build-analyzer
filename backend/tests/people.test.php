@@ -4,11 +4,11 @@
  * The people - the anotoki library's people module on this site's users (App\People\SitePeople): the People
  * page's routes (ADMIN) - the people who have used the site with how much each has, found by a name or an id,
  * a page at a time, and deleting a person's data (their accounts with everything imported into them and their
- * import runs, while the syncs they started and the strings they saved stay, by nobody, and everybody else's
+ * import runs, while the builds imports they made and the strings they saved stay, by nobody, and everybody else's
  * data stays as it is - all of it on the connection the library's transaction is on, as a restore does it again)
  * - each person's row kept from the token (the library's RecordPerson), and the scrub of
- * the accounts the IAM deleted: their rows nobody's, a sync's log naming "a deleted person", the copies the
- * admin tools keep of them blanked, their data kept.
+ * the accounts the IAM deleted: their rows nobody's, the copies the admin tools keep of them blanked, their data
+ * kept - their builds imports too, under the row's new name.
  */
 
 declare(strict_types=1);
@@ -20,6 +20,7 @@ use App\Auth\Role;
 use App\Db\Db;
 use App\People\SitePeople;
 use App\Support\Clock;
+use App\Support\Json;
 use Tests\Support\Client;
 
 bootTests();
@@ -68,6 +69,27 @@ function personWithData(int $id, string $name, string $uid, ?string $seen = null
     ]);
 
     return $account;
+}
+
+/** A game's builds imported by a person, an editor once: the row App\Services\Builds\BuildImport writes. */
+function buildsImportBy(int $id): int
+{
+    return (int) db()->insert('build_imports', [
+        'game' => 'genshin',
+        'file_exported_at' => '2026-10-01 10:00:00+00',
+        'summary' => Json::column(['characters' => 1, 'builds' => 1, 'created' => 1, 'updated' => 0, 'unchanged' => 0, 'removed' => 0, 'skipped' => 0]),
+        'imported_by' => $id,
+        'created_at' => Clock::now(),
+    ]);
+}
+
+/** Who made each builds import, as the Builds page lists them: import id => {id, name}, or null for nobody. */
+function importedBy(): array
+{
+    $listed = array_column(admin()->get('/api/admin/builds')->status(200)->json('0.imports') ?? [], 'imported_by', 'id');
+    ksort($listed);
+
+    return $listed;
 }
 
 /** The audit log's entries of an action, oldest first: who, what about, and the details (their keys in order: JSONB keeps its own). */
@@ -169,28 +191,9 @@ test('a search finds a name (any case, anywhere in it) or an IAM id; fifty a pag
 test('deleting a person\'s data: their accounts, rows and runs go; what they did for the site stays, by nobody - and it is in the audit log', function () {
     $mona = personWithData(7, 'mona', '700000007');
     $albedo = personWithData(8, 'albedo', '700000008');
-    (new Client())->get('/api/sources')->status(200); // the sources' rows, as the Sources page makes them
-    $source = (int) db()->value("SELECT min(id) FROM build_sources WHERE game = 'genshin'");
-    $run = (int) db()->insert('sync_runs', [
-        'build_source_id' => $source,
-        'kind' => 'builds',
-        'game' => 'genshin',
-        'status' => 'success',
-        'started_by' => 7,
-        'started_at' => Clock::now(),
-        'finished_at' => Clock::now(),
-        'log' => "Started by mona.\nCancelled by mona after 1 of 3.",
-    ]);
-    $albedosRun = (int) db()->insert('sync_runs', [
-        'build_source_id' => $source,
-        'kind' => 'builds',
-        'game' => 'genshin',
-        'status' => 'success',
-        'started_by' => 8,
-        'started_at' => Clock::now(),
-        'finished_at' => Clock::now(),
-        'log' => "Started by albedo.\nDone.",
-    ]);
+    // The builds each of them imported for the site, as editors once.
+    $import = buildsImportBy(7);
+    $albedosImport = buildsImportBy(8);
     // What they sent through the feedback form: its words are the site's, the address and browser theirs.
     db()->run("INSERT INTO anotoki_feedback (kind, message, contact_email, user_id, user_agent) VALUES
         ('bug', 'From mona', 'mona@example.test', 7, 'Mona''s browser'), ('idea', 'From albedo', 'albedo@example.test', 8, 'Albedo''s browser')");
@@ -211,15 +214,11 @@ test('deleting a person\'s data: their accounts, rows and runs go; what they did
         same(0, (int) db()->value('SELECT count(*) FROM account_characters WHERE account_id = ?', [$mona]), 'their rows');
         same(0, (int) db()->value('SELECT count(*) FROM import_runs WHERE user_id = 7'), 'the runs, a failed one too');
         same(
-            [$run, null],
-            [(int) db()->value('SELECT id FROM sync_runs WHERE id = ?', [$run]), db()->value('SELECT started_by FROM sync_runs WHERE id = ?', [$run])],
-            'the sync stays, started by nobody',
+            [[$import, null], [$albedosImport, 8]],
+            array_map(fn($row) => [(int) $row['id'], $row['imported_by'] === null ? null : (int) $row['imported_by']], db()->all('SELECT id, imported_by FROM build_imports ORDER BY id')),
+            'their builds import stays, imported by nobody; another person\'s as it was',
         );
-        same(
-            ["Started by a deleted person.\nCancelled by a deleted person after 1 of 3.", "Started by albedo.\nDone."],
-            [db()->value('SELECT log FROM sync_runs WHERE id = ?', [$run]), db()->value('SELECT log FROM sync_runs WHERE id = ?', [$albedosRun])],
-            'its log no longer names them (as the scrub writes it); another person\'s as it was',
-        );
+        same([$import => null, $albedosImport => ['id' => 8, 'name' => 'albedo']], importedBy(), 'the Builds page names nobody for it');
         same(
             [['From mona', null, null, 7], ['From albedo', 'albedo@example.test', 'Albedo\'s browser', 8]],
             array_map(
@@ -289,28 +288,18 @@ test('an admin may delete their own data, and nobody else\'s id is touched by a 
 test('the delete does all its work on the connection it is given, inside its transaction - as a restore runs it, every table locked', function () {
     personWithData(7, 'mona', '700000007');
     personWithData(8, 'albedo', '700000008');
-    (new Client())->get('/api/sources')->status(200);
-    $source = (int) db()->value("SELECT min(id) FROM build_sources WHERE game = 'genshin'");
-    $run = (int) db()->insert('sync_runs', [
-        'build_source_id' => $source,
-        'kind' => 'builds',
-        'game' => 'genshin',
-        'status' => 'success',
-        'started_by' => 7,
-        'started_at' => Clock::now(),
-        'finished_at' => Clock::now(),
-        'log' => 'Started by mona.',
-    ]);
+    $import = buildsImportBy(7);
     db()->run("INSERT INTO anotoki_feedback (kind, message, contact_email, user_id, user_agent) VALUES ('bug', 'From mona', 'mona@example.test', 7, 'Firefox')");
     db()->run("INSERT INTO translation_keys (name) VALUES ('test.people')");
     db()->run("INSERT INTO translations (key_name, language_code, value, updated_by) VALUES ('test.people', 'sk', 'Ľudia', 7)");
 
     // Another connection, holding every table the delete touches as a restore holds the tables it put back (ACCESS
-    // EXCLUSIVE, until it commits): a hook that wrote on the site's own connection would wait on those locks while
-    // the restore waits on it - here for two seconds, then it fails; in a restore, until PostgreSQL ends it.
+    // EXCLUSIVE, until it commits) - build_imports by its foreign key, which takes the person out of their imports:
+    // a hook that wrote on the site's own connection would wait on those locks while the restore waits on it - here
+    // for two seconds, then it fails; in a restore, until PostgreSQL ends it.
     $restore = Db::pdo((array) T::$app->config->get('database'), T::$database, false);
     $restore->beginTransaction();
-    $restore->exec('LOCK TABLE users, accounts, account_characters, account_weapons, account_items, import_runs, sync_runs,
+    $restore->exec('LOCK TABLE users, accounts, account_characters, account_weapons, account_items, import_runs, build_imports,
         translations, anotoki_feedback IN ACCESS EXCLUSIVE MODE');
     db()->run("SET lock_timeout = '2s'");
     try {
@@ -336,9 +325,9 @@ test('the delete does all its work on the connection it is given, inside its tra
         'the person, their accounts and imports',
     );
     same(
-        ['Started by a deleted person.', null],
-        [db()->value('SELECT log FROM sync_runs WHERE id = ?', [$run]), db()->value('SELECT started_by FROM sync_runs WHERE id = ?', [$run])],
-        'the sync stays, by nobody, its log no longer naming them',
+        [$import, null],
+        [(int) db()->value('SELECT id FROM build_imports WHERE id = ?', [$import]), db()->value('SELECT imported_by FROM build_imports WHERE id = ?', [$import])],
+        'their builds import stays, by nobody',
     );
     same(
         [null, null, 'From mona'],
@@ -457,53 +446,12 @@ test('each person\'s row as their token says: made on a first request, the name 
 
 // ── The scrub: the accounts the IAM deleted ───────────────────────────────────────────────────────
 
-test('the scrub: an account the IAM deleted is nobody\'s here - its name, its sync log lines, the admin tools\' copies - and its data stays', function () {
+test('the scrub: an account the IAM deleted is nobody\'s here - its name, the admin tools\' copies - and its data stays, the builds it imported too', function () {
     $mona = personWithData(7, 'mona', '700000007');
     personWithData(8, 'albedo', '700000008');
-    (new Client())->get('/api/sources')->status(200);
-    $source = (int) db()->value("SELECT min(id) FROM build_sources WHERE game = 'genshin'");
-    $runs = [
-        db()->insert('sync_runs', [
-            'build_source_id' => $source,
-            'kind' => 'builds',
-            'game' => 'genshin',
-            'status' => 'success',
-            'started_by' => 7,
-            'started_at' => Clock::now(),
-            'finished_at' => Clock::now(),
-            'log' => "Started by mona.\nDone: 3 builds.",
-        ]),
-        db()->insert('sync_runs', [
-            'build_source_id' => $source,
-            'kind' => 'builds',
-            'game' => 'genshin',
-            'status' => 'cancelled',
-            'started_by' => 8,
-            'started_at' => Clock::now(),
-            'finished_at' => Clock::now(),
-            'log' => "Started by albedo.\nCancelled by mona after 1 of 3.",
-        ]),
-        db()->insert('sync_runs', [
-            'build_source_id' => $source,
-            'kind' => 'builds',
-            'game' => 'genshin',
-            'status' => 'cancelled',
-            'started_by' => 8,
-            'started_at' => Clock::now(),
-            'finished_at' => Clock::now(),
-            'log' => "Started by albedo.\nCancelled by mona.",
-        ]),
-        db()->insert('sync_runs', [
-            'build_source_id' => $source,
-            'kind' => 'builds',
-            'game' => 'genshin',
-            'status' => 'success',
-            'started_by' => 8,
-            'started_at' => Clock::now(),
-            'finished_at' => Clock::now(),
-            'log' => "Started by monalisa.\nDone.",
-        ]),
-    ];
+    // The builds each of them imported for the site, as editors once.
+    $import = buildsImportBy(7);
+    $albedosImport = buildsImportBy(8);
     // What the admin tools keep of them: a feedback message they sent (and one of Albedo's), an entry naming them.
     db()->run("INSERT INTO anotoki_feedback (kind, message, contact_email, user_id, user_agent) VALUES
         ('idea', 'More sources', 'mona@example.test', 7, 'Firefox'), ('bug', 'A typo', 'albedo@example.test', 8, 'Edge')");
@@ -527,14 +475,9 @@ test('the scrub: an account the IAM deleted is nobody\'s here - its name, its sy
         'the data stays',
     );
     same(
-        [
-            "Started by a deleted person.\nDone: 3 builds.",
-            "Started by albedo.\nCancelled by a deleted person after 1 of 3.",
-            "Started by albedo.\nCancelled by a deleted person.",
-            "Started by monalisa.\nDone.",
-        ],
-        array_map(fn($id) => db()->value('SELECT log FROM sync_runs WHERE id = ?', [$id]), $runs),
-        'the syncs\' logs name a deleted person - and nobody else',
+        [$import => ['id' => 7, 'name' => 'deleted-7'], $albedosImport => ['id' => 8, 'name' => 'albedo']],
+        importedBy(),
+        'their builds import stays theirs, listed by the row\'s name now - never the one it had; nobody else\'s changes',
     );
     same(
         [[null, null, 'More sources'], ['albedo@example.test', 'Edge', 'A typo']],
@@ -553,10 +496,9 @@ test('the scrub: an account the IAM deleted is nobody\'s here - its name, its sy
         ->status(200);
     same('deleted-7', db()->value('SELECT name FROM users WHERE id = 7'), 'never revived by a token');
 
-    // Again: nothing more to do - and nothing is written twice.
+    // Again: nothing more to do.
     $again = admin()->post('/api/admin/people/sync')->status(200);
     same(['done', 0], [$again->json('run.state'), $again->json('run.scrubbed')], 'the second run');
-    same("Started by a deleted person.\nDone: 3 builds.", db()->value('SELECT log FROM sync_runs WHERE id = ?', [$runs[0]]), 'the log as the first run left it');
 });
 
 test('the scrub after an answer: at most once an hour, while the site is ready, carried by ordinary traffic', function () {

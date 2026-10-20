@@ -1,9 +1,9 @@
 <?php
 
 /**
- * No other website is named, linked or credited in anything the API sends to be shown: sources are
- * "Source N", and text that came from elsewhere (errors, notes copied from a page, old run logs) has its
- * addresses and names replaced on the way out.
+ * No other website is named, linked or credited in anything the API sends to be shown: text that came from
+ * elsewhere (errors, a builds file's notes and names, what an uploaded account file said) has its addresses and
+ * names replaced on the way out - a builds file's on the way in too.
  */
 
 declare(strict_types=1);
@@ -98,60 +98,52 @@ test('config/neutral.local.php is read cleanly or not at all: a broken one adds 
     }
 });
 
-test('what the Sources, build and account pages get names no other site', function () {
-    // Until the builds come from a file only (0.5.0 rewrites this test), the scrapers' own names are kept out too.
-    Neutral::setLocalNames(['genshin-builds.com', 'genshin-builds', 'www.prydwen.gg', 'prydwen.gg', 'prydwen', 'genshin.gg', 'game8', 'keqingmains']);
+test('what the builds browser, the Builds page and the account pages get names no other site', function () {
+    // The names config/neutral.local.php adds - a fictitious site here: the repository names no real one -, as its
+    // name, its address and the key a builds file would spell it as.
+    Neutral::setLocalNames(['Fictional Builds', 'fictional-builds.example', 'fictionalbuilds']);
     seedGenshinCatalog();
     seedUser(1, 'owner');
     $now = Clock::now();
 
-    // A source that failed with the site's address in the error, and a build copied from its page.
-    $source = (int) db()->insert('build_sources', [
-        'key' => 'prydwen.genshin',
-        'game' => 'genshin',
-        'name' => 'Prydwen',
-        'base_url' => 'https://www.prydwen.gg',
-        'last_status' => 'failed',
-        'last_error' => 'HTTP 500 from https://www.prydwen.gg/genshin/characters/hu-tao',
-        'last_synced_at' => $now,
-    ]);
+    // A build whose every text names the site or links to it - written straight into the table: an import makes a
+    // file's texts neutral on the way in, but what goes out passes through Neutral again (a name the owner adds to
+    // the file later is kept out of the builds imported before it).
     db()->insert('builds', [
-        'build_source_id' => $source,
         'game_character_id' => idOf('game_characters', 'hutao'),
-        'variant' => 'Prydwen pick',
-        'recommended' => true,
+        'role' => 'main_dps',
+        'qualifier' => 'Fictional Builds pick',
+        'min_rank' => 0,
+        'position' => 0,
         'weapons' => Json::encode([
-            ['key' => 'staffofhoma', 'name' => 'Staff of Homa (prydwen.gg)', 'rank' => 1, 'refinement' => null, 'note' => 'Best in slot per genshin-builds.com', 'known' => true],
+            ['key' => 'staffofhoma', 'name' => 'Staff of Homa (fictional-builds.example)', 'rank' => 1, 'refinement' => 1, 'note' => 'Best in slot per Fictional Builds', 'known' => true],
         ]),
         'sets' => Json::encode([
             [
                 'rank' => 1,
                 'kind' => 'artifact',
                 'choose' => null,
-                'note' => 'See https://keqingmains.com/hu-tao',
-                'pieces' => [['label' => 'Crimson Witch of Flames', 'count' => 4, 'keys' => ['crimsonwitchofflames'], 'names' => ['Crimson Witch of Flames']]],
+                'pieces' => [
+                    [
+                        'label' => 'Crimson Witch of Flames (Fictional Builds)',
+                        'count' => 4,
+                        'keys' => ['crimsonwitchofflames'],
+                        'names' => ['Crimson Witch of Flames, as fictional-builds.example has it'],
+                    ],
+                ],
+                'note' => 'See https://fictional-builds.example/hu-tao',
             ],
         ]),
         'main_stats' => Json::encode(['goblet' => [['stat' => 'pyro_dmg_', 'priority' => 1]]]),
         'substats' => Json::encode([]),
-        'stat_targets' => Json::encode([['stat' => 'critRate_', 'min' => 60, 'max' => null, 'text' => 'CRIT Rate 60% (Prydwen)']]),
-        'notes' => 'Copied from https://www.prydwen.gg/genshin/characters/hu-tao - thanks Prydwen!',
-        'source_url' => 'https://www.prydwen.gg/genshin/characters/hu-tao',
+        'stat_targets' => Json::encode([['stat' => 'critRate_', 'min' => 60, 'max' => null, 'text' => 'CRIT Rate 60% (Fictional Builds)', 'from_rank' => 0]]),
+        'notes' => 'Copied from https://fictional-builds.example/genshin/hu-tao - thanks Fictional Builds!',
+        'game_version' => '5.4',
         'content_hash' => 'x',
-        'fetched_at' => $now,
+        'checked_at' => $now,
         'changed_at' => $now,
-    ]);
-    // A run log written by an older version, which named the sites, and names it could not match as a
-    // page spelled them.
-    $run = (int) db()->insert('sync_runs', [
-        'build_source_id' => $source,
-        'kind' => 'builds',
-        'game' => 'genshin',
-        'status' => 'failed',
-        'started_at' => $now,
-        'finished_at' => $now,
-        'log' => "Prydwen (Genshin Impact): fetching https://www.prydwen.gg/genshin/characters\nFailed: enka.network did not answer",
-        'stats' => Json::encode(['errors' => 1, 'unmatched' => ['genshin:weapons' => ['Prydwen favourite from https://www.prydwen.gg']]]),
+        'created_at' => $now,
+        'updated_at' => $now,
     ]);
     $account = seedAccount(1, 'genshin', ['uid' => '700000001', 'nickname' => 'Main']);
     db()->insert('import_runs', [
@@ -189,30 +181,31 @@ test('what the Sources, build and account pages get names no other site', functi
             'items' => 0,
             'full_inventory' => true,
             'tool' => 'Inventory Kamera',
-            'warnings' => ['Unknown set {"name":"Prydwen"} was skipped.', 'Unknown weapon {"name":"https://www.prydwen.gg/blade"} was skipped.'],
+            'warnings' => ['Unknown set {"name":"Fictional Builds"} was skipped.', 'Unknown weapon {"name":"https://fictional-builds.example/blade"} was skipped.'],
             'warning_kinds' => [
-                ['code' => 'unknown_set', 'params' => ['ref' => 'Prydwen']],
-                ['code' => 'unknown_weapon', 'params' => ['weapon_label' => 'Weapon', 'ref' => 'https://www.prydwen.gg/blade']],
+                ['code' => 'unknown_set', 'params' => ['ref' => 'Fictional Builds']],
+                ['code' => 'unknown_weapon', 'params' => ['weapon_label' => 'Weapon', 'ref' => 'https://fictional-builds.example/blade']],
             ],
-            'unmatched' => ['genshin:sets' => ['prydwen.gg favourite']],
+            'unmatched' => ['genshin:sets' => ['fictional-builds.example favourite']],
         ]),
         'created_at' => $now,
         'updated_at' => $now,
     ]);
 
     $admin = (new Client())->asIam(1, ['ADMIN']);
-    assertNeutral($admin->get('/api/sources'), 'the sources');
-    $sources = $admin->get('/api/sources')->json();
-    check(in_array('Source 2', array_column($sources['sources'] ?? $sources, 'name'), true), 'the failed source is "Source 2": ' . json_encode($sources));
-    assertNeutral($admin->get('/api/sync-runs'), 'the runs');
-    assertNeutral($admin->get("/api/sync-runs/{$run}"), 'a run with its log');
+    assertNeutral($admin->get('/api/builds'), 'the builds of every game');
     assertNeutral($admin->get('/api/builds/genshin'), 'the builds of a game');
     $builds = $admin->get('/api/builds/genshin/hutao');
     assertNeutral($builds, 'a character\'s builds');
-    same(null, $builds->json('builds.0.source_url'), 'the page a build came from is not sent');
-    $file = $admin->get('/api/sources/genshin-2/export');
-    assertNeutral($file, 'a builds file');
-    same(1, count($file->json('builds')), 'the file holds the build');
+    same(
+        ['The source pick', 'Staff of Homa (the source)', 'See the source page'],
+        [$builds->json('builds.0.qualifier'), $builds->json('builds.0.weapons.0.name'), $builds->json('builds.0.sets.0.note')],
+        'its texts, in neutral words',
+    );
+    assertNeutral($admin->get('/api/admin/builds'), 'the Builds page');
+    $export = $admin->get('/api/admin/builds/genshin/export');
+    assertNeutral($export, 'a builds file');
+    same(['The source pick'], array_column($export->json('builds'), 'qualifier'), 'the file holds the build');
     $imports = $admin->get("/api/accounts/{$account}/imports");
     assertNeutral($imports, 'the imports of an account');
     // The parameters are there (newest first), with neutral words where the file named a site.
@@ -231,6 +224,51 @@ test('what the Sources, build and account pages get names no other site', functi
     $weapon = array_values(array_filter($analysis->json('evaluations.0.recommendations') ?? [], fn(array $r) => ($r['kind'] ?? null) === 'weapon_none'));
     same('Staff of Homa (the source)', $weapon[0]['params']['options'] ?? null, 'the weapon to aim for, neutral: ' . json_encode($analysis->json()));
     assertNeutral($admin->get("/api/accounts/{$account}"), 'the account, with its characters\' top issues');
+
+    // A builds file that names the site wherever it has text, with a character this catalog lacks named after it:
+    // an import's answers - a dry run's too - name it nowhere, nor the build it removes (the one above, which the
+    // file does not have), and neither does the Builds page with the import listed.
+    $kazuha = [
+        'character' => 'kaedeharakazuha',
+        'character_name' => 'Kaedehara Kazuha (Fictional Builds)',
+        'role' => 'support',
+        'qualifier' => 'Fictional Builds',
+        'min_rank' => 0,
+        'weapons' => [['key' => 'freedomsworn', 'name' => 'Freedom-Sworn (fictional-builds.example)', 'refinement' => null, 'note' => 'Per https://fictional-builds.example/kazuha']],
+        'sets' => [
+            [
+                'kind' => 'artifact',
+                'choose' => null,
+                'pieces' => [
+                    ['label' => 'Viridescent Venerer (Fictional Builds)', 'count' => 4, 'keys' => ['viridescentvenerer'], 'names' => ['Viridescent Venerer, as fictional-builds.example has it']],
+                ],
+                'note' => 'Fictional Builds says so.',
+            ],
+        ],
+        'main_stats' => ['sands' => [['stat' => 'eleMas', 'priority' => 1]]],
+        'substats' => [['stat' => 'eleMas', 'priority' => 1]],
+        'talent_priority' => null,
+        'stat_targets' => [['stat' => 'eleMas', 'min' => 800, 'max' => null, 'text' => '800 EM (fictional-builds.example)', 'from_rank' => 0]],
+        'notes' => 'From https://fictional-builds.example/kazuha - thanks Fictional Builds!',
+        'game_version' => '5.4',
+    ];
+    $file = [
+        'format' => 'build-analyzer.builds',
+        'format_version' => 2,
+        'game' => 'genshin',
+        'exported_at' => '2026-10-01T10:00:00Z',
+        'builds' => [$kazuha, ['character' => 'fictionalbuilds', 'character_name' => 'Fictional Builds mascot'] + $kazuha],
+    ];
+    assertNeutral($admin->post('/api/admin/builds/genshin/import?dry_run=1', $file), 'a dry run\'s answer');
+    $imported = $admin->post('/api/admin/builds/genshin/import', $file);
+    assertNeutral($imported, 'an import\'s answer');
+    same(
+        [1, 1, 1],
+        [$imported->json('created'), $imported->json('removed'), count($imported->json('skipped'))],
+        'the file\'s build created, the one above removed, the character the catalog lacks skipped',
+    );
+    assertNeutral($admin->get('/api/admin/builds'), 'the Builds page, the import listed');
+    assertNeutral($admin->get('/api/builds/genshin/kaedeharakazuha'), 'the build imported');
 
     assertNeutral($admin->get('/api/meta'), 'meta');
 });

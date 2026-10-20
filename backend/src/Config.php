@@ -14,8 +14,8 @@ use Anotoki\Lib\Auth\IamClient;
  *                        only way in; a "mode" or "local_user_id" left in an older file means nothing and opens
  *                        nothing.
  *   fetch.local.php      optional: outgoing requests - how the app identifies itself, the delay between two
- *                        requests to one site, the page cache, and how long one sync step may run. Each value
- *                        it leaves out is FETCH_DEFAULTS'.
+ *                        requests to one site, how long a request may take. Each value it leaves out is
+ *                        FETCH_DEFAULTS'; one it no longer reads (an older file's step_seconds) means nothing.
  *   client_address.local.php  optional, written by hand: an installation's own proxies over config/app.php's
  *                        client_address (Cloudflare's ranges) - ['trusted_proxies' => []] where the site is
  *                        not behind Cloudflare. Its trusted_proxies and nothing else: the header a proxy names
@@ -84,9 +84,6 @@ final class Config
         'browser_user_agent' => 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0 Safari/537.36',
         'timeout' => 30,
         'delay_ms' => 1200,
-        'cache_hours' => 12,
-        'step_seconds' => 20,
-        'stale_hours' => 20,
     ];
 
     /** @param array<string, mixed> $values */
@@ -414,7 +411,7 @@ final class Config
         if (!is_string($fetch['user_agent'] ?? null) || trim($fetch['user_agent']) === '') {
             $problems[] = 'config/fetch.local.php has no user_agent';
         }
-        foreach (['timeout', 'delay_ms', 'cache_hours', 'step_seconds', 'stale_hours'] as $key) {
+        foreach (['timeout', 'delay_ms'] as $key) {
             if (isset($fetch[$key]) && (!is_int($fetch[$key]) || $fetch[$key] < 0)) {
                 $problems[] = "config/fetch.local.php has a {$key} that is not a whole number";
             }

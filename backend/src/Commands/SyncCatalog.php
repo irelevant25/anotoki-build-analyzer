@@ -5,12 +5,12 @@ namespace App\Commands;
 use App\App;
 use App\Cli;
 use App\Enums\Game;
-use App\Models\SyncRun;
-use App\Repositories\SyncRuns;
-use App\Services\Sync\SyncRunner;
+use App\Services\Catalog\CatalogSync;
+use Throwable;
 
 /**
- * sync-catalog.php: refresh the game catalog from the command line.
+ * sync-catalog.php: refresh the game catalog from the command line - each list of each game, as the Builds page
+ * does one list at a time. Without --force a game whose catalog was refreshed within refresh_days is left as it is.
  */
 final class SyncCatalog
 {
@@ -30,15 +30,24 @@ final class SyncCatalog
             $games = [$game];
         }
 
-        $runner = $app->get(SyncRunner::class);
-        ['started' => $started, 'skipped' => $skipped] = $runner->startCatalog($games, isset($options['force']));
-        foreach ($skipped as $skip) {
-            Cli::line("{$skip['name']} is {$skip['reason']}, skipping (use --force to refresh).");
+        $sync = $app->get(CatalogSync::class);
+        $failed = false;
+        foreach ($games as $game) {
+            if (!isset($options['force']) && !$sync->isStale($game)) {
+                Cli::line("{$game->label()}: refreshed within " . (int) $app->config->get('catalog.refresh_days', 3) . ' days, skipping (use --force to refresh).');
+
+                continue;
+            }
+            foreach (CatalogSync::LISTS as $list) {
+                try {
+                    Cli::line("{$game->label()}: {$sync->syncList($game, $list)} {$list}.");
+                } catch (Throwable $e) {
+                    $failed = true;
+                    Cli::error("{$game->label()} {$list}: {$e->getMessage()}");
+                }
+            }
         }
 
-        $ids = array_map(fn(SyncRun $run) => (int) $run->id, $started);
-        $runner->runUntilDone($ids, fn(string $line) => Cli::line($line));
-
-        return $app->get(SyncRuns::class)->anyFailed($ids) ? 1 : 0;
+        return $failed ? 1 : 0;
     }
 }

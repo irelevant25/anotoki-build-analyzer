@@ -19,7 +19,11 @@ import { provideKit } from '../../core/kit';
 /** The informal Slovak of the strings these cases look at: every game term stays as it is, first or after a colon. */
 const SLOVAK: Record<string, string> = {
   'error.editor_only': 'Toto môže urobiť len editor alebo správca.',
-  'builds.sourcesPage': 'Zdroje',
+  'builds.adminPage': 'Builds',
+  'builds.role.main_dps': 'Hlavný DPS',
+  'builds.role.sub_dps': 'Vedľajší DPS',
+  'builds.role.support': 'Podpora',
+  'builds.role.unknown': 'Build',
   'buildDetail.optionAny.one': '(ľubovoľný 1)',
   'buildDetail.optionAny.few': '(ľubovoľné {count})',
   'buildDetail.optionAny.other': '(ľubovoľných {count})',
@@ -27,7 +31,10 @@ const SLOVAK: Record<string, string> = {
   'recommendation.sets_missing': '{set_label}: odporúča sa {best}. Teraz máš: {current}.',
   'recommendation.target_below': '{stat}: máš {current}, build mieri na {min} a viac.',
   'character.talentBonus': '{ranks}: +{bonus}',
-  'character.noBuilds': '{name}: zatiaľ žiadne buildy. Pribudnú po ďalšej synchronizácii buildov (správcovia ju spúšťajú na stránke {link}).',
+  'character.noBuilds': '{name}: zatiaľ žiadne buildy. Pribudnú, keď ich editor importuje (na stránke {link}).',
+  'character.versus': 'oproti buildu: {build}',
+  'character.needsRank': 'potrebuje {rank}',
+  'character.rankNotReached': 'Tento build potrebuje {rank}; {name} má {current}.',
   'character.yourWeapon': '{weapon_label}:',
   'character.weaponOption': 'možnosť č. {rank} / {total}',
   'character.category.sets': 'Sety',
@@ -51,11 +58,6 @@ const SLOVAK: Record<string, string> = {
   'character.reason.completesSet': 'Doplní set bonus podľa odporúčania',
   'character.reason.unknown': 'Lepšie pre tento build',
   'character.currentPiece': 'Terajší kus: {percent} %',
-  'character.consensus.builds.one': '{count} build, zdroje: {sources}',
-  'character.consensus.builds.few': '{count} buildy, zdroje: {sources}',
-  'character.consensus.builds.other': '{count} buildov, zdroje: {sources}',
-  'character.consensus.sets': 'Sety',
-  'character.consensus.bestWeapon': '{weapon_label} – najlepšie voľby',
   'character.stats.fromShowcase': 'Celkové hodnoty z hry, zdroj: Character Showcase, {when}.',
   'character.stats.itemsOnly': 'Zdroj: len {items} (celkové hodnoty z hry uvidíš po importe zadaním UID):',
 };
@@ -143,13 +145,22 @@ function item(slot: string): AnalyzedItem {
   };
 }
 
-function build(id: number, source: string): Build {
+/** A build's variation: its role, qualifier and the constellation it needs. */
+interface Variation {
+  role: string;
+  qualifier: string;
+  min_rank: number;
+}
+
+/** Hu Tao's two builds: her main DPS one, and a Support one that needs C2 (she is C1). */
+const MAIN: Variation = { role: 'main_dps', qualifier: '', min_rank: 0 };
+const SUPPORT_C2: Variation = { role: 'support', qualifier: 'Melt', min_rank: 2 };
+
+function build(id: number, variation: Variation): Build {
   return {
     id,
-    source: { key: `genshin-${id}`, name: source },
-    variant: 'Main DPS',
-    role: null,
-    recommended: true,
+    ...variation,
+    position: id - 11,
     weapons: [],
     sets: [],
     main_stats: {},
@@ -157,16 +168,16 @@ function build(id: number, source: string): Build {
     talent_priority: null,
     stat_targets: null,
     notes: null,
-    source_updated_at: null,
     game_version: null,
-    fetched_at: null,
+    checked_at: null,
     changed_at: null,
   };
 }
 
-function evaluation(id: number, source: string, recommendations: Recommendation[]): Evaluation {
+function evaluation(id: number, variation: Variation, recommendations: Recommendation[]): Evaluation {
   return {
-    build: { id, source: { key: `genshin-${id}`, name: source }, variant: 'Main DPS', role: null, recommended: true, source_updated_at: null, game_version: null, fetched_at: null },
+    // Hu Tao is C1: a build that needs more is judged all the same, and says so.
+    build: { id, ...variation, applies: variation.min_rank <= 1, position: id - 11, game_version: null, checked_at: null },
     score: { overall: 71, grade: 'B', parts: { weapon: 80, sets: 50, main_stats: 66, substats: 70, targets: null } },
     weapon: {
       score: 80,
@@ -233,26 +244,13 @@ function analysis(game: GameKey = 'genshin', change: Partial<CharacterAnalysis> 
       synced_at: new Date(Date.now() - 3 * 3600 * 1000 - 5000).toISOString(),
     },
     equipment: { totals: { critRate_: 7.8 }, crit_value: 182.4, slots: ['sands'] },
-    evaluations: [evaluation(11, 'Source 1', RECOMMENDATIONS), evaluation(12, 'Source 2', [])],
+    evaluations: [evaluation(11, MAIN, RECOMMENDATIONS), evaluation(12, SUPPORT_C2, [])],
     best_build_id: 11,
     focus_build_id: null,
-    consensus: {
-      builds: 2,
-      sources: ['Source 1', 'Source 2'],
-      main_stats: { sands: [{ name: 'hp_', count: 2 }] },
-      sets: {
-        artifact: [
-          { name: '2pc Alpha + 2pc Beta + 2pc Gamma (any 2)', pieces: '2pc Alpha + 2pc Beta + 2pc Gamma', choose: 2, count: 1 },
-          { name: '4pc Delta', pieces: '4pc Delta', choose: null, count: 1 },
-        ],
-        mystery: [{ name: '2pc Omega', pieces: '2pc Omega', choose: null, count: 2 }],
-      },
-      weapons: [{ name: 'Staff of Homa', count: 2 }],
-    },
     suggestions: [suggestion('flower', 'better_substats', 3, 'Xiangling'), suggestion('sands', 'completes_set', 0, null), suggestion('goblet', 'sparkles', 0, null)],
     set_plans: [plan('artifact', 4, 2)],
     has_full_inventory: true,
-    builds: [build(11, 'Source 1'), build(12, 'Source 2')],
+    builds: [build(11, MAIN), build(12, SUPPORT_C2)],
     ...change,
   };
 }
@@ -268,7 +266,7 @@ describe('CharacterPage: the site’s words are keys, the game’s words stay', 
   /** The names of the kit's icons. */
   const icons = (selector: string) => fixture.debugElement.queryAll(By.css(selector)).map((icon) => (icon.componentInstance as IconComponent).name());
 
-  /** Who looks: somebody signed in (an editor: the Sources page is a link), or nobody. */
+  /** Who looks: somebody signed in (an editor: the admin panel's Builds page is a link), or nobody. */
   async function open(language: 'en' | 'sk' | 'marked', answer: Observable<CharacterAnalysis> = of(analysis()), who: 'editor' | 'member' | 'nobody' = 'editor'): Promise<void> {
     TestBed.configureTestingModule({
       providers: [
@@ -301,20 +299,22 @@ describe('CharacterPage: the site’s words are keys, the game’s words stay', 
 
     expect(text('.hero anotoki-badge')).toEqual(['Pyro', 'Polearm', 'Lv. 90', 'C1', 'Elemental Skill 12+3']);
     expect(tooltip('.hero anotoki-badge:last-child')).toBe('+3 from Constellations');
-    expect(text('.hero-grade .small')).toEqual(['vs. Source 1 · Main DPS']);
-    // The kit's tabs: a build each, its score the tab's badge - seen as the bare number, heard in words after the
-    // name -; the build closest to the setup marked by an icon and a filled badge, and heard so.
-    expect(text('[role="tab"] .anotoki-tabs__label')).toEqual(['Source 1 · Main DPS', 'Source 2 · Main DPS']);
+    expect(text('.hero-grade .small')).toEqual(['vs. Main DPS']);
+    // The kit's tabs: a build each, named by its variation, its score the tab's badge - seen as the bare number, heard
+    // in words after the name -; the build closest to the setup marked by an icon and a filled badge, and heard so; a
+    // build whose constellation the character does not reach locked, and heard so.
+    expect(text('[role="tab"] .anotoki-tabs__label')).toEqual(['Main DPS', 'Support · Melt · C2+']);
     expect(text('[role="tab"] .anotoki-tabs__badge')).toEqual(['71', '71']);
     expect([...host.querySelectorAll('[role="tab"] .anotoki-tabs__badge')].map((badge) => [badge.getAttribute('aria-hidden'), badge.getAttribute('data-tone')])).toEqual([
       ['true', 'primary'],
       ['true', 'neutral'],
     ]);
-    expect(text('[role="tab"] .anotoki-visually-hidden')).toEqual([', score 71, Closest match to your current setup', ', score 71']);
-    expect([...host.querySelectorAll('[role="tab"]')].map((tab) => tab.querySelector('anotoki-icon') !== null)).toEqual([true, false]);
+    expect(text('[role="tab"] .anotoki-visually-hidden')).toEqual([', score 71, Closest match to your current setup', ', score 71, needs C2']);
+    expect(icons('[role="tab"] anotoki-icon')).toEqual(['checkCircle', 'lock']);
+    expect(host.querySelector('.not-reached')).toBeNull();
     expect(text('.build-card [cardActions] anotoki-badge')).toEqual(['Closest match to your current setup']);
     expect(text('.top-grid .anotoki-card__title')).toEqual(['Score breakdown', 'What to improve']);
-    expect(text('.bottom-grid .anotoki-card__title')).toEqual(['What the sources agree on', 'Stats']);
+    expect(text('.bottom-grid .anotoki-card__title')).toEqual(['Stats']);
     expect(text('app-score-bar .anotoki-progress-bar__label')).toEqual(['Weapon', 'Set bonuses', 'Main stats', 'Substats', 'Stat targets']);
     expect(text('app-score-bar .anotoki-progress-bar__value')).toEqual(['80', '50', '66', '70', 'n/a']);
     // The kit's progress bar: a part without a score is heard as the page says it, never as a 0.
@@ -322,7 +322,7 @@ describe('CharacterPage: the site’s words are keys, the game’s words stay', 
     expect(text('.targets-note')).toEqual(['Stat targets need in-game totals; import this character by UID (Character Showcase) to check them.']);
     expect(text('.weapon-line > *')).toEqual(['Your Weapon:', "Dragon's Bane R5", 'Lv. 90 · option #2 of 5']);
     expect(text('.section-head h2')).toEqual(['Your Artifacts', 'Better pieces you already own']);
-    expect(text('.build-card > .anotoki-card__header .anotoki-card__title')).toEqual(['Source 1 · Main DPS']);
+    expect(text('.build-card > .anotoki-card__header .anotoki-card__title')).toEqual(['Main DPS']);
     expect(text('.crit-value')).toEqual(['Crit value 182.4']);
     expect(tooltip('.crit-value')).toBe('2 × CRIT Rate + CRIT DMG from Artifacts');
     expect(text('.legend')).toEqual(['Substats in color matter most for this build; grayed ones are useless for it.']);
@@ -373,7 +373,6 @@ describe('CharacterPage: the site’s words are keys, the game’s words stay', 
     expect(text('.plan .plan-missing')).toEqual(['Na celý bonus ti chýbajú ešte 2 kusy tohto setu.']);
     expect(text('.suggestion-head anotoki-badge')).toEqual(['Substats: +3 body kvality', 'Doplní set bonus podľa odporúčania', 'Lepšie pre tento build']);
     expect(text('.suggestion > .small')).toEqual(['Terajší kus: 41 % · Teraz na postave: Xiangling', 'Terajší kus: 41 % · Nie je na žiadnej postave', 'Terajší kus: 41 % · Nie je na žiadnej postave']);
-    expect(text('.bottom-grid .anotoki-card__body > p')[0]).toBe('2 buildy, zdroje: Source 1, Source 2');
   });
 
   it('says them in English too, one piece and several', async () => {
@@ -383,29 +382,35 @@ describe('CharacterPage: the site’s words are keys, the game’s words stay', 
     expect(text('.plan .plan-missing')).toEqual(['Farm 2 more pieces of this set to complete the bonus.']);
     expect(text('.suggestion-head anotoki-badge')).toEqual(['+3 points of substat quality', 'Completes the recommended set bonus', 'Better for this build']);
     expect(text('.suggestion > .small')).toEqual(['Current piece: 41% · Currently on Xiangling', 'Current piece: 41% · Not equipped by anyone', 'Current piece: 41% · Not equipped by anyone']);
-    expect(text('.bottom-grid .anotoki-card__body > p')[0]).toBe('2 builds from Source 1, Source 2');
   });
 
-  it('shows what the sources agree on: each set as its pieces, with the any-phrase where only some are needed', async () => {
-    await open('sk');
+  it('says above a build the character’s constellation does not reach that it needs more, in the game’s notation', async () => {
+    await open('sk', of(analysis('genshin', { focus_build_id: 12 })));
 
-    expect(text('.consensus-row > .muted')).toEqual(['Sands of Eon', 'Artifact sets', 'Sety', 'Weapon – najlepšie voľby']);
-    expect(text('.consensus-row anotoki-badge')).toEqual(['HP% 2×', '2pc Alpha + 2pc Beta + 2pc Gamma (ľubovoľné 2) 1×', '4pc Delta 1×', '2pc Omega 2×', 'Staff of Homa 2×']);
+    expect(text('.hero-grade .small')).toEqual(['oproti buildu: Podpora · Melt · C2+']);
+    expect(text('.not-reached .anotoki-alert__text')).toEqual(['Tento build potrebuje C2; Hu Tao má C1.']);
+    expect(text('.build-card > .anotoki-card__header .anotoki-card__title')).toEqual(['Podpora · Melt · C2+']);
+    // The closest build is still the one she reaches.
+    expect(text('.build-card [cardActions] anotoki-badge')).toEqual([]);
+
+    await TestBed.inject(TranslationService).setLanguage('en');
+    await fixture.whenStable();
+    expect(text('.not-reached .anotoki-alert__text')).toEqual(['This build needs C2; Hu Tao is C1.']);
   });
 
   it('cuts the sentence with a link inside at its placeholder', async () => {
     await open('sk', of(analysis('genshin', { evaluations: [] })));
 
-    expect(text('.no-builds p')).toEqual(['Hu Tao: zatiaľ žiadne buildy. Pribudnú po ďalšej synchronizácii buildov (správcovia ju spúšťajú na stránke Zdroje).']);
+    expect(text('.no-builds p')).toEqual(['Hu Tao: zatiaľ žiadne buildy. Pribudnú, keď ich editor importuje (na stránke Builds).']);
     const link = host.querySelector<HTMLAnchorElement>('.no-builds a')!;
-    expect(link.textContent).toBe('Zdroje');
-    expect(link.getAttribute('href')).toBe('/admin/sources');
+    expect(link.textContent).toBe('Builds');
+    expect(link.getAttribute('href')).toBe('/admin/builds');
   });
 
-  it('names the Sources page without a link for somebody who cannot open it', async () => {
+  it('names the admin panel’s Builds page without a link for somebody who cannot open it', async () => {
     await open('sk', of(analysis('genshin', { evaluations: [] })), 'member');
 
-    expect(text('.no-builds p')).toEqual(['Hu Tao: zatiaľ žiadne buildy. Pribudnú po ďalšej synchronizácii buildov (správcovia ju spúšťajú na stránke Zdroje).']);
+    expect(text('.no-builds p')).toEqual(['Hu Tao: zatiaľ žiadne buildy. Pribudnú, keď ich editor importuje (na stránke Builds).']);
     expect(host.querySelector('.no-builds a')).toBeNull();
   });
 
@@ -492,8 +497,8 @@ describe('CharacterPage: the site’s words are keys, the game’s words stay', 
     ]) {
       expect(rest, word).not.toContain(word);
     }
-    // The game's words are there as they are.
-    for (const term of ['Set bonuses', 'Main stats', 'Substats', 'Weapon', 'Artifact sets', 'Lv. 90', 'Source 1 · Main DPS']) {
+    // The game's words are there as they are - and a build's qualifier, and the constellation it needs.
+    for (const term of ['Set bonuses', 'Main stats', 'Substats', 'Weapon', 'Lv. 90', 'Melt · C2+']) {
       expect(rest, term).toContain(term);
     }
     expect(host.querySelector('app-grade-badge .badge')?.getAttribute('aria-label')).toBe('⟦Grade B⟧');
@@ -516,6 +521,7 @@ describe('CharacterPage: the site’s words are keys, the game’s words stay', 
     await open('sk');
     expect(text('.rec-cat + div')[0]).toBe('Sands of Eon: main stat je ATK%, tento build chce HP%.');
     expect(text('.plan [cardActions] anotoki-badge')[0]).toBe('Máš 2 / 4 kusy');
+    expect(text('[role="tab"] .anotoki-tabs__label')).toEqual(['Hlavný DPS', 'Podpora · Melt · C2+']);
 
     await TestBed.inject(TranslationService).setLanguage('en');
     await fixture.whenStable();
@@ -523,7 +529,7 @@ describe('CharacterPage: the site’s words are keys, the game’s words stay', 
     expect(text('.rec-cat')).toEqual(['Main stat · Sands of Eon', 'Sets', 'Stat target', 'Other']);
     expect(text('.plan [cardActions] anotoki-badge')[0]).toBe('You own 2 of 4 pieces');
     expect(text('.suggestion-head anotoki-badge')[0]).toBe('+3 points of substat quality');
-    expect(text('.consensus-row anotoki-badge')[1]).toBe('2pc Alpha + 2pc Beta + 2pc Gamma (any 2) 1×');
+    expect(text('[role="tab"] .anotoki-tabs__label')).toEqual(['Main DPS', 'Support · Melt · C2+']);
     expect(host.querySelectorAll('.rec [lang]')).toHaveLength(0);
   });
 });

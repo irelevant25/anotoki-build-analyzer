@@ -27,18 +27,12 @@ bootTests();
 $users = fn() => (int) db()->value('SELECT count(*) FROM users');
 $userName = fn(int $id) => db()->value('SELECT name FROM users WHERE id = ?', [$id]);
 
-/** The editors' routes: syncs, their history, a source's builds as a file, the site's strings. */
+/** The editors' routes: a game's builds as a file and their imports, the catalog refreshed, the site's strings. */
 const STAFF_ROUTES = [
-    ['GET', '/api/sync', null],
-    ['POST', '/api/sync/step', []],
-    ['POST', '/api/sync/builds', ['force' => 'not a boolean']],
-    ['POST', '/api/sync/catalog', ['games' => ['chess']]],
-    ['POST', '/api/sources/nowhere-9/sync', []],
-    ['POST', '/api/sync-runs/999/cancel', []],
-    ['GET', '/api/sync-runs', null],
-    ['GET', '/api/sync-runs/999', null],
-    ['GET', '/api/sources/genshin-1/export', null],
-    ['POST', '/api/sources/genshin-1/import', []],
+    ['GET', '/api/admin/builds', null],
+    ['GET', '/api/admin/builds/genshin/export', null],
+    ['POST', '/api/admin/builds/genshin/import', []],
+    ['POST', '/api/admin/catalog/genshin/characters', []],
     ['GET', '/api/admin/languages', null],
     ['GET', '/api/admin/translations', null],
     ['PUT', '/api/admin/translations', ['values' => []]],
@@ -47,11 +41,10 @@ const STAFF_ROUTES = [
 ];
 
 /**
- * The admins' own: sources on / off, database updates, the languages themselves, people's data, and the anotoki
- * library's admin tools - the error log, the audit log, feedback, backups (admin_tools.test.php: what each does).
+ * The admins' own: database updates, the languages themselves, people's data, and the anotoki library's admin
+ * tools - the error log, the audit log, feedback, backups (admin_tools.test.php: what each does).
  */
 const ADMIN_ROUTES = [
-    ['PATCH', '/api/sources/genshin-1', ['enabled' => false]],
     ['GET', '/api/admin/migrations', null],
     ['POST', '/api/admin/migrations/apply', []],
     ['POST', '/api/admin/languages', ['code' => 'de', 'name' => 'German', 'native_name' => 'Deutsch']],
@@ -138,18 +131,18 @@ test('the site\'s strings are public too: nobody is asked who they are', functio
     }
 });
 
-test('the builds and the sources are public: the same for everybody, and nobody is recorded', function () use ($users) {
+test('the builds are public: the same for everybody, and nobody is recorded', function () use ($users) {
     seedGenshinCatalog();
 
     (new Client())->get('/api/builds/genshin')->status(200);
     (new Client())->get('/api/builds/genshin/hutao')->status(200)->path('character.key', 'hutao');
-    $sources = (new Client())->get('/api/sources')->status(200);
-    check(in_array('Source 1', array_column($sources->json(), 'name'), true), 'the sources: ' . $sources->body);
-    same('', $sources->header('WWW-Authenticate'), 'no sign-in is asked for');
+    $builds = (new Client())->get('/api/builds')->status(200);
+    same(['genshin'], array_column($builds->json(), 'game'), 'how fresh the builds are, per game: ' . $builds->body);
+    same('', $builds->header('WWW-Authenticate'), 'no sign-in is asked for');
     same(0, $users(), 'nobody was recorded');
 
     // Signed in, the same answers.
-    same($sources->body, (new Client())->asIam(7, [])->get('/api/sources')->status(200)->body, 'a signed-in person');
+    same($builds->body, (new Client())->asIam(7, [])->get('/api/builds')->status(200)->body, 'a signed-in person');
 });
 
 test('requests without a valid access token are refused', function () use ($users) {
@@ -197,7 +190,7 @@ test('credentials that are sent must verify: never answered as if none were sent
         'bearer in small letters' => ['Authorization' => 'bearer x'],
     ];
     foreach ($bad as $case => $headers) {
-        foreach (['/api/accounts', '/api/builds/genshin', '/api/sources', '/api/sync', '/api/admin/errors', '/api/admin/people'] as $url) {
+        foreach (['/api/accounts', '/api/builds/genshin', '/api/builds', '/api/admin/builds', '/api/admin/errors', '/api/admin/people'] as $url) {
             $answer = (new Client())->withHeaders($headers)->get($url);
             same([401, 'invalid_token'], [$answer->status, $answer->json('code')], "{$case}: {$url}");
         }
@@ -218,7 +211,7 @@ test('credentials that are sent must verify: never answered as if none were sent
 test('another scheme than Bearer is no credentials: "Basic" (a host behind a password file) is answered as if nothing was sent', function () use ($users) {
     seedGenshinCatalog();
     $basic = ['Authorization' => 'Basic b3duZXI6b3duZXI='];
-    foreach (['/api/builds/genshin' => 200, '/api/sources' => 200, '/api/accounts' => 401, '/api/sync' => 401, '/api/me/export' => 401] as $url => $status) {
+    foreach (['/api/builds/genshin' => 200, '/api/builds' => 200, '/api/accounts' => 401, '/api/admin/builds' => 401, '/api/me/export' => 401] as $url => $status) {
         $answer = (new Client())->withHeaders($basic)->get($url);
         same($status, $answer->status, "Basic: {$url}");
         same((new Client())->get($url)->body, $answer->body, "Basic: {$url} answers what no header does");
@@ -255,14 +248,14 @@ test('an ordinary person (MEMBER) uses their own accounts and imports, and nothi
             ->post('/api/imports/file', ['content' => 'not json'])
             ->status(422)
             ->path('code', 'file_not_json');
-        $person->get('/api/sync')->status(403)->path('code', 'editor_only');
+        $person->get('/api/admin/builds')->status(403)->path('code', 'editor_only');
         $person->get('/api/admin/migrations')->status(403)->path('code', 'admin_only');
         same([], (new App\Models\User(7, 'x'))->withRoles($roles)->roles(), "{$case}: no role here");
     }
 });
 
 test('the editors\' routes refuse a person with no role, and the admins\' refuse an editor - route by route', function () use ($refusedAs) {
-    $before = [db()->all('SELECT code, name, enabled FROM languages ORDER BY code'), (int) db()->value('SELECT count(*) FROM sync_runs')];
+    $before = [db()->all('SELECT code, name, enabled FROM languages ORDER BY code'), (int) db()->value('SELECT count(*) FROM build_imports')];
     $nobody = new Client();
     $person = (new Client())->asIam(3, []);
     $editor = (new Client())->asIam(4, [Role::EDITOR]);
@@ -281,38 +274,35 @@ test('the editors\' routes refuse a person with no role, and the admins\' refuse
 
     // A role in the address or a header of the request is nobody's role.
     $refusedAs($editor->withHeaders(['X-Roles' => 'ADMIN'])->request('GET', '/api/admin/migrations?role=ADMIN'), 403, 'admin_only', 'Only an admin can do this.', 'a role in the request');
-    same($before, [db()->all('SELECT code, name, enabled FROM languages ORDER BY code'), (int) db()->value('SELECT count(*) FROM sync_runs')], 'and none of it was done');
+    same($before, [db()->all('SELECT code, name, enabled FROM languages ORDER BY code'), (int) db()->value('SELECT count(*) FROM build_imports')], 'and none of it was done');
 });
 
-test('an editor runs the syncs, reads their history, moves a source\'s builds and rewords the strings', function () {
+test('an editor moves a game\'s builds out and in, sees the imports made, and rewords the strings', function () {
     $editor = (new Client())->asIam(4, [Role::EDITOR]);
 
-    same(['active' => false, 'wait_ms' => null, 'runs' => []], $editor->get('/api/sync')->status(200)->json(), 'no syncs');
-    $editor->post('/api/sync/step')->status(200)->path('busy', false)->path('did', null);
-    $editor->get('/api/sync-runs')->status(200);
-    $file = $editor->get('/api/sources/genshin-1/export')->status(200)->json();
-    same('genshin-1', $file['source'] ?? null, 'a source\'s builds as a file');
+    $games = $editor->get('/api/admin/builds')->status(200)->json();
+    same([['genshin', 0, []]], array_map(fn(array $game) => [$game['game'], $game['builds'], $game['imports']], $games), 'no builds yet, and no imports');
+    $file = $editor->get('/api/admin/builds/genshin/export')->status(200);
+    same(['build-analyzer.builds', 'genshin', []], [$file->json('format'), $file->json('game'), $file->json('builds')], 'a game\'s builds as a file');
+    $editor
+        ->request('POST', '/api/admin/builds/genshin/import', null, ['body' => $file->body])
+        ->status(200)
+        ->path('dry_run', false)
+        ->path('created', 0);
     $editor->get('/api/admin/languages')->status(200);
     $editor->get('/api/admin/translations')->status(200);
     $editor->get('/api/admin/translations/sk/export')->status(200);
 
-    // An editor sees who started a run on the Sources page; a person with no role and nobody do not.
-    $source = (int) db()->value("SELECT min(id) FROM build_sources WHERE game = 'genshin'");
-    db()->insert('sync_runs', [
-        'build_source_id' => $source,
-        'kind' => 'builds',
-        'game' => 'genshin',
-        'status' => 'success',
-        'started_by' => 4,
-        'started_at' => App\Support\Clock::now(),
-        'finished_at' => App\Support\Clock::now(),
-    ]);
-    $latest = fn(Client $client) => array_values(array_filter(array_column($client->get('/api/sources')->status(200)->json(), 'latest_run')))[0] ?? [];
-    same(4, $latest($editor)['started_by']['id'] ?? null, 'an editor sees who started it');
-    same(4, $latest((new Client())->asIam(1, [Role::ADMIN]))['started_by']['id'] ?? null, 'an admin too');
-    $hidden = fn(array $run) => [$run['id'] ?? null, array_key_exists('started_by', $run), $run['started_by'] ?? null];
-    same([1, true, null], $hidden($latest((new Client())->asIam(3, []))), 'a person with no role sees the run, not who started it');
-    same([1, true, null], $hidden($latest(new Client())), 'nobody neither');
+    // An editor sees who imported the builds on the Builds page; a person with no role and nobody do not: they read
+    // how fresh the builds are, and no name.
+    $importedBy = fn(Client $client) => $client->get('/api/admin/builds')->status(200)->json('0.imports.0.imported_by');
+    same(['id' => 4, 'name' => 'user4'], $importedBy($editor), 'an editor sees who imported them');
+    same(['id' => 4, 'name' => 'user4'], $importedBy((new Client())->asIam(1, [Role::ADMIN])), 'an admin too');
+    (new Client())->asIam(3, [])->get('/api/admin/builds')->status(403)->path('code', 'editor_only');
+    (new Client())->get('/api/admin/builds')->status(401)->path('code', 'sign_in_required');
+    $public = (new Client())->get('/api/builds')->status(200);
+    same(['game', 'characters', 'builds', 'checked_at', 'changed_at'], array_keys($public->json('0')), 'how fresh the builds are, and nobody who imported them');
+    same($public->body, (new Client())->asIam(3, [])->get('/api/builds')->status(200)->body, 'a person with no role reads the same');
 });
 
 test('an admin may do everything an editor may, and the admins\' own', function () {
@@ -322,11 +312,6 @@ test('an admin may do everything an editor may, and the admins\' own', function 
         $answer = $admin->request($method, $url, $body);
         check(!in_array($answer->status, [401, 403], true), "{$method} {$url}: an admin is let through ({$answer->status})");
     }
-    $admin
-        ->patch('/api/sources/genshin-1', ['enabled' => false])
-        ->status(200)
-        ->path('enabled', false)
-        ->path('name', 'Source 1');
     $admin->get('/api/admin/migrations')->status(200)->path('pending', []);
     same(['applied' => [], 'failed' => null, 'error' => null, 'note' => null], $admin->post('/api/admin/migrations/apply')->status(200)->json(), 'nothing to apply');
     // One apply at a time: while another holds the lock every apply takes (the command line's, setup's, another
@@ -353,7 +338,7 @@ test('when the IAM requires sign-in, nobody gets anything but meta, the strings,
     seedGenshinCatalog();
     iamRequiresSignIn(true);
 
-    foreach (['/api/builds/genshin', '/api/builds/genshin/hutao', '/api/sources', '/api/accounts', '/api/me/export', '/api/sync'] as $url) {
+    foreach (['/api/builds/genshin', '/api/builds/genshin/hutao', '/api/builds', '/api/accounts', '/api/me/export', '/api/admin/builds'] as $url) {
         $answer = (new Client())->get($url);
         same(
             [401, ['message' => 'Sign in to continue.', 'code' => 'sign_in_required'], 'Bearer realm="' . TEST_CLIENT . '"'],
@@ -386,7 +371,7 @@ test('when the IAM requires sign-in, nobody gets anything but meta, the strings,
         foreach (['MEMBER' => ['MEMBER'], 'no role' => []] as $case => $roles) {
             $person = (new Client())->asIam(7, $roles);
             $person->get('/api/builds/genshin')->status(200);
-            $person->get('/api/sources')->status(200);
+            $person->get('/api/builds')->status(200);
             $person->get('/api/accounts')->status(200);
             $person->get('/api/admin/migrations')->status(403)->path('code', 'admin_only');
         }
@@ -423,7 +408,7 @@ test('a settings file that still says sign-in mode "none" opens nothing', functi
     T::$app->config->set('auth.mode', 'none');
     T::$app->config->set('auth.local_user_id', 9);
 
-    foreach (['/api/accounts', '/api/me/export', '/api/sync', '/api/admin/translations', '/api/admin/migrations', '/api/admin/people'] as $url) {
+    foreach (['/api/accounts', '/api/me/export', '/api/admin/builds', '/api/admin/translations', '/api/admin/migrations', '/api/admin/people'] as $url) {
         (new Client())->get($url)->status(401)->path('code', 'sign_in_required');
         (new Client())->get('http://127.0.0.1:8400' . $url)->status(401);
     }
@@ -440,7 +425,7 @@ test('a settings file that still says sign-in mode "none" opens nothing', functi
     // A token is needed as anywhere, and is enough.
     (new Client())->asIam(5, [])->get('/api/accounts')->status(200);
     (new Client())->asIam(5, [])->get('/api/me/export')->status(200)->path('accounts', []);
-    (new Client())->asIam(5, [])->get('/api/sync')->status(403);
+    (new Client())->asIam(5, [])->get('/api/admin/builds')->status(403);
 
     // The same from the files themselves: such an auth.local.php, and no fetch.local.php, is set up - and asks for a token.
     $old = T::$storage . DIRECTORY_SEPARATOR . 'old-none';
@@ -455,7 +440,7 @@ test('a settings file that still says sign-in mode "none" opens nothing', functi
     $app = new App\App($config, web: true);
     $app->set(Anotoki\Lib\Auth\SignInRule::class, new Anotoki\Lib\Auth\SignInRule(T::$iam->client()));
     $api = buildAnalyzerApi($app);
-    foreach (['/api/accounts', '/api/sync', '/api/admin/translations'] as $url) {
+    foreach (['/api/accounts', '/api/admin/builds', '/api/admin/translations'] as $url) {
         $request = (new Slim\Psr7\Factory\ServerRequestFactory())->createServerRequest('GET', 'http://localhost' . $url, ['REMOTE_ADDR' => '127.0.0.1'])->withHeader('Host', 'localhost');
         same(401, $api->handle($request)->getStatusCode(), "{$url} from this computer");
     }
@@ -478,7 +463,6 @@ test('ids in paths are numbers', function () {
     $admin = (new Client())->asIam(3, [Role::ADMIN]);
 
     $admin->get('/api/accounts/abc')->status(404)->path('code', 'not_found');
-    $admin->get('/api/sync-runs/abc')->status(404);
     $admin->delete('/api/admin/people/abc')->status(404);
     $admin->delete('/api/admin/people/-1')->status(404);
     $answer = $admin->post('/api/imports/file', ['content' => '{}', 'account_id' => 'abc'])->status(422);
@@ -499,7 +483,7 @@ test('every error a signed-in person can meet says what happened as a code, besi
     $person = (new Client())->asIam(3, []);
 
     $refusedAs((new Client())->get('/api/accounts'), 401, 'sign_in_required', 'Sign in to continue.', 'signed out');
-    $refusedAs($person->get('/api/sync'), 403, 'editor_only', 'Only an editor or an admin can do this.', 'not an editor');
+    $refusedAs($person->get('/api/admin/builds'), 403, 'editor_only', 'Only an editor or an admin can do this.', 'not an editor');
     $refusedAs((new Client())->asIam(3, [Role::EDITOR])->get('/api/admin/migrations'), 403, 'admin_only', 'Only an admin can do this.', 'not an admin');
     // Not found three ways: no such path, an id that is not a number, and something that is not there (or not theirs).
     $refusedAs($person->get('/api/nothing-here'), 404, 'not_found', 'Not found.', 'no such path');
@@ -553,7 +537,7 @@ test('every error a signed-in person can meet says what happened as a code, besi
     same(
         ['message' => 'No file arrived. A file larger than this server accepts arrives empty.'],
         $admin
-            ->request('POST', '/api/sources/genshin-1/import', null, ['body' => ''])
+            ->request('POST', '/api/admin/builds/genshin/import', null, ['body' => ''])
             ->status(422)
             ->json(),
         'an admin panel refusal',
@@ -587,7 +571,7 @@ test('an installation that is not set up answers 503 not_set_up everywhere', fun
     same(['config/database.local.php is missing', 'config/auth.local.php is missing'], $config->problems(), 'problems');
 
     $api = buildAnalyzerApi(new App\App($config));
-    foreach (['/api/meta', '/api/accounts', '/api/sync'] as $path) {
+    foreach (['/api/meta', '/api/accounts', '/api/admin/builds'] as $path) {
         $request = (new Slim\Psr7\Factory\ServerRequestFactory())->createServerRequest('GET', 'http://localhost' . $path, ['REMOTE_ADDR' => '127.0.0.1']);
         $response = $api->handle($request);
         same(503, $response->getStatusCode(), $path);
@@ -622,15 +606,11 @@ test('without fetch.local.php the outgoing requests use the defaults; with it, i
 
     $config = Config::load($root);
     same([], $config->problems(), 'set up without it');
-    same(
-        ['build-analyzer/1.0', 1200, 12, 20, 20],
-        [$config->get('fetch.user_agent'), $config->get('fetch.delay_ms'), $config->get('fetch.cache_hours'), $config->get('fetch.step_seconds'), $config->get('fetch.stale_hours')],
-        'the defaults',
-    );
+    same(['build-analyzer/1.0', 1200, 30], [$config->get('fetch.user_agent'), $config->get('fetch.delay_ms'), $config->get('fetch.timeout')], 'the defaults');
 
     file_put_contents($root . '/config/fetch.local.php', "<?php return ['user_agent' => 'build-analyzer/1.0 (https://builds.example.test)', 'delay_ms' => 2500];");
     $config = Config::load($root);
-    same(['build-analyzer/1.0 (https://builds.example.test)', 2500, 12], [$config->get('fetch.user_agent'), $config->get('fetch.delay_ms'), $config->get('fetch.cache_hours')], 'its own values');
+    same(['build-analyzer/1.0 (https://builds.example.test)', 2500, 30], [$config->get('fetch.user_agent'), $config->get('fetch.delay_ms'), $config->get('fetch.timeout')], 'its own values');
 });
 
 test('the browser check\'s settings folder stands in for config/ and storage/ - for a throwaway database only', function () {

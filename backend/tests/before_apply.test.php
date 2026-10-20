@@ -205,13 +205,13 @@ test('while they wait the site is closed - 503 update_pending - but meta, the st
     }
 
     $member = (new Client())->asIam(1, []);
-    foreach (['/api/accounts', "/api/accounts/{$account}", "/api/accounts/{$account}/imports", '/api/sources', '/api/builds/genshin', '/api/builds/genshin/hutao', '/api/me/export'] as $url) {
+    foreach (['/api/accounts', "/api/accounts/{$account}", "/api/accounts/{$account}/imports", '/api/builds', '/api/builds/genshin', '/api/builds/genshin/hutao', '/api/me/export'] as $url) {
         $closed($member->get($url), "a member: {$url}");
         $closed((new Client())->get($url), "nobody: {$url}");
     }
     $closed($member->post('/api/imports/file', ['content' => goodFile()]), 'a member\'s import');
     $admin = (new Client())->asIam(2, [Role::ADMIN]);
-    foreach (['/api/sync', '/api/sync-runs', '/api/admin/people'] as $url) {
+    foreach (['/api/admin/builds', '/api/admin/builds/genshin/export', '/api/admin/people'] as $url) {
         $closed($admin->get($url), "an admin: {$url}");
     }
     foreach (translationRoutes() as [$method, $url, $body]) {
@@ -256,7 +256,7 @@ test('the command line says that the strings are not there, and exits 1', functi
     }
 });
 
-test('behind the gate: meta, the dashboard\'s data, the builds and the sources answer as they did', function () {
+test('behind the gate: meta and the dashboard\'s data answer as they did', function () {
     behindTheGate(function (): void {
         seedGenshinCatalog();
         seedUser(1, 'owner');
@@ -281,17 +281,8 @@ test('behind the gate: meta, the dashboard\'s data, the builds and the sources a
             ->path('uid', '700000001')
             ->path('characters', []);
         $member->get("/api/accounts/{$account}/imports")->status(200);
-        $sources = $member->get('/api/sources')->status(200);
-        check(in_array('Source 1', array_column($sources->json(), 'name'), true), 'the sources: ' . $sources->body);
-        $member->get('/api/builds/genshin')->status(200);
-        $member->get('/api/builds/genshin/hutao')->status(200);
-
-        $admin = (new Client())->asIam(2, [Role::ADMIN]);
-        $admin->get('/api/sync')->status(200)->path('active', false);
-        $admin->get('/api/sync-runs')->status(200);
-        // The builds and the sources are public: signed out, the same.
-        (new Client())->get('/api/builds/genshin')->status(200);
-        (new Client())->get('/api/sources')->status(200);
+        // Not the builds: their routes read the tables 016 makes, and only the gate keeps them from a database
+        // without those - they have no second line.
     });
 });
 

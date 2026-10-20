@@ -172,8 +172,8 @@ final class AdminTools
             // The day's backup waits while an update waits - as the site gate sees it: the app's own Migrator.
             'ready' => static fn(PDO $pdo): bool => $app->get(Migrator::class)->applicable() === [],
             'lock' => Migrations::LOCK,
-            // Never restored: what the site counts and locks by the minute (the throttles, the syncs' locks).
-            'keep' => ['cache', 'cache_locks'],
+            // Never restored: what the site counts by the minute (the throttles, the claims, the catalog lists' state).
+            'keep' => ['cache'],
             'audit' => $app->get(AuditLog::class),
             'defer' => static fn(callable $work) => AfterResponse::add($work),
             'onError' => static function (Throwable $e) use ($app): void {

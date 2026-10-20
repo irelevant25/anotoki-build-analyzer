@@ -15,7 +15,7 @@ interface Who {
 }
 
 /**
- * The auth module as this site sets it up - the failure's screen on /sign-in, an editor sent to the Sources page -
+ * The auth module as this site sets it up - the failure's screen on /sign-in, an editor sent to the Builds page -
  * with the IAM's client in memory and a browser that only records where it was sent.
  */
 async function setup(who: Who = {}): Promise<{ handle: TestAnotokiAuth; auth: AnotokiAuth }> {
@@ -31,7 +31,7 @@ async function setup(who: Who = {}): Promise<{ handle: TestAnotokiAuth; auth: An
           roles: who.roles,
           loginRequired: who.loginRequired ?? false,
           visitors: { current: () => null, remember: () => undefined, forget: () => undefined },
-          config: { failureRoute: `/${SIGN_IN_FAILED_PATH}`, forbiddenRoute: '/admin/sources' },
+          config: { failureRoute: `/${SIGN_IN_FAILED_PATH}`, forbiddenRoute: '/admin/builds' },
         },
         handle,
       ),
@@ -104,16 +104,16 @@ describe("the admin panel's ADMIN pages: the family's adminGuard, as this site s
     return result instanceof UrlTree ? TestBed.inject(Router).serializeUrl(result) : (result as boolean);
   }
 
-  it('lets the ADMIN in, sends an editor (and anybody else signed in) to the Sources page', async () => {
+  it('lets the ADMIN in, sends an editor (and anybody else signed in) to the Builds page', async () => {
     await setup({ user: { sub: '1' }, roles: ['MEMBER', 'ADMIN'] });
     expect(await admin()).toBe(true);
     expect(await admin('/admin/backups')).toBe(true);
 
     await setup({ user: { sub: '4' }, roles: ['MEMBER', 'EDITOR'] });
-    expect(await admin()).toBe('/admin/sources');
+    expect(await admin()).toBe('/admin/builds');
 
     await setup({ user: { sub: '7' } });
-    expect(await admin('/admin/feedback')).toBe('/admin/sources');
+    expect(await admin('/admin/feedback')).toBe('/admin/builds');
   });
 
   it('sends somebody not signed in to the IAM, back to the page', async () => {

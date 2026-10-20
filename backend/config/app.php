@@ -8,26 +8,12 @@
 // writes; see App\Config. Nothing here is a secret or a fallback for those.
 // ---------------------------------------------------------------------------
 
-use App\Services\Builds\Sources\GenshinBuildsGenshin;
-use App\Services\Builds\Sources\GenshinGgGenshin;
-use App\Services\Builds\Sources\PrydwenGenshin;
-
 return [
     /*
-    | Build sources: the scrapers the build sync runs, chosen for structured, up-to-date data (see
-    | docs/build-sources.md for the sites that were rejected and why).
-    |
-    | The UI never names a site: each source is shown as "Source N" of its game, numbered in this order,
-    | and the API calls it "{game}-{N}". Add a new source at the end of its game so the others keep their
-    | numbers.
-    */
-    'sources' => [GenshinBuildsGenshin::class, PrydwenGenshin::class, GenshinGgGenshin::class],
-
-    /*
-    | The game catalog (names, rarity, elements, icons): up-to-date lists for both games, keyed by in-game
-    | IDs. Refreshed by a catalog run when older than refresh_days. An import that names an in-game ID the
-    | catalog lacks may refresh that one list, at most once per game and list per import_refresh_minutes
-    | (for every user together).
+    | The game catalog (names, rarity, elements, icons): up-to-date lists keyed by in-game IDs. Refreshed list by
+    | list on the admin panel's Builds page, or by sync-catalog.php when older than refresh_days. An import that
+    | names an in-game ID the catalog lacks may refresh that one list, at most once per game and list per
+    | import_refresh_minutes (for every user together).
     */
     'catalog' => [
         'genshin' => [
@@ -164,12 +150,15 @@ return [
     |   people        the scrub of the accounts the anotoki IAM deleted: at most once an hour, the IAM's list
     |                 read and each account nobody's here from then on (App\People\SitePeople)
     |   daily_backup  the day's backup of the database (anotoki-lib's backups, storage/backups: 14 kept)
+    |   prune         the day's tidying up: what has expired in the cache table, the downloaded files older
+    |                 than three days (App\Cache\Prune)
     |
-    | Both on wherever the site runs; the tests switch them off, but where they mean to try them.
+    | All on wherever the site runs; the tests switch them off, but where they mean to try them.
     */
     'upkeep' => [
         'people' => true,
         'daily_backup' => true,
+        'prune' => true,
     ],
 
     /*

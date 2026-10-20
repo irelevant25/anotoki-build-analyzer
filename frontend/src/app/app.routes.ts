@@ -7,7 +7,7 @@ import { AppLayout } from './layouts/app-layout/app-layout';
 
 /**
  * A `title` here is a translation key on the pages members read: the title strategy words it in the
- * language on the page and adds the brand (core/i18n/title-strategy.ts). The admin panel - /admin/sources,
+ * language on the page and adds the brand (core/i18n/title-strategy.ts). The admin panel - /admin/builds,
  * /admin/translations, /admin/languages, /admin/people, /admin/migrations, /admin/errors, /admin/audit,
  * /admin/feedback, /admin/backups - keeps a plain English title ("Migrations · Admin panel · Build Analyzer").
  * A route without one (the dashboard) is the brand alone.
@@ -16,7 +16,7 @@ import { AppLayout } from './layouts/app-layout/app-layout';
  * (core/visitor-key.ts), and the pages say what is kept for them - unless the IAM says this site requires a
  * sign-in: then they ask for one first (sitePagesGuard, on every child of the AppLayout - the anotoki family's
  * personOrVisitorGuard). The admin panel always asks for a sign-in (personGuard); its layout tells editors and
- * admins from the rest, the ADMIN pages are ADMIN's (adminGuard: an editor goes to the Sources page), and the
+ * admins from the rest, the ADMIN pages are ADMIN's (adminGuard: an editor goes to the Builds page), and the
  * server decides.
  *
  * The legal pages - Terms, Privacy, Contact: the anotoki family's (@anotoki/lib/legal/pages) with this site's
@@ -155,12 +155,14 @@ export const routes: Routes = [
     canActivate: [personGuard],
     loadComponent: () => import('./layouts/admin-layout/admin-layout').then((m) => m.AdminLayout),
     children: [
-      { path: '', pathMatch: 'full', redirectTo: 'sources' },
+      { path: '', pathMatch: 'full', redirectTo: 'builds' },
       {
-        path: 'sources',
-        title: 'Build sources',
-        loadComponent: () => import('./pages/admin/sources/sources-page').then((m) => m.SourcesPage),
+        path: 'builds',
+        title: 'Builds',
+        loadComponent: () => import('./pages/admin/builds/admin-builds-page').then((m) => m.AdminBuildsPage),
       },
+      // The Sources page's address, before the builds came in files: an old bookmark lands on the Builds page.
+      { path: 'sources', pathMatch: 'full', redirectTo: 'builds' },
       {
         path: 'translations',
         title: 'Translations',
@@ -215,8 +217,8 @@ export const routes: Routes = [
       },
     ],
   },
-  // The admin pages' addresses before the admin panel had one of its own.
-  { path: 'sources', pathMatch: 'full', redirectTo: 'admin/sources' },
+  // The admin pages' addresses before the admin panel had one of its own (the Sources page's is the Builds page's now).
+  { path: 'sources', pathMatch: 'full', redirectTo: 'admin/builds' },
   { path: 'translations', pathMatch: 'full', redirectTo: 'admin/translations' },
   { path: 'languages', pathMatch: 'full', redirectTo: 'admin/languages' },
   { path: '**', redirectTo: '' },

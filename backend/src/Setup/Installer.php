@@ -295,8 +295,8 @@ final class Installer
             'auth.local.php' => [$settings['auth'], 'where people sign in: the anotoki IAM', null],
         ];
         if (!is_file($this->state . '/config/fetch.local.php')) {
-            $fetch = ['user_agent' => $userAgent] + array_intersect_key(Config::FETCH_DEFAULTS, array_flip(['delay_ms', 'cache_hours', 'step_seconds', 'stale_hours']));
-            $files['fetch.local.php'] = [$fetch, 'outgoing requests and sync steps, the defaults', 'Edit it by hand (step_seconds 12-120); setup.php keeps it as it is.'];
+            $fetch = ['user_agent' => $userAgent] + array_intersect_key(Config::FETCH_DEFAULTS, array_flip(['delay_ms']));
+            $files['fetch.local.php'] = [$fetch, 'outgoing requests, the defaults', 'Edit it by hand; setup.php keeps it as it is.'];
         }
 
         $written = [];

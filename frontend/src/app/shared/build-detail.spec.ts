@@ -17,7 +17,7 @@ const SLOVAK: Record<string, string> = {
   'buildDetail.optionAny.one': '(ľubovoľný 1)',
   'buildDetail.optionAny.few': '(ľubovoľné {count})',
   'buildDetail.optionAny.other': '(ľubovoľných {count})',
-  'buildDetail.noWeapons': 'Tento zdroj tu nič neuvádza.',
+  'buildDetail.noWeapons': 'Tento build tu nič neuvádza.',
   'buildDetail.equipped': 'Nasadené',
   'buildDetail.owned': 'Máš',
   'buildDetail.setsQualify.one': '{label}: vyhovuje {count} set',
@@ -27,15 +27,13 @@ const SLOVAK: Record<string, string> = {
   'buildDetail.mainStatMatches': 'Main stat sedí s odporúčaním',
   'buildDetail.mainStatYours': 'Máš: {stat}',
   'buildDetail.substatPriority': 'Substats: priorita',
-  'buildDetail.substatsBorrowed': 'Tento zdroj ich neuvádza; analýza preberá priority z iného zdroja.',
+  'buildDetail.substatsDerived': 'Tento build ich neuvádza; analýza sa riadi tým, čo si žiadajú jeho main stats.',
   'buildDetail.talentPriority': '{talents}: priorita',
   'buildDetail.statTargets': 'Cieľové hodnoty',
   'buildDetail.targetYours': 'máš: {value}',
-  'buildDetail.notesFrom': 'Poznámky: {source}',
+  'buildDetail.notes': 'Poznámky',
   'buildDetail.version': 'Verzia {version}',
-  'buildDetail.updatedAtSource': 'V zdroji aktualizované {when}',
   'buildDetail.checked': 'Skontrolované {when}',
-  'buildDetail.checkedNever': 'Zatiaľ neskontrolované',
 };
 
 function gameMeta(key: GameKey): GameMeta {
@@ -71,10 +69,10 @@ const hoursAgo = (hours: number) => new Date(Date.now() - hours * 3600 * 1000 - 
 function build(change: Partial<Build> = {}): Build {
   return {
     id: 11,
-    source: { key: 'genshin-1', name: 'Source 1' },
-    variant: 'Main DPS',
-    role: null,
-    recommended: true,
+    role: 'main_dps',
+    qualifier: '',
+    min_rank: 0,
+    position: 0,
     weapons: [
       { key: 'homa', name: 'Staff of Homa', rank: 1, refinement: 1, note: 'Best in slot.', known: true },
       { key: 'bane', name: "Dragon's Bane", rank: 2, refinement: null, note: null, known: true },
@@ -112,18 +110,17 @@ function build(change: Partial<Build> = {}): Build {
       { talent: 'skill', priority: 1 },
       { talent: 'burst', priority: 2 },
     ],
-    stat_targets: [{ stat: 'critRate_', min: 70, max: null, text: 'At least 70% CRIT Rate.' }],
+    stat_targets: [{ stat: 'critRate_', min: 70, max: null, text: 'At least 70% CRIT Rate.', from_rank: 0 }],
     notes: 'Keep her HP below half.',
-    source_updated_at: hoursAgo(72),
     game_version: '5.2',
-    fetched_at: hoursAgo(2),
+    checked_at: hoursAgo(2),
     changed_at: null,
     ...change,
   };
 }
 
 const EVALUATION: Evaluation = {
-  build: { id: 11, source: { key: 'genshin-1', name: 'Source 1' }, variant: 'Main DPS', role: null, recommended: true, source_updated_at: null, game_version: null, fetched_at: null },
+  build: { id: 11, role: 'main_dps', qualifier: '', min_rank: 0, applies: true, position: 0, game_version: null, checked_at: null },
   score: { overall: 71, grade: 'B', parts: { weapon: 80, sets: 50, main_stats: 66, substats: 70, targets: 40 } },
   weapon: {
     score: 80,
@@ -146,7 +143,7 @@ const EVALUATION: Evaluation = {
   recommendations: [],
 };
 
-describe('BuildDetail: a recommended build in the reader’s words, the game’s and the source’s as they are', () => {
+describe('BuildDetail: a recommended build in the reader’s words, the game’s and the build’s own as they are', () => {
   let fixture: ComponentFixture<BuildDetail>;
   let host: HTMLElement;
   let warn: ReturnType<typeof vi.spyOn>;
@@ -195,8 +192,8 @@ describe('BuildDetail: a recommended build in the reader’s words, the game’s
     expect(tooltips('.check')).toEqual(['Yours: ATK%', 'Your main stat matches']);
     expect(labels('.check svg')).toEqual(['Yours: ATK%', 'Your main stat matches']);
     expect(text('.target > span')).toEqual(['CRIT Rate', '70.0%+', 'you: 62.0%', 'At least 70% CRIT Rate.']);
-    expect(text('.notes .anotoki-disclosure__button')).toEqual(['Notes from Source 1']);
-    expect(text('footer')).toEqual(['Version 5.2 · Updated at the source 3 days ago · Checked 2 hours ago']);
+    expect(text('.notes .anotoki-disclosure__button')).toEqual(['Notes']);
+    expect(text('footer')).toEqual(['Version 5.2 · Checked 2 hours ago']);
     expect(warn).not.toHaveBeenCalled();
   });
 
@@ -210,12 +207,12 @@ describe('BuildDetail: a recommended build in the reader’s words, the game’s
     expect(text('.sets anotoki-badge')).toEqual(['Používaš']);
     expect(tooltips('.check')).toEqual(['Máš: ATK%', 'Main stat sedí s odporúčaním']);
     expect(text('.target > span')).toEqual(['CRIT Rate', '70.0%+', 'máš: 62.0%', 'At least 70% CRIT Rate.']);
-    expect(text('.notes .anotoki-disclosure__button')).toEqual(['Poznámky: Source 1']);
-    expect(text('footer')).toEqual(['Verzia 5.2 · V zdroji aktualizované pred 3 dňami · Skontrolované pred 2 hodinami']);
+    expect(text('.notes .anotoki-disclosure__button')).toEqual(['Poznámky']);
+    expect(text('footer')).toEqual(['Verzia 5.2 · Skontrolované pred 2 hodinami']);
     expect(warn).not.toHaveBeenCalled();
   });
 
-  it('shows what the source wrote as it wrote it, marked as English while the page is in another language', async () => {
+  it('shows what the build’s text says as it says it, marked as English while the page is in another language', async () => {
     await show('sk', 'genshin', build(), EVALUATION);
 
     expect(text('.note')).toEqual(['Best in slot.', 'The usual choice.']);
@@ -229,7 +226,24 @@ describe('BuildDetail: a recommended build in the reader’s words, the game’s
     await TestBed.inject(TranslationService).setLanguage('en');
     await fixture.whenStable();
     expect(host.querySelectorAll('[lang]')).toHaveLength(0);
-    expect(text('footer')).toEqual(['Version 5.2 · Updated at the source 3 days ago · Checked 2 hours ago']);
+    expect(text('footer')).toEqual(['Version 5.2 · Checked 2 hours ago']);
+  });
+
+  it('marks a stat target from a constellation with it, in the game’s notation; the builds’ list shows a stat’s every target', async () => {
+    await show(
+      'sk',
+      'genshin',
+      build({
+        stat_targets: [
+          { stat: 'critRate_', min: 70, max: null, text: '', from_rank: 0 },
+          { stat: 'critRate_', min: 60, max: null, text: '', from_rank: 2 },
+        ],
+      }),
+    );
+
+    expect(text('.t-stat')).toEqual(['CRIT Rate', 'CRIT Rate C2+']);
+    expect(text('.t-rank')).toEqual(['C2+']);
+    expect(text('.t-goal')).toEqual(['70.0%+', '60.0%+']);
   });
 
   it('says "(any N)" and the qualifying sets in the form the number asks for', async () => {
@@ -253,7 +267,7 @@ describe('BuildDetail: a recommended build in the reader’s words, the game’s
     expect(text('.sets .w-text > .small')).toEqual(['Any: vyhovuje 5 setov']);
   });
 
-  it('uses the game’s terms, and says so when a source lists nothing', async () => {
+  it('uses the game’s terms, and says so when a build lists nothing', async () => {
     await show(
       'sk',
       'genshin',
@@ -264,13 +278,12 @@ describe('BuildDetail: a recommended build in the reader’s words, the game’s
         stat_targets: null,
         notes: null,
         game_version: null,
-        source_updated_at: null,
-        fetched_at: null,
+        checked_at: null,
       }),
     );
 
     expect(text('h3')).toEqual(['Weapons', 'Artifact sets', 'Main stats', 'Substats: priorita', 'Talents: priorita']);
-    expect(text('.block > p')).toEqual(['Tento zdroj tu nič neuvádza.', 'Tento zdroj ich neuvádza; analýza preberá priority z iného zdroja.']);
-    expect(text('footer')).toEqual(['Zatiaľ neskontrolované']);
+    expect(text('.block > p')).toEqual(['Tento build tu nič neuvádza.', 'Tento build ich neuvádza; analýza sa riadi tým, čo si žiadajú jeho main stats.']);
+    expect(text('footer')).toEqual(['']);
   });
 });

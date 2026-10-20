@@ -1,6 +1,5 @@
-<!-- The anotoki family's one bar (@anotoki/lib/shell), told what is this site's - and its widget before the language: the sync this tab drives. -->
+<!-- The anotoki family's one bar (@anotoki/lib/shell), told what is this site's. -->
 <anotoki-top-bar
-    #bar="anotokiTopBar"
     [brand]="brand()"
     [links]="links()"
     [navLabel]="'topbar.sections' | translate"
@@ -11,10 +10,4 @@
     [languages]="chooser()"
     [phoneMax]="phoneMax()"
     [shortBrandMax]="shortBrandMax()"
-    [phoneMark]="phoneMark()">
-    @if (syncing() && !bar.phone()) {
-        <a topBarWidgets class="sync-widget" routerLink="/admin/sources" [anotokiTooltip]="'toolbar.syncing' | translate" [attr.aria-label]="'toolbar.syncingLabel' | translate">
-            <anotoki-icon name="refresh" class="spin" [size]="20" />
-        </a>
-    }
-</anotoki-top-bar>
+    [phoneMark]="phoneMark()" />

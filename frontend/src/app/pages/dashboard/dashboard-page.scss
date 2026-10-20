@@ -88,29 +88,25 @@
   flex: 1 1 auto;
 }
 
-.source-grid {
+.builds-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(min(100%, 18.75rem), 1fr));
   gap: 1rem;
 }
 
-.source-row {
+.builds-row {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
   gap: 0.25rem 0.5rem;
   padding: 0.375rem 0;
-
-  & + .source-row {
-    border-top: 1px solid var(--anotoki-border);
-  }
 }
 
-.source-name {
+.builds-link {
   font-weight: 650;
 }
 
-// A source's state as a dot, beside the words that say it.
+// Whether a game has builds, as a dot beside the words that say it.
 .status-dot {
   flex: none;
   width: 10px;
@@ -120,24 +116,5 @@
 
   &.success {
     background: var(--grade-a);
-  }
-
-  &.partial {
-    background: var(--grade-c);
-  }
-
-  &.failed {
-    background: var(--grade-d);
-  }
-
-  &.running {
-    background: var(--grade-b);
-    animation: pulse 1.2s infinite;
-  }
-}
-
-@keyframes pulse {
-  50% {
-    opacity: 0.35;
   }
 }

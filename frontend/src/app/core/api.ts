@@ -5,19 +5,18 @@ import { Observable } from 'rxjs';
 import {
   AccountDetail,
   AccountSummary,
+  AdminBuildsGame,
   BuildCharacter,
-  BuildImportResult,
+  BuildImportPlan,
+  BuildsOverview,
+  CatalogList,
+  CatalogRefreshResult,
   CharacterAnalysis,
   CharacterBuilds,
   DataImportResult,
   GameKey,
   ImportRun,
   Meta,
-  SourceStatus,
-  SyncRunSummary,
-  SyncStartResult,
-  SyncStatus,
-  SyncStepResult,
   VisitorMove,
 } from './models';
 
@@ -26,8 +25,8 @@ export const API_BASE = '/api';
 
 /**
  * Typed client for the backend API (backend/api/routes). Each request says whom it is for as it is made - the
- * anotoki family's ISSUED_AS (@anotoki/lib/auth), which its interceptor reads: the admin panel's, the syncs',
- * the own-data file's and the move's are always the person's (the token, or the request is never sent - it
+ * anotoki family's ISSUED_AS (@anotoki/lib/auth), which its interceptor reads: the admin panel's, the
+ * own-data file's and the move's are always the person's (the token, or the request is never sent - it
  * fails at once as a 401 sign_in_required: a person's save never goes out as a visitor's, and never makes one);
  * the rest are whoever the page is shown to as the request is issued - the person signed in, else the visitor
  * (the visitor key, while the IAM lets visitors in; never a token).
@@ -97,69 +96,40 @@ export class Api {
     return this.http.get<CharacterBuilds>(`${this.base}/builds/${game}/${key}`, { context: this.asCaller() });
   }
 
-  sources(): Observable<SourceStatus[]> {
-    return this.http.get<SourceStatus[]>(`${this.base}/sources`, { context: this.asCaller() });
+  /** Per game: how many characters have builds and how many builds, when they were checked and changed (the dashboard). */
+  buildsOverview(): Observable<BuildsOverview[]> {
+    return this.http.get<BuildsOverview[]>(`${this.base}/builds`, { context: this.asCaller() });
   }
 
-  // ---------------------------------------------------------------- admin: syncs and the database
+  // ---------------------------------------------------------------- admin: the builds and the catalog
 
-  setSourceEnabled(key: string, enabled: boolean): Observable<SourceStatus> {
-    return this.http.patch<SourceStatus>(`${this.base}/sources/${key}`, { enabled }, { context: this.asPerson() });
-  }
-
-  /** "Sync now" on one source (always, however recently it was synced). */
-  syncSource(key: string): Observable<SyncStartResult> {
-    return this.http.post<SyncStartResult>(`${this.base}/sources/${key}/sync`, {}, { context: this.asPerson() });
+  /** The Builds page: per game the counts, the latest imports and who made them, the catalog's lists. */
+  adminBuilds(): Observable<AdminBuildsGame[]> {
+    return this.http.get<AdminBuildsGame[]>(`${this.base}/admin/builds`, { context: this.asPerson() });
   }
 
   /**
-   * A source's builds as a file to save, its name in Content-Disposition. Fetched here rather than opened
-   * as a link, because the API wants the bearer token.
+   * A game's builds as a file to save, its name in Content-Disposition. Fetched here rather than opened as a link,
+   * because the API wants the bearer token.
    */
-  exportSourceBuilds(key: string): Observable<HttpResponse<Blob>> {
-    return this.http.get(`${this.base}/sources/${key}/export`, { observe: 'response', responseType: 'blob', context: this.asPerson() });
+  exportBuilds(game: GameKey): Observable<HttpResponse<Blob>> {
+    return this.http.get(`${this.base}/admin/builds/${game}/export`, { observe: 'response', responseType: 'blob', context: this.asPerson() });
   }
 
-  /** Makes a source's builds exactly those of a builds file, whose text is sent as it is. */
-  importSourceBuilds(key: string, file: string): Observable<BuildImportResult> {
-    return this.http.post<BuildImportResult>(`${this.base}/sources/${key}/import`, file, {
+  /**
+   * A builds file's text, sent as it is: as a dry run, what importing it would do (nothing written); else the game's
+   * builds become the file's.
+   */
+  importBuilds(game: GameKey, file: string, dryRun: boolean): Observable<BuildImportPlan> {
+    return this.http.post<BuildImportPlan>(`${this.base}/admin/builds/${game}/import${dryRun ? '?dry_run=1' : ''}`, file, {
       context: this.asPerson(),
       headers: { 'Content-Type': 'application/json' },
     });
   }
 
-  /** Every enabled source; without force, sources synced within the last 20 hours are skipped. */
-  syncAllSources(force = false): Observable<SyncStartResult> {
-    return this.http.post<SyncStartResult>(`${this.base}/sync/builds`, { force }, { context: this.asPerson() });
-  }
-
-  syncCatalog(games?: GameKey[]): Observable<SyncStartResult> {
-    return this.http.post<SyncStartResult>(`${this.base}/sync/catalog`, games ? { games } : {}, { context: this.asPerson() });
-  }
-
-  syncStatus(): Observable<SyncStatus> {
-    return this.http.get<SyncStatus>(`${this.base}/sync`, { context: this.asPerson() });
-  }
-
-  /** One bounded piece of sync work (a page or two); call again after wait_ms while anything is active. */
-  syncStep(): Observable<SyncStepResult> {
-    return this.http.post<SyncStepResult>(`${this.base}/sync/step`, {}, { context: this.asPerson() });
-  }
-
-  cancelSyncRun(id: number): Observable<SyncRunSummary> {
-    return this.http.post<SyncRunSummary>(`${this.base}/sync-runs/${id}/cancel`, {}, { context: this.asPerson() });
-  }
-
-  syncRuns(source?: string, limit = 20): Observable<SyncRunSummary[]> {
-    let params = new HttpParams().set('limit', limit);
-    if (source) {
-      params = params.set('source', source);
-    }
-    return this.http.get<SyncRunSummary[]>(`${this.base}/sync-runs`, { params, context: this.asPerson() });
-  }
-
-  syncRun(id: number): Observable<SyncRunSummary> {
-    return this.http.get<SyncRunSummary>(`${this.base}/sync-runs/${id}`, { context: this.asPerson() });
+  /** One list of the game catalog, refreshed from the game data provider. */
+  refreshCatalog(game: GameKey, list: CatalogList): Observable<CatalogRefreshResult> {
+    return this.http.post<CatalogRefreshResult>(`${this.base}/admin/catalog/${game}/${list}`, {}, { context: this.asPerson() });
   }
 
   // The People page, the error log, the audit log, feedback and backups (/api/admin/people, /errors, /audit,

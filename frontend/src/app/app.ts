@@ -19,7 +19,7 @@ import { VisitorKey } from './core/visitor-key';
  * with the setup page only while the site was never installed; "not available right now" otherwise. The
  * router outlet is the gate's template, made only while the gate shows it: a page behind the gate's page is
  * not made at all, so it sends no request (each would be a 503) and leaves nothing behind - no error, no
- * message, no sync "stopped" in a service the pages share.
+ * message, nothing half done in a service the pages share.
  *
  * And what belongs to no page: the theme (the family's ThemeService - theme-boot.js has put the stored one on the
  * page before anything was drawn), What's new once per version, the kit's "Are you sure?" and its messages

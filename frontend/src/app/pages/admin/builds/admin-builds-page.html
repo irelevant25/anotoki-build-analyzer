@@ -1,0 +1,177 @@
+<div class="page">
+  <anotoki-page-header
+    heading="Builds"
+    lead="Builds are put together elsewhere and imported here, one file per game. The file is the whole truth for its game: once it is imported, the game's builds are exactly the file's - but for characters this installation's catalog lacks, which are skipped. Export saves a game's builds as such a file: a backup, and the start of a hand edit."
+  >
+    <button anotokiButton class="reload" (click)="load()" anotokiTooltip="Read this page's data again">
+      <anotoki-icon name="refresh" [size]="18" />Reload
+    </button>
+  </anotoki-page-header>
+
+  @if (loading()) {
+    <anotoki-spinner class="loading" label [delay]="200" />
+  }
+  @if (error(); as message) {
+    <anotoki-alert class="load-error" tone="danger" [announce]="true">{{ message }}</anotoki-alert>
+  }
+
+  @for (game of games; track game) {
+    @if (byGame()[game]; as data) {
+      @let state = states()[game];
+      <section class="game" [attr.aria-labelledby]="'game-' + game">
+        <div class="section-head">
+          <h2 [id]="'game-' + game">{{ gameLabels[game] }}</h2>
+        </div>
+
+        <div class="game-cards">
+          <anotoki-card class="builds" heading="Builds" [headingLevel]="3">
+            <div cardActions class="cluster">
+              <button
+                anotokiButton
+                class="export"
+                (click)="exportBuilds(game)"
+                [loading]="state.busy === 'export'"
+                [disabled]="state.busy !== null"
+                anotokiTooltip="Save this game's builds as a file: a backup, or the start of a hand edit"
+              >
+                <anotoki-icon name="download" [size]="18" />Export
+              </button>
+              <button
+                anotokiButton
+                class="import"
+                (click)="fileInput.click()"
+                [loading]="state.busy === 'check'"
+                [disabled]="state.busy !== null"
+                anotokiTooltip="The game's builds become the file's - after a preview of what changes"
+              >
+                <anotoki-icon name="upload" [size]="18" />Import a file
+              </button>
+              <input #fileInput type="file" accept=".json,application/json" hidden (change)="choose(game, fileInput)" />
+            </div>
+
+            <div class="card-body">
+              <anotoki-stat-tiles class="counts">
+                <anotoki-stat-tile label="Characters with builds" [value]="data.characters" />
+                <anotoki-stat-tile label="Builds" [value]="data.builds" />
+                <anotoki-stat-tile label="Newest file made" [value]="data.checked_at | timeAgo" [note]="moment(data.checked_at)" />
+                <anotoki-stat-tile label="Last change" [value]="data.changed_at | timeAgo" [note]="moment(data.changed_at)" />
+              </anotoki-stat-tiles>
+
+              @if (state.problem; as message) {
+                <anotoki-alert class="problem" tone="danger" [announce]="true">{{ message }}</anotoki-alert>
+              }
+
+              @if (state.preview; as preview) {
+                <div class="preview" aria-live="polite">
+                  <h4>What importing {{ preview.name }} does</h4>
+                  <p class="summary">{{ planSummary(preview.plan) }}</p>
+
+                  @if (preview.plan.older_than_current) {
+                    <anotoki-alert class="older" tone="warning">This file is older than the one the builds now come from.</anotoki-alert>
+                  }
+
+                  @if (preview.plan.skipped.length > 0) {
+                    <anotoki-alert class="skipped" tone="warning" [heading]="skippedHeading(preview.plan)">
+                      Not in this installation's catalog - refresh the catalog, then import again.
+                      <ul class="skipped-list">
+                        @for (character of preview.plan.skipped; track character.key) {
+                          <li>{{ character.name }} · {{ count(character.builds, 'build') }}</li>
+                        }
+                      </ul>
+                    </anotoki-alert>
+                  }
+
+                  @let changes = changeCount(preview.plan);
+                  @if (changes > 0) {
+                    <anotoki-disclosure class="changes" [heading]="'Changes (' + changes + ')'">
+                      <ng-template anotokiDisclosurePanel>
+                        <ul class="change-list">
+                          @for (change of preview.plan.changes; track $index) {
+                            <li>
+                              <span class="change-name">{{ changeName(change, game) }}</span> —
+                              <anotoki-badge [tone]="changeTones[change.change]">{{ changeWords[change.change] }}</anotoki-badge>
+                            </li>
+                          }
+                        </ul>
+                        @if (changes > preview.plan.changes_listed) {
+                          <p class="muted small more">{{ changes - preview.plan.changes_listed }} more not listed.</p>
+                        }
+                      </ng-template>
+                    </anotoki-disclosure>
+                  } @else {
+                    <p class="muted no-changes">Nothing changes: the builds here are the file's already.</p>
+                  }
+
+                  <div class="cluster">
+                    <button anotokiButton variant="primary" class="confirm" (click)="confirmImport(game)" [loading]="state.busy === 'import'">Import</button>
+                    <button anotokiButton variant="ghost" class="cancel" (click)="cancel(game)" [disabled]="state.busy === 'import'">Cancel</button>
+                  </div>
+                </div>
+              }
+            </div>
+          </anotoki-card>
+
+          <anotoki-card class="imports" heading="Recent imports" [headingLevel]="3">
+            @if (data.imports.length > 0) {
+              <ul class="import-list">
+                @for (entry of data.imports; track entry.id) {
+                  <li>
+                    <time class="import-when" [attr.datetime]="entry.created_at">{{ entry.created_at | timeAgo }}</time> ·
+                    {{ importLine(entry) }}
+                  </li>
+                }
+              </ul>
+            } @else {
+              <p class="muted no-imports">No import yet.</p>
+            }
+          </anotoki-card>
+
+          <anotoki-card class="catalog" heading="Catalog" [headingLevel]="3">
+            <div cardActions>
+              <button
+                anotokiButton
+                class="refresh-catalog"
+                (click)="refreshCatalog(game)"
+                [loading]="state.refreshing !== null"
+                anotokiTooltip="Characters, weapons and sets from the game data provider, one list after another"
+              >
+                <anotoki-icon name="database" [size]="18" />Refresh catalog
+              </button>
+            </div>
+
+            <div class="card-body">
+              <p class="muted small">
+                The game's characters, weapons and sets. Builds are matched against them: a character missing here is
+                skipped by an import, so refresh the catalog after a game update.
+              </p>
+              <anotoki-stat-tiles class="lists">
+                @for (list of data.catalog; track list.list) {
+                  <anotoki-stat-tile
+                    [label]="listNames[list.list]"
+                    [value]="list.entries"
+                    [note]="list.refreshed_at ? 'refreshed ' + (list.refreshed_at | timeAgo) : 'never refreshed'"
+                  />
+                }
+              </anotoki-stat-tiles>
+
+              @if (state.refreshing !== null) {
+                <anotoki-progress-bar
+                  class="catalog-progress"
+                  label="Refreshing the catalog"
+                  [value]="state.refreshing"
+                  [max]="listCount"
+                  format="count"
+                  showLabel
+                  showValue
+                />
+              }
+              @if (state.catalogProblem; as message) {
+                <anotoki-alert class="catalog-problem" tone="danger" [announce]="true">{{ message }}</anotoki-alert>
+              }
+            </div>
+          </anotoki-card>
+        </div>
+      </section>
+    }
+  }
+</div>

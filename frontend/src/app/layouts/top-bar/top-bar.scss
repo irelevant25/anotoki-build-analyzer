@@ -1,32 +1,6 @@
-// The family's bar draws itself (@anotoki/lib/shell); here only what this site puts in it.
+// The family's bar draws itself (@anotoki/lib/shell).
 
 // No box of its own: the family's bar is sticky against the page's frame (<anotoki-shell>), not this wrapper.
 :host {
   display: contents;
-}
-
-// The sync this tab drives: a round 40 px link to the Sources page, its arrows turning.
-.sync-widget {
-  display: inline-flex;
-  flex: none;
-  align-items: center;
-  justify-content: center;
-  width: 40px;
-  height: 40px;
-  border-radius: 50%;
-  color: var(--anotoki-primary);
-
-  &:hover {
-    background: var(--anotoki-surface-3);
-  }
-}
-
-.spin {
-  animation: spin 1.2s linear infinite;
-}
-
-@keyframes spin {
-  to {
-    transform: rotate(360deg);
-  }
 }

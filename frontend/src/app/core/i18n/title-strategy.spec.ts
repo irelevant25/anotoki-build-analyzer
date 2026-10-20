@@ -24,7 +24,7 @@ describe('AppTitleStrategy: the browser tab’s title', () => {
           { path: '', pathMatch: 'full', children: [] },
           { path: 'import', title: 'title.import', children: [] },
           { path: 'builds/:game', title: 'title.builds', children: [] },
-          { path: 'admin/sources', title: 'Build sources', children: [] },
+          { path: 'admin/builds', title: 'Builds', children: [] },
           { path: 'admin/migrations', title: 'Migrations', children: [] },
           { path: 'sign-in', title: 'title.signIn', children: [] },
           { path: 'about', title: 'anotoki.about.title', children: [] },
@@ -62,8 +62,9 @@ describe('AppTitleStrategy: the browser tab’s title', () => {
   });
 
   it('keeps an English page’s title as it is written, says it is the admin panel’s - and tells the service the page is English', async () => {
-    const { title, go, i18n } = await at('/admin/sources');
-    expect(title).toBe('Build sources · Admin panel · Build Analyzer');
+    const { title, go, i18n } = await at('/admin/builds');
+    // The admin panel's "Builds" as it is written - never the members' title.builds (Slovak "Buildy" here).
+    expect(title).toBe('Builds · Admin panel · Build Analyzer');
     expect(i18n.englishOnly()).toBe(true);
     expect(i18n.effectiveLanguage()).toBe('en');
     expect(await go('/admin/migrations?x=1')).toBe(`Migrations · ${ADMIN_PANEL} · ${BRAND}`);
@@ -122,7 +123,7 @@ describe('the routes’ titles', () => {
       }
     }
     expect(titled.map((route) => route.path)).toEqual(expect.arrayContaining(['about', 'support']));
-    expect(titled.map((route) => route.path)).toEqual(expect.arrayContaining(['admin/sources', 'admin/translations', 'admin/languages', 'admin/people', 'admin/migrations']));
+    expect(titled.map((route) => route.path)).toEqual(expect.arrayContaining(['admin/builds', 'admin/translations', 'admin/languages', 'admin/people', 'admin/migrations']));
   });
 
   it('leave the dashboard with the brand alone, and carry the brand nowhere themselves', () => {

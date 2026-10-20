@@ -155,13 +155,13 @@
     <app-data-card (imported)="load()" />
   }
 
-  @if (sources().length > 0) {
+  @if (builds().length > 0) {
     <section class="game-section">
       <div class="section-head">
-        <h2>{{ 'dashboard.sources' | translate }}</h2>
+        <h2>{{ 'dashboard.builds' | translate }}</h2>
         @if (auth.isStaff()) {
-          <a anotokiButton variant="ghost" size="sm" routerLink="/admin/sources"
-            >{{ 'dashboard.manageSources' | translate }}<anotoki-icon name="chevronRight" [size]="16"
+          <a anotokiButton variant="ghost" size="sm" routerLink="/admin/builds"
+            >{{ 'dashboard.manageBuilds' | translate }}<anotoki-icon name="chevronRight" [size]="16"
           /></a>
         }
       </div>
@@ -169,40 +169,32 @@
         <p class="muted">
           @if (auth.isStaff()) {
             <!-- One sentence, cut where the link stands; a language that leaves the page's name out gets no link. -->
-            @let sentence = noBuildsAdmin();
-            {{ sentence[0] }}@if (sentence[2]) {<a routerLink="/admin/sources">{{
-                'nav.sources' | translate
+            @let sentence = noBuildsStaff();
+            {{ sentence[0] }}@if (sentence[2]) {<a routerLink="/admin/builds">{{
+                'builds.adminPage' | translate
               }}</a>}{{ sentence[1] }}
           } @else {
             {{ 'dashboard.noBuildsMember' | translate }}
           }
         </p>
       }
-      <div class="source-grid">
-        @for (game of games; track game) {
-          <anotoki-card [heading]="gameLabels[game]" [headingLevel]="3">
-            @for (source of sourcesByGame()[game]; track source.key) {
-              <div class="source-row">
-                <span
-                  class="status-dot"
-                  [class]="source.running ? 'running' : (source.last_status ?? 'never')"
-                ></span>
-                <span class="source-name">{{ source.name }}</span>
-                <span class="muted small">{{
-                  'dashboard.sourceCharacters' | translatePlural: source.characters
-                }}</span>
-                <span class="spacer"></span>
-                <span class="muted small">
-                  @if (source.running) {
-                    {{ 'dashboard.syncing' | translate }}
-                  } @else if (source.last_synced_at) {
-                    {{ source.last_synced_at | localDate: 'ago' }}
-                  } @else {
-                    {{ 'dashboard.notSyncedYet' | translate }}
-                  }
-                </span>
-              </div>
-            }
+      <div class="builds-grid">
+        @for (entry of builds(); track entry.game) {
+          <anotoki-card [heading]="gameLabels[entry.game]" [headingLevel]="3">
+            <div class="builds-row">
+              <span class="status-dot" [class.success]="entry.builds > 0"></span>
+              <a class="builds-link" [routerLink]="['/builds', entry.game]">{{
+                'dashboard.buildsFor' | translatePlural: entry.characters
+              }}</a>
+              <span class="spacer"></span>
+              <span class="muted small">
+                @if (entry.checked_at) {
+                  {{ 'dashboard.buildsUpdated' | translate: { when: (entry.checked_at | localDate: 'ago') } }}
+                } @else {
+                  {{ 'dashboard.buildsNever' | translate }}
+                }
+              </span>
+            </div>
           </anotoki-card>
         }
       </div>

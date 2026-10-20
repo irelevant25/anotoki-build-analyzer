@@ -7,7 +7,6 @@ use App\Models\AccountCharacter;
 use App\Models\AccountItem;
 use App\Models\Build;
 use App\Presenters\Icons;
-use App\Services\Builds\BuildSourceRegistry;
 use App\Support\Clock;
 use App\Support\Neutral;
 use App\Support\Stats;
@@ -15,6 +14,10 @@ use App\Support\Talents;
 
 /**
  * Compares one character's current equipment with one recommended build.
+ *
+ * A build needs a constellation (min_rank): one the character has not reached is judged all the same, and says so
+ * (applies: false) - the analysis never calls it the best. Its stat targets are those of the character's
+ * constellation: of a stat's targets, the one from the highest constellation the character has reached.
  *
  * Produces a 0-100 score per part (weapon, sets, main stats, substats, stat targets), an overall grade and
  * a prioritized list of recommendations. Parts a build has no data for are left out of the overall score.
@@ -62,12 +65,9 @@ final class BuildEvaluator
     /** @var list<array{severity: string, category: string, kind: string, params: array<string, string|int|float|null>, message: string, slot?: string}> */
     private array $recommendations = [];
 
-    public function __construct(private readonly AccountContext $context, private readonly BuildSourceRegistry $registry) {}
+    public function __construct(private readonly AccountContext $context) {}
 
-    /**
-     * @param  list<array{stat: string, priority: int}>|null  $fallbackSubstats  used when the build lists no substats
-     */
-    public function evaluate(AccountCharacter $owned, Build $build, ?array $fallbackSubstats = null): array
+    public function evaluate(AccountCharacter $owned, Build $build): array
     {
         $this->game = $this->context->account->game;
         $this->recommendations = [];
@@ -78,7 +78,8 @@ final class BuildEvaluator
         $weapon = $this->context->equippedWeapon($character->id);
 
         $mainStats = $this->resolveMainStats($build->main_stats ?? [], $element);
-        $substatPriorities = $this->resolveList($build->substats ?: $fallbackSubstats ?? ItemScorer::fallbackSubstats($this->game, $mainStats), $element);
+        // A build that lists no substats is scored by what its own main stats ask for.
+        $substatPriorities = $this->resolveList($build->substats ?: ItemScorer::fallbackSubstats($this->game, $mainStats), $element);
         $scorer = new ItemScorer($this->game, $substatPriorities);
 
         $weaponPart = $this->weaponPart($build, $weapon);
@@ -100,7 +101,7 @@ final class BuildEvaluator
         $overall = $this->overall($parts);
 
         return [
-            'build' => $this->buildSummary($build),
+            'build' => $this->buildSummary($build, $owned),
             'score' => ['overall' => $overall, 'grade' => self::grade($overall), 'parts' => $parts],
             'weapon' => $weaponPart,
             'sets' => $setPart,
@@ -512,9 +513,35 @@ final class BuildEvaluator
 
     // ---------------------------------------------------------------- stat targets
 
+    /**
+     * The targets of a character's constellation: per stat, the one from the highest constellation reached (of a
+     * build's targets from C0 and from C1, a C2 character is held to the C1 one). A stat whose targets all start
+     * later than the character's constellation has none.
+     *
+     * @param  list<array<string, mixed>>  $targets
+     * @return list<array<string, mixed>>
+     */
+    public static function targetsFor(array $targets, int $rank): array
+    {
+        $chosen = [];
+        foreach ($targets as $target) {
+            $from = (int) ($target['from_rank'] ?? 0);
+            if ($from > $rank) {
+                continue;
+            }
+            $held = $chosen[$target['stat']] ?? null;
+            if ($held === null || $from > $held['from_rank']) {
+                $chosen[$target['stat']] = ['from_rank' => $from] + $target;
+            }
+        }
+
+        // In the order the build first names each stat.
+        return array_values($chosen);
+    }
+
     private function targetPart(Build $build, AccountCharacter $owned): ?array
     {
-        $targets = $build->stat_targets ?? [];
+        $targets = self::targetsFor($build->stat_targets ?? [], $owned->rank);
         $final = $owned->final_stats ?? [];
         if ($targets === [] || $final === []) {
             return $targets === [] ? null : ['score' => null, 'rows' => array_map(fn($t) => $t + ['current' => null, 'ok' => null], $targets)];
@@ -602,18 +629,19 @@ final class BuildEvaluator
         return $weights > 0 ? (int) round($sum / $weights) : null;
     }
 
-    private function buildSummary(Build $build): array
+    /** The build as an evaluation names it: its variation, whether the character has what it needs, its place. */
+    private function buildSummary(Build $build, AccountCharacter $owned): array
     {
         return [
             'id' => $build->id,
-            // Neutral names only: the UI never names the site a build comes from.
-            'source' => ['key' => $this->registry->publicKey($build->source->key), 'name' => $this->registry->label($build->source->key)],
-            'variant' => Neutral::text($build->variant),
-            'role' => Neutral::text($build->role),
-            'recommended' => $build->recommended,
-            'source_updated_at' => Clock::iso($build->source_updated_at),
-            'game_version' => $build->game_version,
-            'fetched_at' => Clock::iso($build->fetched_at),
+            'role' => $build->role,
+            // Neutral, as every text a build was read with.
+            'qualifier' => (string) Neutral::text($build->qualifier),
+            'min_rank' => $build->min_rank,
+            'applies' => $build->appliesTo($owned->rank),
+            'position' => $build->position,
+            'game_version' => Neutral::text($build->game_version),
+            'checked_at' => Clock::iso($build->checked_at),
         ];
     }
 

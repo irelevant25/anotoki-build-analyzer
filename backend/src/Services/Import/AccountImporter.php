@@ -135,7 +135,7 @@ class AccountImporter
             $skipped = [...$characterWarnings, ...$weaponWarnings, ...$itemWarnings];
             if ($skipped) {
                 $skipped[] = ImportKinds::warning('catalog_behind', [],
-                    'What the game catalog does not know yet was skipped. After an admin refreshes the catalog (Sources page), import again.');
+                    'What the game catalog does not know yet was skipped. Import again later: the catalog catches up on its own, or an editor refreshes it in the admin panel (Builds page).');
             }
 
             // Each sentence once, the first of its kind kept; the kinds stand index for index beside them.
@@ -331,19 +331,19 @@ class AccountImporter
     private function character(Game $game, array $ref): ?GameCharacter
     {
         /** @var GameCharacter|null */
-        return $this->resolve($game, Catalog::CHARACTER, $ref, fn (string $name) => $this->catalog->character($game, $name, create: false));
+        return $this->resolve($game, Catalog::CHARACTER, $ref, fn (string $name) => $this->catalog->character($game, $name));
     }
 
     private function weapon(Game $game, array $ref): ?GameWeapon
     {
         /** @var GameWeapon|null */
-        return $this->resolve($game, Catalog::WEAPON, $ref, fn (string $name) => $this->catalog->weapon($game, $name, create: false));
+        return $this->resolve($game, Catalog::WEAPON, $ref, fn (string $name) => $this->catalog->weapon($game, $name));
     }
 
     private function set(Game $game, array $ref): ?GameSet
     {
         /** @var GameSet|null */
-        return $this->resolve($game, Catalog::SET, $ref, fn (string $name) => $this->catalog->set($game, $name, create: false));
+        return $this->resolve($game, Catalog::SET, $ref, fn (string $name) => $this->catalog->set($game, $name));
     }
 
     /**

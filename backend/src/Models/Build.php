@@ -7,17 +7,18 @@ use App\Support\Json;
 use DateTimeImmutable;
 
 /**
- * A recommended build as stored: (source, character, variant) with its normalized details.
+ * A recommended build as stored: a variation of a character's - its role, a qualifier telling two builds of one
+ * role apart, the constellation it needs (min_rank) - with its normalized details (docs/builds.md). Its position
+ * is its place among the character's builds: the first is the main one.
  */
 final class Build
 {
     public function __construct(
         public int $id,
-        public int $build_source_id,
         public int $game_character_id,
-        public string $variant,
-        public ?string $role = null,
-        public bool $recommended = false,
+        public string $role,
+        public string $qualifier = '',
+        public int $min_rank = 0,
         public int $position = 0,
         /** @var list<array<string, mixed>> */
         public array $weapons = [],
@@ -29,16 +30,13 @@ final class Build
         public array $substats = [],
         /** @var list<array{talent: string, priority: int}>|null */
         public ?array $talent_priority = null,
-        /** @var list<array{stat: string, min: float|null, max: float|null, text: string}>|null */
+        /** @var list<array{stat: string, min: int|float|null, max: int|float|null, text: string, from_rank: int}>|null */
         public ?array $stat_targets = null,
         public ?string $notes = null,
-        public ?string $source_url = null,
-        public ?DateTimeImmutable $source_updated_at = null,
         public ?string $game_version = null,
         public string $content_hash = '',
-        public ?DateTimeImmutable $fetched_at = null,
+        public ?DateTimeImmutable $checked_at = null,
         public ?DateTimeImmutable $changed_at = null,
-        public ?BuildSource $source = null,
         public ?GameCharacter $character = null,
     ) {}
 
@@ -47,11 +45,10 @@ final class Build
     {
         $build = new self(
             id: (int) $row['id'],
-            build_source_id: (int) $row['build_source_id'],
             game_character_id: (int) $row['game_character_id'],
-            variant: (string) $row['variant'],
-            role: $row['role'] ?? null,
-            recommended: (bool) $row['recommended'],
+            role: (string) $row['role'],
+            qualifier: (string) ($row['qualifier'] ?? ''),
+            min_rank: (int) ($row['min_rank'] ?? 0),
             position: (int) $row['position'],
             weapons: Json::decode($row['weapons'] ?? null) ?? [],
             sets: Json::decode($row['sets'] ?? null) ?? [],
@@ -60,22 +57,23 @@ final class Build
             talent_priority: Json::decode($row['talent_priority'] ?? null),
             stat_targets: Json::decode($row['stat_targets'] ?? null),
             notes: $row['notes'] ?? null,
-            source_url: $row['source_url'] ?? null,
-            source_updated_at: Db::time($row['source_updated_at'] ?? null),
             game_version: $row['game_version'] ?? null,
             content_hash: (string) ($row['content_hash'] ?? ''),
-            fetched_at: Db::time($row['fetched_at'] ?? null),
+            checked_at: Db::time($row['checked_at'] ?? null),
             changed_at: Db::time($row['changed_at'] ?? null),
         );
 
-        // Joined rows (prefixed "src_" and "c_") come along when the query selected them.
-        if (isset($row['src_id'])) {
-            $build->source = BuildSource::fromRow(AccountCharacter::prefixed($row, 'src_'));
-        }
+        // The joined character (prefixed "c_") comes along when the query selected it.
         if (isset($row['c_id'])) {
             $build->character = GameCharacter::fromRow(AccountCharacter::prefixed($row, 'c_'));
         }
 
         return $build;
+    }
+
+    /** Whether a character of this rank (constellation) has what the build needs. */
+    public function appliesTo(int $rank): bool
+    {
+        return $rank >= $this->min_rank;
     }
 }

@@ -11,17 +11,19 @@ use App\Presenters\Icons;
 use App\Repositories\Accounts;
 use App\Repositories\Builds;
 use App\Repositories\CatalogRows;
-use App\Services\Builds\BuildSourceRegistry;
 use App\Support\Clock;
-use App\Support\Neutral;
 use App\Support\Stats;
 
 /**
- * Account-level entry point of the analysis: evaluates characters against every build of every source.
+ * Account-level entry point of the analysis: evaluates characters against every build of theirs.
+ *
+ * A character's best build is the best scored of those its constellation reaches (min_rank), the earlier one on a
+ * tie - the first build is the main one; when it reaches none, the one needing the lowest constellation, said so
+ * (applies: false).
  */
 class CharacterAnalyzer
 {
-    public function __construct(private readonly Accounts $accounts, private readonly Builds $builds, private readonly CatalogRows $rows, private readonly BuildSourceRegistry $registry) {}
+    public function __construct(private readonly Accounts $accounts, private readonly Builds $builds, private readonly CatalogRows $rows) {}
 
     /**
      * One row per owned character with its best-matching build.
@@ -45,8 +47,11 @@ class CharacterAnalyzer
                 'best' => $best
                     ? [
                         'build_id' => $best['build']['id'],
-                        'source' => $best['build']['source']['name'],
-                        'variant' => $best['build']['variant'],
+                        // The build's variation, for a page to word: its role, qualifier and the constellation it needs.
+                        'role' => $best['build']['role'],
+                        'qualifier' => $best['build']['qualifier'],
+                        'min_rank' => $best['build']['min_rank'],
+                        'applies' => $best['build']['applies'],
                         'overall' => $best['score']['overall'],
                         'grade' => $best['score']['grade'],
                         'parts' => $best['score']['parts'],
@@ -65,8 +70,8 @@ class CharacterAnalyzer
     }
 
     /**
-     * Full analysis of one character: every build evaluated, consensus between sources and (with a full
-     * inventory) better pieces the player already owns.
+     * Full analysis of one character: every build evaluated and (with a full inventory) better pieces the player
+     * already owns.
      */
     public function detail(Account $account, AccountCharacter $character, ?int $focusBuildId = null): array
     {
@@ -95,7 +100,7 @@ class CharacterAnalyzer
                     break;
                 }
             }
-            $suggestions = $this->suggestions($context, $character, $build, $focus, $this->fallbackSubstats($builds));
+            $suggestions = $this->suggestions($context, $character, $build, $focus);
         }
 
         return [
@@ -109,8 +114,6 @@ class CharacterAnalyzer
             'evaluations' => $evaluations,
             'best_build_id' => $best['build']['id'] ?? null,
             'focus_build_id' => $focus['build']['id'] ?? null,
-            // The build's names as the build page shows them: neutral.
-            'consensus' => Neutral::deep($this->consensus($builds, $character->character->element, $account->game)),
             'suggestions' => $suggestions['items'],
             'set_plans' => $suggestions['set_plans'],
             'has_full_inventory' => $account->has_full_inventory,
@@ -137,27 +140,25 @@ class CharacterAnalyzer
      */
     private function evaluateAll(AccountContext $context, AccountCharacter $character, array $builds): array
     {
-        $fallback = $this->fallbackSubstats($builds);
-        $evaluator = new BuildEvaluator($context, $this->registry);
+        $evaluator = new BuildEvaluator($context);
 
         $evaluations = [];
         foreach ($builds as $build) {
-            $evaluations[] = $evaluator->evaluate($character, $build, $fallback);
+            $evaluations[] = $evaluator->evaluate($character, $build);
         }
 
         return $evaluations;
     }
 
     /**
-     * Best evaluation: the highest score, preferring builds the source marks as recommended on ties.
+     * The best evaluation: of the builds the character's constellation reaches, the highest score, the earlier
+     * build on a tie; when it reaches none, the build needing the lowest constellation (the earlier on a tie).
      */
-    private function best(array $evaluations): ?array
+    public static function best(array $evaluations): ?array
     {
         $best = null;
         foreach ($evaluations as $evaluation) {
-            $score = $evaluation['score']['overall'] ?? -1;
-            $bestScore = $best['score']['overall'] ?? -1;
-            if ($best === null || $score > $bestScore || ($score === $bestScore && $evaluation['build']['recommended'] && !$best['build']['recommended'])) {
+            if ($best === null || self::better($evaluation, $best)) {
                 $best = $evaluation;
             }
         }
@@ -165,20 +166,19 @@ class CharacterAnalyzer
         return $best;
     }
 
-    /**
-     * Substat priorities borrowed from another source when a build has none (usage-statistics builds).
-     *
-     * @param  list<Build>  $builds
-     */
-    private function fallbackSubstats(array $builds): ?array
+    /** Whether $a is a better pick than $b (see best()). */
+    private static function better(array $a, array $b): bool
     {
-        foreach ($builds as $build) {
-            if (!empty($build->substats)) {
-                return $build->substats;
-            }
+        if ($a['build']['applies'] !== $b['build']['applies']) {
+            return $a['build']['applies'];
         }
+        if (!$a['build']['applies']) {
+            return [$a['build']['min_rank'], $a['build']['position']] < [$b['build']['min_rank'], $b['build']['position']];
+        }
+        $scoreA = $a['score']['overall'] ?? -1;
+        $scoreB = $b['score']['overall'] ?? -1;
 
-        return null;
+        return $scoreA > $scoreB || ($scoreA === $scoreB && $a['build']['position'] < $b['build']['position']);
     }
 
     private function characterSummary(AccountContext $context, AccountCharacter $character): array
@@ -243,85 +243,14 @@ class CharacterAnalyzer
     }
 
     /**
-     * What the sources agree on: top main stats per slot, top set option and best weapon.
-     *
-     * @param  list<Build>  $builds
-     */
-    private function consensus(array $builds, ?string $element, Game $game): array
-    {
-        $mainStats = [];
-        $sets = [];
-        $setParts = [];
-        $weapons = [];
-
-        foreach ($builds as $build) {
-            foreach ($build->main_stats as $slot => $list) {
-                $top = min(array_column($list, 'priority') ?: [1]);
-                foreach ($list as $entry) {
-                    if ($entry['priority'] === $top) {
-                        $stat = Stats::resolveElemental($entry['stat'], $element);
-                        $mainStats[$slot][$stat] = ($mainStats[$slot][$stat] ?? 0) + 1;
-                    }
-                }
-            }
-
-            foreach ($game->setKinds() as $kind) {
-                $first = null;
-                foreach ($build->sets as $option) {
-                    if (($option['kind'] ?? null) === $kind) {
-                        $first = $option;
-                        break;
-                    }
-                }
-                if ($first) {
-                    // Counted by the English label; a page words the option from its pieces and its "any N".
-                    $label = BuildEvaluator::optionLabel($first);
-                    $sets[$kind][$label] = ($sets[$kind][$label] ?? 0) + 1;
-                    $setParts[$kind][$label] ??= ['pieces' => BuildEvaluator::optionPieces($first), 'choose' => BuildEvaluator::optionChoose($first)];
-                }
-            }
-
-            $weapon = $build->weapons[0] ?? null;
-            if ($weapon) {
-                $weapons[$weapon['name']] = ($weapons[$weapon['name']] ?? 0) + 1;
-            }
-        }
-
-        $sortDesc = function (array $counts): array {
-            arsort($counts);
-
-            return array_map(fn($name, $count) => ['name' => $name, 'count' => $count], array_keys($counts), $counts);
-        };
-
-        // A set row is {name, pieces, choose, count}: "name" stays the label it was counted by.
-        $setRows = [];
-        foreach ($sets as $kind => $counts) {
-            $setRows[$kind] = array_map(fn(array $row) => ['name' => $row['name']] + $setParts[$kind][$row['name']] + ['count' => $row['count']], $sortDesc($counts));
-        }
-
-        $sources = [];
-        foreach ($builds as $build) {
-            $sources[] = $this->registry->label($build->source->key);
-        }
-
-        return [
-            'builds' => count($builds),
-            'sources' => array_values(array_unique($sources)),
-            'main_stats' => array_map($sortDesc, $mainStats),
-            'sets' => $setRows,
-            'weapons' => $sortDesc($weapons),
-        ];
-    }
-
-    /**
      * Better pieces from the inventory for the focused build:
      * - "items": per slot, the best owned piece that completes the set bonus, fixes a wrong main stat or has
      *   clearly better substats, never making the set bonus worse;
-     * - "set_plans": when no recommended set is in use, the best owned pieces of the source's top set.
+     * - "set_plans": when no recommended set is in use, the best owned pieces of the build's top set.
      *
      * @return array{items: list<array>, set_plans: list<array>}
      */
-    private function suggestions(AccountContext $context, AccountCharacter $character, ?Build $build, array $evaluation, ?array $fallback): array
+    private function suggestions(AccountContext $context, AccountCharacter $character, ?Build $build, array $evaluation): array
     {
         if (!$build) {
             return ['items' => [], 'set_plans' => []];
@@ -329,7 +258,7 @@ class CharacterAnalyzer
 
         $game = $context->account->game;
         $element = $character->character->element;
-        $priorities = $build->substats ?: $fallback ?? [];
+        $priorities = $build->substats;
         $priorities = array_map(fn($e) => ['stat' => Stats::resolveElemental($e['stat'], $element), 'priority' => $e['priority']], $priorities);
         $scorer = new ItemScorer($game, $priorities ?: ItemScorer::fallbackSubstats($game, $build->main_stats));
 
@@ -346,7 +275,7 @@ class CharacterAnalyzer
             $countsWith = AccountContext::setCounts($group);
             $countsWithout = AccountContext::setCounts(array_filter($group, fn($item, $itemSlot) => $itemSlot !== $slot, ARRAY_FILTER_USE_BOTH));
 
-            // Aim for the option already in use; otherwise for the source's top option.
+            // Aim for the option already in use; otherwise for the build's top option.
             $target = null;
             foreach ($options as $option) {
                 if (SetMatcher::evaluate($countsWith, $option)['satisfied']) {

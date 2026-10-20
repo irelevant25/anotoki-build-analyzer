@@ -8,7 +8,6 @@ use App\Presenters\BuildPresenter;
 use App\Presenters\Icons;
 use App\Repositories\Builds;
 use App\Repositories\CatalogRows;
-use App\Services\Builds\BuildSourceRegistry;
 use App\Services\Catalog\Catalog;
 use App\Support\Clock;
 use App\Web\HttpError;
@@ -22,18 +21,34 @@ use Slim\Routing\RouteCollectorProxy;
  * The builds browser, independent of any account. Public: signed in or not, everybody reads the same, and
  * nothing in it is anybody's own.
  *
- *   GET /api/builds/{game}        characters with builds, with how many and from which sources
- *   GET /api/builds/{game}/{key}  every build of one character, from the switched-on sources
+ *   GET /api/builds               per game: how many characters have builds, how many builds, when the newest
+ *                                 file carrying them was made and when one last changed (the dashboard)
+ *   GET /api/builds/{game}        characters with builds, with how many and their roles
+ *   GET /api/builds/{game}/{key}  every build of one character, in its order
  */
 return function (Slim\App $slim, App $app): void {
     $slim
         ->group('/api/builds', function (RouteCollectorProxy $group) use ($app) {
+            $group->get('', function (Request $request, Response $response) use ($app): Response {
+                $games = [];
+                foreach ($app->get(Builds::class)->counts() as $game => $counts) {
+                    $games[] = [
+                        'game' => $game,
+                        'characters' => $counts['characters'],
+                        'builds' => $counts['builds'],
+                        'checked_at' => Clock::iso(Db::time($counts['checked_at'])),
+                        'changed_at' => Clock::iso(Db::time($counts['changed_at'])),
+                    ];
+                }
+
+                return Json::send($response, $games);
+            });
+
             $group->get('/{game}', function (Request $request, Response $response, array $args) use ($app): Response {
                 $input = new Input(['game' => $args['game']]);
                 $game = $input->game('game', required: true);
                 $input->valid();
 
-                $registry = $app->get(BuildSourceRegistry::class);
                 $byCharacter = [];
                 foreach ($app->get(Builds::class)->summaries($game) as $row) {
                     $byCharacter[(int) $row['game_character_id']][] = $row;
@@ -50,9 +65,10 @@ return function (Slim\App $slim, App $app): void {
 
                 return Json::send(
                     $response,
-                    array_map(function (GameCharacter $character) use ($byCharacter, $registry) {
+                    array_map(function (GameCharacter $character) use ($byCharacter, $game) {
                         $list = $byCharacter[$character->id];
                         $changed = array_filter(array_map(fn($row) => Db::time($row['changed_at']), $list));
+                        $roles = array_unique(array_column($list, 'role'));
 
                         return [
                             'key' => $character->key,
@@ -63,7 +79,8 @@ return function (Slim\App $slim, App $app): void {
                             'icon_url' => Icons::of($character),
                             'released_at' => $character->released_at?->format('Y-m-d'),
                             'builds' => count($list),
-                            'sources' => array_values(array_unique(array_map(fn($row) => $registry->label($row['source_key']), $list))),
+                            // In the game's order of roles.
+                            'roles' => array_values(array_filter($game->roles(), fn(string $role) => in_array($role, $roles, true))),
                             'changed_at' => $changed === [] ? null : Clock::iso(max($changed)),
                         ];
                     }, $characters),

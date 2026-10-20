@@ -23,8 +23,10 @@ type Best = NonNullable<CharacterOverview['best']>;
 function best(overrides: Partial<Best> = {}): Best {
   return {
     build_id: 7,
-    source: 'Source 1',
-    variant: 'Burst DPS',
+    role: 'main_dps',
+    qualifier: 'Burst',
+    min_rank: 2,
+    applies: true,
     overall: 72,
     grade: 'B',
     parts: { weapon: 80, sets: 100, main_stats: 67, substats: 55, targets: null },
@@ -122,12 +124,16 @@ const SLOVAK = {
   'account.showUnbuilt': 'Zobraziť aj postavy bez výbavy ({count})',
   'account.noItemsEquipped': '{items}: nič nasadené',
   'account.partSets': 'Sety',
-  'account.bestMatch': 'Najlepšia zhoda: {source} · {variant}',
+  'account.bestBuild': 'Najlepší build: {build}',
+  'builds.role.main_dps': 'Hlavný DPS',
+  'builds.role.sub_dps': 'Vedľajší DPS',
+  'builds.role.support': 'Podpora',
+  'builds.role.unknown': 'Build',
   'account.noBuildsForCharacter': 'Pre túto postavu zatiaľ nie sú buildy.',
   'account.noMatches': 'Filtrom nezodpovedá žiadna postava.',
-  'account.withoutBuilds.one': '{count} postava zatiaľ nemá buildy; pribudnú po ďalšej synchronizácii buildov.',
-  'account.withoutBuilds.few': '{count} postavy zatiaľ nemajú buildy; pribudnú po ďalšej synchronizácii buildov.',
-  'account.withoutBuilds.other': '{count} postáv zatiaľ nemá buildy; pribudnú po ďalšej synchronizácii buildov.',
+  'account.withoutBuilds.one': '{count} postava zatiaľ nemá buildy.',
+  'account.withoutBuilds.few': '{count} postavy zatiaľ nemajú buildy.',
+  'account.withoutBuilds.other': '{count} postáv zatiaľ nemá buildy.',
   'account.importHistory': 'História importov',
   'account.sourceShowcase': 'Showcase (UID)',
   'account.sourceFile': 'Súbor s inventárom',
@@ -272,7 +278,8 @@ describe('the account page', () => {
     ]);
     expect(text(cards()[0].querySelector('.sets'))).toBe('Artifacts: none equipped');
     expect(text(cards()[0].querySelector('.char-names .muted'))).toBe('Lv. 90 · C2');
-    expect(text(cards()[0].querySelector('.best-line'))).toBe('Best match: Source 1 · Burst DPS');
+    // The best build by its variation: its role, its qualifier as the build has it, the constellation it needs.
+    expect(text(cards()[0].querySelector('.best-line'))).toBe('Best build: Main DPS · Burst · C2+');
     expect(chosen('.sort')).toBe('Needs work first');
   });
 
@@ -291,7 +298,7 @@ describe('the account page', () => {
         ['67', '67'],
         ['55', '55'],
       ]);
-      expect(text(cards()[0].querySelector('.best-line'))).toBe('Najlepšia zhoda: Source 1 · Burst DPS');
+      expect(text(cards()[0].querySelector('.best-line'))).toBe('Najlepší build: Hlavný DPS · Burst · C2+');
       expect(text(cards()[0].querySelector('.sets'))).toBe('4× Crimson Witch of Flames');
     });
 
@@ -351,19 +358,19 @@ describe('the account page', () => {
     const sentence = () => text(host.querySelector('.without-builds'));
 
     await setup({ account: without(1) });
-    expect(sentence()).toBe('1 postava zatiaľ nemá buildy; pribudnú po ďalšej synchronizácii buildov.');
+    expect(sentence()).toBe('1 postava zatiaľ nemá buildy.');
 
     TestBed.resetTestingModule();
     await setup({ account: without(3) });
-    expect(sentence()).toBe('3 postavy zatiaľ nemajú buildy; pribudnú po ďalšej synchronizácii buildov.');
+    expect(sentence()).toBe('3 postavy zatiaľ nemajú buildy.');
 
     TestBed.resetTestingModule();
     await setup({ account: without(5) });
-    expect(sentence()).toBe('5 postáv zatiaľ nemá buildy; pribudnú po ďalšej synchronizácii buildov.');
+    expect(sentence()).toBe('5 postáv zatiaľ nemá buildy.');
 
     TestBed.resetTestingModule();
     await setup({ language: 'en', account: without(1) });
-    expect(sentence()).toBe('1 character has no builds yet; they appear once a build sync has fetched them.');
+    expect(sentence()).toBe('1 character has no builds yet.');
 
     TestBed.resetTestingModule();
     await setup({ account: without(0) });

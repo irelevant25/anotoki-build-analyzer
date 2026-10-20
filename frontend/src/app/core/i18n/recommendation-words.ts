@@ -100,8 +100,7 @@ export function recommendationText(i18n: RecommendationWords, meta: StatNotation
 
 /**
  * A set option as a phrase: its pieces ("2pc A + 2pc B") and, when only some of them are needed, the
- * "(any N)" after a space - `pieces` and `choose` of a consensus set row, `best` and `best_choose` of a
- * sets recommendation.
+ * "(any N)" after a space - `best` and `best_choose` of a sets recommendation.
  */
 export function setOptionText(i18n: Pick<TranslationService, 'plural'>, pieces: string, choose: unknown): string {
   return typeof choose === 'number' && Number.isFinite(choose) ? `${pieces} ${i18n.plural('buildDetail.optionAny', choose)}` : pieces;

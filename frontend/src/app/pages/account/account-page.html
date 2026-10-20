@@ -175,7 +175,7 @@
                 <app-score-bar [label]="buildTerms.substats" [value]="best.parts.substats" />
               </div>
               <div class="muted small best-line">
-                {{ 'account.bestMatch' | translate: { source: best.source, variant: best.variant } }}
+                {{ 'account.bestBuild' | translate: { build: bestBuilds().get(c.id) } }}
               </div>
               <!-- The first thing the build recommends: worded from its kind, or the stored English sentence, saying so. -->
               @if (issues().get(c.id); as issue) {

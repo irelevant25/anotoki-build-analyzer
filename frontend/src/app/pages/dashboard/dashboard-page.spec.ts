@@ -9,7 +9,7 @@ import { ToastService } from '@anotoki/lib/ui/toast';
 import { Api } from '../../core/api';
 import { AuthService } from '../../core/auth';
 import { en } from '../../core/i18n/en';
-import { AccountSummary, SourceStatus } from '../../core/models';
+import { AccountSummary, BuildsOverview } from '../../core/models';
 import { VisitorKey } from '../../core/visitor-key';
 import { DashboardPage } from './dashboard-page';
 import { provideKit } from '../../core/kit';
@@ -35,21 +35,9 @@ function account(id: number, overrides: Partial<AccountSummary> = {}): AccountSu
   };
 }
 
-function source(key: string, overrides: Partial<SourceStatus> = {}): SourceStatus {
-  return {
-    key,
-    game: 'genshin',
-    name: 'Source 1',
-    enabled: true,
-    last_synced_at: hoursAgo(3),
-    last_status: 'success',
-    last_error: null,
-    builds: 40,
-    characters: 12,
-    running: false,
-    latest_run: null,
-    ...overrides,
-  };
+/** A game's builds as GET /api/builds tells of them. */
+function overview(overrides: Partial<BuildsOverview> = {}): BuildsOverview {
+  return { game: 'genshin', characters: 12, builds: 40, checked_at: hoursAgo(3), changed_at: hoursAgo(3), ...overrides };
 }
 
 /** The dashboard's Slovak, as the catalogue has it; English underneath, as the server merges it. */
@@ -58,7 +46,6 @@ const SLOVAK = {
   'common.cancel': 'Zrušiť',
   'common.close': 'Zavrieť',
   'common.retry': 'Skúsiť znova',
-  'nav.sources': 'Zdroje',
   'confirm.deleteAccount': 'Vymazať účet „{name}“ a všetko, čo sa preň importovalo?',
   'confirm.deleteAccountKept': 'Buildy zostanú.',
   'confirm.delete': 'Vymazať',
@@ -76,15 +63,16 @@ const SLOVAK = {
   'dashboard.moreActions': 'Ďalšie akcie',
   'dashboard.deleteAccount': 'Vymazať účet',
   'dashboard.deleted': 'Účet „{name}“ je vymazaný.',
-  'dashboard.sources': 'Zdroje buildov',
-  'dashboard.manageSources': 'Spravovať',
-  'dashboard.noBuildsAdmin': 'Zatiaľ nie sú stiahnuté žiadne buildy. Prvú synchronizáciu spusti na stránke {sources}.',
-  'dashboard.noBuildsMember': 'Zatiaľ nie sú stiahnuté žiadne buildy. Pribudnú, keď správca synchronizuje zdroje buildov.',
-  'dashboard.sourceCharacters.one': '{count} postava',
-  'dashboard.sourceCharacters.few': '{count} postavy',
-  'dashboard.sourceCharacters.other': '{count} postáv',
-  'dashboard.syncing': 'synchronizuje sa…',
-  'dashboard.notSyncedYet': 'zatiaľ bez synchronizácie',
+  'builds.adminPage': 'Builds',
+  'dashboard.builds': 'Buildy',
+  'dashboard.manageBuilds': 'Spravovať',
+  'dashboard.buildsFor.one': 'Buildy pre {count} postavu',
+  'dashboard.buildsFor.few': 'Buildy pre {count} postavy',
+  'dashboard.buildsFor.other': 'Buildy pre {count} postáv',
+  'dashboard.buildsUpdated': 'aktualizované {when}',
+  'dashboard.buildsNever': 'zatiaľ neimportované',
+  'dashboard.noBuildsStaff': 'Zatiaľ tu nie sú žiadne buildy. Importuješ ich na stránke {link}.',
+  'dashboard.noBuildsMember': 'Zatiaľ tu nie sú žiadne buildy. Pribudnú, keď ich editor importuje.',
   'account.characters': 'Postavy',
   'account.fullInventory': 'Celý inventár',
   'account.showcaseOnly': 'Len Showcase',
@@ -99,7 +87,7 @@ const A_KEY = /\b(common|nav|confirm|dashboard|account|error)\.[A-Za-z]/;
 describe('the dashboard', () => {
   let fixture: ComponentFixture<DashboardPage>;
   let host: HTMLElement;
-  let api: { accounts: ReturnType<typeof vi.fn>; sources: ReturnType<typeof vi.fn>; deleteAccount: ReturnType<typeof vi.fn> };
+  let api: { accounts: ReturnType<typeof vi.fn>; buildsOverview: ReturnType<typeof vi.fn>; deleteAccount: ReturnType<typeof vi.fn> };
   let toasts: { success: ReturnType<typeof vi.fn>; error: ReturnType<typeof vi.fn> };
   /** The kit's "Are you sure?", as the app's root draws it. */
   let confirmHost: ComponentFixture<ConfirmHostComponent>;
@@ -114,8 +102,10 @@ describe('the dashboard', () => {
   const cards = () => [...host.querySelectorAll<HTMLElement>('article.account-card')];
   /** An account card's line under its counts: its data's kind, and when it was imported. */
   const imported = (card: HTMLElement) => text(card.querySelector('.account-main .cluster .muted'));
-  const rows = () => [...host.querySelectorAll<HTMLElement>('.source-row')];
-  /** What the page says about the accounts and the sources - the "Your data" card aside (it has cases of its own). */
+  const rows = () => [...host.querySelectorAll<HTMLElement>('.builds-row')];
+  /** A builds row's words: its link's, then when. */
+  const rowWords = (row: HTMLElement) => [...row.querySelectorAll('a, .muted')].map(text);
+  /** What the page says about the accounts and the builds - the "Your data" card aside (it has cases of its own). */
   const pageText = () => {
     const copy = host.cloneNode(true) as HTMLElement;
     copy.querySelectorAll('app-data-card').forEach((card) => card.remove());
@@ -126,8 +116,8 @@ describe('the dashboard', () => {
     language?: 'en' | 'sk';
     strings?: Record<string, string>;
     accounts?: AccountSummary[] | Observable<AccountSummary[]>;
-    sources?: SourceStatus[];
-    /** An editor or an admin: the Sources page is theirs. */
+    builds?: BuildsOverview[];
+    /** An editor or an admin: the admin panel's Builds page is theirs. */
     admin?: boolean;
     /** Who looks: somebody signed in (the default), a visitor (a key held), or nobody. */
     state?: 'person' | 'visitor' | 'nobody';
@@ -137,7 +127,7 @@ describe('the dashboard', () => {
     const accounts = options.accounts ?? [account(1)];
     api = {
       accounts: vi.fn(() => (Array.isArray(accounts) ? of(accounts) : accounts)),
-      sources: vi.fn(() => of(options.sources ?? [source('genshin-1')])),
+      buildsOverview: vi.fn(() => of(options.builds ?? [overview()])),
       deleteAccount: vi.fn(() => of(undefined)),
     };
     toasts = { success: vi.fn(), error: vi.fn() };
@@ -211,31 +201,29 @@ describe('the dashboard', () => {
     expect(pageText()).not.toMatch(/never|characters|artifacts|weapons/);
   });
 
-  it('counts a source’s characters the way Slovak counts, and says when it was synced', async () => {
-    await setup({
-      sources: [
-        source('genshin-1', { characters: 1 }),
-        source('genshin-2', { name: 'Source 2', characters: 3, last_synced_at: null, last_status: null }),
-        source('genshin-3', { name: 'Source 3', characters: 12, running: true }),
-      ],
-    });
+  it('counts the characters with builds the way Slovak counts, and says when they were brought up to date', async () => {
+    await setup({ builds: [overview({ characters: 1 })] });
+    expect(texts('.section-head h2').at(-1)).toBe('Buildy');
+    expect(rows().map(rowWords)).toEqual([['Buildy pre 1 postavu', 'aktualizované pred 3 hodinami']]);
+    expect(rows()[0].querySelector('a')?.getAttribute('href')).toBe('/builds/genshin');
+    expect(rows()[0].querySelector('.status-dot')?.className).toBe('status-dot success');
 
-    expect(texts('.section-head h2').at(-1)).toBe('Zdroje buildov');
-    expect(rows().map((row) => [...row.querySelectorAll('span:not(.status-dot):not(.spacer)')].map(text))).toEqual([
-      ['Source 1', '1 postava', 'pred 3 hodinami'],
-      ['Source 2', '3 postavy', 'zatiaľ bez synchronizácie'],
-      ['Source 3', '12 postáv', 'synchronizuje sa…'],
-    ]);
-    // The status dot's class is not a word: a source never synced keeps its "never".
-    expect(rows().map((row) => row.querySelector('.status-dot')?.className)).toEqual(['status-dot success', 'status-dot never', 'status-dot running']);
-    expect(pageText()).not.toMatch(/never/);
+    TestBed.resetTestingModule();
+    await setup({ builds: [overview({ characters: 3 })] });
+    expect(rows().map(rowWords)).toEqual([['Buildy pre 3 postavy', 'aktualizované pred 3 hodinami']]);
+
+    TestBed.resetTestingModule();
+    await setup({ builds: [overview({ characters: 12, builds: 0, checked_at: null, changed_at: null })] });
+    expect(rows().map(rowWords)).toEqual([['Buildy pre 12 postáv', 'zatiaľ neimportované']]);
+    // The status dot's class is not a word: a game without builds has none.
+    expect(rows()[0].querySelector('.status-dot')?.className).toBe('status-dot');
   });
 
   it('reads English as it always did', async () => {
     await setup({
       language: 'en',
       accounts: [account(1), account(2, { uid: null, last_import_at: null, has_full_inventory: false })],
-      sources: [source('genshin-1', { characters: 1 }), source('genshin-2', { characters: 12, last_synced_at: null })],
+      builds: [overview({ characters: 1 })],
     });
 
     expect(texts('h1')).toEqual(['Your accounts']);
@@ -245,12 +233,8 @@ describe('the dashboard', () => {
     expect(counts(first)).toEqual(['12 Characters', '187 Artifacts', '23 Weapons']);
     expect(imported(first)).toBe('Imported 2 days ago');
     expect(imported(second)).toBe('Not imported yet');
-    expect(rows().map((row) => [...row.querySelectorAll('.muted')].map(text))).toEqual([
-      ['1 character', '3 hours ago'],
-      ['12 characters', 'not synced yet'],
-    ]);
-    // A missing time is a phrase of its own, not the word "never" standing where a time would.
-    expect(pageText()).not.toMatch(/never/);
+    expect(rows().map(rowWords)).toEqual([['Builds for 1 character', 'updated 3 hours ago']]);
+    expect(texts('.section-head h2').at(-1)).toBe('Builds');
   });
 
   it('invites to import, a button for each game the site offers, while there is no account', async () => {
@@ -262,37 +246,39 @@ describe('the dashboard', () => {
     expect(buttons.map((button) => button.getAttribute('href'))).toEqual(['/import?game=genshin']);
   });
 
-  describe('while no build has been downloaded', () => {
-    const NONE = [source('genshin-1', { builds: 0, characters: 0, last_synced_at: null, last_status: null })];
+  describe('while no build has been imported', () => {
+    const NONE = [overview({ builds: 0, characters: 0, checked_at: null, changed_at: null })];
     const sentence = () => host.querySelector<HTMLElement>('.game-section p.muted');
 
-    it('sends an admin to the Sources page, the link inside the sentence', async () => {
-      await setup({ admin: true, sources: NONE });
+    it('sends an editor to the admin panel’s Builds page, the link inside the sentence', async () => {
+      await setup({ admin: true, builds: NONE });
 
-      expect(text(sentence())).toBe('Zatiaľ nie sú stiahnuté žiadne buildy. Prvú synchronizáciu spusti na stránke Zdroje.');
+      expect(text(sentence())).toBe('Zatiaľ tu nie sú žiadne buildy. Importuješ ich na stránke Builds.');
       const links = [...sentence()!.querySelectorAll('a')];
-      expect(links.map((link) => [text(link), link.getAttribute('href')])).toEqual([['Zdroje', '/admin/sources']]);
+      expect(links.map((link) => [text(link), link.getAttribute('href')])).toEqual([['Builds', '/admin/builds']]);
+      expect(texts('.section-head a')).toEqual(['Spravovať']);
     });
 
     it('reads the same in English', async () => {
-      await setup({ language: 'en', admin: true, sources: NONE });
+      await setup({ language: 'en', admin: true, builds: NONE });
 
-      expect(text(sentence())).toBe('No builds downloaded yet. Start the first sync on the Sources page.');
-      expect(text(sentence()!.querySelector('a'))).toBe('Sources');
+      expect(text(sentence())).toBe('No builds yet. Import them on the Builds page.');
+      expect(text(sentence()!.querySelector('a'))).toBe('Builds');
     });
 
     it('draws no link for a language whose sentence does not name the page', async () => {
-      await setup({ admin: true, sources: NONE, strings: { 'dashboard.noBuildsAdmin': 'Zatiaľ nie sú stiahnuté žiadne buildy.' } });
+      await setup({ admin: true, builds: NONE, strings: { 'dashboard.noBuildsStaff': 'Zatiaľ tu nie sú žiadne buildy.' } });
 
-      expect(text(sentence())).toBe('Zatiaľ nie sú stiahnuté žiadne buildy.');
+      expect(text(sentence())).toBe('Zatiaľ tu nie sú žiadne buildy.');
       expect(sentence()!.querySelector('a')).toBeNull();
     });
 
-    it('tells everybody else to wait for an admin', async () => {
-      await setup({ admin: false, sources: NONE });
+    it('tells everybody else to wait for an editor', async () => {
+      await setup({ admin: false, builds: NONE });
 
-      expect(text(sentence())).toBe('Zatiaľ nie sú stiahnuté žiadne buildy. Pribudnú, keď správca synchronizuje zdroje buildov.');
+      expect(text(sentence())).toBe('Zatiaľ tu nie sú žiadne buildy. Pribudnú, keď ich editor importuje.');
       expect(sentence()!.querySelector('a')).toBeNull();
+      expect(host.querySelector('.section-head a')).toBeNull();
     });
   });
 
@@ -339,7 +325,7 @@ describe('the dashboard', () => {
       await setup({ language: 'en', state: 'nobody' });
 
       expect(api.accounts).not.toHaveBeenCalled();
-      expect(api.sources).toHaveBeenCalledTimes(1);
+      expect(api.buildsOverview).toHaveBeenCalledTimes(1);
       expect(texts('app-visitor-hero h2')).toEqual([en['home.title']]);
       const links = [...host.querySelectorAll<HTMLAnchorElement>('app-visitor-hero a')];
       expect(links.map((link) => [text(link), link.getAttribute('href')])).toEqual([
@@ -347,7 +333,7 @@ describe('the dashboard', () => {
         ['Browse the Genshin Impact builds', '/builds/genshin'],
       ]);
       expect(texts('app-visitor-hero button')).toEqual(['Sign in']);
-      // The sources' freshness is everybody's.
+      // The builds are everybody's.
       expect(rows()).toHaveLength(1);
       expect(host.querySelector('anotoki-page-header')).toBeNull();
       expect(host.querySelector('app-visitor-notice anotoki-alert')).toBeNull();

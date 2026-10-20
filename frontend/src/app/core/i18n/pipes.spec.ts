@@ -77,7 +77,7 @@ describe('the translate pipes', () => {
   it('answer again when the language on the page changes under the same key', async () => {
     const { i18n, translate, plural } = pipes('sk');
     expect(translate.transform('whatsNew.title')).toBe('Čo je nové');
-    i18n.noteAddress('/admin/sources');
+    i18n.noteAddress('/admin/builds');
     expect(translate.transform('whatsNew.title')).toBe("What's new");
     expect(plural.transform('buildDetail.optionAny', 3)).toBe('(any 3)');
     i18n.noteAddress('/');
@@ -176,7 +176,7 @@ describe('the localDate pipe', () => {
 
   it('is English on the English pages', () => {
     const { i18n, date } = pipes('sk');
-    i18n.noteAddress('/admin/sources');
+    i18n.noteAddress('/admin/builds');
     expect(date.transform('2026-09-29', 'day')).toBe('29 September 2026');
     expect(date.transform(new Date(NOW - 3 * HOUR).toISOString(), 'ago')).toBe('3 hours ago');
   });

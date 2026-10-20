@@ -23,7 +23,7 @@ backend/src/Models/GameWeapon.php
 # gain spaces - between a button's icon and its word ("<anotoki-icon ... />Sign in"), and inside a stat target's "120+" or an item's "+16 / +20".
 frontend/src/app/layouts/admin-layout/admin-layout.html
 frontend/src/app/pages/account/account-page.html
-frontend/src/app/pages/admin/sources/sources-page.html
+frontend/src/app/pages/admin/builds/admin-builds-page.html
 frontend/src/app/pages/builds/build-character-page.html
 frontend/src/app/pages/builds/builds-page.html
 frontend/src/app/pages/character/character-page.html

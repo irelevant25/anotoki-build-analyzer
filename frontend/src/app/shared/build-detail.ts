@@ -8,6 +8,7 @@ import { LocalDatePipe } from '../core/i18n/local-date';
 import { TranslatePipe } from '../core/i18n/translate';
 import { TranslatePluralPipe } from '../core/i18n/translate-plural';
 import { TranslationService } from '../core/i18n/translation';
+import { rankMark } from '../core/i18n/variation-words';
 import { MetaStore } from '../core/meta-store';
 import { Build, Evaluation, GameKey, SetOption, StatPriority, TalentPriority } from '../core/models';
 import { BUILD_TERMS } from './build-terms';
@@ -25,9 +26,9 @@ interface SetGroup {
  * Renders a recommended build. With an evaluation it also marks what the player already has.
  *
  * The site's own words are keys; the game's words - the headings of weapons and sets, "4pc", stat and
- * talent names - are terms and stay as they are. What a source wrote (a weapon's or a set's note, a
- * target's text, the build's notes) is stored English: shown as it is, marked `lang="en"` while the page
- * is in another language.
+ * talent names, a target's constellation ("C1+") - are terms and stay as they are. What the build's text says
+ * (a weapon's or a set's note, a target's text, the build's notes) is stored English: shown as it is, marked
+ * `lang="en"` while the page is in another language.
  *
  * The build sheet is the site's own; its parts are the kit's: badges for the stats and what the player has, its
  * icons, tooltips for the notes cut to a line, and the kit's disclosure (`@anotoki/lib/ui/disclosure`) for the
@@ -53,7 +54,7 @@ export class BuildDetail {
   /** The game's own words for this game: "Weapons", "Talents". */
   protected readonly terms = computed(() => GAME_TERMS[this.game()]);
   protected readonly buildTerms = BUILD_TERMS;
-  /** `en` on what a source wrote while the page is in another language; nothing while it is English. */
+  /** `en` on what the build's text says while the page is in another language; nothing while it is English. */
   protected readonly storedLang = this.i18n.storedEnglishLang;
 
   protected readonly equippedWeaponKey = computed(() => this.evaluation()?.weapon?.equipped?.key ?? null);
@@ -94,10 +95,19 @@ export class BuildDetail {
     return [...byPriority.entries()].sort(([a], [b]) => a - b).map(([, list]) => list.map((t) => this.meta.talentLabel(this.game(), t.talent)).join(' = '));
   });
 
+  /**
+   * The stat targets: with an evaluation those of the character's constellation (the server keeps, per stat, the one
+   * from the highest constellation reached), else every one the build has - a stat's from C0 and from C1 both.
+   */
   protected readonly targets = computed(() => {
     const evaluated = this.evaluation()?.targets;
     return evaluated && evaluated.length > 0 ? evaluated : (this.build().stat_targets ?? []);
   });
+
+  /** "C1+" on a target that holds from a constellation; none on one from the start. */
+  protected targetRank(fromRank: number | undefined): string | null {
+    return rankMark(this.gameMeta()?.rank_prefix ?? this.terms().rankPrefix, fromRank ?? 0);
+  }
 
   /** "4pc A + 2pc B": the game's notation, the same in every language. */
   protected pieceText(option: SetOption): string {

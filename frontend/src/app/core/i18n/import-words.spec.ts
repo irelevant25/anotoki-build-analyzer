@@ -30,7 +30,7 @@ const SLOVAK: Record<string, string> = {
   'import.warning.unknown_character': 'Neznáma postava, import ju preskočil: {ref}',
   'import.warning.unknown_weapon': '{weapon_label}: neznámy názov, import ho preskočil: {ref}',
   'import.warning.unknown_set': 'Neznámy set, import ho preskočil: {ref}',
-  'import.warning.catalog_behind': 'Čo katalóg hry ešte nepozná, to import preskočil. Keď správca obnoví katalóg (stránka Zdroje), importuj znova.',
+  'import.warning.catalog_behind': 'Čo katalóg hry ešte nepozná, to import preskočil. Importuj znova neskôr: katalóg sa doplní sám, alebo ho editor obnoví v administrácii (stránka Builds).',
   'import.warning.good_artifacts_skipped': 'Artifacts, ktoré import preskočil (chýba set, slot alebo main stat): {count}',
   'import.status.success': 'úspešný',
   'import.status.partial': 'čiastočný',
@@ -173,7 +173,7 @@ describe('the words of an import', () => {
         warnings: [
           'Unknown character {"name":"Newcomer"} was skipped.',
           'Something a newer server warns about.',
-          'What the game catalog does not know yet was skipped. After an admin refreshes the catalog (Sources page), import again.',
+          'What the game catalog does not know yet was skipped. Import again later: the catalog catches up on its own, or an editor refreshes it in the admin panel (Builds page).',
         ],
         warning_kinds: [
           { code: 'unknown_character', params: { ref: 'Newcomer' } },
@@ -184,7 +184,7 @@ describe('the words of an import', () => {
       expect(importWarnings(i18n, summary)).toEqual([
         { text: 'Neznáma postava, import ju preskočil: Newcomer', lang: null },
         { text: 'Something a newer server warns about.', lang: 'en' },
-        { text: 'Čo katalóg hry ešte nepozná, to import preskočil. Keď správca obnoví katalóg (stránka Zdroje), importuj znova.', lang: null },
+        { text: 'Čo katalóg hry ešte nepozná, to import preskočil. Importuj znova neskôr: katalóg sa doplní sám, alebo ho editor obnoví v administrácii (stránka Builds).', lang: null },
       ]);
     });
 

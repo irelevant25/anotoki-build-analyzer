@@ -1,0 +1,86 @@
+.loading {
+  align-self: center;
+}
+
+// A game: its heading, then its cards.
+.game {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  min-width: 0;
+}
+
+// The builds across the page; under them the recent imports and the catalog side by side where they fit, one under
+// the other on a phone.
+.game-cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 22rem), 1fr));
+  gap: 1rem;
+  align-items: start;
+}
+
+.builds {
+  grid-column: 1 / -1;
+}
+
+.card-body {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  min-width: 0;
+
+  > p {
+    margin: 0;
+  }
+}
+
+// What importing a chosen file does, under a line between it and the counts.
+.preview {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  padding-top: 0.75rem;
+  border-top: 1px solid var(--anotoki-border);
+
+  h4,
+  p {
+    margin: 0;
+  }
+
+  // A file's name is one long word.
+  h4 {
+    overflow-wrap: anywhere;
+  }
+}
+
+.skipped-list,
+.change-list,
+.import-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.skipped-list {
+  margin-top: 0.5rem;
+}
+
+// A line each, wrapping on a narrow screen rather than pushing it sideways.
+.change-list li,
+.import-list li {
+  padding: 0.4rem 0;
+  border-bottom: 1px solid var(--anotoki-border);
+  overflow-wrap: anywhere;
+
+  &:last-child {
+    border-bottom: 0;
+  }
+}
+
+.more {
+  margin: 0.5rem 0 0;
+}
+
+.import-when {
+  font-weight: 650;
+}

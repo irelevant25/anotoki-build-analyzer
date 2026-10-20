@@ -5,8 +5,8 @@
  *
  *   php sync-catalog.php [game] [--force]   (game: genshin)
  *
- * The same catalog runs as "Refresh catalog" on the Sources page, one per game, stepped until done. Without
- * --force a catalog refreshed within refresh_days is left as it is. (App\Commands\SyncCatalog)
+ * Each list of each game, as the admin panel's Builds page refreshes them one at a time. Without --force a
+ * catalog refreshed within refresh_days is left as it is. (App\Commands\SyncCatalog)
  */
 
 require __DIR__ . '/vendor/autoload.php';

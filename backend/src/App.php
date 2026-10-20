@@ -21,8 +21,6 @@ use App\Http\CurlHttpClient;
 use App\Http\Fetcher;
 use App\Http\HttpClient;
 use App\People\SitePeople;
-use App\Repositories\BuildSources;
-use App\Services\Builds\BuildSourceRegistry;
 use App\Services\Translations\SiteTranslations;
 use LogicException;
 use ReflectionClass;
@@ -32,8 +30,8 @@ use ReflectionNamedType;
  * Where the app's services come from: the composition root, with no container package behind it.
  *
  * A service is made the first time it is asked for, from its constructor's type hints, and kept for the rest
- * of the request (or command). resetScope() starts the next request afresh - the catalog's in-memory rows,
- * a sync runner's state, the IAM's answer about signing in - except for what outlives requests on purpose:
+ * of the request (or command). resetScope() starts the next request afresh - the catalog's in-memory rows, the
+ * IAM's answer about signing in - except for what outlives requests on purpose:
  * the database connection, the HTTP client, and the anotoki library's people and admin tools, whose route
  * groups (made once with the API) hold the same objects. The tests replace a service with set(), which also
  * survives resetScope().
@@ -92,7 +90,7 @@ final class App
     }
 
     /**
-     * A new object of $class with its constructor's dependencies from here (build sources, handlers).
+     * A new object of $class with its constructor's dependencies from here.
      *
      * @template T of object
      *
@@ -153,7 +151,6 @@ final class App
             AuditLog::class => AdminTools::auditLog($this),
             Feedback::class => AdminTools::feedback($this),
             Backups::class => AdminTools::backups($this),
-            BuildSourceRegistry::class => new BuildSourceRegistry((array) $this->config->get('sources', []), $this, $this->get(BuildSources::class)),
             default => $this->make($id),
         };
     }

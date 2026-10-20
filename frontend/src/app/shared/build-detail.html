@@ -132,7 +132,7 @@
   <section class="block">
     <h3>{{ 'buildDetail.substatPriority' | translate }}</h3>
     @if (substatGroups().length === 0) {
-      <p class="muted small">{{ 'buildDetail.substatsBorrowed' | translate }}</p>
+      <p class="muted small">{{ 'buildDetail.substatsDerived' | translate }}</p>
     } @else {
       <div class="priority">
         @for (group of substatGroups(); track $index; let last = $last) {
@@ -168,9 +168,15 @@
   <section class="block">
     <h3>{{ 'buildDetail.statTargets' | translate }}</h3>
     <div class="targets">
-      @for (target of targets(); track target.stat) {
+      <!-- A stat can have a target from C0 and another from C1: in the builds' list both, each with its constellation. -->
+      @for (target of targets(); track $index) {
         <div class="target" [class.ok]="target.ok === true" [class.bad]="target.ok === false">
-          <span class="t-stat">{{ stat(target.stat) }}</span>
+          <!-- A space before the mark: it is read as a word of its own. -->
+          <span class="t-stat"
+            >{{ stat(target.stat) }}@if (targetRank(target.from_rank); as rank) {
+              {{ ' ' }}<anotoki-badge class="t-rank">{{ rank }}</anotoki-badge>
+            }</span
+          >
           <span class="t-goal">
             {{ target.min | statValue: game() : target.stat
             }}@if (target.max) {
@@ -193,22 +199,19 @@
 }
 
 @if (b.notes) {
-  <anotoki-disclosure class="notes" [heading]="'buildDetail.notesFrom' | translate: { source: b.source.name }">
+  <anotoki-disclosure class="notes" [heading]="'buildDetail.notes' | translate">
     <p class="notes-text" [attr.lang]="storedLang()">{{ b.notes }}</p>
   </anotoki-disclosure>
 }
 
 <footer class="muted small">
   @if (b.game_version) {
-    {{ 'buildDetail.version' | translate: { version: b.game_version } }} ·
+    {{ 'buildDetail.version' | translate: { version: b.game_version } }}
+    @if (b.checked_at) {
+      ·
+    }
   }
-  @if (b.source_updated_at) {
-    {{ 'buildDetail.updatedAtSource' | translate: { when: (b.source_updated_at | localDate: 'ago') } }}
-    ·
-  }
-  @if (b.fetched_at) {
-    {{ 'buildDetail.checked' | translate: { when: (b.fetched_at | localDate: 'ago') } }}
-  } @else {
-    {{ 'buildDetail.checkedNever' | translate }}
+  @if (b.checked_at) {
+    {{ 'buildDetail.checked' | translate: { when: (b.checked_at | localDate: 'ago') } }}
   }
 </footer>

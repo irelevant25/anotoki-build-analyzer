@@ -13,10 +13,10 @@ import { signInOrSayWhy } from '../../core/sign-in';
 import { TopBar } from '../top-bar/top-bar';
 
 /**
- * The frame of the admin panel (`/admin/...`, English): for the people who run the site - EDITOR (the
- * syncs, their history, a source's builds file, the site's strings) and ADMIN (also sources on and off,
- * database updates on the Migrations page, languages, people, and the anotoki family's admin tools: the error
- * log, the audit log, feedback and backups). The anotoki family's frame and top bar ("anotoki Build Analyzer ·
+ * The frame of the admin panel (`/admin/...`, English): for the people who run the site - EDITOR (the builds
+ * files and the game catalog on the Builds page, the site's strings) and ADMIN (also database updates on the
+ * Migrations page, languages, people, and the anotoki family's admin tools: the error log, the audit log,
+ * feedback and backups). The anotoki family's frame and top bar ("anotoki Build Analyzer ·
  * admin panel", short there: "Analyzer" with "admin panel" under it), with the panel's sections as its links (an
  * editor sees only theirs: ADMIN_LINKS in layouts/top-bar; the count of new feedback beside Feedback, for the
  * ADMIN) and "Back to Build Analyzer" in the person's menu; the family's footer below, as under everybody's pages

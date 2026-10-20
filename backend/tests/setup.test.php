@@ -95,11 +95,8 @@ test('it takes the database and the IAM, and nothing else: no sign-in switch, no
     same(null, $config->get('auth.mode'), 'no mode');
     same(null, $config->get('auth.local_user_id'), 'no owner');
     same('db.example.test', $config->get('database.host'), 'database host');
-    same(
-        ['build-analyzer/1.0 (https://builds.example.test)', 1200, 12, 20, 20],
-        [$config->get('fetch.user_agent'), $config->get('fetch.delay_ms'), $config->get('fetch.cache_hours'), $config->get('fetch.step_seconds'), $config->get('fetch.stale_hours')],
-        'fetch.local.php: the defaults, with the site\'s address',
-    );
+    same(['build-analyzer/1.0 (https://builds.example.test)', 1200], [$config->get('fetch.user_agent'), $config->get('fetch.delay_ms')], 'fetch.local.php: the defaults, with the site\'s address');
+    same(['user_agent', 'delay_ms'], array_keys(require $installer->root . '/config/fetch.local.php'), 'and nothing else in it');
     check(str_starts_with((string) file_get_contents($installer->root . '/config/auth.local.php'), "<?php\n\n// Written by setup.php"), 'a PHP file saying where it came from');
     same('build-analyzer/1.0 (personal build analyzer)', Installer::userAgent(true, 'http://localhost:4600'), 'on this computer');
 });

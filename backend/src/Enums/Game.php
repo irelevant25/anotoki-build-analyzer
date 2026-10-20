@@ -131,6 +131,19 @@ enum Game: string
         };
     }
 
+    /**
+     * What a build is for, in the order a character's tabs list them (a build's role; migration 016 closes the set):
+     * the page words each (`builds.role.*`).
+     *
+     * @return list<string>
+     */
+    public function roles(): array
+    {
+        return match ($this) {
+            self::Genshin => ['main_dps', 'sub_dps', 'support'],
+        };
+    }
+
     /** The prefix the game writes a weapon's refinement with ("R1"). */
     public function refinementPrefix(): string
     {

@@ -11,7 +11,6 @@ import { Changelog } from '../../core/changelog';
 import { provideFeedback } from '../../core/feedback';
 import { provideKit } from '../../core/kit';
 import { provideLegal } from '../../core/legal';
-import { SyncDriver } from '../../core/sync-driver';
 import { AppLayout } from './app-layout';
 
 @Component({ selector: 'app-test-page', template: '<p class="the-page">the page</p>' })
@@ -79,7 +78,6 @@ async function draw(options: Options = {}): Promise<{
           failure: signal(null),
         },
       },
-      { provide: SyncDriver, useValue: { driving: signal(false) } },
       { provide: FeedbackUnread, useValue: { count: signal(null), refresh: vi.fn() } },
       { provide: Changelog, useValue: changelog },
       { provide: SiteStatus, useValue: { blocked: signal(options.blocked ?? false) } },

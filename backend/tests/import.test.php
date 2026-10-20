@@ -145,7 +145,10 @@ test('imports a GOOD file', function () use ($owner, $item) {
     check(in_array('Unknown set {"name":"SomeFutureSet"} was skipped.', $run->summary['warnings'], true), 'warning');
     // Each warning is a kind with its parameters too, index for index with the sentences.
     same(
-        ['Unknown set {"name":"SomeFutureSet"} was skipped.', 'What the game catalog does not know yet was skipped. After an admin refreshes the catalog (Sources page), import again.'],
+        [
+            'Unknown set {"name":"SomeFutureSet"} was skipped.',
+            'What the game catalog does not know yet was skipped. Import again later: the catalog catches up on its own, or an editor refreshes it in the admin panel (Builds page).',
+        ],
         $run->summary['warnings'],
         'the warnings',
     );
@@ -447,7 +450,7 @@ test('every warning is a kind of ImportKinds::WARNINGS with exactly its paramete
             'Unknown character {"name":"SomeoneNew"} was skipped.',
             'Unknown weapon {"name":"FutureBlade"} was skipped.',
             'Unknown set {"name":"SomeFutureSet"} was skipped.',
-            'What the game catalog does not know yet was skipped. After an admin refreshes the catalog (Sources page), import again.',
+            'What the game catalog does not know yet was skipped. Import again later: the catalog catches up on its own, or an editor refreshes it in the admin panel (Builds page).',
         ],
         $run->summary['warnings'],
         'the sentences, in the order they always had',

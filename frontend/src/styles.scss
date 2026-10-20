@@ -220,62 +220,6 @@ $site-colours: (
   }
 }
 
-// A native disclosure (<details><summary>) in the kit's colours, for the one the kit's disclosure cannot draw: a
-// sync's run on the Sources page, whose summary holds its state's dot and a quieter line of when, how long and what
-// came of it - the kit's heading is words alone. Every other is the kit's `<anotoki-disclosure>`.
-details.disclosure {
-  border: 1px solid var(--anotoki-border);
-  border-radius: var(--anotoki-radius-lg);
-  background: var(--anotoki-surface);
-  box-shadow: var(--anotoki-shadow-sm);
-
-  > summary {
-    display: flex;
-    align-items: center;
-    gap: 0.75rem;
-    min-height: 48px;
-    padding: 0.6rem 1rem;
-    border-radius: var(--anotoki-radius-lg);
-    font-weight: 650;
-    cursor: pointer;
-    list-style: none;
-
-    &::-webkit-details-marker {
-      display: none;
-    }
-
-    // The chevron: down while closed, up while open.
-    &::after {
-      content: "";
-      flex: none;
-      width: 0.55rem;
-      height: 0.55rem;
-      margin-left: auto;
-      border-right: 2px solid currentColor;
-      border-bottom: 2px solid currentColor;
-      transform: translateY(-2px) rotate(45deg);
-      transition: transform var(--anotoki-duration) var(--anotoki-ease);
-    }
-
-    &:hover {
-      background: var(--anotoki-surface-2);
-    }
-  }
-
-  &[open] > summary {
-    border-bottom-left-radius: 0;
-    border-bottom-right-radius: 0;
-
-    &::after {
-      transform: translateY(2px) rotate(-135deg);
-    }
-  }
-
-  > .disclosure-body {
-    padding: 0.25rem 1rem 1rem;
-  }
-}
-
 // The anotoki family's admin pages, routed straight into the admin panel (app.routes.ts: the People page and the
 // admin tools, each its own lazy entry point of @anotoki/lib): a long word (a file's path, a fingerprint) breaks
 // rather than push a 390 px screen sideways.

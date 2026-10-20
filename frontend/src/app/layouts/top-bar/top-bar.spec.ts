@@ -12,7 +12,6 @@ import { TranslationService } from '../../core/i18n/translation';
 import { LANGUAGE_STORAGE } from '../../core/i18n/translations.config';
 import { provideKit } from '../../core/kit';
 import { provideShell } from '../../core/shell';
-import { SyncDriver } from '../../core/sync-driver';
 import { ADMIN_PHONE_BAR_MAX, EDITOR_PHONE_BAR_MAX, PHONE_BAR_MAX, TopBar } from './top-bar';
 
 const ENGLISH = {
@@ -30,8 +29,6 @@ const ENGLISH = {
   'topbar.signOutUnsaved.message': "Some changes to the site's strings or languages are not saved - the Translations and Languages pages show them. Signed out, they are lost.",
   'topbar.signOutUnsaved.confirm': 'Sign out anyway',
   'topbar.signOutUnsaved.stay': 'Stay',
-  'toolbar.syncing': 'Syncing builds (keep this tab open)',
-  'toolbar.syncingLabel': 'Syncing builds',
   'common.userFallback': 'user {sub}',
 };
 /** Slovak - with the site's own wording of the family's words, as migration 010 keeps them under the library's keys. */
@@ -50,8 +47,6 @@ const SLOVAK = {
   'topbar.signOutUnsaved.message': 'Niektoré zmeny v textoch alebo jazykoch stránky nie sú uložené - nájdeš ich na stránkach Translations a Languages. Po odhlásení sa stratia.',
   'topbar.signOutUnsaved.confirm': 'Aj tak sa odhlásiť',
   'topbar.signOutUnsaved.stay': 'Zostať',
-  'toolbar.syncing': 'Synchronizujú sa buildy (nechaj túto kartu otvorenú)',
-  'toolbar.syncingLabel': 'Synchronizujú sa buildy',
   'common.userFallback': 'č. {sub}',
   'anotoki.topbar.roleAdmin': 'Správca',
 };
@@ -92,7 +87,6 @@ describe("the top bar: the family's bar, told what is this site's", () => {
     login: vi.fn(async () => true),
     logout: vi.fn(async () => undefined),
   };
-  const sync = { driving: signal(false) };
   /** The feedback nobody has opened yet, as the anotoki family's FeedbackUnread holds it. */
   const unread = { count: signal<number | null>(null), refresh: vi.fn(async () => undefined) };
 
@@ -151,7 +145,6 @@ describe("the top bar: the family's bar, told what is this site's", () => {
     roles.set(['ADMIN']);
     failure.set(null);
     unread.count.set(null);
-    sync.driving.set(false);
     auth.login.mockReset().mockResolvedValue(true);
     auth.logout.mockClear();
     windowOf(1280);
@@ -167,7 +160,6 @@ describe("the top bar: the family's bar, told what is this site's", () => {
         provideShell(),
         provideRouter([{ path: '**', component: TestPage }]),
         { provide: AuthService, useValue: auth },
-        { provide: SyncDriver, useValue: sync },
         { provide: FeedbackUnread, useValue: unread },
       ],
     });
@@ -232,17 +224,17 @@ describe("the top bar: the family's bar, told what is this site's", () => {
   });
 
   it('reads English in the admin panel, whatever the person reads - the family\'s "anotoki Build Analyzer · admin panel", short there; no language chooser', async () => {
-    TestBed.inject(TranslationService).noteAddress('/admin/sources');
+    TestBed.inject(TranslationService).noteAddress('/admin/builds');
     windowOf(ADMIN_PHONE_BAR_MAX + 201);
     await draw('admin');
-    await at('/admin/sources');
+    await at('/admin/builds');
     // Short at every width: the area and the part of the site under it, the whole name in the link's name.
     expect(words(host.querySelector('.anotoki-brand__wordmark'))).toBe('Analyzer · admin panel');
     expect(host.querySelector('anotoki-brand a')?.getAttribute('href')).toBe('/admin');
     expect(host.querySelector('anotoki-brand a')?.getAttribute('aria-label')).toBe('anotoki Build Analyzer: the admin panel');
     expect(host.querySelector('anotoki-language-switcher')).toBeNull();
     expect(links().map(described)).toEqual([
-      'Sources /admin/sources [page] [here]',
+      'Builds /admin/builds [page] [here]',
       'Translations /admin/translations',
       'Languages /admin/languages',
       'People /admin/people',
@@ -258,7 +250,7 @@ describe("the top bar: the family's bar, told what is this site's", () => {
 
     roles.set(['EDITOR']);
     await fixture.whenStable();
-    expect(links().map((link) => words(link))).toEqual(['Sources', 'Translations']);
+    expect(links().map((link) => words(link))).toEqual(['Builds', 'Translations']);
     roles.set([]);
     await fixture.whenStable();
     expect(host.querySelector('.anotoki-top-bar__nav')).toBeNull();
@@ -272,17 +264,18 @@ describe("the top bar: the family's bar, told what is this site's", () => {
     expect(links().map((link) => words(link))).toEqual(['Dashboard', 'Import', 'Builds']);
   });
 
-  it('shows the sync this tab drives, just before the language - for an editor or an admin, and nobody else', async () => {
-    sync.driving.set(true);
+  it('carries no widget of its own: the language comes first after the sections, for an editor and in the admin panel too', async () => {
+    roles.set(['EDITOR']);
     await draw();
-    expect(actions()[0]).toBe('sync-widget');
-    const widget = host.querySelector('.sync-widget')!;
-    expect(widget.getAttribute('href')).toBe('/admin/sources');
-    expect(widget.getAttribute('aria-label')).toBe('Synchronizujú sa buildy');
+    expect(actions()).toEqual(['anotoki-language-switcher', 'anotoki-theme-toggle', 'anotoki-top-bar__person-button', 'anotoki-menu']);
+    fixture.destroy();
+    host.remove();
 
-    roles.set([]);
-    await fixture.whenStable();
-    expect(host.querySelector('.sync-widget')).toBeNull();
+    TestBed.inject(TranslationService).noteAddress('/admin/builds');
+    windowOf(ADMIN_PHONE_BAR_MAX + 201);
+    roles.set(['ADMIN']);
+    await draw('admin');
+    expect(actions()).toEqual(['anotoki-theme-toggle', 'anotoki-top-bar__person-button', 'anotoki-menu']);
   });
 
   describe('signed out', () => {
@@ -341,16 +334,18 @@ describe("the top bar: the family's bar, told what is this site's", () => {
       expect(items()[0].getAttribute('aria-current')).toBe('page');
     });
 
-    it('names the sync this tab drives in the menu, with a dot on its button that says so', async () => {
+    it('marks nothing on the menu button of an editor or an admin on the member pages: the menu holds the links and theirs alone', async () => {
       windowOf(390);
-      sync.driving.set(true);
-      await draw();
-      expect(host.querySelector('.sync-widget')).toBeNull();
-      expect(host.querySelector('.anotoki-top-bar__mark-dot')).not.toBeNull();
-      const description = phoneButton()!.getAttribute('aria-describedby')!;
-      expect(words(document.getElementById(description))).toBe('Synchronizujú sa buildy');
-      await openMenu();
-      expect(items().map(words)).toContain('Synchronizujú sa buildy');
+      for (const role of ['EDITOR', 'ADMIN']) {
+        roles.set([role]);
+        await draw();
+        expect(host.querySelector('.anotoki-top-bar__mark-dot'), role).toBeNull();
+        expect(host.querySelector('.anotoki-top-bar__mark-badge'), role).toBeNull();
+        await openMenu();
+        expect(items().map(words), role).toEqual(['Prehľad', 'Import', 'Buildy', 'Tvoj anotoki účet', 'Administrátorský panel', 'Odhlásiť sa']);
+        fixture.destroy();
+        host.remove();
+      }
     });
 
     it('signed out: Sign in is in the menu, after the links', async () => {
@@ -375,7 +370,7 @@ describe("the top bar: the family's bar, told what is this site's", () => {
         [EDITOR_PHONE_BAR_MAX + 1, 'admin', 'EDITOR', false],
       ] as const) {
         if (area === 'admin') {
-          TestBed.inject(TranslationService).noteAddress('/admin/sources');
+          TestBed.inject(TranslationService).noteAddress('/admin/builds');
         }
         roles.set([who]);
         windowOf(width);
@@ -387,7 +382,7 @@ describe("the top bar: the family's bar, told what is this site's", () => {
     });
 
     it('counts the new feedback on the menu button in the admin panel, and beside Feedback in its menu - for the ADMIN alone', async () => {
-      TestBed.inject(TranslationService).noteAddress('/admin/sources');
+      TestBed.inject(TranslationService).noteAddress('/admin/builds');
       unread.count.set(4);
       windowOf(390);
       await draw('admin');

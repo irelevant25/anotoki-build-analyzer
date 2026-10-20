@@ -30,7 +30,7 @@
     </anotoki-card>
 
     @if (d.builds.length > 0) {
-      <!-- A tab a build: its source and variant. -->
+      <!-- A tab a build: its variation. -->
       <anotoki-tabs
         #tabs="anotokiTabs"
         [label]="'topbar.builds' | translate"
@@ -45,9 +45,6 @@
           [id]="tabs.panelId(activeTab())"
           [attr.aria-labelledby]="tabs.tabId(activeTab())"
         >
-          @if (b.role && b.role !== b.variant) {
-            <anotoki-badge>{{ b.role }}</anotoki-badge>
-          }
           <app-build-detail [build]="b" [game]="gameKey()" [element]="d.character.element" />
         </div>
       }

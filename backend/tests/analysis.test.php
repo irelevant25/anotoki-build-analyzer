@@ -3,7 +3,8 @@
 /**
  * The analysis of a character against a build: part scores, recommendations - the English sentence, and the
  * kind with its parameters that a page words in its own language -, better pieces from the inventory, set
- * plans, and what the account page and the character page get.
+ * plans, which build is the best by the character's constellation, the stat targets of their constellation,
+ * and what the account page and the character page get.
  */
 
 declare(strict_types=1);
@@ -13,10 +14,10 @@ require __DIR__ . '/lib.php';
 use App\Repositories\Accounts;
 use App\Services\Analysis\BuildEvaluator;
 use App\Services\Analysis\CharacterAnalyzer;
+use App\Support\Clock;
 use App\Support\Json;
 use App\Support\Stats;
 use Tests\Support\Client;
-use Tests\Support\FakeBuildSource;
 
 bootTests();
 
@@ -26,16 +27,10 @@ $state->seen = [];
 
 beforeEach(function () use ($state) {
     seedGenshinCatalog();
-    T::$app->config->set('sources', [FakeBuildSource::class]);
-
-    $source = (int) db()->insert('build_sources', ['key' => 'fake.genshin', 'game' => 'genshin', 'name' => 'Fake Builds', 'base_url' => 'https://fake-builds.example']);
     $character = idOf('game_characters', 'hutao');
 
-    db()->insert('builds', [
-        'build_source_id' => $source,
-        'game_character_id' => $character,
-        'variant' => 'DPS',
-        'recommended' => true,
+    // Hu Tao's main DPS build, the only one she has unless a test adds more.
+    $state->build = seedBuild($character, [
         'weapons' => Json::encode([
             ['key' => 'staffofhoma', 'name' => 'Staff of Homa', 'rank' => 1, 'refinement' => null, 'note' => null, 'known' => true],
             ['key' => 'dragonsbane', 'name' => "Dragon's Bane", 'rank' => 2, 'refinement' => 5, 'note' => null, 'known' => true],
@@ -62,10 +57,8 @@ beforeEach(function () use ($state) {
             'circlet' => [['stat' => 'critRate_', 'priority' => 1], ['stat' => 'critDMG_', 'priority' => 1]],
         ]),
         'substats' => Json::encode([['stat' => 'critRate_', 'priority' => 1], ['stat' => 'critDMG_', 'priority' => 1], ['stat' => 'eleMas', 'priority' => 2], ['stat' => 'hp_', 'priority' => 3]]),
-        'stat_targets' => Json::encode([['stat' => 'critRate_', 'min' => 70, 'max' => null, 'text' => 'CRIT Rate 70%']]),
+        'stat_targets' => Json::encode([['stat' => 'critRate_', 'min' => 70, 'max' => null, 'text' => 'CRIT Rate 70%', 'from_rank' => 0]]),
         'notes' => 'Enka has no curated build for this character yet.',
-        'source_url' => 'https://fake-builds.example/hu-tao',
-        'content_hash' => 'x',
     ]);
 
     seedUser(1, 'owner');
@@ -106,6 +99,55 @@ beforeEach(function () use ($state) {
     analysisItem($state->account, $cw, 'circlet', 'critDMG_', [['key' => 'critRate_', 'value' => 14.0, 'rolls' => 4], ['key' => 'hp_', 'value' => 10.0, 'rolls' => 2]]);
     analysisItem($state->account, $emblem, 'goblet', 'pyro_dmg_', $crit);
 });
+
+/**
+ * A build of a character's, stored as an import stores it (App\Services\Builds\BuildImport): a main DPS build
+ * that says nothing, unless $fields says more. Returns its id.
+ *
+ * @param  array<string, mixed>  $fields
+ */
+function seedBuild(int $character, array $fields = []): int
+{
+    $now = Clock::now();
+
+    return (int) db()->insert(
+        'builds',
+        $fields + [
+            'game_character_id' => $character,
+            'role' => 'main_dps',
+            'qualifier' => '',
+            'min_rank' => 0,
+            'position' => 0,
+            'weapons' => '[]',
+            'sets' => '[]',
+            'main_stats' => '{}',
+            'substats' => '[]',
+            'content_hash' => 'x',
+            'checked_at' => $now,
+            'changed_at' => $now,
+            'created_at' => $now,
+            'updated_at' => $now,
+        ],
+    );
+}
+
+/**
+ * Another build of Hu Tao's like her main one - its sets, main stats, substats and targets -, with these fields.
+ *
+ * @param  array<string, mixed>  $fields
+ */
+function anotherHuTaoBuild(int $main, array $fields): int
+{
+    $row = db()->one('SELECT * FROM builds WHERE id = ?', [$main]);
+
+    return seedBuild((int) $row['game_character_id'], $fields + array_intersect_key($row, array_flip(['weapons', 'sets', 'main_stats', 'substats', 'stat_targets'])));
+}
+
+/** The character's rank (constellation) in the test's account. */
+function setRank(stdClass $state, int $rank): void
+{
+    db()->run('UPDATE account_characters SET rank = ? WHERE account_id = ? AND game_character_id = ?', [$rank, $state->account, $state->character]);
+}
 
 function analysisItem(int $account, int $set, string $slot, string $main, array $substats, ?int $equippedOn = null): void
 {
@@ -240,9 +282,6 @@ test('a character analysis', function () use ($detail) {
     same(['slot_label' => 'Circlet of Logos', 'percent' => 0, 'stats' => 'CR, CD, EM'], $circlet['params'], 'weak substats');
     same('Your Circlet of Logos has weak substats (0% of an ideal piece). Replace it with one rolling CR, CD, EM.', $circlet['message'], 'weak substats, in English');
 
-    // What the sources agree on: a set row keeps "name" and says its pieces and its "any N" apart.
-    same([['name' => '4pc Crimson Witch of Flames', 'pieces' => '4pc Crimson Witch of Flames', 'choose' => null, 'count' => 1]], $result['consensus']['sets']['artifact'], 'the consensus set row');
-
     // Suggestions: the Pyro goblet (fixes the main stat) and the better circlet (keeps 4pc Crimson Witch).
     $suggestions = array_column($result['suggestions'], null, 'slot');
     same('fixes_main_stat', $suggestions['goblet']['reason'], 'goblet');
@@ -291,11 +330,16 @@ test('a set plan when no recommended set is worn', function () use ($detail, $st
     same('high', $sets['severity'], 'no recommended set, severity');
 });
 
-test('the account overview and the character API, with the source never named', function () use ($state) {
+test('the account overview and the character API: the build as a variation, and nowhere it came from', function () use ($state) {
     $accounts = T::$app->get(Accounts::class);
     $overview = T::$app->make(CharacterAnalyzer::class)->overview($accounts->findOwned(1, $state->account));
     same('Hu Tao', $overview[0]['name'], 'name');
-    same('Source 1', $overview[0]['best']['source'], 'the source is "Source 1"');
+    same(
+        ['build_id' => $state->build, 'role' => 'main_dps', 'qualifier' => '', 'min_rank' => 0, 'applies' => true],
+        array_intersect_key($overview[0]['best'], array_flip(['build_id', 'role', 'qualifier', 'min_rank', 'applies'])),
+        'the best build by its variation',
+    );
+    check(!array_key_exists('source', $overview[0]['best']) && !array_key_exists('variant', $overview[0]['best']), 'no source, no variant');
     check($overview[0]['best']['overall'] > 0, 'a score');
 
     // The top issue is the first recommendation: its sentence, and its kind with its parameters.
@@ -319,13 +363,15 @@ test('the account overview and the character API, with the source never named', 
         ->get("/api/accounts/{$state->account}/characters/hutao")
         ->status(200)
         ->path('character.name', 'Hu Tao')
-        ->path('builds.0.variant', 'DPS')
+        ->path('builds.0.role', 'main_dps')
+        ->path('builds.0.qualifier', '')
+        ->path('builds.0.min_rank', 0)
         ->path('builds.0.weapons.0.name', 'Staff of Homa')
-        ->path('builds.0.source.name', 'Source 1')
-        ->path('builds.0.source.key', 'genshin-1')
-        ->path('evaluations.0.build.source.name', 'Source 1')
-        ->path('consensus.sources', ['Source 1'])
-        // A note copied from a page before the sites were named neutrally is shown without the name.
+        ->path('evaluations.0.build.id', $state->build)
+        ->path('evaluations.0.build.role', 'main_dps')
+        ->path('evaluations.0.build.applies', true)
+        ->path('evaluations.0.build.position', 0)
+        // A note that names a site is shown without the name.
         ->path('builds.0.notes', 'The source has no curated build for this character yet.')
         // A recommendation as it is sent: the kind and its params beside the sentence, the slot's key apart.
         ->path('evaluations.0.recommendations.0', [
@@ -335,10 +381,10 @@ test('the account overview and the character API, with the source never named', 
             'params' => $goblet,
             'message' => 'Goblet of Eonothem has ATK% as main stat; this build wants Pyro DMG Bonus.',
             'slot' => 'goblet',
-        ])
-        ->path('consensus.sets.artifact.0', ['name' => '4pc Crimson Witch of Flames', 'pieces' => '4pc Crimson Witch of Flames', 'choose' => null, 'count' => 1]);
-    check(!str_contains($answer->body, 'fake-builds.example'), 'the page the build came from is not sent');
-    check(!str_contains($answer->body, 'Fake Builds'), 'the site\'s name is not sent');
+        ]);
+    same(['id', 'role', 'qualifier', 'min_rank', 'applies', 'position', 'game_version', 'checked_at'], array_keys($answer->json('evaluations.0.build')), 'what an evaluation says of its build');
+    check(!str_contains($answer->body, 'Enka'), 'the site\'s name is not sent');
+    check(!array_key_exists('consensus', $answer->json()), 'no consensus between sources: there are none');
 
     // What arrives as JSON keeps the rule too: the params of each kind, numbers as JSON numbers.
     checkKinds($answer->json('evaluations.0.recommendations'), $state);
@@ -350,17 +396,7 @@ test('the account overview and the character API, with the source never named', 
 test('a character with nothing to recommend has no top issue, no kind and no params', function () use ($detail, $state) {
     // Kazuha at level 90 against a build that says nothing the analysis could compare.
     $kazuha = idOf('game_characters', 'kaedeharakazuha');
-    db()->insert('builds', [
-        'build_source_id' => idOf('build_sources', 'fake.genshin'),
-        'game_character_id' => $kazuha,
-        'variant' => 'Support',
-        'recommended' => true,
-        'weapons' => '[]',
-        'sets' => '[]',
-        'main_stats' => '{}',
-        'substats' => '[]',
-        'content_hash' => 'y',
-    ]);
+    seedBuild($kazuha, ['role' => 'support', 'content_hash' => 'y']);
     db()->insert('account_characters', ['account_id' => $state->account, 'game_character_id' => $kazuha, 'level' => 90, 'rank' => 0, 'source' => 'good']);
 
     same([], $detail(null, 'kaedeharakazuha')['evaluations'][0]['recommendations'], 'nothing to recommend');
@@ -519,8 +555,7 @@ test('a set option of which any two pieces do: the pieces and the number go out 
     same("Use the recommended artifact set: {$pieces} (any 2). Currently: 4pc Crimson Witch of Flames + 1pc Emblem of Severed Fate.", $sets['message'], 'in English, as before');
     same($pieces . ' (any 2)', $result['evaluations'][0]['sets']['groups'][0]['best'], 'the group keeps its label');
 
-    // The consensus row is counted by the label and carries the two parts; no plan is made for such an option.
-    same([['name' => $pieces . ' (any 2)', 'pieces' => $pieces, 'choose' => 2, 'count' => 1]], $result['consensus']['sets']['artifact'], 'the consensus set row');
+    // No plan is made for such an option.
     same([], $result['set_plans'], 'no set plan for an option of several pieces');
 
     // Two of the three worn, as the build's second option: the top option keeps its two parts there too.
@@ -605,13 +640,9 @@ test('levels, talents and stat targets: numbers go out as numbers, not as the se
 
 test('the game\'s own labels: Weapon as it is, "Artifact set", R for the refinement', function () use ($detail) {
     $kazuha = idOf('game_characters', 'kaedeharakazuha');
-    $source = (int) db()->insert('build_sources', ['key' => 'fake.labels', 'game' => 'genshin', 'name' => 'Fake Label Builds', 'base_url' => 'https://fake-labels.example']);
 
-    db()->insert('builds', [
-        'build_source_id' => $source,
-        'game_character_id' => $kazuha,
-        'variant' => 'Labels',
-        'recommended' => true,
+    seedBuild($kazuha, [
+        'role' => 'support',
         'weapons' => Json::encode([
             ['key' => 'staffofhoma', 'name' => 'Staff of Homa', 'rank' => 1, 'refinement' => null, 'note' => null, 'known' => true],
             ['key' => 'deathmatch', 'name' => 'Deathmatch', 'rank' => 2, 'refinement' => null, 'note' => null, 'known' => false],
@@ -625,8 +656,6 @@ test('the game\'s own labels: Weapon as it is, "Artifact set", R for the refinem
                 'pieces' => [['label' => 'Crimson Witch of Flames', 'count' => 4, 'keys' => ['crimsonwitchofflames'], 'names' => ['Crimson Witch of Flames']]],
             ],
         ]),
-        'main_stats' => '{}',
-        'substats' => '[]',
         'content_hash' => 'z',
     ]);
 
@@ -654,6 +683,105 @@ test('the game\'s own labels: Weapon as it is, "Artifact set", R for the refinem
     $empty = recommendationOf($evaluation, 'sets_missing_empty');
     same(['set_label' => 'Artifact set', 'best' => '4pc Crimson Witch of Flames', 'best_choose' => null], $empty['params'], 'the set');
     same('Use the recommended artifact set: 4pc Crimson Witch of Flames. Currently: nothing.', $empty['message'], 'the set, in English');
+});
+
+test('a build the character\'s constellation does not reach is judged and marked, and never the best while one it reaches is there', function () use ($detail, $state) {
+    // A second main DPS build that needs C2 and lists the weapon she wears first: it would score higher.
+    $vape = anotherHuTaoBuild($state->build, [
+        'qualifier' => 'Vape',
+        'min_rank' => 2,
+        'position' => 1,
+        'weapons' => Json::encode([['key' => 'dragonsbane', 'name' => "Dragon's Bane", 'rank' => 1, 'refinement' => 5, 'note' => null, 'known' => true]]),
+    ]);
+
+    $result = $detail();
+    [$main, $c2] = $result['evaluations'];
+    same(
+        [[$state->build, true, 0], [$vape, false, 2]],
+        [[$main['build']['id'], $main['build']['applies'], $main['build']['min_rank']], [$c2['build']['id'], $c2['build']['applies'], $c2['build']['min_rank']]],
+        'at C0 the first applies, the second is marked',
+    );
+    check($c2['score']['overall'] > $main['score']['overall'], "the C2 build scores higher ({$c2['score']['overall']} > {$main['score']['overall']})");
+    same($state->build, $result['best_build_id'], 'yet the one she reaches is the best');
+
+    // At C2 both apply: the better one is the best, and the account page names it by its variation.
+    setRank($state, 2);
+    $result = $detail();
+    same([true, true], array_map(fn($e) => $e['build']['applies'], $result['evaluations']), 'both apply at C2');
+    same($vape, $result['best_build_id'], 'the better one is the best');
+    $accounts = T::$app->get(Accounts::class);
+    $best = T::$app->make(CharacterAnalyzer::class)->overview($accounts->findOwned(1, $state->account))[0]['best'];
+    same(
+        ['build_id' => $vape, 'role' => 'main_dps', 'qualifier' => 'Vape', 'min_rank' => 2, 'applies' => true],
+        array_intersect_key($best, array_flip(['build_id', 'role', 'qualifier', 'min_rank', 'applies'])),
+        'the overview\'s best',
+    );
+});
+
+test('of builds that score alike the earlier one is the best: the first build is the main one', function () use ($detail, $state) {
+    $copy = anotherHuTaoBuild($state->build, ['qualifier' => 'Copy', 'position' => 1]);
+
+    $result = $detail();
+    same($result['evaluations'][0]['score']['overall'], $result['evaluations'][1]['score']['overall'], 'the same score');
+    same($state->build, $result['best_build_id'], 'the first');
+
+    db()->run('UPDATE builds SET position = 1 - position WHERE id IN (?, ?)', [$state->build, $copy]);
+    same($copy, $detail()['best_build_id'], 'the first now');
+});
+
+test('a character below every build\'s constellation: the build that needs the lowest one is shown first, said so', function () use ($detail, $state) {
+    db()->run('UPDATE builds SET min_rank = 4 WHERE id = ?', [$state->build]);
+    $c2 = anotherHuTaoBuild($state->build, ['role' => 'sub_dps', 'min_rank' => 2, 'position' => 1]);
+
+    $result = $detail();
+    same($c2, $result['best_build_id'], 'the one needing C2');
+    same([false, false], array_map(fn($e) => $e['build']['applies'], $result['evaluations']), 'neither applies');
+    $accounts = T::$app->get(Accounts::class);
+    $best = T::$app->make(CharacterAnalyzer::class)->overview($accounts->findOwned(1, $state->account))[0]['best'];
+    same([$c2, false, 2], [$best['build_id'], $best['applies'], $best['min_rank']], 'the overview says it does not apply');
+});
+
+test('stat targets by constellation: of a stat\'s targets, the one from the highest constellation reached', function () use ($detail, $state) {
+    db()->run('UPDATE builds SET stat_targets = ? WHERE id = ?', [
+        Json::encode([
+            ['stat' => 'enerRech_', 'min' => 260, 'max' => 280, 'text' => '', 'from_rank' => 0],
+            ['stat' => 'critRate_', 'min' => 70, 'max' => null, 'text' => 'CRIT Rate 70%', 'from_rank' => 0],
+            ['stat' => 'enerRech_', 'min' => 200, 'max' => 220, 'text' => '', 'from_rank' => 1],
+            ['stat' => 'critDMG_', 'min' => 250, 'max' => null, 'text' => '', 'from_rank' => 6],
+        ]),
+        $state->build,
+    ]);
+    $targets = fn() => array_map(fn($row) => [$row['stat'], $row['min'], $row['from_rank']], $detail()['evaluations'][0]['targets']);
+
+    same([['enerRech_', 260, 0], ['critRate_', 70, 0]], $targets(), 'C0: the C0 targets');
+    setRank($state, 1);
+    same([['enerRech_', 200, 1], ['critRate_', 70, 0]], $targets(), 'C1: the C1 Energy Recharge, in the place the stat first had');
+    setRank($state, 6);
+    same([['enerRech_', 200, 1], ['critRate_', 70, 0], ['critDMG_', 250, 6]], $targets(), 'C6: and the C6 one');
+    // In-game CRIT DMG 210% falls short of the C6 target; Energy Recharge has no in-game total here.
+    same(
+        ['stat' => 'CRIT DMG', 'stat_key' => 'critDMG_', 'current' => 210, 'min' => 250],
+        recommendationOf($detail()['evaluations'][0], 'target_below', 'critDMG_')['params'],
+        'the C6 target, recommended',
+    );
+
+    same([], BuildEvaluator::targetsFor([['stat' => 'hp', 'min' => 1, 'max' => null, 'text' => '', 'from_rank' => 3]], 2), 'a stat whose targets all start later has none');
+    same(
+        [['from_rank' => 0, 'stat' => 'hp', 'min' => 1, 'max' => null, 'text' => '']],
+        BuildEvaluator::targetsFor([['stat' => 'hp', 'min' => 1, 'max' => null, 'text' => '']], 0),
+        'a target without from_rank starts at C0',
+    );
+});
+
+test('a build that lists no substats is scored by what its own main stats ask for, never by another build\'s', function () use ($detail, $state) {
+    db()->run("UPDATE builds SET substats = '[]' WHERE id = ?", [$state->build]);
+    // Another build of hers that does list substats - DEF% alone, which nothing of the first one asks for.
+    anotherHuTaoBuild($state->build, ['role' => 'support', 'position' => 1, 'substats' => Json::encode([['stat' => 'def_', 'priority' => 1]])]);
+
+    $weights = $detail()['evaluations'][0]['substat_weights'];
+    check(!array_key_exists('def_', $weights), 'nothing borrowed from the other build: ' . json_encode($weights));
+    // CRIT from the CRIT circlet, HP% and Elemental Mastery from the sands, Energy Recharge where no main stat has it.
+    same(['critRate_', 'critDMG_', 'hp_', 'eleMas', 'enerRech_'], array_values(array_diff(array_keys($weights), ['hp'])), 'the stats its main stats ask for');
 });
 
 test('every kind of recommendation is one the cases above produce', function () use ($state) {

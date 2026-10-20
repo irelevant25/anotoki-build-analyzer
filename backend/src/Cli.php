@@ -7,7 +7,7 @@ use App\Support\Log;
 use App\Web\AfterResponse;
 
 /**
- * What the command-line scripts (migration.php, sync-builds.php, sync-catalog.php, import-account.php,
+ * What the command-line scripts (migration.php, sync-catalog.php, import-account.php,
  * translations.php, backup.php) share: the app, set up or refusing to start, and a little output.
  */
 final class Cli

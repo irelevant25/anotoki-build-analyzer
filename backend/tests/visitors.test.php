@@ -310,12 +310,10 @@ test('a visitor reaches nothing but its own accounts and imports: no sign-in, no
     $visitor = visitorClient($key);
 
     $signedInOnly = [
-        ['GET', '/api/sync'],
-        ['GET', '/api/sync-runs'],
-        ['POST', '/api/sync/builds'],
-        ['POST', '/api/sources/genshin-1/sync'],
-        ['GET', '/api/sources/genshin-1/export'],
-        ['PATCH', '/api/sources/genshin-1'],
+        ['GET', '/api/admin/builds'],
+        ['GET', '/api/admin/builds/genshin/export'],
+        ['POST', '/api/admin/builds/genshin/import'],
+        ['POST', '/api/admin/catalog/genshin/characters'],
         ['GET', '/api/admin/migrations'],
         ['POST', '/api/admin/migrations/apply'],
         ['GET', '/api/admin/translations'],
@@ -334,7 +332,8 @@ test('a visitor reaches nothing but its own accounts and imports: no sign-in, no
     }
     // The public pages are the same for a visitor as for anybody, with nothing of a person's.
     $visitor->get('/api/builds/genshin')->status(200);
-    check(!array_key_exists('started_by', $visitor->get('/api/sources')->status(200)->json('0') ?? []), 'no started_by');
+    $fresh = $visitor->get('/api/builds')->status(200)->json('0') ?? [];
+    same(['game', 'characters', 'builds', 'checked_at', 'changed_at'], array_keys($fresh), 'how fresh the builds are, and nobody who imported them');
     $visitor->get('/api/meta')->status(200)->path('visitors.keep_days', 30);
 });
 

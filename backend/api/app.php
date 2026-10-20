@@ -6,8 +6,8 @@
  *   meta, icons            public: what the frontend reads before anybody is signed in (always, even when
  *                          the IAM says this site requires sign-in - meta is where the page learns it, with
  *                          where people sign in: the anotoki library's boot configuration)
- *   builds, GET sources    public while the site is open to everybody: the builds browser and how fresh the
- *                          sources are (sign-in required: 401 sign_in_required without a token)
+ *   builds                 public while the site is open to everybody: the builds browser and how fresh the
+ *                          builds are (sign-in required: 401 sign_in_required without a token)
  *   accounts, imports      whose own data it is (requireOwner): the signed-in person, any role or none - or,
  *                          without a sign-in, this browser's visitor (X-Visitor-Key), whom the first import
  *                          that goes through makes; each reaches their own accounts only (sign-in required:
@@ -15,8 +15,8 @@
  *   visitor                the move of a visitor's accounts into the signed-in person's (token and key;
  *                          whether or not sign-in is required)
  *   me                     a signed-in person's own accounts as a file, out and back (never a visitor's)
- *   sync, sources          editors (EDITOR or ADMIN): syncs, their history, a source's builds as a file;
- *                          admins: switching a source on or off
+ *   admin_builds           editors (EDITOR or ADMIN): a game's builds imported from a file and exported to one,
+ *                          the imports made, the catalog refreshed list by list
  *   admin                  admins: migrations (the Migrations page's API: anotoki/lib's routes)
  *   admin_tools            admins: the error log, the audit log, feedback, backups (anotoki/lib's admin tools) -
  *                          and, public, the errors the pages meet in the browser into the error log
@@ -33,7 +33,7 @@
  * Middleware, outermost first: a fresh request scope, security headers, the error log's watch on every answer,
  * JSON errors, the site gate (503 "not_set_up" until config/*.local.php are there; 503 "update_pending" while a
  * migration waits, but on its open paths - api/middleware/site_gate.php), the upkeep after the answer (the scrub
- * of the IAM's deleted accounts, the day's backup), routing, body parsing; then per group who the request is
+ * of the IAM's deleted accounts, the day's backup and tidying up), routing, body parsing; then per group who the request is
  * and its sign-in or role check (api/middleware/auth.php), so that a route added to a group cannot go without it.
  */
 
@@ -61,7 +61,7 @@ function buildAnalyzerApi(App $app): Slim\App
     $errorLog = AdminTools::errorLog($app, $slim);
     $app->set(ErrorLog::class, $errorLog);
 
-    foreach (['meta', 'icons', 'accounts', 'imports', 'visitor', 'me', 'builds', 'sources', 'sync', 'admin', 'admin_tools', 'translations', 'people', 'feedback'] as $routes) {
+    foreach (['meta', 'icons', 'accounts', 'imports', 'visitor', 'me', 'builds', 'admin_builds', 'admin', 'admin_tools', 'translations', 'people', 'feedback'] as $routes) {
         (require __DIR__."/routes/{$routes}.php")($slim, $app);
     }
     // GET /api/site-status: the gate always lets it through.
@@ -80,7 +80,7 @@ function buildAnalyzerApi(App $app): Slim\App
     // the exception behind it was already (jsonErrors() writes every one it answers 500).
     $slim->add(ErrorLogMiddleware::outer($errorLog));
     $slim->add(securityHeaders());
-    // Each request starts with fresh services (the catalog's cached rows, a sync runner), as each request of
+    // Each request starts with fresh services (the catalog's cached rows, the IAM's answer), as each request of
     // the host's PHP would; in the tests one process handles many. What it leaves for after its answer runs
     // here unless api/index.php holds it until the answer is sent (App\Web\AfterResponse).
     $slim->add(function (ServerRequestInterface $request, $handler) use ($app): ResponseInterface {

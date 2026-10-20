@@ -2,34 +2,31 @@
 
 namespace App\Services\Catalog;
 
+use App\Cache\Cache;
 use App\Config;
 use App\Db\Db;
 use App\Enums\Game;
-use App\Http\FetchDeferred;
 use App\Http\Fetcher;
-use App\Models\SyncRun;
 use App\Repositories\CatalogRows;
-use App\Repositories\SyncRuns;
-use App\Services\Sync\RunHandler;
-use App\Services\Sync\RunLog;
 use App\Support\Clock;
 use App\Support\Key;
-use App\Support\Log;
-use App\Support\Text;
 use DateTimeImmutable;
-use Throwable;
 
 /**
  * Downloads the character / weapon / set lists of the game data provider (config/app.php "catalog") and
  * upserts the catalog.
  *
- * Each list is one download and one transaction, so a catalog run (kind "catalog", one per game) takes a
- * list per unit of work, and an import can refresh just the list it needs.
+ * Each list is one download and one transaction, so the Builds page refreshes one list per request and an
+ * import can refresh just the list it needs. When a list was last refreshed, and how many entries that wrote, is
+ * kept in the cache table (catalog-state:{game}:{list}), which a restore leaves as it is.
  */
-class CatalogSync implements RunHandler
+class CatalogSync
 {
-    /** @var list<string> the lists of one game, in the order a run takes them */
+    /** @var list<string> the lists of one game, in the order the Builds page refreshes them */
     public const LISTS = [Catalog::CHARACTER, Catalog::WEAPON, Catalog::SET];
+
+    /** How long a list's state is kept: for good, but for the cache table's rule that everything expires. */
+    private const STATE_SECONDS = 10 * 365 * 86400;
 
     private const GENSHIN_ELEMENTS = [
         'Fire' => 'pyro',
@@ -53,8 +50,8 @@ class CatalogSync implements RunHandler
         private readonly Fetcher $fetcher,
         private readonly Catalog $catalog,
         private readonly CatalogRows $rows,
-        private readonly SyncRuns $runs,
         private readonly Db $db,
+        private readonly Cache $cache,
         private readonly Config $config,
     ) {}
 
@@ -96,22 +93,49 @@ class CatalogSync implements RunHandler
         $items = $this->download($game, $type);
         $count = $this->db->transaction(fn() => $this->{$method}($items));
         $this->catalog->flush();
+        $this->cache->put(self::stateKey($game, $type), ['refreshed_at' => Clock::timestamp(), 'count' => $count], self::STATE_SECONDS);
 
         return $count;
     }
 
     /**
-     * When the catalog of a game was last refreshed: the last successful catalog run, or for catalogs
-     * that predate catalog runs, the newest row written by a sync.
+     * Each list of a game as the Builds page shows it: how many entries the catalog has, and when the list was last
+     * refreshed (null: not since this was kept).
+     *
+     * @return list<array{list: string, entries: int, refreshed_at: string|null}>
+     */
+    public function lists(Game $game): array
+    {
+        return array_map(
+            fn(string $type) => [
+                'list' => $type,
+                'entries' => (int) $this->db->value('SELECT count(*) FROM ' . CatalogRows::table($type) . ' WHERE game = ?', [$game->value]),
+                'refreshed_at' => Clock::iso($this->refreshedAt($game, $type)),
+            ],
+            self::LISTS,
+        );
+    }
+
+    /**
+     * When the catalog of a game was last refreshed: when its stalest list was, or null while one has not been.
      */
     public function lastSyncedAt(Game $game): ?DateTimeImmutable
     {
-        $times = array_filter([
-            $this->runs->lastCatalogSuccess($game),
-            Db::time($this->db->value('SELECT max(updated_at) FROM game_characters WHERE game = ? AND external_id IS NOT NULL', [$game->value])),
-        ]);
+        $times = array_map(fn(string $type) => $this->refreshedAt($game, $type), self::LISTS);
 
-        return $times === [] ? null : max($times);
+        return in_array(null, $times, true) ? null : min($times);
+    }
+
+    private function refreshedAt(Game $game, string $type): ?DateTimeImmutable
+    {
+        $state = $this->cache->get(self::stateKey($game, $type));
+
+        return is_array($state) && is_int($state['refreshed_at'] ?? null) ? Clock::fromTimestamp($state['refreshed_at']) : null;
+    }
+
+    private static function stateKey(Game $game, string $type): string
+    {
+        return "catalog-state:{$game->value}:{$type}";
     }
 
     /**
@@ -132,56 +156,6 @@ class CatalogSync implements RunHandler
     public function hasCatalog(Game $game): bool
     {
         return (bool) $this->db->value('SELECT EXISTS (SELECT 1 FROM game_characters WHERE game = ? AND external_id IS NOT NULL)', [$game->value]);
-    }
-
-    // ── catalog runs ──────────────────────────────────────────────────────────────────────────────
-
-    public function begin(SyncRun $run): void
-    {
-        $run->state = ['lists' => self::LISTS, 'done' => 0, 'total' => count(self::LISTS)];
-        $run->stats = ['characters' => 0, 'weapons' => 0, 'sets' => 0, 'errors' => 0];
-    }
-
-    public function step(SyncRun $run, float $deadline, RunLog $log): void
-    {
-        $game = $run->game;
-        $state = $run->state;
-        $stats = $run->stats;
-
-        while ($state['done'] < $state['total']) {
-            // A list takes a second or two; leave room for one before the step's deadline.
-            if (Clock::microtime() > $deadline - 5) {
-                return;
-            }
-
-            $type = $state['lists'][$state['done']];
-            try {
-                $stats[$type] = $this->syncList($game, $type);
-                $log->add("{$game->label()}: {$stats[$type]} {$type}.");
-            } catch (FetchDeferred $e) {
-                throw $e;
-            } catch (Throwable $e) {
-                $stats['errors']++;
-                $log->add("{$game->label()} {$type}: ERROR " . Text::limit($e->getMessage(), 300));
-                Log::exception($e, "Catalog sync of {$game->value} {$type}");
-            }
-
-            $state['done']++;
-            $run->state = $state;
-            $run->stats = $stats;
-            $this->runs->save($run);
-        }
-
-        $status = match (true) {
-            $stats['errors'] === 0 => 'success',
-            $stats['errors'] < $state['total'] => 'partial',
-            default => 'failed',
-        };
-        $log->add("Done: {$status}.");
-        $run->status = $status;
-        $run->finished_at = Clock::now();
-        $run->state = null;
-        $this->runs->save($run);
     }
 
     // ── the lists ─────────────────────────────────────────────────────────────────────────────────

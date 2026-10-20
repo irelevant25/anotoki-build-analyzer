@@ -98,6 +98,16 @@ describe('the routes: what the router makes of an address', () => {
     }
   });
 
+  it("/admin opens on the Builds page - and the Sources page's old addresses, /admin/sources and /sources, land there too", async () => {
+    const harness = await RouterTestingHarness.create();
+    for (const address of ['/admin', '/admin/sources', '/sources', '/admin/builds']) {
+      await harness.navigateByUrl(address);
+      const [frame, page, ...more] = taken();
+      expect([address, TestBed.inject(Router).url, frame.path, page.path, page.title, more]).toEqual([address, '/admin/builds', 'admin', 'builds', 'Builds', []]);
+      expect(((await page.loadComponent!()) as { name: string }).name, address).toContain('AdminBuildsPage');
+    }
+  });
+
   it("puts About, Support and the legal pages where the footer's links go - the library's paths - and before everybody's pages and the \"**\" at the end", () => {
     const top = routes.map((one) => one.path);
     expect(LEGAL_PAGE_PATHS).toEqual(['/about', '/support', '/terms', '/privacy', '/contact']);

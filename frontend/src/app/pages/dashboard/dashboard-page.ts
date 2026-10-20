@@ -24,7 +24,7 @@ import { LocalDatePipe } from '../../core/i18n/local-date';
 import { TranslatePipe } from '../../core/i18n/translate';
 import { TranslatePluralPipe } from '../../core/i18n/translate-plural';
 import { TranslationService } from '../../core/i18n/translation';
-import { AccountSummary, GameKey, SourceStatus } from '../../core/models';
+import { AccountSummary, BuildsOverview, GameKey } from '../../core/models';
 import { VisitorKey } from '../../core/visitor-key';
 import { DataCard } from '../../shared/data-card/data-card';
 import { VisitorHero } from '../../shared/visitor-hero/visitor-hero';
@@ -39,7 +39,7 @@ export type DashboardState = 'person' | 'visitor' | 'nobody';
 /**
  * The start page: what the site does and the ways on for somebody new; for a visitor and a person their game
  * accounts (tiles of the site's own, with the kit's badges, buttons and menu), the "Your data" card for a person,
- * and the sources' freshness - drawn with the anotoki family's kit.
+ * and the builds: for how many characters, and how fresh - drawn with the anotoki family's kit.
  */
 @Component({
   selector: 'app-dashboard-page',
@@ -79,7 +79,7 @@ export class DashboardPage {
 
   /**
    * The page has three states. Nobody: what the site does and the ways on (import, browse the builds, sign
-   * in) and the sources' freshness - no request for anybody's own data. A visitor: the accounts as a member
+   * in) and the builds - no request for anybody's own data. A visitor: the accounts as a member
    * has them, under the notice that says how long they are kept. Somebody signed in: the accounts, and the
    * "Your data" card. The accounts are loaded again when the state changes (a sign-in, a key forgotten) and
    * after the move of a visitor's accounts into the person's.
@@ -87,7 +87,8 @@ export class DashboardPage {
   protected readonly state = computed<DashboardState>(() => (this.auth.signedIn() ? 'person' : this.visitor.key() !== null ? 'visitor' : 'nobody'));
 
   protected readonly accounts = signal<AccountSummary[]>([]);
-  protected readonly sources = signal<SourceStatus[]>([]);
+  /** Per game: for how many characters there are builds, how many, and when they were brought up to date. */
+  protected readonly builds = signal<BuildsOverview[]>([]);
   protected readonly loading = signal(true);
   /** Why the page could not be loaded: the failed request itself, worded where it is shown. */
   protected readonly error = signal<unknown>(null);
@@ -108,18 +109,10 @@ export class DashboardPage {
     return groups;
   });
 
-  protected readonly sourcesByGame = computed(() => {
-    const groups = Object.fromEntries(GAMES.map((game) => [game, [] as SourceStatus[]])) as Record<GameKey, SourceStatus[]>;
-    for (const source of this.sources()) {
-      groups[source.game].push(source);
-    }
-    return groups;
-  });
+  protected readonly buildsTotal = computed(() => this.builds().reduce((sum, entry) => sum + entry.builds, 0));
 
-  protected readonly buildsTotal = computed(() => this.sources().reduce((sum, source) => sum + source.builds, 0));
-
-  /** "No builds yet ... on the Sources page", cut where the link to that page stands: [before, after, whether it stands at all]. */
-  protected readonly noBuildsAdmin = computed(() => this.i18n.around('dashboard.noBuildsAdmin', 'sources'));
+  /** "No builds yet. Import them on the [Builds] page.", cut where the link to that page stands: [before, after, whether it stands at all]. */
+  protected readonly noBuildsStaff = computed(() => this.i18n.around('dashboard.noBuildsStaff', 'link'));
 
   /** Counts the loads, so that only the last one's answer is shown. */
   private loads = 0;
@@ -138,13 +131,13 @@ export class DashboardPage {
     this.loading.set(true);
     // Nobody has no accounts to ask for: the server would only answer 401.
     const accounts = state === 'nobody' ? of<AccountSummary[]>([]) : this.api.accounts();
-    forkJoin({ accounts, sources: this.api.sources() }).subscribe({
-      next: ({ accounts, sources }) => {
+    forkJoin({ accounts, builds: this.api.buildsOverview() }).subscribe({
+      next: ({ accounts, builds }) => {
         if (load !== this.loads) {
           return;
         }
         this.accounts.set(accounts);
-        this.sources.set(sources);
+        this.builds.set(builds);
         this.error.set(null);
         this.loading.set(false);
       },

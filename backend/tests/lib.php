@@ -124,7 +124,6 @@ function bootTests(): void
         T::$iam->anonymized([]);
         Neutral::setLocalNames([]);
         T::$app->resetScope();
-        Tests\Support\FakeBuildSource::reset();
         removeTree(T::$storage . DIRECTORY_SEPARATOR . 'http-cache');
         removeTree(T::$storage . DIRECTORY_SEPARATOR . 'cache');
     });
@@ -160,8 +159,9 @@ function testConfig(array $values = []): Config
                 'anonymized_file' => $iam . '/' . TestIam::ANONYMIZED_FILE,
             ],
             'fetch' => ['user_agent' => 'build-analyzer-tests', 'delay_ms' => 0],
-            // The upkeep after an answer (the people's scrub, the day's backup): the tests that mean to try it switch it on.
-            'upkeep' => ['people' => false, 'daily_backup' => false],
+            // The upkeep after an answer (the people's scrub, the day's backup, the day's tidying up): the tests that mean
+            // to try it switch it on.
+            'upkeep' => ['people' => false, 'daily_backup' => false, 'prune' => false],
         ],
         (string) realpath(__DIR__ . '/..'),
         T::$storage,
@@ -253,13 +253,14 @@ function db(): Db
  */
 function resetDatabase(): void
 {
-    // The library's tables where they are there: a test's world of its own may be a database before their files.
+    // The tables that come and go with a file where they are there - the library's, the builds' imports (016), the
+    // build sources' and syncs' (gone with 016): a test's world of its own may be a database before or after a file.
     $there = static fn(string $table): bool => (bool) db()->value('SELECT to_regclass(?) IS NOT NULL', [$table]);
-    $library = array_values(array_filter(['anotoki_audit_log', 'anotoki_feedback', 'anotoki_people_anonymized'], $there));
+    $some = array_values(array_filter(['anotoki_audit_log', 'anotoki_feedback', 'anotoki_people_anonymized', 'build_imports', 'build_sources', 'sync_runs', 'cache_locks'], $there));
     db()->run(
         'TRUNCATE users, game_characters, game_weapons, game_sets, accounts, import_runs, account_characters,
-        account_weapons, account_items, build_sources, builds, sync_runs, cache, cache_locks' .
-            ($library === [] ? '' : ', ' . implode(', ', $library)) .
+        account_weapons, account_items, builds, cache' .
+            ($some === [] ? '' : ', ' . implode(', ', $some)) .
             ' RESTART IDENTITY CASCADE',
     );
     // Where the people's scrub stands is one row its migration made: back to never run.

@@ -69,7 +69,7 @@
   "import.warning.unknown_character": "Unknown character {ref} was skipped.",
   "import.warning.unknown_weapon": "{weapon_label}: {ref} is unknown and was skipped.",
   "import.warning.unknown_set": "Unknown set {ref} was skipped.",
-  "import.warning.catalog_behind": "What the game catalog does not know yet was skipped. After an admin refreshes the catalog (Sources page), import again.",
+  "import.warning.catalog_behind": "What the game catalog does not know yet was skipped. Import again later: the catalog catches up on its own, or an editor refreshes it in the admin panel (Builds page).",
   "import.warning.showcase_artifact_skipped": "Skipped an artifact with unknown data.",
   "import.warning.good_traveler_no_element": "The file has a Traveler without an element (old GOOD version); it was skipped.",
   "import.warning.good_artifacts_skipped": "Artifacts skipped for a missing set, slot or main stat: {count}",
