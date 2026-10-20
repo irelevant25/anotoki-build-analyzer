@@ -1,5 +1,20 @@
 [
   {
+    "version": "0.5.0",
+    "date": "2026-10-20",
+    "changes": {
+      "added": [
+        "Each character's builds by what they are for - Main DPS, Sub DPS, Support - with a short name where a character has two of one kind, and the constellation a build needs: \"Support · C4+\"",
+        "The builds page can be filtered by element, weapon, rarity, region, the version a character came with, and name - and a link to the page keeps the filters"
+      ],
+      "updated": [
+        "Your best build follows your constellation: a build that needs one you do not have yet shows a lock, and is never counted as your best",
+        "Goals that depend on the constellation, such as Energy Recharge, are the ones for yours",
+        "Build Analyzer is now for Genshin Impact alone: Honkai: Star Rail accounts and builds are no longer kept"
+      ]
+    }
+  },
+  {
     "version": "0.4.0",
     "date": "2026-10-07",
     "changes": {

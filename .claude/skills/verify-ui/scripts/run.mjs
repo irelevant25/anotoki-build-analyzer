@@ -4,7 +4,8 @@
 //   SITE_PORT=8593 IAM_PORT=8596 node .claude/skills/verify-ui/scripts/run.mjs ...   # other throwaway ports
 //
 // It builds the frontend (unless --no-build), makes a throwaway database (build_analyzer_test_browser, from
-// the migrations, with a small catalog and one build - backend/tests/tools/browser-db.php), starts the
+// the migrations, with a small catalog marked fresh and three builds of two characters -
+// backend/tests/tools/browser-db.php), starts the
 // anotoki family's stand-in IAM (anotoki-lib's backend/testing/stand-in-iam.php, in backend/vendor, with a test key
 // of its own - Anotoki\Lib\Auth\Testing\TestIam) on 8597 and the site on 8590 - or on IAM_PORT and
 // SITE_PORT, each in 8590-8599, when another check holds those (router.php: the built app

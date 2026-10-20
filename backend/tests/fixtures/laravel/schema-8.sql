@@ -212,7 +212,7 @@ CREATE TABLE public.build_sources (
 -- Name: COLUMN build_sources.key; Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON COLUMN public.build_sources.key IS 'Matches a scraper class, e.g. prydwen.hsr';
+COMMENT ON COLUMN public.build_sources.key IS 'Matches a scraper class, e.g. site.hsr';
 
 --
 -- Name: build_sources_id_seq; Type: SEQUENCE; Schema: public; Owner: -

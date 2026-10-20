@@ -1,6 +1,6 @@
 ---
 name: tune-analysis
-description: Change how the build analyzer scores characters and what it recommends — part weights, grade thresholds, substat weighting, set/main-stat/weapon rules, recommendation messages, inventory suggestions and set plans, or a new score part. Use whenever the user says grades feel too harsh or too generous, a recommendation is wrong or missing, wants talents/levels/stat targets to count differently, or asks why a character got a score before changing it.
+description: Change how the build analyzer scores characters and what it recommends — part weights, grade thresholds, substat weighting, set/main-stat/weapon rules, recommendation messages, inventory suggestions and set plans, which of a character's variations is its best build and which stat targets its constellation is held to, or a new score part. Use whenever the user says grades feel too harsh or too generous, a recommendation is wrong or missing, wants talents/levels/stat targets/constellations to count differently, or asks why a character got a score before changing it.
 ---
 
 # Tune the analysis
@@ -9,8 +9,27 @@ Scores are only useful if they rank characters the way an experienced player wou
 be checked against real accounts, not only against unit tests. Work in this order: explain the current
 result, change the rule, update tests, compare before/after on real data.
 
-`docs/analysis.md` documents every formula and constant; read it first. The code is in
-`backend/src/Services/Analysis/`.
+`docs/analysis.md` documents every formula and constant; read it first, and `docs/builds.md` for what a build's
+fields mean. The code is in `backend/src/Services/Analysis/`.
+
+## The analysis by variation and constellation
+
+A character's builds are its **variations** - a role (`main_dps`, `sub_dps`, `support`), a qualifier where it has two
+of one role, the constellation it needs (`min_rank`) - in the order of preference the builds file gave them
+(`position`: the first is the main one). Every one of them is evaluated, and the analysis follows the character's
+constellation (`AccountCharacter::$rank`):
+
+- **Whether a build applies**: `Build::appliesTo($rank)` - `min_rank` reached. A build the character does not reach
+  is judged all the same and says so (`applies: false`); the page shows it locked ("needs C4").
+- **The best build** (`CharacterAnalyzer::best()`): of the builds that apply, the highest overall score, a tie to the
+  lower `position`; when none applies, the one with the lowest `min_rank` (`applies: false`) - never one the
+  character does not reach while another applies.
+- **Stat targets**: per stat, the target with the highest `from_rank` the character has reached
+  (`BuildEvaluator::targetsFor()`); a stat whose targets all start later has none.
+- **Substats**: the build's own, or - when it lists none - `ItemScorer::fallbackSubstats()` from its own main stats.
+  Never another build's (there is no consensus of builds any more).
+
+Keep these four when you change a rule; changing one of them is a decision of its own (`docs/decisions.md`).
 
 ## Where the knobs are
 
@@ -20,9 +39,10 @@ result, change the rule, update tests, compare before/after on real data.
 | Overall grade thresholds | `BuildEvaluator::grade()` |
 | Weapon, set, main stat, target formulas; recommendation texts and severities | `BuildEvaluator` (`weaponPart`, `setPart`/`evaluateOptions`, `mainStatPart`, `substatPart`, `targetPart`, `talentAdvice`, `levelAdvice`) |
 | Substat weights by priority, flat-stat factor, ideal item, item grades | `ItemScorer` (`PRIORITY_WEIGHTS`, `FLAT_FACTOR`, `ideal()`, `grade()`) |
-| Substats used when a build has none | `ItemScorer::fallbackSubstats()`, `CharacterAnalyzer::fallbackSubstats()` |
+| Substats used when a build has none (from its own main stats) | `ItemScorer::fallbackSubstats()` |
+| Whether a build applies; the targets of the character's constellation | `Build::appliesTo()` (`min_rank`), `BuildEvaluator::targetsFor()` (`from_rank`) |
 | Set option matching | `SetMatcher` |
-| Best build choice, consensus, inventory suggestions, set plans | `CharacterAnalyzer` |
+| Best build choice, inventory suggestions, set plans | `CharacterAnalyzer` (`best()`, `suggestions()`, `setPlans()`) |
 
 ## 1. Explain the current result
 
@@ -38,19 +58,24 @@ $row = $db->one('SELECT id, user_id FROM accounts ORDER BY id LIMIT 1');   // or
 $account = $app->get(App\Repositories\Accounts::class)->findOwned((int) $row['user_id'], (int) $row['id']);
 foreach ($app->get(App\Services\Analysis\CharacterAnalyzer::class)->overview($account) as $r) {
     if ($r['best'] && $r['items_count'] > 0) {
-        echo str_pad($r['name'], 26), str_pad($r['best']['grade'], 3), str_pad((string) $r['best']['overall'], 5), json_encode($r['best']['parts']), "\n";
+        $b = $r['best'];   // the best of its variations: role, qualifier, min_rank, applies
+        $variation = $b['role'] . ($b['qualifier'] !== '' ? " {$b['qualifier']}" : '') . ($b['min_rank'] > 0 ? " C{$b['min_rank']}+" : '') . ($b['applies'] ? '' : ' (not reached)');
+        echo str_pad($r['name'], 26), str_pad("C{$r['rank']}", 4), str_pad($variation, 28), str_pad($b['grade'], 3), str_pad((string) $b['overall'], 5), json_encode($b['parts']), "\n";
     }
 }
 ```
 
 The database may have no accounts; import one first (the user's UID via the app, or a sample file with
-`cd backend && php import-account.php <game> <file> --user=<IAM id>`). Remove sample accounts you imported once you're done.
+`cd backend && php import-account.php genshin <file> --user=<IAM id>`). Remove sample accounts you imported once
+you're done. Without builds there is nothing to score against (`best` is null): they come from a builds file an
+editor imports on the admin panel's Builds page - ask the user rather than writing builds yourself.
 
 ## 2. Change the rule
 
 Keep scores in 0–100, keep parts that lack data out of the overall (they return `null`), and keep the English
 `message` of a recommendation a short, actionable sentence with the slot/stat named - and without the name of
-any website ("Source 2's build", never the site). When you add a field to the evaluation or detail output,
+any website (a build is named by its variation, "the Main DPS build", never by where it came from). When you add a
+field to the evaluation or detail output,
 add it to `frontend/src/app/core/models.ts` and render it where it helps (character page, build detail), with
 its words as keys (`core/i18n/en/*.json` and a string migration, as below).
 
@@ -82,8 +107,10 @@ English); `analysis.test.php` asserts each kind's params against `KINDS`.
 ## 3. Tests
 
 Update or extend `backend/tests/analysis.test.php` (full evaluation of a seeded character, suggestions, set
-plans) and `backend/tests/scoring.test.php` (ItemScorer, SetMatcher). Assert behavior ("the Pyro goblet is
-suggested because it fixes the main stat"), not incidental numbers, unless the number is the point.
+plans; which variation is the best - a build not reached never is while another applies, a tie goes to the earlier -,
+the targets by `from_rank`, substats from the build's own main stats) and `backend/tests/scoring.test.php`
+(ItemScorer, SetMatcher). Assert behavior ("the Pyro goblet is suggested because it fixes the main stat"), not
+incidental numbers, unless the number is the point.
 
 ```bash
 cd backend && php tests/run.php
@@ -93,13 +120,16 @@ cd frontend && npx ng build && npx ng test --watch=false
 ## 4. Compare on real data
 
 Re-run the step 1 script into `after.txt` and `diff` the two files. Look for surprises: characters that
-jumped two grades, unbuilt characters scoring well, perfect builds not reaching S. Summarize the shift for
-the user with a couple of concrete characters.
+jumped two grades, unbuilt characters scoring well, perfect builds not reaching S, a best build that changed
+variation. Where a change touches constellations, look at one character below a build's `min_rank` (or a target's
+`from_rank`) and at one at or above it - a GOOD file's `constellation` sets it -: the best build and the targets
+must follow the constellation. Summarize the shift for the user with a couple of concrete characters.
 
 ## 5. Document
 
 Update `docs/analysis.md`, the README "How the analysis works" table, and `docs/decisions.md` when the
-change alters what users see. A change users will notice gets a line in `frontend/public/changelog.json`.
+change alters what users see (`docs/builds.md` too when it changes what a build's fields mean to the analysis). A
+change users will notice gets a line in `frontend/public/changelog.json`.
 A new or reworded recommendation is looked at on the character
 page in English and in Slovak at 390 px (`verify-ui`): no key on the page, game terms in English before a
 colon.

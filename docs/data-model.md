@@ -115,6 +115,74 @@ the site is closed to everybody but its ADMIN on the Migrations page (the site g
   `fanHoyoverse`, and copies `whatsNew.title` (which stays) to `anotoki.footer.whatsNew` - 010's way: every string,
   writer and time, never over an owner's rewording of the library's key. Gated: the same, the three gone, and the
   site's own keys (486 - 3 = 483). Then the library's `anotoki_translations/012` (the four keys' descriptions).
+- `014_star_rail_removed.sql` (version 0.5.0: Genshin Impact alone, the owner's decision of 2026-10-20 -
+  [decisions.md](decisions.md); the code kept ready for another game) deletes every row of Honkai: Star Rail -
+  its game accounts with everything in them (the foreign keys cascade: characters, weapons, relics, import runs),
+  its failed import attempts that found no account, its build sources with their builds and sync runs, its
+  catalog runs, its catalog, and its showcase answers in the cache table (`showcase:hsr:%`) - and narrows the
+  closed sets to what the code knows: each `<table>_game_check` (`game_characters`, `game_weapons`, `game_sets`,
+  `accounts`, `import_runs`, `build_sources`, `sync_runs`) to `'genshin'` (`App\Enums\Game`), and
+  `game_sets_kind_check` to `'artifact'` (`Game::setKinds()`). A game added later widens them in a migration of
+  its own. Gated: no row of another game nor set of another kind left, each of the eight constraints naming what
+  the code knows and nothing of the other game, and every row of Genshin Impact and every person still there,
+  table by table, as counted before the deletes. A backup made before it holds the other game's rows: it is
+  restored offline only.
+- `015_star_rail_words.sql` deletes the other game's 56 keys with their strings, a rewording an editor gave them
+  included (the foreign keys cascade): the 44 of the Star Rail import guides (`importGuide.hsr.*`); the import
+  kinds only Star Rail had (`import.error.showcase_empty_hsr`, `hsr_not_export`, `hsr_empty`;
+  `import.warning.showcase_relic_skipped`, `hsr_relics_skipped`) and the two that need two games to happen
+  (`import.error.account_game_mismatch`, `file_game_mismatch` - a second game brings them back); the import
+  wizard's first step, which asked for the game (`importWizard.step.game`, `importWizard.game.heading`,
+  `importWizard.game.holds`), and the builds page's game switch (`builds.game`); and `legal.fanClause`, the site's
+  own fan clause naming both games - the library's (`anotoki.legal.fanHoyoverse`) names Genshin Impact alone,
+  which is exactly right now. Six sentences that named the other game (`dashboard.subtitle`,
+  `dashboard.emptyText`, `home.text`, `legal.about`, `legal.accounts.what`, `import.error.file_unknown_format`)
+  say Genshin Impact alone, written only where they still read as 003 / 011 seeded them, so a rewording made in
+  the browser is kept; every description that told a translator of the other game's words (Light Cone, Relics,
+  Traces, Eidolons, "S1" ...) tells of Genshin Impact's alone. Gated: the retired keys gone with every string, the
+  six with English, no description of the site's own telling of the other game, and the site's own keys
+  (483 - 56 = 427).
+- `016_builds_without_sources.sql` (the owner's decision of 2026-10-20: the site no longer syncs builds; they are
+  put together elsewhere, [builds.md](builds.md), and an editor imports them as one file per game on the admin
+  panel's Builds page) drops `builds`, `sync_runs`, `build_sources` and `cache_locks` - what referred to the
+  sources first, then the sources - and carries none of it over (the site had one user when this was decided,
+  the owner; the builds come back with the first import, and until then the site has none). It creates the new
+  `builds`, each a variation of a character's, and `build_imports`, a row per import (both below, "Builds").
+  Gated: the three old tables gone, every column of the two new ones with its type and nullability and none
+  more, their constraints (the foreign keys' delete actions included) and both indexes. A backup made before it
+  holds the old tables: like one made before 014, it is restored offline only.
+- `017_builds_without_sources_words.sql` retires 23 keys with their strings, a rewording included - the sources'
+  and the syncs' words (`builds.sourcesPage`, `nav.sources`, `toolbar.syncing`, `toolbar.syncingLabel`; the
+  dashboard's `dashboard.sources`, `manageSources`, `noBuildsAdmin`, `sourceCharacters.*`, `syncing`,
+  `notSyncedYet`), what the sources agreed on (`character.consensus.*`) and what a build said of its source
+  (`buildDetail.substatsBorrowed`, `notesFrom`, `updatedAtSource`, `checkedNever`; `account.bestMatch`); adds 18
+  in English and informal Slovak - a build's role (`builds.role.*`, with `builds.role.unknown` for a role a newer
+  server names), the link to the admin panel's Builds page (`builds.adminPage`), a build the character's
+  constellation does not reach (`character.needsRank`, `character.rankNotReached`), a build that lists no
+  substats (`buildDetail.substatsDerived`), its notes (`buildDetail.notes`), the best build on the account page
+  (`account.bestBuild`) and the dashboard's builds (`dashboard.builds`, `manageBuilds`, `buildsFor.*`,
+  `buildsUpdated`, `buildsNever`, `noBuildsStaff`); and rewords the fifteen sentences that told of syncs and
+  sources - the builds page's, the character page's, the dashboard's, the account page's, a build's, the import's
+  warning that the catalog is behind, and the Privacy page's - only where they still read as seeded, and every
+  description that told of them. Gated: the retired keys gone with every string, the 18 in both languages, the
+  reworded ones with English, no description of the site's own telling of sources or syncs, and the site's own
+  keys (427 - 23 + 18 = 422).
+- `018_catalog_from_the_owners_site.sql` (the catalog from the owner's genshin.anotoki.eu - its public catalog
+  lists, `App\Services\Catalog\Providers\GenshinCatalog` -, no longer from a third-party game data provider)
+  adds what that site knows more of a character, which the builds browser filters by: `game_characters.region`
+  (VARCHAR(50), "Liyue"), `version` (VARCHAR(10), the game version the character came with as the game numbers
+  it, "6.1" - `game_characters_version_check`: `^[0-9]{1,2}\.[0-9]{1,2}$`) and `version_name` (VARCHAR(40), the
+  name the game gave that version, "Luna II"), all NULL where there is none. It clears the old provider's icon
+  addresses in the three catalog tables, so nothing is fetched from it any more (the next refresh writes the new
+  site's), and forgets where each list stood with it - the cache table's `catalog-state:%` and
+  `catalog-import-refresh:%` rows -, so the first refresh reads every list in full. Gated: the three columns with
+  their types, the check, no old icon address and no old state left.
+- `019_builds_filter_words.sql` adds the builds browser's filters' 14 words in English and informal Slovak
+  (`builds.filter.*`: the filters' labels, their "All" and "Any" choices, a rarity's choice in its three plural
+  forms, Reset, how many characters show, and what the page says when none matches); the weapon filter's label is
+  the game's own word (`/api/meta`'s `weapon_label`) and no key, and the names of elements, weapon types, regions
+  and versions are the game's, never translated. Gated: the 14 in both languages, and the site's own keys
+  (422 + 14 = 436).
 
 Rules: never edit a migration that has run somewhere; add `NNN_what.sql`. A migration runs in one transaction
 (PostgreSQL DDL is transactional), so a failing one leaves nothing behind. A migration that changes data ends
@@ -124,7 +192,8 @@ type `name` (`pg_class.relname`, `pg_attribute.attname`) sorts byte by byte what
 while text sorts by it - and the live database's, en_US.utf8, sorts words without their punctuation
 ("accounts" before "account_weapons"). A closed set of
 values is a `CHECK (col IN (…))` on the column (`<table>_game_check`, `game_sets_kind_check`,
-`sync_runs_kind_check`), not a lookup table or an enum type. `Migrations::migrator($pdo, $folder, $settings)` can
+`builds_role_check`), not a lookup table or an enum type - narrowed or widened by a migration when the code's
+list changes (014 narrowed every game's to `'genshin'`). `Migrations::migrator($pdo, $folder, $settings)` can
 pass settings to the migrations (`build_analyzer.<name>`, set in each file's transaction); only the Laravel
 adoption reads one, `build_analyzer.local_user_id`, and nothing but its own test passes it any more. Every
 migration closes the site until it is applied (the site gate): on a host, apply it at once after the upload.
@@ -137,7 +206,7 @@ build's main stats, is kept as written).
 
 | Table | Notes |
 | --- | --- |
-| `users` | A person: `id` = the anotoki IAM user id (the token's `sub`, always a positive number; not a sequence), `name` = `preferred_username` (refreshed from each token; "user {id}" without one), `last_seen_at` (written at most every five minutes, since 0.4.0), `anonymized_at` (migration 007: when the IAM deleted the account - the scrub then names the row `deleted-{id}`, and nothing writes it again). Rows are made and kept on a person's requests by the anotoki library's people module (`RecordPerson`, `App\People\SitePeople`'s mapping; never an id below 1, never a row the scrub made nobody's); roles are never stored, and there are no passwords. Deleting a row (the People page, ADMIN: `Users::deletePerson()`) deletes the person's accounts with everything in them and their import runs by the foreign keys; `sync_runs.started_by` becomes NULL, and the strings they saved keep their words with `translations.updated_by` NULL. **A visitor** (migration 004): a negative `id` from the sequence `visitor_ids` (-1, -2 ...), `name` `visitor`, `visitor_key_hash` (CHAR(64), the SHA-256 of its key in lowercase hex, UNIQUE - the key itself is never stored), `last_seen_at` (written at most once an hour). `users_visitor_check`: a negative id has a hash and a last-seen time, a positive one no hash (a last-seen time it may have); partial index `users_visitors_last_seen_at_index` on `last_seen_at` for `id < 0`. Only `App\Auth\Visitors` (through `Users`) makes, finds, sweeps and moves them; a visitor never starts a sync or saves a string, so `started_by` and `updated_by` are always people. The People list shows `id > 0` only and counts visitors apart |
+| `users` | A person: `id` = the anotoki IAM user id (the token's `sub`, always a positive number; not a sequence), `name` = `preferred_username` (refreshed from each token; "user {id}" without one), `last_seen_at` (written at most every five minutes, since 0.4.0), `anonymized_at` (migration 007: when the IAM deleted the account - the scrub then names the row `deleted-{id}`, and nothing writes it again). Rows are made and kept on a person's requests by the anotoki library's people module (`RecordPerson`, `App\People\SitePeople`'s mapping; never an id below 1, never a row the scrub made nobody's); roles are never stored, and there are no passwords. Deleting a row (the People page, ADMIN: `Users::deletePerson()`) deletes the person's accounts with everything in them and their import runs by the foreign keys; `build_imports.imported_by` becomes NULL (the record of the builds files they imported stays, by nobody), and the strings they saved keep their words with `translations.updated_by` NULL. **A visitor** (migration 004): a negative `id` from the sequence `visitor_ids` (-1, -2 ...), `name` `visitor`, `visitor_key_hash` (CHAR(64), the SHA-256 of its key in lowercase hex, UNIQUE - the key itself is never stored), `last_seen_at` (written at most once an hour). `users_visitor_check`: a negative id has a hash and a last-seen time, a positive one no hash (a last-seen time it may have); partial index `users_visitors_last_seen_at_index` on `last_seen_at` for `id < 0`. Only `App\Auth\Visitors` (through `Users`) makes, finds, sweeps and moves them; a visitor never imports builds or saves a string, so `imported_by` (`build_imports_imported_by_check`: above 0) and `updated_by` are always people. The People list shows `id > 0` only and counts visitors apart |
 
 A database adopted from the Laravel version gives every account and import run without an owner to IAM user
 1 (the owner), creating that user's row.
@@ -154,30 +223,38 @@ Made by the anotoki library's sets, read and written by its modules only (anotok
 | --- | --- |
 | `anotoki_people_sync` | one row: where the scrub of the IAM's deleted accounts stands (`since` - the IAM's paging -, `checked_at`, `ok_at`, `error`, `scrubbed`) - shown on the People page |
 | `anotoki_people_anonymized` | the IAM ids the IAM deleted (whether a row was here or not), with when: a token naming one never makes a row again |
-| `anotoki_audit_log` | what was done in the admin panel: `actor_id` (the IAM id; NULL for the command line and the day's backup), `action` (`source.enabled`, `sync.started`, `translations.saved`, `person.data_deleted`, `backup.created` …), `target_type` / `target_id`, `details` (JSONB). No address is kept (`ip` stays NULL). Never restored by a backup's restore - a restore reads it: every `person.data_deleted` and `feedback.deleted` since the backup is done again, each written inside its delete's own transaction (its `details` name it, `_txid`; anotoki-lib 0.5.0); the scrub blanks a deleted person's name in the details |
+| `anotoki_audit_log` | what was done in the admin panel: `actor_id` (the IAM id; NULL for the command line and the day's backup), `action` (`builds.imported`, `catalog.refreshed`, `translations.saved`, `person.data_deleted`, `backup.created` …), `target_type` / `target_id`, `details` (JSONB). No address is kept (`ip` stays NULL). Never restored by a backup's restore - a restore reads it: every `person.data_deleted` and `feedback.deleted` since the backup is done again, each written inside its delete's own transaction (its `details` name it, `_txid`; anotoki-lib 0.5.0); the scrub blanks a deleted person's name in the details |
 | `anotoki_feedback` | the visitors' messages: `kind`, `section`, `subject`, `message`, `details`, `contact_email` (only what the form sent: for a signed-in person the page writes their account's address in, to keep, change or clear; none when sent "without my name"), `user_id` (the token's, never the body's; NULL without a name), `page` (a path, no query), `language`, `user_agent`, `status` (`new` \| `read` \| `resolved` \| `spam`), `handled_by`. Nothing of where it came from (no address, no hash); the scrub blanks a deleted person's address and browser, the message stays |
 
-## Catalog (reference data, filled by catalog runs)
+## Catalog (reference data, filled by catalog refreshes)
 
 | Table | Key columns | Notes |
 | --- | --- | --- |
-| `game_characters` | `game`, `key` (unique per game), `name`, `element`, `rarity`, `weapon_type` (GI weapon type / HSR path), `external_id`, `icon_url`, `released_at`, `meta.ids` | Travelers / Trailblazers merge several in-game IDs into `meta.ids` |
-| `game_weapons` | same shape | Genshin weapons and HSR light cones |
-| `game_sets` | + `kind` (`artifact` \| `relic` \| `planar`), `meta.bonuses` (Genshin 2pc/4pc texts) | `SetBonusGroups` reads the 2pc texts |
+| `game_characters` | `game`, `key` (unique per game), `name`, `element`, `rarity`, `weapon_type`, `region`, `version`, `version_name` (migration 018), `external_id`, `icon_url`, `released_at`, `meta.ids` | The Travelers are one entry per element (`traveler{element}`, "Traveler (Anemo)"), `external_id` `{lowest in-game ID}-{element}` and both twins' IDs in `meta.ids` - the way imports have always named them. `version` as the game numbers it (`game_characters_version_check`: `^[0-9]{1,2}\.[0-9]{1,2}$`, "6.1"), `version_name` the name the game gave it ("Luna II"); `region`, `version` and `version_name` NULL where the provider has none - the builds browser filters by them |
+| `game_weapons` | `game`, `key`, `name`, `rarity`, `weapon_type`, `external_id`, `icon_url` | Genshin Impact's weapons; of two the provider lists under one key (a quest copy), the lower in-game ID's |
+| `game_sets` | `game`, `key`, `name`, `kind` (`artifact`, the one kind since 014), `external_id`, `icon_url`, `meta.rarities`, `meta.bonuses` | `meta.bonuses` the 2-piece and 4-piece texts, as the provider gives them |
 
-The catalog is shared by every user. Only the catalog sync and, for brand-new characters, the build sync add
-rows; imports only look names up (see [name-matching.md](name-matching.md)). `icon_url` is the provider's
-address; the API sends `/api/icons/{c|w|s}/{id}` instead, which fetches the image once into `storage/icons/`.
+The catalog is shared by every user. Only a catalog refresh writes it (`CatalogSync::refresh()`, one list at a
+time, from the game's provider - Genshin Impact's the owner's genshin.anotoki.eu; [architecture.md](architecture.md),
+"Main flows"): a changed list is written in one transaction, each row found again by its in-game ID
+(`external_id`), then by its key - a renamed entry keeps its row and everything linked to it, unless another row
+holds the new key already -, and no row is ever deleted. Imports only look entries up and never add a row - an
+account import by in-game ID or name (see [name-matching.md](name-matching.md)), a builds import by key; either
+may first refresh the list that lacks one (below, "Import semantics", and "Builds files"). `icon_url` is the
+provider's address, kept only on the provider's own host; the API sends `/api/icons/{c|w|s}/{id}` instead, which
+fetches the image once into `storage/icons/`. Where each list stands - its version tag, when the provider last
+confirmed it, its last failure - is no table: it is a row of the cache table per list (below, "Cache and
+locks").
 
 ## Accounts (per user)
 
 | Table | Notes |
 | --- | --- |
 | `accounts` | `user_id` → `users` (cascade), `game`, `uid` (nullable: file imports have none), unique (`user_id`, `game`, `uid`) so two people can import the same UID, `nickname`, `level`, `world_level`, `has_full_inventory`, `last_import_at`, `meta` (region, tool…; the API sends only neutral keys) |
-| `import_runs` | `user_id` → `users`, `account_id` (null for a failed attempt without an account), `source` (`enka` \| `good` \| `hsr_scanner`; the API says `showcase` or `file`), `status` (`success` \| `partial` \| `failed`), `summary` {characters, weapons, items, full_inventory, tool, warnings[], warning_kinds[{code, params}], unmatched{bucket: names[]}} (the API leaves out `tool`) - on a failed run `{error: {code, params}}` instead, `error` (the English sentence) |
-| `account_characters` | unique (account, character); `level`, `ascension`, `rank` (constellation/eidolon), `talents`, `final_stats`, `source`, `synced_at` |
-| `account_weapons` | `refinement` (= superimposition in HSR), `equipped_character_id` → `game_characters`, `external_uid` |
-| `account_items` | artifacts/relics: `slot`, `rarity`, `level`, `main_stat`, `main_value` (nullable), `substats` JSON, `equipped_character_id`, `game_set_id` |
+| `import_runs` | `user_id` → `users`, `account_id` (null for a failed attempt without an account), `source` (`enka` \| `good`, or `file` for a file that could not be read; the API says `showcase` or `file`), `status` (`success` \| `partial` \| `failed`), `summary` {characters, weapons, items, full_inventory, tool, warnings[], warning_kinds[{code, params}], unmatched{bucket: names[]}} (the API leaves out `tool`) - on a failed run `{error: {code, params}}` instead, `error` (the English sentence) |
+| `account_characters` | unique (account, character); `level`, `ascension`, `rank` (the constellation: which builds the character reaches, and which stat targets hold it), `talents`, `final_stats`, `source`, `synced_at` |
+| `account_weapons` | `refinement`, `equipped_character_id` → `game_characters`, `external_uid` |
+| `account_items` | artifacts: `slot`, `rarity`, `level`, `main_stat`, `main_value` (nullable), `substats` JSON, `equipped_character_id`, `game_set_id` |
 
 Every query goes through `Repositories\Accounts::owned()` / `findOwned()` (or takes the owner as a parameter);
 an account is never looked up by id or UID alone.
@@ -186,8 +263,8 @@ JSON shapes:
 
 - `account_items.substats`: `[{key: "critRate_", value: 10.5, rolls: 3|null}]` (canonical stat keys; `rolls`
   exact from showcase imports and exporters that capture the game data, null from screen scanners).
-- `account_characters.talents`: Genshin `{normal, skill, burst, bonus?: {skill: 3}}` (base levels, `bonus` =
-  constellation +3); HSR `{basic, skill, ultimate, talent, memo_skill?, memo_talent?}`.
+- `account_characters.talents`: `{normal, skill, burst, bonus?: {skill: 3}}` (base levels, `bonus` =
+  constellation +3).
 - `account_characters.final_stats`: in-game totals, from Genshin showcase imports only, e.g.
   `{hp: 15000, critRate_: 65.2}`.
 - `import_runs.summary.warning_kinds`: what each of `warnings` says as a kind of `ImportKinds::WARNINGS` and
@@ -199,7 +276,7 @@ JSON shapes:
 
 Import semantics (`AccountImporter`):
 
-- Full inventory files (GOOD, HSR scanner) **replace all** weapons and items of the account.
+- Full inventory files (GOOD) **replace all** weapons and items of the account.
 - A showcase import replaces only the gear equipped on the imported characters.
 - Characters are upserted, never deleted. `final_stats` are kept when a file import has none (the UI shows
   their source and date).
@@ -214,88 +291,112 @@ Import semantics (`AccountImporter`):
 
 | Table | Notes |
 | --- | --- |
-| `build_sources` | one row per scraper (`key` like `prydwen.hsr`), `name` (its neutral label, "Source 2"), `base_url`, `enabled`, `last_synced_at`, `last_status`, `last_error` |
-| `builds` | unique (source, character, `variant`); `role`, `recommended`, `position`, JSON columns below, `notes`, `source_url` (never sent by the API), `source_updated_at`, `game_version`, `content_hash`, `fetched_at`, `changed_at` |
-| `sync_runs` | `kind` (`builds`: one source, `build_source_id` set; `catalog`: one game, no source), `game`, `status` (`running` until its last step, then `success` \| `partial` \| `failed` \| `cancelled`), `started_by` → `users` (null from the command line), `state` (while running: builds `{options{force, only, limit}, phase list\|characters, todo[CharacterRef], done, total}`, catalog `{lists, done, total}`), `next_step_at` (the site's crawl delay: no step before it), `last_step_at`, `stats` (builds: {characters_listed/synced/skipped/without_builds, builds_created/updated/unchanged/removed, errors, unmatched, partial_run}; catalog: {characters, weapons, sets, errors}), `log` (written as the run goes, in neutral words; includes `! unknown weapon/set: …` lines) |
+| `builds` | A variation of a character's (migration 016): `game_character_id` → `game_characters` (cascade), `role` (VARCHAR(16): `main_dps` \| `sub_dps` \| `support`, `builds_role_check` - `Game::roles()`), `qualifier` (VARCHAR(40) NOT NULL DEFAULT '': a word or two telling two builds of one role apart, "Melt", '' for most; trimmed - `builds_qualifier_check`), `min_rank` (SMALLINT NOT NULL DEFAULT 0, 0-6 - `builds_min_rank_check`: the constellation the build needs; a character below it sees the build, marked, and it is never their best), `position` (SMALLINT, ≥ 0 - `builds_position_check`: the build's place among the character's, the file's order; the first is the main one), the JSON columns below (`weapons`, `sets`, `main_stats`, `substats` NOT NULL; `talent_priority`, `stat_targets` NULL for none), `notes`, `game_version` (VARCHAR(20)), `content_hash` (VARCHAR(64): the SHA-256 of the build's content as JSON - weapons, sets, main stats, substats, talent priority, stat targets, notes and game version, in that order - which tells a changed build from an unchanged one), `checked_at` (when the file that last carried the build was made), `changed_at` (when a file first carried it as it is now), `created_at`, `updated_at` - every time NOT NULL. Its identity is the unique index `builds_identity_unique` on (`game_character_id`, `role`, `lower(qualifier)`, `min_rank`): the qualifier compared without regard to case, and an empty one '' rather than NULL, as the host's PostgreSQL 14 has no `NULLS NOT DISTINCT`. No source, no page address: nothing in a row says where a build came from |
+| `build_imports` | Every import of a builds file (migration 016): `game` (`build_imports_game_check`), `file_exported_at` (when its file was made, never later than the import), `summary` (JSON `{characters, builds, created, updated, unchanged, removed, skipped}`: what it did, in counts - nobody's name), `imported_by` → `users` (ON DELETE SET NULL: nobody's once their data is deleted; `build_imports_imported_by_check`: above 0 - a person, never a visitor), `created_at`; index `build_imports_game_created_at_index` on (`game`, `created_at`). The Builds page lists a game's last ten with who made each; an import's answer says whether its file was made before the one the builds there came from (`older_than_current`) |
+
+Gone with migration 016, none of it carried over: the builds of the sources (one per source, character and
+variant, with a page address), `build_sources` (one row per scraper), `sync_runs` (the builds' and the
+catalog's runs, worked through in steps) and `cache_locks` (the sync step lock).
 
 `builds` JSON columns (normalized; stat keys canonical):
 
 ```jsonc
 "weapons":   [{"key": "staffofhoma", "name": "Staff of Homa", "rank": 1, "refinement": 5|null, "note": "…", "known": true}],
-"sets":      [{"rank": 1, "kind": "artifact|relic|planar", "choose": null|2, "note": "…",
-               "pieces": [{"label": "Crimson Witch of Flames", "count": 4, "keys": ["crimsonwitchofflames"], "names": ["…"]}]}],
+"sets":      [{"rank": 1, "kind": "artifact", "choose": null|2,
+               "pieces": [{"label": "Crimson Witch of Flames", "count": 4, "keys": ["crimsonwitchofflames"], "names": ["…"]}], "note": "…"}],
 "main_stats": {"sands": [{"stat": "hp_", "priority": 1}, {"stat": "eleMas", "priority": 2}], "goblet": [{"stat": "elemental_dmg_", "priority": 1}]},
 "substats":  [{"stat": "critRate_", "priority": 1}, {"stat": "critDMG_", "priority": 1}, {"stat": "atk_", "priority": 2}],
 "talent_priority": [{"talent": "burst", "priority": 1}],
-"stat_targets":    [{"stat": "enerRech_", "min": 180, "max": null, "text": "…"}]
+"stat_targets":    [{"stat": "enerRech_", "min": 180, "max": null, "text": "…", "from_rank": 0}]
 ```
 
+- A weapon's and a set option's `rank` is its place in its list, from 1 (the file's order); `known` says whether
+  the catalog had the weapon when the build was imported - `known: false` weapons and set keys without a catalog
+  row still compare by key.
 - A set piece accepts any of its `keys` (stat groups like "any +80 EM set" list several); `choose` = how many
-  pieces must be satisfied ("any 2 of these 2pc bonuses"). Semantics in `Analysis/SetMatcher`.
+  pieces must be satisfied ("any 2 of these 2pc bonuses"; null: all). Semantics in `Analysis/SetMatcher`.
 - Equal `priority` values are ties (`=`).
-- `known: false` weapons / set keys without a catalog row still compare by key.
-- Sync rules: unchanged content only bumps `fetched_at`; a changed hash sets `changed_at`; variants that
-  disappear from the site are deleted; runs limited with `--character` / `--limit` never update the source's
-  `last_synced_at`. The content hash is computed exactly as the Laravel version did (dates in Carbon's JSON
-  form), so builds it stored do not all look changed after an upgrade.
+- A stat target holds from a constellation (`from_rank`, 0-6), each (stat, `from_rank`) once in a build: the
+  analysis holds a character to, per stat, the target from the highest constellation it has reached
+  (`BuildEvaluator::targetsFor()`); a stat whose targets all start later has none for it.
+- Import rules (`BuildImport`; [architecture.md](architecture.md), "Main flows"): the file is the whole truth for
+  its game. A build the file has again by its identity keeps its id - a link `?build=ID` stays - and is updated
+  when its content hash, its position or its qualifier's spelling changed (`changed_at` and `checked_at` the
+  file's time), kept otherwise (`checked_at` alone); a build of the game the file lacks is removed - every build
+  of a character it does not have -, a new one created; removed first and created last, so no identity is ever
+  there twice, even for a moment. A character the catalog lacks is skipped: an import never adds to the catalog.
+  One import at a time, in one transaction, recorded in it (`build_imports`, the audit log's `builds.imported`).
 
 ## Builds files
 
-A source's builds exported on the Sources page (`GET /api/sources/{key}/export`) and imported on another
-installation (`POST /api/sources/{key}/import`, the file's JSON as the body): `Services/Builds/BuildFile` is the
-format, `BuildTransfer` the export and import. How to use them: [operations.md](operations.md), "Moving builds
-between installations". Format version 1:
+A game's builds, imported on the admin panel's Builds page (`POST /api/admin/builds/{game}/import`, the file's
+JSON as the body; `?dry_run=1` only says what would happen) and exported there
+(`GET /api/admin/builds/{game}/export`, `builds-{game}-{date}.json`): `Services/Builds/BuildFile` is the format,
+`BuildImport` the import and export. The site never puts a builds file together itself: the owner's untracked
+local tools read the build sites and write one per game ([builds.md](builds.md)), and the export serves as a
+backup and as the start of a hand edit. The file is the whole truth for its game. Format version 2:
 
 ```jsonc
 {
-  "format": "build-analyzer.builds", "format_version": 1,
-  "source": "genshin-2", "game": "genshin",          // the API's key of the source, never its site
-  "exported_at": "2026-09-29T14:03:12.123456Z",      // UTC, to the microsecond, like every time in the file
-  "synced_at": "2026-09-29T13:40:05.000000Z",        // its last successful full sync where it was exported, or null
-  "builds": [{
-    "character": "hutao",                            // game_characters.key, matched by (game, key)
-    "character_name": "Hu Tao",                      // for people reading the file
-    "variant": "DPS", "role": "DPS", "recommended": true, "position": 0,
-    "weapons": [], "sets": [], "main_stats": {}, "substats": [],   // the shapes of the builds table above
-    "talent_priority": null, "stat_targets": null,   // a list or null
-    "notes": null, "source_updated_at": null, "game_version": "6.0",
-    "fetched_at": "2026-09-28T10:00:00.000000Z", "changed_at": "2026-09-20T10:00:00.000000Z"
+  "format": "build-analyzer.builds", "format_version": 2, "game": "genshin",
+  "exported_at": "2026-10-20T10:00:00Z",             // when the file was made: the export writes UTC to the second (an offset and fractions are read too)
+  "builds": [{                                       // a character's builds in their order of preference: the first is its main one
+    "character": "furina",                           // game_characters.key, matched by (game, key)
+    "character_name": "Furina",                      // for people reading the file
+    "role": "support", "qualifier": "", "min_rank": 0,   // the variation: Game::roles(); '' or a word or two; 0-6
+    "weapons": [{"key": "splendoroftranquilwaters", "name": "Splendor of Tranquil Waters", "refinement": 1, "note": null}],   // in order of rank
+    "sets": [{"kind": "artifact", "choose": null,
+              "pieces": [{"label": "Golden Troupe", "count": 4, "keys": ["goldentroupe"], "names": ["Golden Troupe"]}], "note": null}],
+    "main_stats": {"sands": [{"stat": "hp_", "priority": 1}], "goblet": [{"stat": "hp_", "priority": 1}]},
+    "substats": [{"stat": "critRate_", "priority": 1}, {"stat": "critDMG_", "priority": 1}],   // [] for none
+    "talent_priority": [{"talent": "skill", "priority": 1}],                                    // or null
+    "stat_targets": [{"stat": "enerRech_", "min": 200, "max": null, "text": "…", "from_rank": 1}],   // or null
+    "notes": null, "game_version": "6.1"
   }]
 }
 ```
 
-- Builds come ordered by character key, position and variant, so two exports of the same builds differ only in
-  `exported_at`. No page address (`source_url`), no site address or name: every text goes through
-  `Neutral::text()`, as in every answer of the API, and is kept within the caps the import reads with (the
-  words that replace an address can take more room than it did). Two variants of a character that neutral
-  words make alike ("Prydwen DPS", "Game8 DPS") become "The source DPS" and "The source DPS #2". Whatever an
-  export writes, an import reads.
-- An import checks the whole file first and writes nothing when anything is off, naming the first problem:
-  format and version, game and source; every field present (a build may leave out `fetched_at` /
-  `changed_at`) and none the format lacks; the JSON shapes above, with whole numbers where the app counts
-  (ranks, positions, priorities, refinements); the set kinds (`artifact` for Genshin, `relic` / `planar` for
-  HSR), slots, stat keys (`Stats::keys()`, what `Stats::parse()` gives) and talents of the game; set pieces as
-  syncs store them - each set listed once, a `count` of 2 or 4 (2 for a planar ornament); times from 1970 on;
-  texts no longer than their columns; one build per (character, variant); and caps well above what the sources
-  give (5000 builds, 100 weapons and 50 set options a build, 30 pieces an option, 100 sets a piece …; real syncs
-  reach 23 weapons, 12 options, 5 pieces and 13 sets a piece), and 8 MB for the file, a common default of PHP's
-  limit on a request, against about 2 MB for a whole source. Every text is made neutral on the way in too, so a
-  file edited by hand cannot bring a site's name into the analysis.
+- A build is a variation of its character's: its role, a qualifier telling two builds of one role apart (at most
+  40 characters, one line, trimmed; '' for most) and the constellation it needs (`min_rank`). (character, role,
+  qualifier without regard to case, `min_rank`) is its identity, once in a file; a character's builds come in
+  their order of preference, which becomes their `position`, and the order of a build's weapons and set options
+  is their rank. A stat target holds from a constellation (`from_rank`), each (stat, `from_rank`) once in a build.
+- **Reading is strict**, the whole file before anything is written, naming the first problem (422, the
+  sentence naming the build - `builds[3] (hutao, main_dps C2+)` - and the field): the format and its version (a
+  version 1 file - the builds of one source, before builds had variations - is refused with its own message, a
+  newer one asks for this installation to be updated) and the game; exactly the fields of the format, none
+  missing and none more; lists and objects where they belong, whole numbers where the app counts (`min_rank`
+  and `from_rank` 0-6, priorities 1-99, refinements 1-5); the game's roles, set kinds (`artifact`), the slots
+  whose main stat varies and the main stats each can have (an "Elemental DMG", `elemental_dmg_`, where the slot
+  has such stats), substat and stat keys (`Stats::substatKeys()`, `Stats::keys()`) and talents; set pieces as the
+  set matcher reads them - each set listed once in a piece, a `count` of 2 or 4; a target's `min` not above its
+  `max`; times in ISO 8601 with their offset, from 1970 on; each identity once in the file; and caps well above
+  what a build needs (5000 builds, 100 weapons and 50 set options a build, 30 pieces an option, 100 sets a
+  piece, 30 stats, 10 talents, 30 targets), and 8 MB for the file - a common default of PHP's `post_max_size`,
+  against well under 1 MB for a game's builds. Every text is made neutral on the way in too (`Neutral`), so a
+  file edited by hand cannot bring a site's name into the analysis; a character's key is matched with the
+  catalog as it is, and a skipped one named only neutrally.
 - Those piece rules keep the set matcher small: with each set listed once and 2 or 4 pieces asked of it, no
   more than two equipped sets satisfy the pieces of an option. `SetMatcher` also works out each state of its
   search once (the piece, the sets used), so even an option it was not written for stays quick.
-- It makes the source's builds exactly the file's, in one transaction under the sync step lock and never
-  while a run of the source is going. Each character's builds are written by `BuildSync::write()`, like a
-  sync's: created, updated (the content hash differs; `changed_at` moves) or unchanged, other variants of the
-  character deleted. A file never carries a page address: a build this installation has already keeps its
-  own and is hashed with it, so importing what a sync stored here changes nothing and the next sync does not
-  count every build as changed; a new build gets none. `fetched_at` / `changed_at` come from the file where
-  they are times (never later than now), else now. Every build of the source whose character the file lacks is
-  deleted. Characters the catalog lacks are skipped: an import never adds to it.
-- It is recorded as a `builds` run of the source, `started_by` the admin, with a sync's stats (skipped
-  characters in `characters_skipped` and in `unmatched` as `{game}:characters`), a log that starts "imported
-  from a file exported …" and ends with the "Done: …" line; and it leaves the source as a successful full sync
-  does, with `last_synced_at` the file's `synced_at` (else `exported_at`).
+- **The export** writes the builds by character key (compared as bytes, whatever the database's collation) and
+  then in each character's order, so two exports of the same builds differ in `exported_at` only. Every text
+  goes through `Neutral::text()`, as in every answer of the API, kept within the caps the import reads with (the
+  words that replace an address can take more room than it did); a piece's sets that neutral words make alike
+  are listed once, and two qualifiers of a character's that neutral words make alike are told apart (the later
+  "… #2"). Whatever an export writes, an import reads.
+- **An import** makes the game's builds exactly the file's (see "Builds" above for how each build is matched and
+  written) - but for characters the catalog lacks: the characters' list is refreshed first, at most once per game
+  and list per `catalog.import_refresh_minutes` (60, `config/app.php`, shared with the account imports), and
+  what is still missing is skipped and named in the answer (`skipped: [{key, name, builds}]`); a weapon the
+  catalog lacks likewise refreshes its list once and is kept, `known: false`. A file whose builds name no
+  character the catalog knows is refused - most likely a catalog nobody has refreshed yet, and "importing"
+  nothing would remove every build. The file's `exported_at` becomes the builds' `checked_at` (and the
+  `changed_at` of those it creates or changes) and the import's `file_exported_at`, never later than now. One
+  transaction under an advisory lock (`BuildImport::LOCK`, `pg_try_advisory_xact_lock`: a second import
+  meanwhile is refused, 409, nothing written), with `SET LOCAL` statement and idle timeouts of 60 s; the answer
+  counts every change and lists the first 500. A dry run reads, matches and compares the same and writes
+  nothing.
 
 ## Accounts files
 
@@ -332,7 +433,7 @@ written as compact JSON (one line), saved as `build-analyzer-accounts-YYYY-MM-DD
 
 - Nothing in it only makes sense here: catalog entries by key (`game_characters.key` …, matched by (game,
   key)), never an internal id; no user id, no account id; a source is `showcase` or `file` (`enka` comes back
-  as `enka`, a file as the game's file format: `good` / `hsr_scanner`); a run's summary without `tool`; every
+  as `enka`, a file as the game's file format: `good`); a run's summary without `tool`; every
   text through `Neutral::text()` and within its column. Import runs without an account (a failed attempt that
   found none) are not in it.
 - Times are UTC to the second, on the way out and when compared: an account without a UID is found again by
@@ -343,7 +444,8 @@ written as compact JSON (one line), saved as `build-analyzer-accounts-YYYY-MM-DD
   `file_too_big` `{max_mb}` (the raw body past `config/app.php` `me.file_max_mb`, 8, checked before it is
   read as an accounts file - PHP has the whole body by then, and Slim's body parser has decoded one sent as
   `application/json`: the host's `post_max_size` is what bounds a body), `not_a_data_file`, `newer_version` `{version}`, `bad_entry` `{path}` (`accounts[2].items[14].slot`:
-  a field missing or unknown, a wrong type, a slot of the other game, a stat or catalog key of the wrong form, a
+  a field missing or unknown, a wrong type, a game this site does not offer - a Star Rail account's among
+  them, since 0.5.0 -, a slot the game does not have, a stat or catalog key of the wrong form, a
   time without its offset, a meta key the account page does not show, one UID twice, a character twice, a text
   longer than its column), `too_many_accounts` `{max}` (the import would leave more than 500 accounts). Caps
   well above a game's own: 500 accounts, 1000 characters, 10000 weapons and 10000 items an account, 200 import
@@ -391,5 +493,11 @@ written as compact JSON (one line), saved as `build-analyzer-accounts-YYYY-MM-DD
 
 | Table | Notes |
 | --- | --- |
-| `cache` | `key`, `value` (JSON), `expiration` (Unix time): the per-site request delays and retry counters, showcase answers, the showcase rate limit, catalog refresh markers. Expired rows are deleted when a build run ends |
-| `cache_locks` | `key`, `owner`, `expiration`: the sync step lock (`sync-step`). Taken with an upsert that only succeeds over an expired row. (Applying migrations takes a PostgreSQL advisory lock instead - see the top of this page; the `migrate` row of older versions is no longer written) |
+| `cache` | `key`, `value` (JSON), `expiration` (Unix time): the per-host request delays (`fetcher:last-request:{host}`), the limits' counters (`rate:*` and the visitors', per person or per address - an address by a keyed hash of it, never the address itself), the showcase answers, the claims (`Cache::add()`: a row added only where none is, or over an expired one - a catalog list's refresh, `catalog-refresh:{game}:{list}`, two minutes; the upkeep's look, `catalog-upkeep:look`, and its try of a list, `catalog-upkeep:{game}:{list}`; an import's refresh of a list, `catalog-import-refresh:{game}:{list}`; the day's tidying up, `prune:{date}`; the visitors' sweep), and where each catalog list stands (`catalog-state:{game}:{list}`: `{etag, checked_at, changed_at, failed_at, problem, count}` - the list's version tag, when the provider last confirmed it, when it last changed, when and why a refresh last failed, how many entries the last change wrote; kept ten years, for the table's rule that everything expires). Expired rows are deleted by the day's tidying up (`App\Cache\Prune`: after the first answer of a UTC day, while the site is ready - with the downloaded files in `storage/http-cache` older than three days). A backup's restore never touches the table (`keep: ['cache']`): the counters, the claims and the catalog lists' state stay as they are |
+
+No lock table since migration 016 (`cache_locks` went with the sync step lock it held). What must be one at a
+time across a transaction takes a PostgreSQL advisory lock: applying migrations (`Migrations::LOCK` - see the top
+of this page; the `migrate` row of older versions is no longer written) and importing builds
+(`BuildImport::LOCK`, `pg_try_advisory_xact_lock`: given back when the import's transaction commits or rolls
+back, so a request that dies holds it no longer). What is one at a time without a transaction - a refresh of one
+catalog list, which asks the provider before it writes - is a claim in the cache table (above).

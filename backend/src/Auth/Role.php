@@ -9,12 +9,12 @@ namespace App\Auth;
 final class Role
 {
     /**
-     * Everything an EDITOR may do, and the system's own: switches sources on and off, applies database
-     * updates, adds, renames, switches and deletes languages, deletes a person's data.
+     * Everything an EDITOR may do, and the system's own: applies database updates, adds, renames, switches
+     * and deletes languages, deletes a person's data, and has the admin tools.
      */
     public const ADMIN = 'ADMIN';
 
-    /** Runs the build and catalog syncs, reads their history, moves a source's builds through a file, rewords the site's strings. */
+    /** Imports and exports the builds files, refreshes the catalog, rewords the site's strings. */
     public const EDITOR = 'EDITOR';
 
     /** The admin panel: an EDITOR or an ADMIN. */

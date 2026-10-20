@@ -189,7 +189,7 @@ CREATE INDEX IF NOT EXISTS account_items_account_id_slot_index ON account_items 
 CREATE INDEX IF NOT EXISTS account_items_account_id_equipped_character_id_index ON account_items (account_id, equipped_character_id);
 
 -- ── Recommended builds, shared ──────────────────────────────────────────────
--- One row per scraper (key like "prydwen.hsr", internal only: the API calls the
+-- One row per scraper (an internal key such as "site.hsr": the API calls the
 -- sources "genshin-1", "hsr-2" ... and the UI "Source 1", "Source 2").
 CREATE TABLE IF NOT EXISTS build_sources (
     id              BIGSERIAL,

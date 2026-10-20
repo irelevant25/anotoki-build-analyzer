@@ -1,10 +1,10 @@
 # Build Analyzer
 
-Import your **Genshin Impact** and **Honkai: Star Rail** accounts, collect recommended builds from community
-build sites, and see per character what to change: set bonuses, main stats, substats, weapon / light cone,
-stat targets and better pieces you already own. Hosted at builder.anotoki.eu: sign-in through the anotoki IAM,
-open to every anotoki account, each person with their own accounts; the builds browser is public, and without
-signing in what you import is kept for your browser for 30 days after your last visit.
+Import your **Genshin Impact** account, compare each character with recommended builds - by role, and by the
+constellation a build needs - and see what to change: set bonuses, main stats, substats, weapon, stat targets and
+better pieces you already own. Hosted at builder.anotoki.eu: sign-in through the anotoki IAM, open to every anotoki
+account, each person with their own accounts; the builds browser is public, and without signing in what you
+import is kept for your browser for 30 days after your last visit.
 
 - **Backend:** PHP 8.4+, Slim 4, PostgreSQL, in `backend/`
 - **Frontend:** Angular 21 on the anotoki family's UI kit (`@anotoki/lib`), in `frontend/`
@@ -13,20 +13,27 @@ Setting it up, running, testing, building and deploying: **[DEV.md](DEV.md)**.
 
 ## Features
 
-- **Guided import wizard** (game → method → step-by-step preparation → import → result). Data is read either:
+- **Guided import wizard** (method → step-by-step preparation → import → result). Data is read either:
   - by **UID**: the characters in your in-game Character Showcase, through a public showcase service, or
-  - from a **full inventory export** written by a tool on your PC: a GOOD file (Genshin) or a relic
-    scanner's JSON export (Star Rail).
-- **Build sync** from three community build sites, with every build variant a site lists (e.g. Raiden "DPS &
-  Energy Support" and "Hyperbloom"), started by an editor on the Sources page and run in short steps from the
-  browser: no queue worker, scheduler or long-running process. The app shows the sources as "Source 1",
-  "Source 2" …; it names no other site anywhere in its UI.
+  - from a **full inventory export** written by a tool on your PC: a GOOD file.
+- **Builds by role and constellation**: each character's builds are its variations - Main DPS, Sub DPS or
+  Support, a short name where a character has two of one role ("Main DPS · Melt"), and the constellation a build
+  needs ("C4+"). They are put together on the owner's computer from community build sites and imported by an
+  editor as one file per game on the admin panel's Builds page (Export, Import a file: a dry run's preview, then
+  Import). The site never fetches a build page, and names no build site anywhere.
+- **The builds browser**: every character with builds, with its roles, and filters - name, element, weapon type,
+  rarity, region and the version a character came with ("6.1 (Luna II)") - kept in the page's address.
+- **The game catalog from genshin.anotoki.eu**, the owner's own Genshin Impact site: characters, weapons and
+  artifact sets with the game's own IDs, refreshed on the Builds page, from the command line, and by the site
+  itself every few days; while that site is closed, this one keeps its catalog and the Builds page says why.
 - **Sign-in through the anotoki IAM** (iam.anotoki.eu): anybody with an anotoki account imports accounts and
-  sees their analysis; editors also run the syncs and reword the site's strings; admins do everything.
-  Everyone's game accounts are their own.
+  sees their analysis; editors also import the builds, refresh the catalog and reword the site's strings; admins
+  do everything. Everyone's game accounts are their own.
 - **Analysis per character and per build**: a 0–100 score and grade, prioritized recommendations, your pieces
-  graded against the build, stat targets checked against your in-game totals, where the sources agree, and
-  (with a full inventory) the best replacement you already own for each slot.
+  graded against the build, stat targets checked against your in-game totals, and (with a full inventory) the
+  best replacement you already own for each slot. Your best build follows your constellation: a build that needs
+  one your character does not have shows a lock ("needs C4") and is never counted as your best, and a stat target
+  that depends on the constellation is the one for yours.
 - **English and Slovak**: the member pages read in either, chosen in the top bar (or taken from the
   browser). The words live in the database, so editors reword them, and admins add or hide languages, in the
   browser (the admin panel's Translations and Languages pages, in English like the rest of `/admin/`). The game's own words -
@@ -39,9 +46,9 @@ Setting it up, running, testing, building and deploying: **[DEV.md](DEV.md)**.
   it. Without signing in, each browser keeps its own.
 - **What's new**: the version at the foot of every page, and its button, open the changelog
   (`frontend/public/changelog.json`).
-- **Terms, Privacy and Contact**: the anotoki family's pages, linked at the foot of every page above the fan
-  clause (a fan-made project, not affiliated with or endorsed by HoYoverse) - what the site keeps, what for and how
-  long, its browser storage and who else handles data, true of the code as it is
+- **About, Support, Terms, Privacy and Contact**: the anotoki family's pages, linked at the foot of every page
+  above the fan clause (a fan-made project, not affiliated with or endorsed by HoYoverse) - what the site keeps,
+  what for and how long, its browser storage and who else handles data, true of the code as it is
   (`frontend/src/app/core/legal-facts.ts`); Contact opens the feedback form.
 
 ## Quick start
@@ -55,15 +62,17 @@ cd frontend && npm start                           # bun ci, then the app at htt
 ```
 
 The app then leads you to `setup.php`: the database (`anotoki_builder`, port 5432) and the IAM (address and
-client id) - nothing else. Then, signed in as the IAM's administrator, **Sources → Refresh catalog → Sync all**,
-and import an account. Testing, the command line and the upload for a host: [DEV.md](DEV.md).
+client id) - nothing else. Then, signed in as the IAM's administrator, open the admin panel's **Builds** page:
+**Refresh catalog**, then **Import a file** with a builds file (one exported from another installation's Builds
+page, or one made as [docs/builds.md](docs/builds.md) describes) - and import an account. Testing, the command
+line and the upload for a host: [DEV.md](DEV.md).
 
 ## Importing your data
 
-| Method | Genshin Impact | Honkai: Star Rail | You get |
-| --- | --- | --- | --- |
-| UID (Character Showcase) | up to 12 showcase characters | showcase + support characters | equipped gear, exact roll counts, in-game totals (Genshin) |
-| Exporter file | GOOD file | relic scanner export (JSON) | every character, weapon and artifact / relic |
+| Method | What it reads | You get |
+| --- | --- | --- |
+| UID (Character Showcase) | up to 12 showcase characters | equipped gear, exact roll counts, in-game totals |
+| Exporter file | a GOOD file | every character, weapon and artifact |
 
 Both can be combined on one account: import by UID for in-game totals, then upload a file for the full
 inventory. The wizard shows the in-game steps. Accounts belong to the person who imported them (two people can
@@ -73,47 +82,53 @@ import the same UID, each into their own account). From the command line, `--use
 ```bash
 cd backend
 php import-account.php genshin 700123456 --user=1              # the Character Showcase of a UID, for IAM user 1
-php import-account.php hsr path/to/export.json --user=5 --account=3
+php import-account.php genshin path/to/good.json --user=5 --account=3
 ```
 
 A name the game catalog does not know yet (a brand-new character or set) is skipped and listed in the import
-result; after an editor refreshes the catalog, import again. The formats and the services behind them are
-described in [docs/import-formats.md](docs/import-formats.md).
+result: an import by UID refreshes that list of the catalog first (at most once an hour), and once the catalog has
+caught up - an editor's refresh, or the site's own every few days - import again. The formats and the services
+behind them are described in [docs/import-formats.md](docs/import-formats.md).
 
-## Syncing builds
+## Builds
 
-- An editor (or an admin) syncs on the **Sources** page: **Sync all** (every enabled source not synced successfully in the last
-  20 hours, so extra clicks never hit a site twice a day), **Sync now** on one source, and **Refresh catalog**.
-  A stale catalog is refreshed first automatically.
-- A sync runs in short steps while the page is open: each step is one request that fetches a page or two,
-  respects the site's crawl delay and saves its progress. Closing the tab pauses it; Resume continues where it
-  stopped. Nothing is scheduled.
-- `php sync-builds.php` (in `backend/`) does the same from a shell. Options: `--force`, `--character=hu_tao`
-  (repeatable), `--limit=5`, `--game=hsr`, `--check-names` (lists each site's characters and reports names that
-  do not match the game catalog), and `--dry-run` (parses and compares with the stored builds without writing;
-  add `--cache-hours=96` to replay pages fetched in the last days).
-- **Export** and **Import** on each source carry its builds to another installation as a file (or keep them as a
-  backup): sync a source on a computer its site answers, export it, and import it on a server the site refuses.
-  An import replaces the source's builds with the file's and counts as a sync of that source.
-- Requests identify themselves, wait between requests to the same site, retry 429/5xx responses and cache pages
-  for 12 hours. The sites and how each is read: [docs/build-sources.md](docs/build-sources.md).
+- **A build is a variation of a character**: its role (Main DPS, Sub DPS or Support), a short qualifier where a
+  character has two builds of one role, and the constellation it needs (C0-C6); then its weapons in order, artifact
+  sets, main stats per slot, substats by priority, talent priority, stat targets (one may start from a
+  constellation: "C2+") and notes. A character's builds are in its order of preference: the first is its main one.
+- **They come in as one file per game** (`builds-genshin-<date>.json`), imported by an editor on the admin panel's
+  **Builds** page: the file is checked, a dry run shows what it would change (new, updated, unchanged, removed, the
+  characters skipped, each change), and **Import** makes the game's builds exactly the file's - but for characters
+  this installation's catalog lacks, which are skipped and named. A build the file has again keeps its id; every
+  import is recorded, with who made it. **Export** saves a game's builds as such a file: a backup, the start of a
+  hand edit, or the builds for another installation.
+- **The site never fetches a build page.** The file is put together on the owner's computer by the owner's own
+  tools, which are not in this repository (the git-ignored `local/` folder): they read the community build sites
+  politely (their robots.txt, each site's own wait between pages), keep the pages on disk, sort each site's builds
+  by role, pick per role and constellation, fill only gaps (talents, Energy Recharge targets, substats), make every
+  text neutral, check the file with this site's own reader and refuse an export that shrinks by more than a fifth.
+  What a build and the file are, and what the tools must deliver: [docs/builds.md](docs/builds.md).
+- **Nothing names a build site** - not the pages, not the API, not this repository. Their names live in an
+  untracked settings file of the owner's (`backend/config/neutral.local.php`, uploaded to the host by hand), which
+  keeps them out of what the site shows, and `php backend/tools/check-names.php` checks the tracked files for them.
 
 ## How the analysis works
 
-Every owned character is compared with every build of every source. Each part is scored from 0 to 100:
+Every owned character is compared with each of its builds. Each part is scored from 0 to 100:
 
 | Part | Scoring |
 | --- | --- |
-| Weapon / light cone | #1 on the list = 100, −8 per rank, unlisted = 40; better options you own are named |
-| Set bonuses | first satisfied option (4pc, 2+2, "any two" 2pc groups, 2pc stat groups); HSR: relics 60 %, ornaments 40 % |
+| Weapon | #1 on the list = 100, −8 per rank, unlisted = 40; better options you own are named |
+| Set bonuses | first satisfied option (4pc, 2+2, "any two" 2pc groups, 2pc stat groups) |
 | Main stats | per variable slot: first choice 100, alternatives 85 / 75, anything else 0 |
-| Substats | rolls (value ÷ max roll) weighted by the build's priority order (1.0 / 0.8 / 0.6 / 0.45 / 0.3; flat stats about 0.35–0.4 of their % version), compared with an ideal piece (all upgrades in the best stat). 70 % of ideal already counts as full marks. |
-| Stat targets | in-game totals (Genshin showcase imports) against ER requirements, CRIT goals, HSR endgame stats |
+| Substats | rolls (value ÷ max roll) weighted by the build's priority order (1.0 / 0.8 / 0.6 / 0.45 / 0.3; flat stats about 0.35 of their % version), compared with an ideal piece (all upgrades in the best stat). 70 % of ideal already counts as full marks. A build that lists no substats is scored by substats derived from its own main stats. |
+| Stat targets | in-game totals (showcase imports) against the build's targets - Energy Recharge requirements, CRIT goals; of a stat's targets, the one from the highest constellation the character has |
 
 The overall score weights the parts 20 / 25 / 20 / 25 / 10 (parts without data are skipped). Grades are
-S ≥ 90, A ≥ 80, B ≥ 65 and C ≥ 50. The best-matching build is starred. With a full inventory, the app suggests
-the best replacement you own for each slot; a suggestion never makes your set bonus worse. Details:
-[docs/analysis.md](docs/analysis.md).
+S ≥ 90, A ≥ 80, B ≥ 65 and C ≥ 50. A character's best build is the best scored of those its constellation reaches
+(a tie goes to the earlier one); a build it does not reach shows a lock and "needs C4", and is never its best. With
+a full inventory, the app suggests the best replacement you own for each slot; a suggestion never makes your set
+bonus worse. Details: [docs/analysis.md](docs/analysis.md).
 
 ## Sign-in and roles
 
@@ -128,9 +143,8 @@ switch from the IAM and refuses visitors and the signed-out builds browser, and 
 in first; the visitor key a browser holds is kept meanwhile, and what that visitor imported still moves into their
 account when they sign in. A signed-in person can also save their game accounts as a file and import such a file here or on
 another copy: an account the file has newer data for is replaced, one only the file has is added, and an
-import never deletes an account. **EDITOR** also syncs builds and
-the catalog, reads the sync history, moves a source's builds through a file and rewords the site's strings;
-**ADMIN** does all of that and also switches sources on and off, applies database updates, adds, renames,
+import never deletes an account. **EDITOR** also imports and exports the builds files, refreshes the catalog
+and rewords the site's strings; **ADMIN** does all of that and also applies database updates, adds, renames,
 switches and deletes languages, deletes a person's data (the People page) and has the admin tools - the error
 log, the audit log, the visitors' feedback and the database's backups. Roles are granted in the IAM's admin panel.
 Somebody already signed in to their anotoki account (on another anotoki site) is signed in here without a click.
@@ -138,18 +152,19 @@ The backend checks every access token itself (signature against the IAM's publis
 expiry), and checks the roles on every route. Signing in, the People page and the admin tools are the anotoki
 family's, from its shared library. See [docs/operations.md](docs/operations.md).
 
-**Current state**: backend and frontend are as described here - sign-in through the IAM only, visitors
-(somebody not signed in imports and uses their accounts; the dashboard shows nobody the ways in, a visitor their
-accounts under a notice of how long they are kept; at sign-in they move into the account - unless the IAM says
-this site requires a sign-in: then every page asks for one first), the admin panel under
-`/admin/` (editors: Sources and Translations; admins also Languages, People, Migrations - the database's
-updates seen and applied, as on the IAM - and the error log, the audit log, feedback and backups), the "Your
-data" card for every signed-in person (export, import with a preview), and Feedback at the foot of every page,
-under the anotoki top bar with the version in the footer - version 0.4.0 (unreleased). Migration 004 (the
-visitors' schema and every word of 0.3.0) is complete; it is applied
-when 0.3.0 is handed over and deployed: on the host Apply pending on the Migrations page, by an ADMIN, at once
-after the upload - and only then the IAM's migration 007 (DEV.md, docs/operations.md). The browser check
-(`node .claude/skills/verify-ui/scripts/run.mjs`) goes through all of it on a throwaway database.
+**Current state** (version 0.5.0): backend and frontend are as described here - Genshin Impact alone (the code
+keeps its shape for more than one game), the builds imported as one file per game, the catalog from
+genshin.anotoki.eu, sign-in through the IAM only, visitors (somebody not signed in imports and uses their
+accounts; the dashboard shows nobody the ways in, a visitor their accounts under a notice of how long they are
+kept; at sign-in they move into the account - unless the IAM says this site requires a sign-in: then every page
+asks for one first), the admin panel under `/admin/` (editors: Builds and Translations; admins also Languages,
+People, Migrations - the database's updates seen and applied, as on the IAM - and the error log, the audit log,
+feedback and backups), the "Your data" card for every signed-in person (export, import with a preview), and
+Feedback at the foot of every page, under the anotoki top bar with the version in the footer. Version 0.5.0 goes
+up after genshin.anotoki.eu's own update (its migrations 030 and 031); its migrations 014-019 are applied on the
+host by an ADMIN at once after the upload, then the catalog is refreshed and the builds file imported
+(docs/operations.md, "Deploying 0.5.0"). The browser check (`node .claude/skills/verify-ui/scripts/run.mjs`) goes
+through all of it on a throwaway database.
 
 **While the site is not ready** it behaves as every anotoki site does (the family's shared library,
 [anotoki-lib](https://github.com/irelevant25/anotoki-lib), and the owner's decision of 2026-10-07): while a
@@ -162,11 +177,13 @@ again after `setup.php` finished on a host.
 ## Deploying
 
 The host needs only Apache, PHP 8.4 and PostgreSQL, with files uploaded by FTP: no shell, cron or worker.
-`bun run anotoki-deploy build` (in `frontend/`; anotoki-lib's deploy tool) assembles the release in `dist/` - `frontend/` and
-`backend/`, with `vendor/` and the built frontend, and no configuration or tests - replaced whole on the host; `setup.php` writes the host's configuration and builds the database; later database
-updates are applied on the admin panel's Migrations page by an ADMIN, at once after the upload - until then the
-site tells everybody else it is being updated. The steps and the upload map: [DEV.md](DEV.md)
-("Deploying").
+`bun run anotoki-deploy build` (in `frontend/`; anotoki-lib's deploy tool) assembles the release in `dist/` -
+`frontend/` and `backend/`, with `vendor/` and the built frontend, and no configuration or tests - replaced whole
+on the host; `setup.php` writes the host's configuration and builds the database, and the names file
+(`config/neutral.local.php`) is put beside it by hand once; later database updates are applied on the admin
+panel's Migrations page by an ADMIN, at once after the upload - until then the site tells everybody else it is
+being updated. The builds come from a file imported on the Builds page, never from the host itself. The steps
+and the upload map: [DEV.md](DEV.md) ("Deploying").
 
 ## Hosting checklist
 
@@ -192,6 +209,11 @@ hosting:
     without the file it believes `CF-Connecting-IP` from Cloudflare's ranges alone; with one it cannot read
     cleanly, or one that names no secret (blank, a misspelt key), from nobody (every visitor counts as their edge
     until it is mended) - deleting the file is the way to switch it off. Set the rule first, then the file.
+- **The names file**: `backend/config/neutral.local.php` - the build sites' names, which the site keeps out of
+  everything it shows - put there by hand once, beside the other settings (starting with `<?php`, like them; never
+  in a release, and an upload leaves it where it is).
+- **genshin.anotoki.eu** answers its catalog lists (`https://genshin.anotoki.eu/api/catalog/characters`, `/weapons`,
+  `/artifacts`): the catalog is refreshed from them.
 - **After an upload**: the private folders (`storage/`, `config/`) answer 403 in a browser; the host check's
   "Who connects" says Cloudflare, not a proxy of the host's (behind one, every visitor would share one
   address); pending database updates are applied on the admin panel's Migrations page.
@@ -202,37 +224,39 @@ hosting:
 backend/
   api/                  the front controller (index.php), app.php, middleware/, routes/
   src/                  App (container), Config, Db/ (PDO; the site's migrations on anotoki-lib's engine), Auth/, Http/ (fetcher),
-                        Cache/, Models/, Repositories/, Presenters/, Commands/, Setup/, Support/ (stats,
-                        talents, keys, neutral text), People/ (the people module on this site's users),
-                        Admin/ (the admin tools), Web/ (the pipeline, the address, after the answer)
-  src/Services/         Catalog/ (game catalog, name resolution), Import/ (showcase + file parsers,
-                        AccountImporter, ImportKinds), Builds/ (BuildSync, the scrapers, page-data parsers), Sync/
-                        (SyncRunner: runs worked through in steps), Analysis/ (scores, recommendations),
-                        Translations/ (the site's words on anotoki-lib's translations module: its released
-                        languages, its check that nothing names another site)
-  config/               app.php (committed) and *.local.php (per installation, written by setup.php)
+                        Cache/ (the cache table, the day's tidying up), Models/, Repositories/, Presenters/, Commands/,
+                        Setup/, Support/ (stats, talents, keys, neutral text), People/ (the people module on this
+                        site's users), Admin/ (the admin tools), Web/ (the pipeline, the address, after the answer)
+  src/Services/         Catalog/ (the game catalog from genshin.anotoki.eu, name resolution, the upkeep), Import/
+                        (showcase + GOOD parsers, AccountImporter, ImportKinds), Builds/ (the builds file and its
+                        import), Transfer/ (a person's accounts file), Analysis/ (scores, recommendations, the best
+                        build for a constellation), Translations/ (the site's words on anotoki-lib's translations
+                        module: its released languages, its check that nothing names another site)
+  config/               app.php (committed) and *.local.php (per installation: written by setup.php, some by hand)
   migrations/           the schema and the site's words, as SQL files applied in order
   tests/                php tests/run.php: throwaway PostgreSQL databases, fixtures, a fake network, the
                         library's test IAM (and its stand-in IAM, in vendor/)
-  tools/                check-release.php/.mjs (the release names no other site), php.sh (PHP 8.4+ for bash)
-  setup.php, router.php, migration.php, sync-builds.php, sync-catalog.php, import-account.php, translations.php,
-  backup.php
+  tools/                check-release.php/.mjs (the release names no other site), check-names.php (no tracked
+                        file names a build site), php.sh (PHP 8.4+ for bash)
+  setup.php, router.php, migration.php, sync-catalog.php, import-account.php, translations.php, backup.php
 frontend/src/app/
   core/                 API client, models, metadata store, changelog, sign-in (on anotoki-lib's auth module), the
-                        visitor key, sync driver, i18n/ (the site's words on anotoki-lib's service: typed keys,
-                        pipes, the compiled English), game
-                        terms, site-status (anotoki-lib's site gate and Migrations page, wired to this site)
+                        visitor key, the filters kept in the address, i18n/ (the site's words on anotoki-lib's
+                        service: typed keys, pipes, the compiled English, a variation's words), game terms,
+                        site-status (anotoki-lib's site gate and Migrations page, wired to this site)
   layouts/              top-bar, app-layout, legal-layout (the legal pages with the site's facts; About and Support,
                         /about and /support), admin-layout (the admin panel's frame) - each layout with anotoki-lib's
                         footer (version, What's new, Feedback; About · Support · Terms · Privacy · Contact)
-  shared/               build detail, item card, grade badge, changelog dialog, confirm dialog, the visitor notice,
+  shared/               build detail, item card, grade badge, score bar, changelog dialog, the visitor notice,
                         the ways in for somebody new, the "Your data" card, ...
-  pages/                dashboard, import wizard, account, character analysis, builds;
-                        admin/ (sources, translations, languages, migrations - translations, languages and
-                        migrations are anotoki-lib's pages, and so are People and the admin tools, routed straight)
+  pages/                dashboard, import wizard, account, character analysis (a tab per variation), builds
+                        (the browser with its filters); admin/ (builds, translations, languages, migrations -
+                        translations, languages and migrations are anotoki-lib's pages, and so are People and the
+                        admin tools, routed straight)
 frontend/public/        changelog.json, favicon, robots.txt (keeps search engines off /auth/)
 docs/                   knowledge base (start at docs/README.md)
 .claude/                project skills and agents for AI-assisted work
+local/                  (git-ignored, never in the repository) the owner's own tools that make the builds file
 ```
 
 ## Working on the project with AI
@@ -240,16 +264,15 @@ docs/                   knowledge base (start at docs/README.md)
 - [CLAUDE.md](CLAUDE.md) is loaded automatically by Claude Code and routes each kind of task to the right
   documentation, skill and agent; other AI tools can read it, and `.claude/`, as plain Markdown.
 - [docs/](docs/README.md) is the knowledge base: architecture, data model, stats and slots, name matching,
-  build sources, import formats, analysis, operations and decisions.
-- Project skills (`.claude/skills/`): `add-build-source`, `debug-build-sync`, `add-import-format`,
-  `tune-analysis`, `verify-ui`. Project agents (`.claude/agents/`): `build-source-researcher`, `sync-doctor`,
-  `analysis-auditor`, `build-analyzer-reviewer`.
+  builds (what a build is, the builds file and its import), import formats, analysis, operations and decisions.
+- Project skills (`.claude/skills/`): `add-import-format`, `tune-analysis`, `verify-ui`, `deploy-builder`. Project
+  agents (`.claude/agents/`): `analysis-auditor`, `build-analyzer-reviewer`.
 
 ## Notes
 
-- Builds come from other websites, and the scrapers read their current page structure. When a site changes its
-  layout, its sync reports errors on the Sources page, and that parser needs an update.
-- This is a small community tool, and the sites and services it reads are community projects: keep the default
-  request delays.
+- The builds are only as fresh as the last file imported: the site never reads a build site itself. A newer file
+  is made on the owner's computer and imported on the Builds page.
+- This is a small community tool, and the services it reads - the showcase service, genshin.anotoki.eu's catalog -
+  are shared by many: keep the default request delays.
 - Not implemented yet: an import through the game's official web account. It would return every character
   without a tool, but needs your login cookies.

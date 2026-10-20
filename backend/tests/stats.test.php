@@ -20,7 +20,6 @@ $genshinLabels = [
     ['Flat ATK', ['atk']],
     ['Energy Recharge', ['enerRech_']],
     ['ER%', ['enerRech_']],
-    ['Energy Rechage', ['enerRech_']], // a typo seen on a build site
     ['Elemental Mastery', ['eleMas']],
     ['EM', ['eleMas']],
     ['CRIT Rate', ['critRate_']],

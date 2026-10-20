@@ -98,8 +98,8 @@ final class Users
 
     /**
      * Deletes an IAM person's row and, by the foreign keys, their accounts with everything imported into
-     * them and their import runs; the syncs they started stay, started by nobody. Answers what went, or null
-     * when there is no such person (a visitor's row is never one).
+     * them and their import runs; the builds files they imported stay, imported by nobody. Answers what
+     * went, or null when there is no such person (a visitor's row is never one).
      *
      * Inside the caller's transaction, which it neither begins nor ends: the People page's delete runs in the
      * anotoki library's (People::delete(), App\People\SitePeople::deleteData()), on whatever connection that is

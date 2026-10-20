@@ -200,7 +200,7 @@ function laravelDatabase(array $server, int $level): PDO
 
     $source = $insert(
         "INSERT INTO build_sources (key, game, name, base_url, enabled, last_synced_at, last_status, created_at, updated_at)
-        VALUES ('prydwen.genshin', 'genshin', 'Prydwen', 'https://www.prydwen.gg', TRUE, '2026-09-25 04:30:00', 'success', ?, ?)",
+        VALUES ('site-a.genshin', 'genshin', 'Source 1', 'https://builds.example', TRUE, '2026-09-25 04:30:00', 'success', ?, ?)",
         [$t, $t],
     );
     $insert(

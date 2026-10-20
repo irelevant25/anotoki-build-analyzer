@@ -45,8 +45,8 @@ use Throwable;
  *               5xx) - but an answer that says a state, not a failure (EXPECTED_ANSWERS: the site gate while an
  *               update waits, a feature whose table waits). storage/logs/app.log stays for the site's info lines.
  *   audit log   the table anotoki_audit_log (the library's anotoki_admin/001): what was done in the admin panel
- *               - sources switched, syncs started and cancelled, a source's builds imported, the strings and
- *               languages, a person's data deleted, migrations applied, and the tools' own (errors cleared,
+ *               - a builds file imported, the catalog refreshed, the strings and languages, a person's data
+ *               deleted, migrations applied, and the tools' own (errors cleared,
  *               backups, feedback). No address is kept with an entry.
  *   feedback    the table anotoki_feedback (anotoki_admin/002): what visitors send from the form at the foot of
  *               every page - no mail; the admin panel counts what is new. Nothing of where a message came from

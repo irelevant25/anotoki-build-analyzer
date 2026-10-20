@@ -170,8 +170,9 @@ return [
     ],
 
     /*
-    | Name aliases: normalized alias => normalized canonical key. Only needed for nicknames, abbreviations and
-    | site typos; prefixes and suffixes such as "Kazuha" or "Emblem" are matched automatically when unique.
+    | Name aliases: normalized alias => normalized canonical key. Only needed for nicknames and abbreviations
+    | players use; prefixes and suffixes such as "Kazuha" or "Emblem" are matched automatically when unique. A build
+    | site's own spellings are the local tools' (docs/builds.md), never the site's.
     */
     'aliases' => [
         'genshin' => [
@@ -202,9 +203,6 @@ return [
                 'sacgreatsword' => 'sacrificialgreatsword',
                 'sacfrags' => 'sacrificialfragments',
                 'sacjade' => 'sacrificialjade',
-                // Typos seen on build sites.
-                'prototypearchiac' => 'prototypearchaic',
-                'gestofthemightwolf' => 'gestofthemightywolf',
             ],
             'sets' => [
                 'vv' => 'viridescentvenerer',
@@ -236,7 +234,6 @@ return [
                 'sms' => 'scrolloftheheroofcindercity',
                 'scroll' => 'scrolloftheheroofcindercity',
                 'lotss' => 'longnightsoath',
-                'emblemofseveredfates' => 'emblemofseveredfate', // typo seen on genshin.gg
             ],
         ],
     ],

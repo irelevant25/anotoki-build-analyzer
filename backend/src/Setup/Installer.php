@@ -34,8 +34,9 @@ final class Installer
         'pdo_pgsql' => 'the database',
         'openssl' => 'checking sign-in tokens',
         'mbstring' => 'text handling',
-        'curl' => 'downloading builds, the catalog and showcases',
-        'dom' => 'reading build pages',
+        'curl' => 'downloading the catalog, the showcases and the icons',
+        // No page of another site is read here since 0.5.0, but composer.json still asks for it (its platform check).
+        'dom' => 'the PHP packages (composer.json asks for it)',
         'json' => 'everything the API answers',
         'zlib' => 'the database\'s backups (each is compressed)',
     ];
@@ -380,8 +381,8 @@ final class Installer
         $checks = [
             [
                 'label' => 'PHP 8.4 or newer',
-                'ok' => PHP_VERSION_ID >= self::MIN_PHP && class_exists('Dom\HTMLDocument'),
-                'detail' => 'this is PHP ' . PHP_VERSION . '; the build pages are read with PHP 8.4\'s Dom\HTMLDocument (choose PHP 8.4 in the hosting panel)',
+                'ok' => PHP_VERSION_ID >= self::MIN_PHP,
+                'detail' => 'this is PHP ' . PHP_VERSION . '; the site needs PHP 8.4 or newer (choose PHP 8.4 in the hosting panel)',
             ],
         ];
         foreach (self::EXTENSIONS as $extension => $why) {

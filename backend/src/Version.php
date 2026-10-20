@@ -9,5 +9,5 @@ namespace App;
  */
 final class Version
 {
-    public const CURRENT = '0.4.0';
+    public const CURRENT = '0.5.0';
 }

@@ -1,22 +1,29 @@
 # Architecture
 
-The build analyzer imports Genshin Impact / Honkai: Star Rail accounts, reads recommended builds from community
-build sites when an editor syncs them, and compares every owned character with every build. People sign in
-through the anotoki IAM - the only way in, and open to every anotoki account; each person sees only their own
-game accounts, while the catalog and the builds are shared (and public).
+The build analyzer imports Genshin Impact accounts, brings in recommended builds as a file an editor imports on
+the admin panel's Builds page - one file per game, put together elsewhere from community build sites; the site
+itself never fetches a build -, and compares every owned character with every build of theirs, by the
+character's constellation. Since 0.5.0 it offers Genshin Impact alone (Honkai: Star Rail went, the owner's
+decision of 2026-10-20 - [decisions.md](decisions.md)); the multi-game shape is kept: `App\Enums\Game` has one
+case, and every fact that differs between games is one of its methods. People sign in through the anotoki IAM -
+the only way in, and open to every anotoki account; each person sees only their own game accounts, while the
+catalog and the builds are shared (and public).
 
 ```text
-game data provider ──catalog run──▶ game_characters / game_weapons / game_sets   (names, IDs, rarity, element, icons)
+genshin.anotoki.eu ──catalog refresh──▶ game_characters / game_weapons / game_sets   (names, IDs, rarity, element, region, version, icons)
                                    ▲ name/ID resolution (Catalog)
-showcase API / GOOD / HSR files ──ImportService──▶ accounts (per user), account_characters, _weapons, _items
-build sites ──build run──▶ builds (+ build_sources, sync_runs)
+showcase API / GOOD files ──ImportService──▶ accounts (per user), account_characters, _weapons, _items
+a builds file (one per game) ──BuildImport──▶ builds (+ build_imports)
                                    ▼
                      CharacterAnalyzer ──▶ REST API (/api, bearer token) ──▶ Angular app (/)
 iam.anotoki.eu ──access token (RS256)──▶ Angular app ──Authorization: Bearer──▶ API (verified locally)
 ```
 
-The providers behind those arrows are named in [build-sources.md](build-sources.md) and
-[import-formats.md](import-formats.md). The UI never names them (see "Neutral names" below).
+The catalog comes from the owner's own genshin.anotoki.eu (its public catalog lists); the showcase service and
+the file formats are named in [import-formats.md](import-formats.md). How a builds file is put together - by the
+owner's untracked local tools, which read the build sites - is [builds.md](builds.md), which names no site: the
+repository is public and names none. The UI never names the services, tools or sites behind those arrows (see
+"Neutral names" below).
 
 ## Backend (`backend/`, PHP 8.4+, Slim 4, PostgreSQL)
 
@@ -27,27 +34,26 @@ other anotoki sites (the genshin site, the IAM).
 | Area | Where | Notes |
 | --- | --- | --- |
 | Entry points | `api/index.php` (front controller, `/api/*`), `api/app.php` (`buildAnalyzerApi()`: routes + middleware), `router.php` (PHP's built-in server in development), `setup.php` (installer) | the tests call `buildAnalyzerApi()` in-process |
-| Routes | `api/routes/{meta,icons,accounts,imports,visitor,me,builds,sources,sync,admin,admin_tools,translations,people,feedback}.php` | each returns `function (Slim\App $slim, App $app)`; the sign-in or role check sits on each route group |
-| Middleware | `api/middleware/errors.php` (JSON errors; an exception into the error log), `security.php` (headers), `site_gate.php` (the site gate - anotoki-lib's `SiteState` and `SiteGate`: 503 `not_set_up` / `update_pending`, its open paths), `upkeep.php` (after an answer: the people's scrub, the day's backup), `auth.php` (`requireSignIn()`, `requireOwner()`, `requireRole()`, `requireTokenRole()`, `optionalSignIn()` - each the library's `Identify` and checks in order, `App\Web\Pipeline` -, `makeVisitor()`, `currentUser()`, `currentUserOrNull()`, `throttle()`); the library's `ErrorLogMiddleware::outer` around them all | Slim runs the last one added first |
+| Routes | `api/routes/{meta,icons,accounts,imports,visitor,me,builds,admin_builds,admin,admin_tools,translations,people,feedback}.php` | each returns `function (Slim\App $slim, App $app)`; the sign-in or role check sits on each route group |
+| Middleware | `api/middleware/errors.php` (JSON errors; an exception into the error log), `security.php` (headers), `site_gate.php` (the site gate - anotoki-lib's `SiteState` and `SiteGate`: 503 `not_set_up` / `update_pending`, its open paths), `upkeep.php` (after an answer: the people's scrub, the day's backup, the day's tidying up, a stale catalog list - see "The upkeep after an answer"), `auth.php` (`requireSignIn()`, `requireOwner()`, `requireRole()`, `requireTokenRole()`, `optionalSignIn()` - each the library's `Identify` and checks in order, `App\Web\Pipeline` -, `makeVisitor()`, `currentUser()`, `currentUserOrNull()`, `throttle()`); the library's `ErrorLogMiddleware::outer` around them all | Slim runs the last one added first |
 | Wiring | `src/App.php` (a small container: `get()` builds a class once per request scope, `resetScope()`), `src/Config.php` | `Db` and the HTTP client last the whole process; everything else is per request |
-| Configuration | `config/app.php` (committed: sources, catalog, showcase, aliases), `config/{database,auth}.local.php` (per installation, written by `setup.php`; required) and `fetch.local.php` (optional, `Config::FETCH_DEFAULTS` without it); by hand `client_address.local.php` and `cloudflare.local.php` - each read cleanly or not at all (`Config::readLocalFile()`: never compiled unless it starts with `<?php`, nothing it prints sent), one passed over never read looser than none ([operations.md](operations.md), "Configuration") | no `.env`; one environment variable, `BUILD_ANALYZER_TEST_CONFIG`, for the browser check alone (a settings folder standing in for `config/` and `storage/`, honoured only for a `build_analyzer_test_` database) |
+| Configuration | `config/app.php` (committed: each game's catalog provider and how often a list is refreshed, showcase, the limits, `client_address`, `upkeep`, aliases), `config/{database,auth}.local.php` (per installation, written by `setup.php`; required) and `fetch.local.php` (optional, `Config::FETCH_DEFAULTS` without it); by hand `client_address.local.php`, `cloudflare.local.php` and `neutral.local.php` (the names of the build sites, read by `Config::readOptionalFile()`; see "Neutral names") - each read cleanly or not at all (`Config::readLocalFile()`: never compiled unless it starts with `<?php`, nothing it prints sent), one passed over never read looser than none ([operations.md](operations.md), "Configuration") | no `.env`; one environment variable, `BUILD_ANALYZER_TEST_CONFIG`, for the browser check alone (a settings folder standing in for `config/` and `storage/`, honoured only for a `build_analyzer_test_` database) |
 | Database | `src/Db/Db.php` (PDO helpers: `one`, `all`, `value`, `insert`, `update`, `run`, `transaction`; `ensureDatabase()`), `src/Db/Migrations.php` (this site's files and bookkeeping table on the anotoki family's engine, anotoki-lib's `Migrator`) | always parameterised; identifiers are literals in the code |
 | Rows | `src/Models/*` (plain classes made from rows), `src/Repositories/*` (the queries) | `Accounts::findOwned()` / `owned()` scope every account query to its owner |
-| Domain basics | `src/Enums/Game.php`, `src/Support/{Stats,Talents,Key,MainStatValues}.php` | slots, stat keys, label parsing; see [stats-and-slots.md](stats-and-slots.md) |
+| Domain basics | `src/Enums/Game.php` (one case, Genshin; every per-game fact a method - slots, roles, the highest constellation, set kinds and piece counts, elements, weapon types, labels ...), `src/Support/{Stats,Talents,Key,MainStatValues}.php` | slots, stat keys, label parsing; see [stats-and-slots.md](stats-and-slots.md) |
 | Sign-in | anotoki-lib's auth module (`Anotoki\Lib\Auth`: `IamClient`, `AccessTokens`, `SignInRule`, `Http\Identify`, `RequirePerson`, `RequireRole`, `RequireCaller`; `AuthRoutes::configBody()` in `/api/meta`), made in `src/Auth/Iam.php`; `src/Auth/{Role,Visitors,RequestCaller}.php`, `src/Models/User.php` (`fromPerson()`); the tests' IAM `Anotoki\Lib\Auth\Testing\TestIam`, the stand-in `vendor/anotoki/lib/backend/testing/stand-in-iam.php` | see "Sign-in" below |
 | People | anotoki-lib's people module (`Anotoki\Lib\People`: `People`, `PeopleRecorder` through `RecordPerson`, `Scrubber`, `PeopleUpkeep`, `PeopleRoutes::admin()`; its set `anotoki_people`) on this site's `users` - `src/People/SitePeople.php` (the mapping, the columns, the scrub hooks, the delete), `api/routes/people.php`, `src/Repositories/Users.php` (`visitorCounts()`, `deletePerson()`) | ADMIN: who used the site, and deleting a person's data; the accounts the IAM deleted made nobody's |
 | Admin tools | anotoki-lib's (`Anotoki\Lib\ErrorLog`, `Audit`, `Feedback`, `Backups`; `Admin\AdminContext`; its set `anotoki_admin`) made in `src/Admin/AdminTools.php`; `api/routes/admin_tools.php`, `feedback.php`; `backup.php` | ADMIN alone; see "The admin tools" below and [operations.md](operations.md) |
-| Outgoing HTTP | `src/Http/Fetcher.php`, `CurlHttpClient.php`, `FetchDeferred.php` | per-host delay kept in the cache table, retries on 429/5xx, optional disk cache, step deadline |
-| Cache and locks | `src/Cache/{Cache,Locks}.php` | the `cache` and `cache_locks` tables (the host has no Redis or shared memory) |
-| Catalog | `src/Services/Catalog/{Catalog,CatalogSync,SetBonusGroups}.php` | resolve any source's names/IDs to catalog rows; see [name-matching.md](name-matching.md) |
+| Outgoing HTTP | `src/Http/Fetcher.php`, `CurlHttpClient.php` | the catalog's provider and the showcase service: a per-host delay kept in the cache table, retries on 429/5xx (in a web request once at most, after a short wait), an optional disk cache (`storage/http-cache`, which the day's tidying up clears) |
+| Cache and locks | `src/Cache/{Cache,Prune}.php` | the `cache` table (the host has no Redis or shared memory): request delays, the limits' counters, short claims (`Cache::add()`), where each catalog list stands; `Prune` the day's tidying up. What must be one at a time across a transaction takes a PostgreSQL advisory lock (an apply of migrations, an import of builds) |
+| Catalog | `src/Services/Catalog/{Catalog,CatalogSync,CatalogUpkeep,CatalogProvider,CatalogProviders,CatalogAnswer}.php`, `Providers/GenshinCatalog.php` | each game's catalog from its provider (Genshin Impact's from genshin.anotoki.eu), list by list, never deleting a row; imports' names and IDs resolved to catalog rows; see "Main flows" below and [name-matching.md](name-matching.md) |
 | Imports | `src/Services/Import/ImportService` → parsers → `ParsedAccount` → `AccountImporter`; `ImportKinds.php` | always for one user; errors and warnings are kinds with params; see [import-formats.md](import-formats.md) |
 | Own data as a file | `src/Services/Transfer/{AccountsFile,AccountsTransfer,AccountsFileException}.php`, `api/routes/me.php` | a signed-in person's game accounts exported to / imported from a file (never a visitor's); see "Main flows" below and [data-model.md](data-model.md) ("Accounts files") |
-| Builds | `src/Services/Builds/{BuildSync,BuildSourceRegistry}.php`, `Sources/*`, `Parsing/*`; `BuildFile.php`, `BuildTransfer.php` | see [build-sources.md](build-sources.md); a source's builds exported to / imported from a file: [data-model.md](data-model.md) ("Builds files") |
-| Syncs | `src/Services/Sync/{SyncRunner,RunHandler,RunLog,StepResult}.php` | runs worked through in short steps; see "Syncs" below |
-| Analysis | `src/Services/Analysis/*` | recommendations are kinds with params (`BuildEvaluator::KINDS`); see [analysis.md](analysis.md) |
+| Builds | `src/Services/Builds/{BuildFile,BuildImport,BuildImportBusy,BuildFileException}.php`, `src/Repositories/Builds.php`, `src/Models/Build.php`, `api/routes/admin_builds.php`, `api/routes/builds.php` | a game's builds - each a variation of a character's - imported from a file (format version 2) and exported to one on the admin panel's Builds page; the builds browser. See "Main flows" below, [builds.md](builds.md) and [data-model.md](data-model.md) ("Builds", "Builds files") |
+| Analysis | `src/Services/Analysis/*` | by the character's constellation; recommendations are kinds with params (`BuildEvaluator::KINDS`); see "Main flows" below and [analysis.md](analysis.md) |
 | The site's words | anotoki-lib's translations (`Anotoki\Lib\Translations`: `Translations`, `TranslationsRoutes`, `TranslationsCommand`, `KeyScanner`; its migration set `anotoki_translations`) with this site's own in `src/Services/Translations/SiteTranslations.php` (the released languages, `names_another_site`, the key scan's configuration), `api/routes/translations.php`, migrations 003-006 | see "The site's words" below and [data-model.md](data-model.md) |
-| Output | `src/Presenters/*` (accounts, builds, sync runs, icon addresses), `src/Support/Neutral.php` | what the API sends, in the shapes of `frontend/src/app/core/models.ts` |
-| Command line | `migration.php`, `sync-builds.php`, `sync-catalog.php`, `import-account.php`, `translations.php`, `backup.php` (→ `src/Commands/*`; `translations.php` is anotoki-lib's `TranslationsCommand`, `backup.php` its `BackupsCommand`) | loop over the same steps as the Sources page; nothing is scheduled |
+| Output | `src/Presenters/*` (accounts, builds, icon addresses), `src/Support/Neutral.php` | what the API sends, in the shapes of `frontend/src/app/core/models.ts` |
+| Command line | `migration.php`, `sync-catalog.php`, `import-account.php`, `translations.php`, `backup.php` (→ `src/Commands/*`; `translations.php` is anotoki-lib's `TranslationsCommand`, `backup.php` its `BackupsCommand`); `tools/check-names.php` (see "Neutral names") | the same work as the pages (`sync-catalog.php [game] [--list=characters\|weapons\|sets] [--force]`: the catalog, as the Builds page refreshes it); nothing is scheduled |
 | Setup | `setup.php` + `src/Setup/Installer.php` | writes `config/*.local.php`, builds the database; see [operations.md](operations.md) |
 | Deploy | anotoki-deploy (anotoki-lib's), `composer.json`'s `extra["anotoki-deploy"]`, `tools/check-release.mjs` | `dist/frontend/` and `dist/backend/`, a release replaced whole on the host; see DEV.md "Deploying" |
 
@@ -85,7 +91,7 @@ the gate's marked template
 (`<anotoki-site-gate><ng-template anotokiSitePages><router-outlet /></ng-template></anotoki-site-gate>`,
 `SitePagesDirective` in `app.ts`; anotoki-lib 0.1.1 took any template, 0.2.0 only the marked one - an unmarked
 one draws nothing), which the gate makes only while it shows the pages: a page behind the gate's page is not
-made at all, so it sends no request and leaves no error, toast or sync state behind. The gate's page stands
+made at all, so it sends no request and leaves no error or toast behind. The gate's page stands
 bare - no bar, no footer, nothing of the frame - while an update waits, the database is out of reach or the site
 is not set up: the bar and the footer are the layouts', routes inside that template too (`app.spec.ts` holds it
 in every state, with the real layouts). (0.1.0 took the outlet
@@ -105,10 +111,11 @@ are the database's (`anotoki.siteStatus.*`, `anotoki.ui.*`: `TranslationService.
 - The anotoki IAM (iam.anotoki.eu, OpenID Connect) signs people in - the only way in, on a host and on the
   owner's computer alike; this app is its client `build-analyzer`. Who may sign in here is the IAM's to decide
   (every account holds `MEMBER` in every application; the IAM's admin panel picks which roles may sign in to
-  this one). Roles in the token's `roles` claim: `EDITOR` (syncs, the sync history, a source's builds file, the
-  site's strings) and `ADMIN` (all of that, and sources on / off, migrations, adding / renaming / switching /
-  deleting a language, People). ADMIN includes EDITOR; `MEMBER` - and any other role name - is an ordinary
-  signed-in person: no check needs it and none refuses it (`User::withRoles()` keeps `Role::STAFF` only).
+  this one). Roles in the token's `roles` claim: `EDITOR` (the Builds page - a game's builds imported and
+  exported, the catalog refreshed - and the site's strings) and `ADMIN` (all of that, and migrations, adding /
+  renaming / switching / deleting a language, People, the admin tools). ADMIN includes EDITOR; `MEMBER` - and
+  any other role name - is an ordinary signed-in person: no check needs it and none refuses it
+  (`User::withRoles()` keeps `Role::STAFF` only).
   Taking somebody's `MEMBER` away at the IAM blocks their next sign-in and refresh (the access token they hold
   still verifies until it expires, minutes); while sign-in is not required they can still use the site as a
   visitor - blocking stops signing in, not visiting; to keep somebody out entirely, require sign-in. The
@@ -154,11 +161,12 @@ are the database's (`anotoki.siteStatus.*`, `anotoki.ui.*`: `TranslationService.
 - No CORS headers at all: the app and the API share one origin (the Angular dev server proxies `/api`), so
   browsers keep every other site from reading the API or sending it a token.
 - The checks sit on route groups, so a route added to a group cannot go without one:
-  `optionalSignIn()` for the public routes (`/api/builds/*`, `GET /api/sources`; 401 for nobody while sign-in
+  `optionalSignIn()` for the public routes (`/api/builds` and the paths under it; 401 for nobody while sign-in
   is required), `requireOwner()` for one's
   own accounts and imports (the signed-in person, else this browser's visitor - below), `requireSignIn()` for
   what only a signed-in person has (the accounts file `/api/me/*`, the move `/api/visitor/move`),
-  `requireRole(...Role::STAFF)` for the editors' routes (403 `editor_only`), `requireRole(Role::ADMIN)` for
+  `requireRole(...Role::STAFF)` for the editors' routes - the Builds page's, the strings grid, the languages
+  list (403 `editor_only`) -, `requireRole(Role::ADMIN)` for
   the admins' own - People, the audit log, feedback's admin side (403 `admin_only`) - and
   `requireTokenRole(Role::ADMIN)` for the Migrations page's, the error log's and the backups' (the same answers
   from the token alone - no row of `users` read or made -, as they answer while an update waits). Each is the
@@ -234,8 +242,8 @@ reaches exactly what `requireOwner()` guards - its own accounts and imports, thr
 
 `accounts` and `import_runs` have `user_id` - a person's IAM id, or a visitor's negative id. `Accounts::owned()` / `findOwned()` scope every list and lookup;
 an account id in a path that belongs to someone else is a 404. Imports get the owner passed down to
-`AccountImporter` (target account, UID lookup, failed runs). The catalog, builds, sources and sync runs are
-shared.
+`AccountImporter` (target account, UID lookup, failed runs). The catalog, the builds and the record of their
+imports are shared.
 
 ### People, and the admin tools
 
@@ -247,17 +255,18 @@ The anotoki family's people module and admin tools (anotoki-lib 0.5.0; the owner
   `last_seen_at`, `updated_at`), never a table of the library's; visitors' rows (negative ids) are never read or
   written. The People page's columns are this site's (game accounts, imports, last import), its Delete
   `SitePeople::deleteHook()` → `deleteData()` (the person's row and, by the foreign keys, their accounts and
-  imports; the strings they saved and the syncs they ran stay, by nobody - the syncs' logs no longer name them,
-  the scrub's own hook with the name the row had). It runs inside the library's transaction (`People::delete()`,
-  which also forgets the person's feedback - its address and browser - and writes the `person.data_deleted`
-  entry in the same transaction), and does all its work on the connection it is given, beginning and ending no
-  transaction of its own: a restore runs it again on its own connection, every restored table locked.
+  imports; the strings they saved and the record of the builds files they imported stay, by nobody -
+  `translations.updated_by` forgotten, `build_imports.imported_by` NULL with the row). It runs inside the
+  library's transaction (`People::delete()`, which also forgets the person's feedback - its address and browser -
+  and writes the `person.data_deleted` entry in the same transaction), and does all its work on the connection it
+  is given, beginning and ending no transaction of its own: a restore runs it again on its own connection, every
+  restored table locked.
   **The scrub** (the library's `Scrubber`, after an answer at most hourly - `api/middleware/upkeep.php` - or
   Check now, and at once after a restore) asks the IAM for the accounts it deleted and makes each one nobody's
-  here, in one transaction per account: `deleted-{id}`, `anonymized_at`, and the hooks, on the scrub's
-  connection - a sync's log says "a deleted person" where it named them (`SitePeople::syncLogHook()`), their
-  feedback's address and browser and their name in the audit log's details are blanked. Their game accounts and
-  imports stay.
+  here, in one transaction per account: `deleted-{id}`, `anonymized_at`, and the hook, on the scrub's
+  connection - their feedback's address and browser and their name in the audit log's details are blanked. Their
+  game accounts and imports stay, and so does the record of the builds files they imported, which keeps their id
+  and never their name.
 - **The admin tools** (`AdminContext`: who acts - the token's person -, the ADMIN from the token, the proof - a
   sign-in of the last ten minutes, from the token's `auth_time` -, the proxies whose header names an address -
   `client_address`'s, read by the library's rule as `App\Web\ClientAddress` reads -, the people's names by id,
@@ -265,42 +274,63 @@ The anotoki family's people module and admin tools (anotoki-lib 0.5.0; the owner
   (`ErrorLogMiddleware::outer`), in `jsonErrors()` for an exception, and behind `POST /api/client-errors` for
   the errors the pages meet in the browser (`ErrorLogRoutes::client()`, `optionalSignIn()`'s; the app's
   `provideAnotokiErrorReport()`); the audit log is written where something is done (`AuditLog::record()` in the
-  routes of sources, syncs, translations, people, migrations, and the tools' own - a person's or a message's
-  delete inside its own transaction); feedback's public form is `optionalSignIn()`'s; backups are COPY on a
+  routes of the Builds page - `builds.imported`, inside the import's own transaction, and `catalog.refreshed` -,
+  translations, people, migrations, and the tools' own - a person's or a message's delete inside its own
+  transaction); feedback's public form is `optionalSignIn()`'s; backups are COPY on a
   connection of their own (`AdminTools::copyConnection()`: `Pdo\Pgsql` where PHP has it), made before every
   Apply (`beforeApply`, the Migrations page's and `migration.php`'s), daily after an answer, before every
   restore, and by hand, each sealed under this installation's key - only a backup made here is restored here
   (one made while that key could be neither read nor made is unsealed, the error log says so, and it is
   restored offline only) - and a restore does again, inside its transaction, every People-page and feedback
   delete made since its backup, then the scrub (`People::restoreHooks()`); what people deleted themselves since
-  comes back with it. Their tables come with the library's set `anotoki_admin`, which runs before this
-  site's files; while it waits, the audit log keeps its entries in `storage/logs/audit-pending.jsonl` and writes
-  them after the next Apply, and the audit and feedback routes answer 503 `feature_unavailable`.
+  comes back with it. The `cache` table is never restored (`keep: ['cache']`): what the site counts by the
+  minute, its claims and where each catalog list stands stay as they are. Their tables come with the library's
+  set `anotoki_admin`, which runs before this site's files; while it waits, the audit log keeps its entries in
+  `storage/logs/audit-pending.jsonl` and writes them after the next Apply, and the audit and feedback routes
+  answer 503 `feature_unavailable`.
 
 ### Neutral names
 
 The UI names no other website, service or tool - not in labels, links, credits, errors, tooltips or the
 changelog. The one exception is the legal pages (`/terms`, `/privacy`, `/contact`), which name who else handles
 the data, as the law asks: the hosting company WebSupport s.r.o. (`HOSTING` in `core/legal-facts.ts`, its address
-the code's), Cloudflare and Umami (the library's words) - never a build source, a data provider, a tool or the
+the code's), Cloudflare and Umami (the library's words) - never a build site, a data provider, a tool or the
 showcase service, which they describe without naming. The family's About and Support pages (`/about`, `/support`,
 anotoki-lib 0.8.0: the owner's words, the same on every anotoki site) name and link the anotoki sites and the
 owner's Ko-fi page - the library's words and addresses, nothing of the site's. So the API never sends a site's
 name or address either:
 
-- Build sources are "Source 1", "Source 2" … per game, numbered in the order of `config/app.php` `sources`
-  (add new ones at the end of their game so the numbers stay). Their API key is `{game}-{n}` (`genshin-2`); the
-  command line accepts both that and the internal key (`prydwen.genshin`). `BuildSourceRegistry::label()` /
-  `publicKey()`; the `build_sources.name` column holds the label too.
-- A build's page address (`builds.source_url`) is kept for the command line and never sent.
+- **The build sites are named nowhere** - not on the site, not by the API, and not in the repository, which is
+  public (the owner's decision of 2026-10-20, [decisions.md](decisions.md)): no tracked file, commit message,
+  branch or pull request names one. A build has no source and no page address; the builds file names no site,
+  and every text in it passes through `Neutral::text()` on the way out and again on the way in (`BuildFile`), and
+  once more in every answer (`BuildPresenter`). Their names live only in the owner's untracked, optional
+  `config/neutral.local.php` (`['names' => [...], 'tree_words' => [...]]`, written by hand and uploaded to a
+  host's `config/` once, like `cloudflare.local.php`), read once by `Config::readOptionalFile()` - cleanly or
+  not at all: a file that cannot be read cleanly, or names nothing, adds nothing, and the names `Neutral` holds
+  itself still apply. Its `names` are added to `Neutral`'s own (`Neutral::localNames()`; the tests set none,
+  `Neutral::setLocalNames([])`, so the owner's file never changes a result). `backend/tools/check-names.php`
+  reads every file git tracks and every file `git add -A` would add (`--staged`: what is staged;
+  `--message=<file>`: a commit message, git's comment lines aside) for the file's `names` (whole words, as
+  `Neutral` matches them; in a path however the path joins their words, `a-name/`, `aName.php`) and `tree_words`
+  (anywhere: a typo, a page's part, a label that would give a site away), its paths too - a binary file's as
+  well; prints each place it finds one - the path and line, and what it found -, never the file's list; and
+  exits 1 on any. The owner's untracked git hooks run it before a commit (`pre-commit` with
+  `--staged`, `commit-msg` with `--message`). Without the file it has nothing to look for, and says so. The
+  scraping itself lives in the untracked `local/` folder (the root `.gitignore`), and nothing is copied from it
+  into a tracked file ([builds.md](builds.md)).
 - Import runs say `showcase` or `file`, never the service or tool; an account's `meta` is filtered to neutral
   keys. A person's accounts file is held to the same: sources as `showcase` / `file`, the neutral meta keys only,
   no tool name, every text through `Neutral::text()` on the way out and again on the way in.
-- Text that came from elsewhere (errors, notes copied from a page, old run logs) passes through
-  `Neutral::text()` on the way out: web addresses become "the source page", names of sites and tools "the
-  source". `backend/tools/check-release.php` (run with every release's frontend build) refuses a frontend build that contains one of those names.
-- Icons: the catalog stores the provider's icon address; the API sends `/api/icons/{c|w|s}/{id}`, which fetches
-  the image once into `storage/icons/` and serves it from this site.
+- Text that came from elsewhere (errors, a builds file's notes and names, an uploaded account file) passes
+  through `Neutral::text()` on the way out: web addresses become "the source page", names of sites and tools
+  "the source". `backend/tools/check-release.php` (run with every release's frontend build) refuses a frontend
+  build that contains one of those names.
+- Icons: the catalog stores the provider's icon address - only one on the provider's own host (https; http only
+  for this computer), with no user part, no backslash and nothing but printable ASCII (`GenshinCatalog`); the API
+  sends `/api/icons/{c|w|s}/{id}`, which fetches the image a catalog row names - never an address a request
+  gives - once into `storage/icons/` and serves it from this site (PNG, JPEG, WebP, GIF, and AVIF -
+  genshin.anotoki.eu's format -, by their first bytes: `Icons::type()`).
 - The site's words: no string names another site or holds a web address, whether a migration seeded it or the
   editor reworded it in the browser (or imported it from a file, or the command line). This site's last check
   of the library's (`SiteTranslations::namesAnotherSite()`, its `extraCheck`) refuses one (422
@@ -318,16 +348,59 @@ name or address either:
   creating catalog rows), upserts characters, replaces gear, writes an `ImportRun`. Failures are recorded as
   failed `ImportRun`s of the user; a refusal is 422 `{message, code, params}`, which the wizard words from
   `code` and `params` (import-formats.md, "Errors and warnings are kinds").
-- **Build sync**: an editor presses "Sync now" / "Sync all" (or runs `php sync-builds.php`) →
-  `SyncRunner::startBuilds()` creates a `sync_runs` row per source (and a catalog run first when the game's
-  catalog is stale) → the page calls `POST /api/sync/step` repeatedly → `BuildSync::step()` lists the site's
-  characters, then fetches and stores one character after another until the step's budget is used or the site's
-  crawl delay does not fit; names resolved (characters created if unknown; weapons/sets only looked up) →
-  upsert `builds` by (source, character, variant) with a content hash.
-- **Builds file**: `GET /api/sources/{key}/export` → `BuildTransfer::export()` (`BuildFile::entry()` per build,
-  a download); `POST /api/sources/{key}/import` → `BuildFile::read()` checks the whole file → under the step
-  lock (`SyncRunner::exclusively()`), refused while the source syncs, one transaction: `BuildSync::write()` per
-  character, the source's other builds deleted, a builds run recorded and closed by `BuildSync::finish()`.
+- **Builds import** (the admin panel's Builds page, an editor; the site never fetches a build itself):
+  `POST /api/admin/builds/{game}/import[?dry_run=1]` (the file's JSON as the body; nothing arrived - what PHP
+  makes of a body past its `post_max_size` - or more than 8 MB: 422) → `BuildImport::import()`:
+  `BuildFile::read()` checks the whole file for the game, strictly (a version 1 file is refused with its own
+  message; [data-model.md](data-model.md), "Builds files") → its characters matched with the catalog by key -
+  one the catalog lacks has the characters' list refreshed first, at most once per game and list per
+  `catalog.import_refresh_minutes`, and is skipped and named if it is still not there; a file with no character
+  the catalog knows is refused, as "importing" it would remove every build -, its weapons likewise (one the
+  catalog still lacks stays, `known: false`) → compared with the game's stored builds by identity (character,
+  role, qualifier without regard to case, `min_rank`): created; updated when its content hash, its place among
+  the character's builds or its qualifier's spelling changed - it keeps its id, so a link `?build=ID` survives -;
+  unchanged; removed (every build of the game the file lacks). A dry run answers that and writes nothing. An
+  import does it in one transaction under an advisory lock (`pg_try_advisory_xact_lock`, `BuildImport::LOCK`: a
+  second import meanwhile is 409, nothing written; `SET LOCAL` statement and idle timeouts of 60 s), comparing
+  again inside the lock, removing first and creating last (no identity is there twice, even for a moment), and
+  recording itself in the same transaction: a `build_imports` row and the audit log's `builds.imported`.
+  `checked_at` of every build the file has is when the file was made, `changed_at` of every build it created or
+  changed too - a time later than now is now. One that has started finishes when the tab is closed
+  (`ignore_user_abort`; at most `BuildImport::MAX_SECONDS`, 240).
+- **Builds export**: `GET /api/admin/builds/{game}/export` → `BuildImport::export()`: the game's builds by
+  character key (compared as bytes) and then in each character's order, `BuildFile::entry()` per build - every
+  text made neutral within the reader's caps, two qualifiers of a character's that neutral words make alike told
+  apart ("… #2") -, a download named `builds-{game}-{date}.json`. What it writes always imports.
+- **Catalog refresh**: `CatalogSync::refresh($game, $list, $force)`, one list (characters, weapons, sets) at a
+  time, from the Builds page (`POST /api/admin/catalog/{game}/{list}`, one request per list, the page runs the
+  three one after another; `?force=1` asks in full; audited `catalog.refreshed`), the upkeep after an answer
+  (`CatalogUpkeep`: at most every five minutes a look for a list not confirmed within `catalog.refresh_days`, 3,
+  and the first found refreshed after the answer - claimed for `catalog.retry_minutes`, 60, so a failing
+  provider is not asked again sooner), an account import naming an in-game ID the catalog lacks and a builds
+  import naming a character or weapon it lacks (each at most once per game and list per
+  `catalog.import_refresh_minutes`, 60, for everybody together), and
+  `php sync-catalog.php [game] [--list=characters|weapons|sets] [--force]` (without `--force` only a game whose
+  catalog is stale, and by version tag). One refresh of a list at a time: a claim of two minutes
+  (`catalog-refresh:{game}:{list}`), and another meanwhile is `busy` (409 on the page). The game's provider
+  (`CatalogProviders`, by `config/app.php` `catalog.{game}.provider`; Genshin Impact's `Providers\GenshinCatalog`,
+  at `catalog.genshin.api` = `https://genshin.anotoki.eu/api/catalog`: that site's public `characters`, `weapons`
+  and `artifacts`, bare JSON lists with an ETag) is asked before any transaction, with the list's last ETag
+  (`If-None-Match`) unless forced, and its answer is a `CatalogAnswer`: 304 `unchanged`; 200 `changed` (at most
+  5 MB and 5000 entries, else `failed`); 401, 423 or 503 `closed` (that site's switches: sign-in required, a
+  route locked, maintenance or an update); 404 `unavailable`; anything else, or no answer, `failed`. A changed
+  list is written in one transaction, each row found again by its in-game ID (`external_id`), then by its key -
+  a renamed entry keeps its row and everything linked to it, unless another row holds the new key already -, and
+  no row is ever deleted. How
+  GenshinCatalog's rows become the catalog's: the key from the name (`Key::from()`), the element and the weapon
+  type lowercased (one the game does not have - "Adaptive" - none), rarity 1-5, region, version ("6.1") and
+  version name ("Luna II") as they are, `released_at` the release date; the Travelers one entry per element (key
+  `traveler{element}`, `external_id` `{lowest in-game ID}-{element}`, both twins' in `meta.ids` - the way imports
+  have always named them); of two weapons with one key (a quest copy) the lower in-game ID's; a set `artifact`,
+  with `meta.rarities` and `meta.bonuses` (2-piece, 4-piece); an icon only on the API's own host (see "Neutral
+  names"). Where each list stands - its ETag, when the provider last confirmed it, when it last changed, the last
+  failure and why - is a row of the cache table (`catalog-state:{game}:{list}`), which a restore leaves as it is;
+  the Builds page shows each list's entries, when it was refreshed and its last problem. So while
+  genshin.anotoki.eu is closed or failing this site keeps its catalog and says why.
 - **Accounts file** (a signed-in person's own data): `GET /api/me/export` → `AccountsTransfer::export()` (every
   query takes the person; `AccountsFile::account()` per account; compact JSON, refused as `export_too_big` when it
   would not fit what the import reads); `POST /api/me/import[?dry_run=1]` (the file as the body) → the raw body's
@@ -340,26 +413,40 @@ name or address either:
   is no match; replaced when the file's `last_import_at` is newer (its details, characters, weapons and items; the
   file's import runs it lacks added; meta keys the file does not carry kept); kept otherwise. Never deletes an
   account. Catalog keys this copy lacks are skipped and counted. A dry run answers the same and writes nothing.
-- **Analysis**: `GET /api/accounts/{id}` → `CharacterAnalyzer::overview()` (best build per character);
-  `GET /api/accounts/{id}/characters/{key}` → `CharacterAnalyzer::detail()` (all evaluations, consensus,
-  suggestions, set plans) + full builds via `BuildPresenter`.
+- **Analysis**: `GET /api/accounts/{id}` → `CharacterAnalyzer::overview()` (each character's best build: its
+  variation - role, qualifier, `min_rank` -, whether it applies, its score and grade, the top issue);
+  `GET /api/accounts/{id}/characters/{key}?build=ID` → `CharacterAnalyzer::detail()` (every build of the
+  character evaluated, the best and the one in focus, suggestions, set plans) + full builds via
+  `BuildPresenter`. By the character's constellation (`account_characters.rank`): the best build is, of the
+  builds it reaches (`min_rank` ≤ its constellation), the highest overall score, a tie to the earlier
+  (`position`: the first build is the character's main one); when it reaches none, the build needing the lowest
+  constellation, marked `applies: false` - the page shows a lock and "needs C4", and never calls it the best.
+  `BuildEvaluator::evaluate()` judges a build the character does not reach all the same; a build's substats are
+  its own, or - when it lists none - what its own main stats ask for (`ItemScorer::fallbackSubstats()`, never
+  another build's); of its stat targets, per stat, the one from the highest `from_rank` the character has reached
+  (`BuildEvaluator::targetsFor()`). See [analysis.md](analysis.md).
 
-### Syncs
+### The upkeep after an answer
 
-No queue worker, scheduler or long-running process (the host has none). A run is a `sync_runs` row with
-`state` (the character list and a cursor, or the catalog lists), `next_step_at` (when its site allows the next
-request) and `last_step_at`. `SyncRunner::step()`:
+No queue worker, scheduler or long-running process (the host has none), and no request runs long. What must
+happen now and then rides on ordinary traffic, after an answer has gone (`api/middleware/upkeep.php`; the work
+waits in `App\Web\AfterResponse`: `api/index.php` holds it until Slim has sent the answer, calling
+`fastcgi_finish_request()` where PHP has it):
 
-1. takes the global step lock (`sync-step`, a `cache_locks` row); another tab or the command line holding it →
-   `busy`;
-2. picks the due run that waited longest (build runs of a game wait while its catalog run is going);
-3. sets the fetcher's deadline to now + `step_seconds` (20, at least 12 so one request always fits) and lets
-   the run's handler work, which saves after every character / list;
-4. a `FetchDeferred` (crawl delay or a retry does not fit) → `next_step_at`; anything unexpected → run failed;
-5. answers the active runs and `wait_ms` until the next one is due.
+- the scrub of the accounts the IAM deleted (the library's `PeopleUpkeep`: at most once an hour, only while the
+  site is ready - see "People, and the admin tools");
+- the day's backup (the library's backups: the first request of a UTC day that finds none made, while nothing
+  waits to be applied);
+- the day's tidying up (`App\Cache\Prune::dailyIfDue()`, only while the site is ready): the first answer of a
+  UTC day claims it (`prune:{date}` in the cache table) and, after the answer, deletes what has expired in the
+  cache table - the limits' counters, the showcase answers, the claims - and the downloaded files in
+  `storage/http-cache` older than three days;
+- a stale catalog list (`CatalogUpkeep`, only while the site is ready; see "Main flows").
 
-The browser (`SyncDriver`) waits `wait_ms` and asks again while anything is active; closing the tab pauses. The
-command-line scripts do the same in a loop. Cancel waits for a running step, then marks the run `cancelled`.
+`config/app.php` `upkeep` switches each off (`people`, `daily_backup`, `prune`, `catalog`); the tests switch
+them off, but where they mean to try one. None ever fails the answer: a failure is a line in the log. The
+editors' own work - an import of builds, a refresh of one catalog list - is one request each, bounded (a
+refresh is one list; an import is written in seconds, under its own time limit).
 
 ### The site's words
 
@@ -419,12 +506,13 @@ bar took the place of the site's own), each with every rewording.
   account's on every page, the admin panel included
   (`core/shell.ts`, below). Dates follow the account's date order and clock where it has chosen them
   (`core/i18n/date-patterns.ts`): What's new's days (`localDate: 'day'`), and in the admin panel when a
-  migration was applied and when a builds file was exported; relative times ("3 hours ago") have neither
-  and read the same for everybody. A visitor, and anybody signed in at an IAM before 015 (no `preferences`),
-  keeps this device's choices exactly as before, and nothing is saved anywhere else.
-- **English pages**: the admin panel - `/admin/...` (Sources, Translations, Languages, People, Migrations) - keeps its
-  English code and reads English with `<html lang="en">` whatever language is chosen; the server's admin-only
-  sentences stay English and those pages show them as they come (`errorMessage()`).
+  migration was applied and, on the Builds page, when a builds file was made; relative times ("3 hours ago")
+  have neither and read the same for everybody. A visitor, and anybody signed in at an IAM before 015 (no
+  `preferences`), keeps this device's choices exactly as before, and nothing is saved anywhere else.
+- **English pages**: the admin panel - `/admin/...` (Builds, Translations, Languages, People, Migrations, Errors,
+  Audit, Feedback, Backups) - keeps its English code and reads English with `<html lang="en">` whatever language
+  is chosen; the server's admin-only sentences stay English and those pages show them as they come
+  (`errorMessage()`).
 - **The Translations and Languages pages** (editors; adding, renaming, switching and deleting a language:
   admins) are the anotoki family's (`@anotoki/lib/translations/admin`, a lazy entry point of their own), drawn
   with the library's kit in the admin panel's frame (`pages/admin/translations`, `pages/admin/languages`), so
@@ -450,26 +538,23 @@ bar took the place of the site's own), each with every rewording.
 
 | Method & path | Who | Purpose |
 | --- | --- | --- |
-| `GET /api/meta` | anyone (also while sign-in is required) | slots, stat labels, talent names per game; `version`; `auth {issuer, client_id, login_required}` (whether the IAM requires sign-in here); `visitors {keep_days}` |
+| `GET /api/meta` | anyone (also while sign-in is required) | slots, stat labels, talent names, elements, weapon types and the game's labels per game (one, Genshin Impact); `version`; `auth {issuer, client_id, login_required, sign_in_available}` (whether the IAM requires sign-in here, and whether it knows the site); `visitors {keep_days}` |
 | `GET /api/icons/{c\|w\|s}/{id}` | anyone (also while sign-in is required) | a character / weapon / set icon, served from `storage/icons/` |
 | `GET /api/accounts`, `GET/PATCH/DELETE /api/accounts/{id}` | signed in or visitor (own) | list / overview (+ characters with best build) / rename / delete |
 | `GET /api/accounts/{id}/characters/{key}?build=ID` | signed in or visitor (own) | full analysis of one character (key = catalog key, e.g. `hutao`) |
 | `GET /api/accounts/{id}/imports` | signed in or visitor (own) | import history |
 | `POST /api/imports/showcase` `{game, uid, account_id?}` | signed in or visitor (own); nobody: makes a visitor (JSON only: else 415) | Character Showcase import (10 a minute per person; a visitor's per address, all visitors' 20 together) |
-| `POST /api/imports/file` `{content \| file, game?, account_id?, file_name?}` | signed in or visitor (own); nobody: makes a visitor (JSON only: else 415) | GOOD / HSR scanner import (20 a minute per person; a visitor's per address); a person or a visitor may upload `file` as multipart |
+| `POST /api/imports/file` `{content \| file, game?, account_id?, file_name?}` | signed in or visitor (own); nobody: makes a visitor (JSON only: else 415) | GOOD import - the game is the file's, a `game` sent along is not read (20 a minute per person; a visitor's per address); a person or a visitor may upload `file` as multipart |
 | `POST /api/visitor/move` (`X-Visitor-Key`) `{silent?}` | signed in, with the key | a visitor's accounts and imports become the person's: `{found, moved, kept, imports, held}` - after a silent sign-in, never into a person with data here (`held: true`, nothing moved) |
 | `GET /api/me/export` | signed in (never a visitor) | the person's game accounts as a file to save (`build-analyzer-accounts-{date}.json`, compact JSON; data-model.md "Accounts files") |
 | `POST /api/me/import[?dry_run=1]` (the file as the body) | signed in (never a visitor) | `{dry_run, added, replaced, kept, skipped, accounts: [{game, uid, nickname, outcome, skipped}]}`; a dry run writes nothing (5 a minute per person, dry runs included) |
-| `GET /api/builds/{game}`, `GET /api/builds/{game}/{key}` | anyone (signed in only while sign-in is required) | builds browser |
-| `GET /api/sources` | anyone (signed in only while sign-in is required) | source status (the dashboard shows it); who started the latest run only for editors |
-| `PATCH /api/sources/{key}` `{enabled}` | admin | switch a source on / off |
-| `POST /api/sources/{key}/sync` | editor | start (or join) a sync of one source, however recent its last one |
-| `GET /api/sources/{key}/export` | editor | the source's builds as a file to save (`builds-{key}-{date}.json`) |
-| `POST /api/sources/{key}/import` (the file's JSON) | editor | the source's builds become the file's; the counts, skipped characters and the source |
-| `POST /api/sync/builds` `{force?}` | editor | "Sync all": every enabled source not synced in 20 h (+ stale catalogs) |
-| `POST /api/sync/catalog` `{games?}` | editor | refresh the game catalog |
-| `GET /api/sync`, `POST /api/sync/step` | editor | the active runs and `wait_ms`; do one bounded step |
-| `GET /api/sync-runs`, `GET /api/sync-runs/{id}`, `POST /api/sync-runs/{id}/cancel` | editor | history (`?source=`, `?kind=`), log, cancel |
+| `GET /api/builds` | anyone (signed in only while sign-in is required) | per game `{game, characters, builds, checked_at, changed_at}`: how many characters have builds, how many builds there are, when the newest file carrying them was made and when one last changed - naming nobody (the dashboard) |
+| `GET /api/builds/{game}` | likewise | the builds browser: each character with builds, the newest release first (an unknown date before them; then by name) - `{key, name, element, rarity, weapon_type, icon_url, released_at, region, version, version_name, builds, roles, changed_at}`, `roles` in the game's order (what the page filters by: name, element, weapon type, rarity, region, version) |
+| `GET /api/builds/{game}/{key}` | likewise | `{character: {key, name, element, rarity, weapon_type, icon_url}, builds}`: a character's builds in their order, the first its main one (each `{id, role, qualifier, min_rank, position, weapons, sets, main_stats, substats, talent_priority, stat_targets, notes, game_version, checked_at, changed_at}`; 404 for a character the catalog lacks) |
+| `GET /api/admin/builds` | editor | the Builds page, per game: `{game, characters, builds, checked_at, changed_at, imports: [{id, created_at, file_exported_at, summary, imported_by: {id, name}\|null}], catalog: [{list, entries, refreshed_at, problem}]}` - the last 10 imports, newest first, with who made each (a deleted person's: nobody); the catalog's three lists, when the provider last confirmed each and its last problem |
+| `GET /api/admin/builds/{game}/export` | editor | the game's builds as a file to save (`builds-{game}-{date}.json`, format version 2: data-model.md "Builds files") |
+| `POST /api/admin/builds/{game}/import[?dry_run=1]` (the file's JSON as the body, at most 8 MB) | editor | the game's builds become the file's (see "Main flows"): `{dry_run, game, exported_at, older_than_current, characters, builds, created, updated, unchanged, removed, skipped: [{key, name, builds}], changes: [{change: created\|updated\|removed, character: {key, name}, role, qualifier, min_rank}], changes_listed}` - every change counted, the first 500 listed; `older_than_current` when the file was made before the one the builds there came from; a dry run writes nothing. 422 for a file that does not fit (its first problem as the message, nothing written), 409 while another import writes |
+| `POST /api/admin/catalog/{game}/{list}[?force=1]` (`characters`, `weapons`, `sets`) | editor | one list of the catalog refreshed from the game's provider, a conditional request unless forced: `{outcome: changed\|unchanged, written, list, entries, refreshed_at, problem}`; 409 while another refresh of the list runs, 502 when the provider is closed, has no such list or cannot be read (the reason as the message); 404 for another list |
 | `GET /api/site-status` | anyone, always (the gate lets it through) | `{state: ready\|not_set_up\|update_pending\|unavailable, installed}` - nothing else (anotoki-lib's `MigrationsRoutes::status`) |
 | `GET /api/admin/migrations` | admin (from the token alone; open while an update waits) | `{sets: ["build_analyzer"], applied: [{set, name, applied_at}], pending: [{set, name, ready, blocked}], missing: [{set, name, applied_at}]}` - the files applied, in order, with when (UTC, `…Z`); the files not applied yet, in the order they will run; files recorded but not on disk (anotoki-lib's `MigrationsRoutes::admin`) |
 | `GET /api/admin/migrations/file?set=&name=` | admin (likewise) | `{set, name, sql}` of one of the set's files; 404 `not_found` for anything else (no path tricks) |
@@ -479,31 +564,35 @@ bar took the place of the site's own), each with every rewording.
 | `POST /api/admin/languages`, `PUT/DELETE /api/admin/languages/{code}` | admin | add one / change name, native name, offered, order / delete one and its strings (never `en` or `sk`): `{strings}` |
 | `GET/PUT /api/admin/translations` `{values: {key: {code: text}}}` | editor | the grid (every key, its description, its strings) / save the changed strings, all or none |
 | `GET /api/admin/translations/{code}/export`, `PUT …/{code}/import` `{key: text}` | editor | one language's own strings as a file / back in, with a save's checks |
+| `GET /api/admin/people?q=&page=` | admin | `{people: [{sub, name, first_seen_at, last_seen_at, anonymized_at, iam_url, accounts, imports, last_import}], columns, total, page, page_size, visitors: {count, accounts}, sync, ready, problems}` - the IAM people who used the site, 50 a page, the most recently seen first; visitors counted apart, never listed |
+| `DELETE /api/admin/people/{sub}` | admin | delete a person's data (accounts with everything in them, import runs): `{deleted: {"Game accounts": n, "Imports": n}}`; the strings they saved and the record of the builds files they imported stay, by nobody; 404 `not_found` for no such person |
+| `POST /api/admin/people/sync` | admin | the scrub of the IAM's deleted accounts, now |
 
-The translation routes are anotoki-lib's (`TranslationsRoutes`), in the family's one wire format, behind this
-site's role checks and in its error body.
-| `GET /api/admin/people` | admin | `{people: [{id, name, accounts, import_runs, created_at, last_import_at}], visitors: {count, accounts}}` - the IAM people who used the site |
-| `DELETE /api/admin/people/{id}` | admin | delete a person's data (accounts with everything in them, import runs); `{accounts, import_runs}`; their syncs and strings stay, by nobody; 404 for no such person |
+The translation routes are anotoki-lib's (`TranslationsRoutes`), and so are the People page's (`PeopleRoutes`),
+in the family's one wire format, behind this site's role checks and in its error body.
 
 Errors are JSON `{message}` and, where a page words them, a `code` (validation adds `errors: {field:
 [message]}`): 401 `Sign in to continue.` `sign_in_required` (no token, or one that does not verify; while the IAM requires sign-in, also a visitor key), 401
 `visitor_unknown` (a visitor key nobody has, or none at all), 403
-`editor_only` "Only an editor or an admin can do this." / `admin_only` "Only an admin can do this.", 404 `Not found.` (also for other users' accounts and unknown paths), 409 (a step holds
-the lock; a builds file for a source that is syncing; `language_exists`, `fallback_language`,
-`seeded_language`), 422 (import problems `{code, params}`, a builds file that does not fit, validation, a
-string or language the checks refuse - with the key and the language; the translation routes' `empty_body` for a
-write that arrived empty; a visitor's limits,
+`editor_only` "Only an editor or an admin can do this." / `admin_only` "Only an admin can do this.", 404
+`Not found.` (also for other users' accounts and unknown paths), 409 (another import of builds is being written;
+another refresh of the same catalog list runs; `language_exists`, `fallback_language`, `seeded_language`), 422
+(import problems `{code, params}`, a builds file that does not fit, validation, a string or language the checks
+refuse - with the key and the language; the translation routes' `empty_body` for a write that arrived empty; a
+visitor's limits,
 `visitor_limit` `{limit: accounts | file_size, max}`; an accounts file not read, `{code, params}`: `no_file`,
 `file_too_big` `{max_mb}`, `not_a_data_file`, `newer_version` `{version}`, `bad_entry` `{path}`, `too_many_accounts`
 `{max}`, and an export too large for one file, `export_too_big` `{max_mb, max_accounts}`), the translation routes' 400
 `invalid_json`, 413 `too_large` (over 1 MiB) and 415 `unsupported_media_type` (a write that is not
-`application/json`, such as a form), 429 (`too_many_imports`; `too_many_visitors`, which says to sign in), 503
-`not_set_up` and `update_pending` (the site gate's: `{code, message}`, `not_set_up` with `installed` and - only
-while never installed - `setup`; see "The site gate"), 503 `translations_unavailable` (with `Retry-After: 60`) from
-the translation routes while the tables of migration 003 are not there (and from the bundle while English has no
-string), 503 `visitors_unavailable` from the visitor paths while 004's
-columns are not (both behind the gate: a second line), and 503 `visitor_move_retry` (ask again). The Migrations
-page's API answers its own: 404 `not_found` (a file that is none of the set's), 409 `busy`.
+`application/json`, such as a form), 429 (`too_many_imports`; `too_many_visitors`, which says to sign in), 502
+(the Builds page's refresh of a catalog list: the game data provider closed, without the list or unreadable - its
+reason as the message), 503 `not_set_up` and `update_pending` (the site gate's: `{code, message}`, `not_set_up`
+with `installed` and - only while never installed - `setup`; see "The site gate"), 503
+`translations_unavailable` (with `Retry-After: 60`) from the translation routes while the tables of migration
+003 are not there (and from the bundle while English has no string), 503 `visitors_unavailable` from the visitor
+paths while 004's columns are not (both behind the gate: a second line), and 503 `visitor_move_retry` (ask
+again). The Migrations page's API answers its own: 404 `not_found` (a file that is none of the set's), 409
+`busy`.
 
 ## Frontend (`frontend/`, Angular 21 on the anotoki family's kit)
 
@@ -511,8 +600,8 @@ page's API answers its own: 404 `not_found` (a file that is none of the set's), 
   API responses (keep in step with the presenters); `core/meta-store.ts` loads `/api/meta` at startup (labels,
   formatting, sign-in settings); `core/site-status.ts` wires the family's site gate and Migrations page
   (`@anotoki/lib/migrations`; the page itself from `@anotoki/lib/migrations/page`) to this site - see "The site
-  gate" above; `core/format.ts` colors
-  and time helpers; `core/changelog.ts` loads `public/changelog.json` (the version shown in the footer, and
+  gate" above; `core/format.ts` the games (`GAMES`, `GAME_LABELS`: Genshin Impact alone, `GameKey` `'genshin'`
+  in `core/models.ts`), colors and time helpers; `core/changelog.ts` loads `public/changelog.json` (the version shown in the footer, and
   "What's new" once per release per browser); `core/shell.ts` (`provideShell()`: the family's shell,
   `@anotoki/lib/shell`, set up for this site - its `ThemeService`: light, dark or automatic (the device's),
   drawn on `<html data-theme>` and kept in localStorage `build-analyzer-theme` (nothing for automatic), where
@@ -528,7 +617,7 @@ page's API answers its own: 404 `not_found` (a file that is none of the set's), 
 - Sign-in, through the anotoki IAM only - the anotoki family's auth module (`@anotoki/lib/auth`, set up in
   `app.config.ts`: `provideAnotokiAuth()` - its boot configuration is `/api/meta`'s `auth`, read once with the
   game metadata by `MetaStore`; this site's visitor key store; the language the IAM's pages open in; the
-  failure route `/sign-in`; an editor sent from an ADMIN page to `/admin/sources`). `AnotokiAuth` (the IAM's
+  failure route `/sign-in`; an editor sent from an ADMIN page to `/admin/builds`). `AnotokiAuth` (the IAM's
   client, the tokens in localStorage under `anotoki-auth:build-analyzer` as the IAM's SDK kept them, the
   callback, following the IAM, and the sign-in hint's one silent hop for a visitor signed in at the IAM) is seen
   by the pages through `core/auth.ts` (`AuthService`, a facade under the names they always used:
@@ -541,16 +630,17 @@ page's API answers its own: 404 `not_found` (a file that is none of the set's), 
   this site's one rule: a sign-in this page load came back without (or that could not start) is said once on
   `/sign-in`, to a visitor too; `personGuard` on `/admin` (anybody not signed in, a visitor too, goes to the
   IAM and back); `adminGuard` on Languages, People, Migrations and the admin tools (an editor goes to
-  `/admin/sources`). `/sign-in` is the library's `<anotoki-sign-in-failure>` in the site's frame (why, from the
+  `/admin/builds`). `/sign-in` is the library's `<anotoki-sign-in-failure>` in the site's frame (why, from the
   failure's code alone; Try again, Back; `noindex`), `/auth/callback` its `<anotoki-auth-callback>`;
   `robots.txt` (`public/`) keeps search engines off `/auth/`. A sign-in leaves only once the writes on their
   way have answers (the library's `SavesInFlight`, 30 s at most): a visitor's first import brings the key the
   move needs.
 - Who a request is, in the browser - decided when it is ISSUED, never from whether a token happens to be there
   when it leaves: `Api` marks each request with the family's `ISSUED_AS` - `caller` (whoever the page is shown
-  to: the person signed in, else the visitor), always `person` for the admin panel, the syncs, the own-data file
-  and the move. The family's `anotokiAuthInterceptor`, on this site's `/api` only - never on `/api/meta`,
-  `/api/translations/` or `/api/site-status` (`api.skip`: read with no credentials at all) - acts on that
+  to: the person signed in, else the visitor), always `person` for the admin panel (the Builds page's imports,
+  exports and catalog refreshes among them), the own-data file and the move. The family's
+  `anotokiAuthInterceptor`, on this site's `/api` only - never on `/api/meta`, `/api/translations/` or
+  `/api/site-status` (`api.skip`: read with no credentials at all) - acts on that
   mark (a request `Api` did not mark - the library's own pages' - is decided as it is handed over): a person's
   request gets the bearer (one retry with a fresh token after a 401, for the same person) and never the visitor
   key, and with no token it is **never sent** - it fails there as a 401 `sign_in_required`, so a person's import
@@ -576,33 +666,45 @@ page's API answers its own: 404 `not_found` (a file that is none of the set's), 
   the auth module's client's own init() (its callback's `silent`) - the client factory provided as
   `ANOTOKI_AUTH_CLIENT_FACTORY` in `app.config.ts` wraps the library's `createAuthClient` - and kept in
   localStorage `build-analyzer-sign-in` for the page loads that restore the session; none noted: clicked.
-- `core/sync-driver.ts` (`SyncDriver`, provided in root): steps the syncs while the tab is open; the top bar shows
-  an editor or an admin a spinning icon while it drives (in the phone's menu on a phone).
+- `core/query-filters.ts` (`bindQueryFilters()`, called from a list page's constructor): a list page's filters
+  kept in the address, both ways - the builds browser's, as genshin.anotoki.eu keeps its lists'. Each filter is a
+  signal and the value it holds while nothing is chosen (`''` for a text field or a select's "Any", `'all'` for a
+  segmented control's "All"), which leaves its parameter out of the address; the address seeds the signals before
+  the first render and wins whenever it changes (a link opened, Back), and the signals write it with
+  `replaceUrl` and `queryParamsHandling: 'merge'` - a filter is not somewhere one went, so leaving the page is one
+  Back, and another parameter of the address is not the filters' to drop. A filtered list is a place: coming back
+  from a character finds it as it was left, and its address is worth sending to somebody; nothing is remembered
+  in the browser.
 - `core/i18n/` (see "The site's words" above): `translation.ts` (`TranslationService`: anotoki-lib's service -
   the language, the bundle, `init()` from the app initializer, the English pages - under its own token, typed
   with this site's keys: `WordKey` = `TranslationKey` | the library's `LibraryKey`), `translations.config.ts`
   (`provideTranslations()`: the library set up for this site - its storage names `LANGUAGE_STORAGE`, the
   compiled English as the fallback, the account, `canAsk` = `/api/meta` answered, the admin pages' rights and
-  routes), `en.ts` with the compiled English parts `en/{core,shell,builds,import}.json` (one flat
+  routes), `en.ts` with the compiled English parts `en/{core,shell,builds,import,legal}.json` (one flat
   `{"key": "English"}` object each, a key in exactly one part), the typed pipes `translate`, `translatePlural`,
   and `localDate`, `dynamic-keys.ts`, `error-text.ts` (a failed request by its `code`),
-  `recommendation-words.ts`, `import-words.ts`, `title-strategy.ts` (`AppTitleStrategy`: a member route's
-  `title` is a key; it tells the service where the page is, `noteAddress()`). The specs take the library's
+  `recommendation-words.ts`, `import-words.ts`, `variation-words.ts` (a build's variation as a tab, a heading or a
+  line says it: its role in the reader's language - `builds.role.*`, "Build" for a role a newer server adds -,
+  its qualifier as the build has it, the constellation it needs in the game's notation: "Main DPS · Melt · C4+";
+  `rankMark()`, "C2+", for a stat target from a constellation too), `title-strategy.ts` (`AppTitleStrategy`: a
+  member route's `title` is a key; it tells the service where the page is, `noteAddress()`). The specs take the library's
   stand-in, `@anotoki/lib/translations/testing`. The kit's words (`provideAnotokiUi(... forKit())` in
   `app.config.ts`) and the status page's (`siteStatusWords()`, `core/site-status.ts`) are the database's too.
   The game's own words: `core/game-terms.ts`, `shared/build-terms.ts`.
-- The admin panel (`/admin/...`, English with `lang="en"`; the old `/sources`, `/translations`, `/languages`
-  redirect there): `layouts/admin-layout/` (`AdminLayout`: for staff the area's sections - Sources and
-  Translations for an editor; Languages, People, Migrations, Errors, Audit, Feedback (with the count of new
-  messages, the family's `FeedbackUnread`, asked once the ADMIN is in the panel) and Backups too for the ADMIN -
-  and the page; for somebody whose session ended with an admin page open "You are signed out", with a Sign in
-  button; for somebody without a role "This part is for editors and admins"), under the top bar with the area's
-  sections as its links and the footer. The frontend only hides: the server refuses (403 `editor_only` /
-  `admin_only`); and the admin panel's requests are a person's alone, also those the library's pages make
-  themselves. `pages/admin/{translations,languages,migrations}` hold the anotoki family's pages in the panel's
-  `.page` (each from its own lazy entry point); the People page and the admin tools are routed straight from
-  theirs (`@anotoki/lib/people/page`, `@anotoki/lib/admin/errors`, `/audit`, `/feedback`, `/backups`, set up
-  in `app.config.ts`: `provideAnotokiPeople()`, `provideAnotokiAdmin()`), the panel's frame given them by
+- The admin panel (`/admin/...`, English with `lang="en"`; `/admin` itself goes to Builds; the old `/sources`
+  and `/admin/sources` - the Sources page's addresses, before the builds came in files - go to the Builds page,
+  the old `/translations` and `/languages` to theirs): `layouts/admin-layout/` (`AdminLayout`: for staff the
+  area's sections - Builds and Translations for an editor; Languages, People, Migrations, Errors, Audit, Feedback
+  (with the count of new messages, the family's `FeedbackUnread`, asked once the ADMIN is in the panel) and
+  Backups too for the ADMIN - and the page; for somebody whose session ended with an admin page open "You are
+  signed out", with a Sign in button; for somebody without a role "This part is for editors and admins"), under
+  the top bar with the area's sections as its links and the footer. The frontend only hides: the server refuses
+  (403 `editor_only` / `admin_only`); and the admin panel's requests are a person's alone, also those the
+  library's pages make themselves. `pages/admin/builds` is the site's own (below, `pages/`);
+  `pages/admin/{translations,languages,migrations}` hold the anotoki family's pages in the panel's `.page` (each
+  from its own lazy entry point); the People page and the admin tools are routed straight from theirs
+  (`@anotoki/lib/people/page`, `@anotoki/lib/admin/errors`, `/audit`, `/feedback`, `/backups`, set up in
+  `app.config.ts`: `provideAnotokiPeople()`, `provideAnotokiAdmin()`), the panel's frame given them by
   `styles.scss`. Translations and Languages answer the route's `anotokiUnsavedChangesGuard` by asking the
   library's page. `core/localization-drafts.ts` reaches the library's `LocalizationDrafts` (what those pages
   have not saved, for the tab and the IAM person who typed it, and the one `beforeunload` question) only when
@@ -643,8 +745,9 @@ page's API answers its own: 404 `not_found` (a file that is none of the set's), 
   parent is `layouts/legal-layout/` - everybody's pages' frame (`<app-app-layout>`, whose router outlet draws the
   page) giving the pages this site's facts, so the facts and their code load with the pages, out of the first
   load. No guard: anybody may read them, also while the IAM requires signing in here. `core/legal.ts`
-  (`provideLegal()`): the page's language, the database's words - the site's own fan clause, `legal.fanClause`,
-  in place of the library's, which names Genshin Impact alone. `core/legal-facts.ts` (`siteLegalFacts()`): what
+  (`provideLegal()`): the page's language, the database's words - the library's, the fan clause too, which names
+  Genshin Impact, the one game here since 0.5.0 (the site's own `legal.fanClause`, which named both games, went
+  with migration 015). `core/legal-facts.ts` (`siteLegalFacts()`): what
   the site keeps, what for and how long, its cookies and stored items by name, who else handles data (the hosting
   company, Cloudflare, the public showcase service a UID import asks - described, never named), the anotoki
   account's pages at the IAM's address `/api/meta` names - each fact with the code it rests on in its comment;
@@ -660,31 +763,32 @@ page's API answers its own: 404 `not_found` (a file that is none of the set's), 
   `brand.short`, with `brand.admin` under it there - the whole wordmark does not fit beside nine sections - and
   the app's whole name in the link's accessible name, `topbar.home` / `topbar.homeAdmin`), the area's sections
   (`APP_LINKS`: Dashboard with `/accounts/` under it, Import, Builds with `/builds/` under it - the same for
-  nobody, a visitor and a person; `ADMIN_LINKS`: Sources, Translations, and for ADMIN Languages, People,
+  nobody, a visitor and a person; `ADMIN_LINKS`: Builds, Translations, and for ADMIN Languages, People,
   Migrations, Errors, Audit, Feedback - the count of new feedback beside it, the library's badge - and Backups,
-  English, staff only), its one widget before the language (the sync this tab drives, for staff: a turning
-  icon that leads to Sources; on a phone an item of the menu and a dot on its button), who is signed in (name,
-  address, the role "Administrator" / "Editor") with their menu items ("Your anotoki account"; "Admin panel" for
-  staff, or "Back to Build Analyzer" in the admin panel), Sign in (`signInOrSayWhy()`) and Sign out (which first
+  English, staff only), who is signed in (name, address, the role "Administrator" / "Editor") with their menu
+  items ("Your anotoki account"; "Admin panel" for staff, or "Back to Build Analyzer" in the admin panel), Sign in (`signInOrSayWhy()`) and Sign out (which first
   asks, the kit's `ConfirmService`, about strings typed on the Translations and Languages pages and not saved).
   The library draws the row in the family's order and owns its pieces and their rules: the language switcher
   (only with more than one language and never under `/admin`; signed in, a choice is the account's too - its
   languages and choice `TranslationService.forShell()`), the theme switch (light, dark, automatic; signed in,
   the account's, in both areas), its menus (focus into the menu on open, arrows / Home / End, Escape and an
   outside click close it, Tab and Shift+Tab close it with the focus on its button - never on `<body>`) and the
-  fold. Up to `PHONE_BAR_MAX` = 880 px the sections, the widget and the person's menu (or Sign in) fold into one
-  menu button; the person's name shows from 1081 px and gives way first. The widths are this site's, measured
-  in the family's bar (`verify-ui`'s `run.mjs --measure`): the member pages' row needs 793 px in English and 803
-  in Slovak signed out, 818 for an admin with a sync running - 880 leaves room for a scrollbar and for a
-  language added later whose words run longer; the admin panel's row, the ADMIN's nine sections with a count
-  beside Feedback, needs 1186 px, 1236 with a sync running, so `ADMIN_PHONE_BAR_MAX` = 1270 (a 1280 px screen
-  has the whole row; the name from 1471 px), and an editor's two sections 560 px, 610 with a sync running,
-  `EDITOR_PHONE_BAR_MAX` = 640 (the name from 841 px). Every member word is a key - the site's (`brand.*`,
-  `topbar.*`, `toolbar.*`) and the library's (`anotoki.topbar.*`, `anotoki.theme.*`,
-  `anotoki.language.*`, which 006 and 010 gave the site's own wording); under `/admin` the translation service
-  answers in English, so the same keys read English there.
-- `shared/`: `build-detail` (renders a build, optionally annotated with an evaluation), `item-card`,
-  `grade-badge`, `score-bar`, `char-avatar` (`app-avatar`), `changelog-dialog`,
+  fold. Up to `PHONE_BAR_MAX` = 880 px the sections and the person's menu (or Sign in) fold into one menu
+  button (in the admin panel the count of new feedback a badge on it); the person's name shows from 1081 px and
+  gives way first. The widths are this site's, measured in the family's bar (`verify-ui`'s `run.mjs --measure`):
+  the member pages' row needs 793 px in English and 803 in Slovak signed out - 880 leaves room for a scrollbar
+  and for a language added later whose words run longer; the admin panel's row, the ADMIN's nine sections with a
+  count beside Feedback, needs 1171 px, so `ADMIN_PHONE_BAR_MAX` = 1270 (room for a scrollbar and a count of two
+  digits: a 1280 px screen has the whole row; the name from 1471 px), and an editor's two sections 545 px,
+  `EDITOR_PHONE_BAR_MAX` = 640 (the name from 841 px). Since 0.5.0 the bar carries no widget of the site's (the
+  sync a tab drove went with the syncs). Every member word is a key - the site's (`brand.*`, `topbar.*`) and the
+  library's (`anotoki.topbar.*`, `anotoki.theme.*`, `anotoki.language.*`, which 006 and 010 gave the site's own
+  wording); under `/admin` the translation service answers in English, so the same keys read English there.
+- `shared/`: `build-detail` (renders a build, optionally annotated with an evaluation: its weapons and sets in
+  order of rank, main stats, substats - "not listed for this build" with what the analysis goes by when it lists
+  none -, talents, stat targets, a target from a constellation marked "C2+", its notes in the kit's disclosure,
+  when the file that last brought it was made), `item-card`, `grade-badge`, `score-bar`, `char-avatar`
+  (`app-avatar`), `changelog-dialog`,
   `stat-pipes` (`statLabel`, `statValue`, `slotLabel`, `timeAgo`), `visitor-notice/` (for somebody not signed
   in: kept for this browser on the server for `visitors.keep_days` days after the last visit, signing in keeps
   it - with a Sign in button), `visitor-hero/` (nobody's ways in: import, each game's builds, sign in),
@@ -694,21 +798,35 @@ page's API answers its own: 404 `not_found` (a file that is none of the set's), 
   file's problems are worded from `data.error.<code>` with their params, anything else as a failed request).
   `core/download.ts` (`downloadName()`, `saveFile()`) saves a file the API sent, for the card and the admin pages.
 - `pages/`: every page outside `/admin` is open to everybody. `dashboard` - three states: nobody (no token, no
-  key: `visitor-hero` and the sources' freshness, no request for anybody's accounts), a visitor (the accounts
-  under the visitor notice), signed in (the accounts and the data card); it loads the accounts again when the
-  state changes and after a move. `import` (wizard + `import-guides.ts`, whose texts are keys; the notice for
-  somebody not signed in; nobody's wizard asks for no accounts), `account` (its import history wraps a row
-  under 600 px, so the last column is never cut) and `character` (the notice for a visitor; on a 401 for
-  somebody not signed in, `visitor-hero` instead of an error), `builds` (list + per character; the Sources page
-  is a link for staff, its name alone for anybody else), `admin/sources` (staff: sources, running syncs with
-  pause / resume / cancel, a source's builds exported and imported as a file - `build-file.ts` checks a chosen
-  file before anything is sent; an admin also switches sources), `admin/translations` (staff), `admin/languages`
-  and `admin/people` (admin: everybody who signed in, what they keep, Delete their data after a confirmation;
-  visitors only counted), `admin/migrations` (admin: the family's `<anotoki-migrations-page>` in the panel's
-  `.page` - Pending in the order they will run, Applied with their dates in the account's order and clock and each
-  file's SQL, Apply pending after a confirmation, and after it "Up to date", "There was nothing to apply" or
-  "Stopped at <file>" with what was applied first and the database's error; once nothing is left the site opens
-  again in the tab and the strings are read again), `sign-in`. Lazy-loaded
+  key: `visitor-hero`, no request for anybody's accounts), a visitor (the accounts under the visitor notice),
+  signed in (the accounts and the data card) - and in each the builds part (`GET /api/builds`: for how many
+  characters each game has builds and when they were brought up to date; for staff a link to the admin panel's
+  Builds page); it loads the accounts again when the state changes and after a move. `import` (wizard +
+  `import-guides.ts`, whose texts are keys; four steps - the game is Genshin Impact, no step asks for it; the
+  notice for somebody not signed in; nobody's wizard asks for no accounts), `account` (each character's best
+  build, as its variation reads; its import history wraps a row under 600 px, so the last column is never cut)
+  and `character` (a tab per build, named by its variation, its score the kit's badge, the closest build marked,
+  a build the character's constellation does not reach locked and said so, "needs C4"; the notice for a visitor;
+  on a 401 for somebody not signed in, `visitor-hero` instead of an error), `builds` (the builds browser on
+  `/builds/genshin`, no game switch: each character a link card with its builds' roles, the newest release first;
+  above them the filters - the name; the element, the weapon type and the rarity, each the kit's segmented
+  control, All first and then what the characters here have, an element's colour mark before its name; the
+  region and the version the character came with, each the kit's select, the versions newest first with their
+  names, "6.1 (Luna II)"; Reset; "Showing N of M", read out as it changes - kept in the address,
+  `core/query-filters.ts`; per character: its builds in their order; the admin panel's Builds page a link for
+  staff, its name alone for anybody else), `admin/builds` (staff: per game the counts, when the newest file was
+  made and when a build last changed, Export, Import - `build-file.ts` checks a chosen file before anything is
+  sent, then the server's dry run is the preview: the counts, the characters skipped, the changes in the kit's
+  disclosure and a warning when the file is older than the one the builds came from, then Import or Cancel -,
+  the recent imports with who made each, and the catalog card: each list's entries and when it was refreshed,
+  Refresh catalog running the three lists one after another with the kit's progress bar, a list's last failure
+  in a warning), `admin/translations` (staff), `admin/languages` and `admin/people` (admin: everybody who
+  signed in, what they keep, Delete their data after a confirmation; visitors only counted), `admin/migrations`
+  (admin: the family's `<anotoki-migrations-page>` in the panel's `.page` - Pending in the order they will run,
+  Applied with their dates in the account's order and clock and each file's SQL, Apply pending after a
+  confirmation, and after it "Up to date", "There was nothing to apply" or "Stopped at <file>" with what was
+  applied first and the database's error; once nothing is left the site opens again in the tab and the strings
+  are read again), `sign-in`. Lazy-loaded
   from `app.routes.ts`; route params arrive as signal inputs (`withComponentInputBinding`).
 - Conventions: standalone components, always three files (`.ts`, `.html`, `.scss`), signals (`signal`,
   `computed`, `input`), `inject()`, built-in control flow (`@if`, `@for`, `@let`), zoneless change detection.
@@ -721,13 +839,14 @@ page's API answers its own: 404 `not_found` (a file that is none of the set's), 
   `--sev-*`, `--rarity-*`, `--el-*` and `--el-mark-*`; the grades, severities and marks light and dark apart). The
   kit's newer pieces (anotoki-lib 0.6.0) stand where the site drew its own: the import wizard's row of steps is
   the kit's stepper, the import history, a build's notes and the wizard's trouble list and paste box its
-  disclosure, the score bars and a sync's progress its progress bar, a character (the account page, the builds)
-  its link card, a build's tab carries its score as the kit's badge, the account's element filter is its
-  segmented control with each element's mark, and the icons the site drew are the family's. What the kit has no
-  piece for stays the site's, drawn from its tokens: `.tile` (a game account with its actions, a piece of gear,
-  an empty slot), `.section-head`, `details.disclosure` (a sync's log, its summary holding the run's state), the
-  wizard's choice cards and file drop zone, and the grade badges. Manrope comes with the kit and is bundled;
-  nothing is loaded from another site.
+  disclosure (and the changes an import of builds would make), the score bars and the catalog refresh's progress
+  on the Builds page its progress bar, a character (the account page, the builds) its link card, a build's tab
+  carries its score as the kit's badge, the account's element filter and the builds browser's element, weapon
+  type and rarity filters are its segmented control (each element's mark before its name), the builds browser's
+  region and version its select, and the icons the site drew are the family's. What the kit has no piece for
+  stays the site's, drawn from its tokens: `.tile` (a game account with its actions, a piece of gear, an empty
+  slot), `.section-head`, the wizard's choice cards and file drop zone, and the grade badges. Manrope comes with
+  the kit and is bundled; nothing is loaded from another site.
 - The dev server (http://localhost:4600) proxies `/api` and `/setup.php` to `http://localhost:8400`
   (`proxy.conf.json`). `ng build` writes `dist/frontend/browser/`, which `router.php` serves in development and
   a release carries in `backend/vendor/`.

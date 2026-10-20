@@ -33,14 +33,14 @@ $site = array(
         'mbstring' => 'text handling (the shared library)',
         'zlib' => 'the backups (each is compressed)',
         'openssl' => 'checking sign-in tokens',
-        'curl' => 'downloading builds, the catalog and showcases',
-        'dom' => 'reading build pages',
+        'curl' => 'downloading the catalog, the showcases and the icons',
+        'dom' => 'the PHP packages (composer.json asks for it)',
     ),
     'recommended' => array(),
     'functions' => array(),
     'ini_on' => array(),
     'outbound' => 'needed',
-    'asks' => 'the IAM and the sites it reads builds and the catalog from',
+    'asks' => 'the IAM, the showcase service and genshin.anotoki.eu (the catalog)',
     'uploads_mb' => 0,
 );
 

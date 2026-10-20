@@ -11,15 +11,15 @@ page is the reference behind it.
 | API (and setup.php, and the built app) | – | `cd backend && composer start` (`php -S localhost:8400 router.php`) |
 | Angular dev server | – | `cd frontend && npm start` (`bun ci`, then http://localhost:4600) |
 | Database migrations | the admin panel's Migrations page, "Apply pending" (ADMIN) | `cd backend && php migration.php [--status \| --dry-run]` |
-| Sync builds | Sources page "Sync all" / "Sync now" (EDITOR) | `cd backend && php sync-builds.php [source] [--force] [--character=x] [--check-names]` |
-| Check parsers without writing (offline) | – | `cd backend && php sync-builds.php --dry-run --cache-hours=96 [-v]` |
-| Catalog | Sources page "Refresh catalog" (EDITOR) | `cd backend && php sync-catalog.php [genshin\|hsr] [--force]` |
-| Import from the command line | – | `cd backend && php import-account.php genshin 700123456 --user=ID` or `… hsr path/to/file.json --user=ID --account=3` (`--user` required) |
+| Builds | the admin panel's Builds page (EDITOR): "Export", "Import a file" (a dry run's preview, then "Import") | – (the file is made on the owner's computer: "Importing builds", below) |
+| Catalog | the Builds page, "Refresh catalog" (EDITOR) | `cd backend && php sync-catalog.php [genshin] [--list=characters\|weapons\|sets] [--force]` |
+| Import from the command line | – | `cd backend && php import-account.php genshin 700123456 --user=ID` or `… genshin path/to/good.json --user=ID --account=3` (`--user` required) |
 | The site's words | the Translations page (EDITOR) and the Languages page (adding, renaming, switching, deleting: ADMIN) | `cd backend && php translations.php --status` (the frontend's keys against the database's), `--export=sk [file]`, `--import=sk file` |
 | Backups | the admin panel's Backups page (ADMIN) | `cd backend && php backup.php --list \| --create ["why"] \| --inspect=<id> \| --extract=<id> <folder> \| --restore=<id> --confirm=<last 6>` |
 | What failed, what was done, what visitors wrote | the admin panel's Errors, Audit and Feedback pages (ADMIN) | `storage/logs/errors-*.jsonl` (one JSON line each); the tables `anotoki_audit_log` and `anotoki_feedback` |
 | Tests | – | `cd backend && php tests/run.php` and `cd frontend && npx ng test --watch=false` |
 | The browser check | – | `node .claude/skills/verify-ui/scripts/run.mjs [--no-build] [--keep] [--measure]` (the `verify-ui` skill: a throwaway database, the stand-in IAM on 8597, the site on 8590) |
+| The repository names no build site | – | `php backend/tools/check-names.php [--staged \| --message=<file>]` (the words of the untracked `backend/config/neutral.local.php`: "Configuration", "The names file") |
 | Frontend build | – | `cd frontend && npx ng build` (then the API server alone serves everything on :8400) |
 | Build for the host | – | `cd frontend && bun run anotoki-deploy build` (into `dist/` at the repo root: `frontend/` and `backend/`) |
 | Look at the data | – | `psql` against the database of `config/database.local.php`, or a scratch PHP file using `App\Cli::app()->db()` |
@@ -28,10 +28,11 @@ page is the reference behind it.
 versions - for machines whose `php` on PATH is too old. AI tool shells reset their working directory, so start
 commands with `cd <repo root> &&`.
 
-There is **no queue worker and no scheduler**: nothing runs unless someone starts it. Syncs run in steps (see
-below), and the page cache (`storage/http-cache/`) is pruned (files older than 3 days) when a build run ends.
-Ordinary traffic carries the rest, after its answer (`api/middleware/upkeep.php`; `config/app.php` `upkeep`
-switches each off): the scrub of the accounts the IAM deleted (at most hourly) and the day's backup.
+There is **no queue worker and no scheduler**: nothing runs unless someone starts it, and the site never fetches
+a build. Ordinary traffic carries the rest, after its answer (`api/middleware/upkeep.php`; `config/app.php`
+`upkeep` switches each off): the scrub of the accounts the IAM deleted (at most hourly), the day's backup, the
+day's tidying up (`App\Cache\Prune`: what has expired in the `cache` table, and the files the showcase import keeps
+in `storage/http-cache/` once they are three days old) and a stale catalog list refreshed ("The catalog", below).
 
 ## Configuration
 
@@ -48,12 +49,13 @@ all of them, without it) is `Config::FETCH_DEFAULTS`'.
 | --- | --- |
 | `database.local.php` | `host`, `port`, `database`, `username`, `password`, `persistent` |
 | `auth.local.php` | `issuer` (the IAM's address), `client_id` (`build-analyzer`); optional `jwks_file` (a key set on disk instead of the IAM's, for offline work) and `leeway` (seconds, 60). A `mode` or `local_user_id` an older setup wrote is ignored: sign-in is the IAM's, always |
-| `fetch.local.php` (optional) | `user_agent` (how requests identify the app; `build-analyzer/1.0`, and setup writes the site's address into it), `delay_ms` (between two requests to one site, 1200), `cache_hours` (the page cache, 12), `step_seconds` (one sync step, 20, at least 12), `stale_hours` ("Sync all" skips sources synced within it, 20); `timeout` (30), `browser_user_agent` |
+| `fetch.local.php` (optional) | the site's outgoing requests - the catalog's lists, the showcase service, the icons: `user_agent` (how they identify the app; `build-analyzer/1.0`, and setup writes the site's address into it), `delay_ms` (the wait between two requests to one host, 1200 - the showcase client sets its own; kept in the `cache` table, so it holds across requests and processes), `timeout` (seconds, 30; in a web request - an import, a refresh from the Builds page - 10 at most, and one retry at most), `browser_user_agent` (sent only where a caller asks for a browser's name: no request of the site's own does). An older file's `cache_hours`, `step_seconds` and `stale_hours` are no longer read |
 
 **Every one of them is read cleanly or not at all** (`App\Config::readLocalFile()` - the anotoki family's rule of
 2026-10-13, and its first five bytes since 2026-10-18; [decisions.md](decisions.md)), the ones written by hand -
-`client_address.local.php`, `cloudflare.local.php` (below) - and the committed `app.php` too: a file that does not
-start with `<?php` (saved with a byte-order mark, a blank line or a space before it, or without that line) is
+`client_address.local.php`, `cloudflare.local.php`, `neutral.local.php` (below) - and the committed `app.php`
+too: a file that does not start with `<?php` (saved with a byte-order mark, a blank line or a space before it, or
+without that line) is
 passed over without being compiled - required, it would print what comes before it (all of it, the database's
 password included, where the line is missing) ahead of every answer, and with `declare(strict_types=1)` after such
 a start PHP could not even compile it: a fatal error nothing catches, every request a 500. Whatever a file that
@@ -68,6 +70,7 @@ error's message can quote it. What passing over means, never looser than no file
 | `fetch.local.php` | `Config::FETCH_DEFAULTS` stand in for it |
 | `client_address.local.php` | no proxy is trusted - every request counts its own connection - never Cloudflare's ranges in its place: it may be the very file that said `[]` for a host not behind Cloudflare |
 | `cloudflare.local.php` | a secret no request carries: it fails closed - as does one read cleanly that names no usable secret; deleting the file is the way to switch the secret off (see "Which address", below) |
+| `neutral.local.php` | it adds no names: what `App\Support\Neutral` names itself, and every web address, are still kept out of what the API sends; `tools/check-names.php` has nothing to look for, and says so |
 
 `setup.php` reads its files the same way: on this computer it names a broken one by its fault (never a value), and
 asks for every field again - the password too - since it shows none of that file's values and keeps none of its
@@ -78,10 +81,11 @@ Run `setup.php` again to change the database or the IAM (on this computer it can
 and shows the saved values, never the password; on a host it shows none), or edit the files. Setup writes
 `fetch.local.php` with the defaults only when there is none, and leaves one that is there as it is: edit it by
 hand. `config/app.php` is committed and holds what is the same
-everywhere: the build sources (in "Source N" order), the catalog provider and its refresh intervals, the showcase
-service and its per-person rate limit, the file imports' rate limit, a person's accounts file (`me`: 5
+everywhere: the catalog's provider (genshin.anotoki.eu's lists) and its intervals ("The catalog", below), the
+showcase service and its per-person rate limit, the file imports' rate limit, a person's accounts file (`me`: 5
 imports a minute, files up to 8 MB), the visitors' limits and clean-up
-(`visitors`), which address a request counts as (`client_address`), and the name aliases.
+(`visitors`), which address a request counts as (`client_address`), what traffic carries after an answer
+(`upkeep`), and the name aliases.
 
 `setup.php` on this computer (a loopback client asking for a `localhost` address) needs no token - a nonce in a
 `SameSite=Strict` cookie protects the form - and never deletes itself. On a real host it writes a token into
@@ -98,6 +102,23 @@ database's answers in the words of every anotoki setup page:
   the hosting panel first.`
 - `The server is there, but "<user>" cannot open the database "<name>": <reason>`
 - `Cannot connect: <reason>`
+
+**The names file** (`config/neutral.local.php`; the owner's decision of 2026-10-20, [decisions.md](decisions.md)).
+The repository is public and names no site the builds come from - not in a tracked file, a commit message, a branch
+or a PR. Their names are in this file, written by hand like `cloudflare.local.php` (gitignored, never written or
+read by `setup.php`, never in a release - an upload leaves it where it is): `<?php return ['names' => [...],
+'tree_words' => [...]];`.
+
+- `names` add to the names `App\Support\Neutral` keeps out of everything the API sends to be shown - a builds
+  file's texts too, on the way in and out (read once, through `Config::readOptionalFile()`: `Neutral::localNames()`).
+  Without the file `Neutral` keeps out its own names and every web address, not the build sites': so **upload it
+  once to the host's `config/`**, beside the other settings, and keep a copy off the server.
+- `php backend/tools/check-names.php` (from the repo root) reads every file git tracks - and every file `git add -A`
+  would add -, and their paths, for the `names` as whole words (in a path however it joins their words: `a-name/`,
+  `aName.php`) and the `tree_words` (spellings, page parts, labels that would give a site away) anywhere, prints
+  each place it found one (`path:line` and the word found there, never the file's list) and fails on any; `--staged`
+  reads the index instead and `--message=<file>` a commit message (the owner's untracked `.git/hooks/pre-commit` and
+  `commit-msg` run it so). Without the file it has nothing to look for, and says so.
 
 ## Sign-in
 
@@ -127,20 +148,20 @@ last answer, and with none ever read - or a 404, an application the IAM does not
 is **required** (fail closed). `/api/meta` relays it to the page (`auth.login_required`), which then sends
 everybody not signed in to the IAM before any page (and keeps a visitor key it holds, unsent). Required: the table's
 first two rows shrink to `/api/meta`, the icons, a language's strings and `/api/site-status` (which reads no
-credentials, so the pages always learn where the site stands) - the builds browser, the sources'
-list and every visitor key answer 401 `sign_in_required`, and no visitor is made; a visitor's data waits (the
-clean-up still deletes it 30 days after the last visit), and signing in still moves it into the account.
+credentials, so the pages always learn where the site stands) - the builds browser and every visitor key
+answer 401 `sign_in_required`, and no visitor is made; a visitor's data waits (the clean-up still deletes it 30
+days after the last visit), and signing in still moves it into the account.
 **Deploy this version only after the IAM serves that address** (IAM migration 010 and its public route):
 before that the IAM answers 404 and the site requires sign-in - visitors turned away. Check with `curl
 https://iam.anotoki.eu/api/public/applications/build-analyzer` (200, `"login_required": false`).
 
 | Who | May |
 | --- | --- |
-| nobody (no token) | `/api/meta`, the icons, a language's strings, `/api/site-status`; while sign-in is not required also the builds browser (`/api/builds/*`), the sources' list (`GET /api/sources`, without who started a run); an import, which makes them a visitor |
+| nobody (no token) | `/api/meta`, the icons, a language's strings, `/api/site-status`; while sign-in is not required also the builds browser (`/api/builds`, `/api/builds/*`: naming nobody); an import, which makes them a visitor |
 | a visitor (no token, this browser's `X-Visitor-Key`; only while sign-in is not required) | its own accounts and imports, as a person's - nothing else (no accounts file: sign in first) |
 | a signed-in person (anybody the IAM lets sign in here; `MEMBER`, which every account holds, or no role) | their own accounts and imports, and their accounts as a file (`/api/me/export`, `/api/me/import`) |
-| `EDITOR` | also: syncs and the catalog, the sync history, a source's builds file (export / import), the strings (the Translations page, a language's file), the languages' list |
-| `ADMIN` | also: switching a source on or off, applying database updates, adding, renaming, switching and deleting a language, the People routes (list people, delete a person's data, check the IAM's deleted accounts now), and the admin tools - the error log, the audit log, feedback, backups (an editor sees none of them) |
+| `EDITOR` | also: the Builds page - a game's builds file (export, a dry run, import), the imports made, the catalog's refresh -, the strings (the Translations page, a language's file), the languages' list |
+| `ADMIN` | also: applying database updates, adding, renaming, switching and deleting a language, the People routes (list people, delete a person's data, check the IAM's deleted accounts now), and the admin tools - the error log, the audit log, feedback, backups (an editor sees none of them) |
 
 - The IAM in development runs at `http://localhost:4300` (its API on :8100); hosted it is
   `https://iam.anotoki.eu`. The frontend reads the issuer and client id from `/api/meta`.
@@ -160,17 +181,16 @@ https://iam.anotoki.eu/api/public/applications/build-analyzer` (200, `"login_req
   the newest seen first, a search by name or IAM id, 50 a page - with their game accounts, imports and last
   import; the visitors counted apart. **Delete their data** asks only its question, then deletes their accounts
   with everything imported into them and their import runs (`DELETE /api/admin/people/{id}`, in the audit log as
-  `person.data_deleted`). The syncs they started and the strings they saved stay, by nobody - the syncs' logs say
-  "a deleted person" where they named them -, and what they sent through the feedback form stays without the
-  address and browser it was sent with; their anotoki account is not touched, and signing in again starts them
-  afresh.
+  `person.data_deleted`). The builds files they imported and the strings they saved stay, by nobody, and what
+  they sent through the feedback form stays without the address and browser it was sent with; their anotoki
+  account is not touched, and signing in again starts them afresh.
 - **The IAM's deleted accounts are scrubbed here** (the library's people module): after an answer, at most once an
   hour (`config/app.php` `upkeep.people`), the site reads the accounts the IAM deleted (thirty days after their
-  owners asked) and makes each one nobody's here - its row `deleted-{id}` with `anonymized_at` set, a sync's log
-  "a deleted person", their feedback's address and their name in the audit log's details blanked; their game
-  accounts and imports stay, nobody's now. The People page says when the IAM was last asked; Check now asks at
-  once (`POST /api/admin/people/sync`). A scrubbed row stays nobody's: no request ever writes a name back into
-  it, nor makes a new row for an id the IAM deleted.
+  owners asked) and makes each one nobody's here - its row `deleted-{id}` with `anonymized_at` set, their
+  feedback's address and their name in the audit log's details blanked; their game accounts and imports stay,
+  nobody's now, and so do the builds files they imported (the Builds page names the row, `deleted-{id}`). The
+  People page says when the IAM was last asked; Check now asks at once (`POST /api/admin/people/sync`). A scrubbed
+  row stays nobody's: no request ever writes a name back into it, nor makes a new row for an id the IAM deleted.
 - The verifier caches the IAM's keys in `storage/cache/iam/`, and the reader the IAM's sign-in answer
   (`anotoki-iam-application-<sha1>.json`). The folder must be the site's own - a kept "not required" is what
   opens the site to visitors; the switch never serves `storage/` (it sends every request into `frontend/`), and setup checks it. Deleting the file makes the
@@ -274,48 +294,75 @@ they import is kept on the server under a row of `users` with a negative id; the
   refuses storage keeps the key for the tab only. A lost key (site data cleared, another browser) loses the
   visitor's data: by design - the notice on the visitor's pages says it is kept "for this browser".
 
-## Syncing builds and the catalog
+## The catalog
 
-An editor (or an admin) presses **Sync all** (every enabled source not synced successfully in the last `stale_hours`, 20),
-**Sync now** on one source (always) or **Refresh catalog** on the Sources page. That creates sync runs; the
-page then asks `POST /api/sync/step` again and again. Each step is one short request (at most `step_seconds`,
-20 s; never less than 12, so one request always fits) that fetches a page or two - Prydwen's 10 s crawl delay
-means two pages at most - saves its progress and says how long to wait. Closing the tab pauses the runs;
-**Resume** (on any Sources page) continues where they stopped, and **Cancel** ends one. A stale game catalog is
-refreshed before that game's build runs. A full sync takes about 20 minutes per Prydwen game and needs the tab
-open; in a background tab the browser may slow the loop down.
+The game catalog - Genshin Impact's characters, weapons and artifact sets, with their elements, weapon types,
+rarities, regions, versions and icons - comes from the owner's own genshin.anotoki.eu (the owner's decision of
+2026-10-20, [decisions.md](decisions.md)): its public lists
+`GET https://genshin.anotoki.eu/api/catalog/characters`, `/weapons` and `/artifacts` (`config/app.php`
+`catalog.genshin.api`; `App\Services\Catalog\Providers\GenshinCatalog`), each entry with the game's own ID. Imports
+and builds files are matched against it ([name-matching.md](name-matching.md)), and only a refresh writes it.
 
-`sync-builds.php` and `sync-catalog.php` start the same runs and loop over the same steps, sleeping through the
-waits; they join a run the browser already started. Only one step runs at a time (tabs and the command line
-take turns), and each site's delay between requests holds across all of them.
+- **A refresh** asks for one list with the version tag (ETag) its last read kept: "unchanged" (304) writes
+  nothing; a changed list is written in one transaction, each row found again by its in-game ID, then by its key -
+  a renamed entry keeps its row and everything linked to it -, and no row is ever deleted. An answer over 5 MB or
+  of more than 5000 entries is refused whole; an icon address is kept only on the provider's own host (the icons
+  are served from here, `/api/icons/…`, each fetched once into `storage/icons/`). One refresh of a list at a time
+  (a claim of two minutes at most; another meanwhile is told "This list is being refreshed", 409). Where each list
+  stands - its tag, when the provider last confirmed it, when it last changed, the last failure and why - is kept in
+  the `cache` table (`catalog-state:{game}:{list}`), which a restore leaves as it is.
+- **Who refreshes it**: an editor, on the admin panel's Builds page - **Refresh catalog** asks the three lists one
+  after another, with a progress bar, and stops at the first that fails (each in the audit log,
+  `catalog.refreshed`); `php sync-catalog.php [genshin] [--list=characters|weapons|sets] [--force]` (without
+  `--force` a catalog whose lists were all confirmed within `refresh_days` is left alone; `--force` asks every list
+  in full, without its tag); and the upkeep after an answer (`App\Services\Catalog\CatalogUpkeep`,
+  `upkeep.catalog`): at most every five minutes an answer looks for a list not confirmed within
+  `catalog.refresh_days` (3) and refreshes the first it finds after the answer, a list that failed waiting
+  `catalog.retry_minutes` (60) before its next try. An account's import that names an in-game ID the catalog lacks,
+  and a builds file that names a character or a weapon it lacks, refresh that list first - at most once per list
+  every `catalog.import_refresh_minutes` (60), for everybody together.
+- **When genshin.anotoki.eu is closed or failing**, this site keeps its catalog as it is and goes on working with
+  it. The Builds page's catalog card shows per list how many entries it has and when it was last refreshed, and
+  under "The last refresh failed" why: "The game data provider is closed for now (HTTP 503)" (that site's update or
+  maintenance; 401: it requires sign-in; 423: the route is locked), "… has no such list" (404: its catalog endpoint
+  is not there), "… could not be reached", "… answered HTTP 500" or an answer it could not read. The upkeep tries
+  again an hour later; **Refresh catalog** tries at once (and answers 502 with the same reason when it fails).
 
-## Moving builds between installations
+## Importing builds
 
-Each source on the Sources page has **Export** and **Import** (editors and admins; both wait while that source syncs).
+**The site never fetches a build.** The builds are put together on the owner's computer, from community build
+sites, by the owner's own tools in the untracked, git-ignored `local/` folder (never in the repository, and nothing
+of it is copied into a tracked file): they read each site politely, keep every page on disk, sort its builds by
+role, pick per role and constellation, make every text neutral, check the result with this site's own reader of
+the file and write `builds-genshin-<date>.json` with a report. An editor imports that file on the admin panel's
+**Builds** page (`/admin/builds`; editors and admins, English), one file per game. What a build is, the file's
+format and what the tools must deliver: [builds.md](builds.md).
 
-- **Export** saves the source's builds as a file, `builds-genshin-2-2026-09-29.json` (the format:
-  [data-model.md](data-model.md), "Builds files"). It holds every build of the source but not the addresses of
-  the pages they were read from. Keep it as a backup, or take it to another installation.
-- **Import** takes such a file of the same source (same key, same game) and makes the source's builds exactly
-  the file's, after the page has asked: builds are created, updated or kept as a sync would, and builds the
-  file does not have are removed. It is recorded as a run of the source ("imported from a file exported …"),
-  and the source counts as synced when the file's builds were last synced in full (or, when that sync did not
-  succeed, when the file was exported), so "Sync all" leaves it alone for `stale_hours` like any source synced
-  then. The page refuses a file over 8 MB before sending it (a common default of PHP's limit on a request; a
-  whole source's file takes about 2 MB).
-- A character this installation's catalog lacks is skipped and named (in the answer and the run's log):
-  **Refresh catalog**, then import the same file again. A file none of whose characters the catalog knows is
-  refused.
-- A file of another source or game, a file that is not a builds file and a file with any malformed build are
-  refused whole (422, naming the first problem), and nothing is written. While a sync of the source is going
-  the import is refused too (409): let the sync finish, or cancel it.
-
-**A source the host cannot reach.** Some sites turn away requests from hosting servers (bot protection against
-datacenter addresses) but answer a computer at home. Sync that source on your own computer (a copy set up as in
-[DEV.md](../DEV.md), signed in through your local IAM), export it there and import the file on the site;
-repeat when you want fresher builds. Leave the source switched on there - the analysis uses the builds of
-switched-on sources only. Once the import is older than `stale_hours`, "Sync all" on the site tries the source
-itself again; when the site still refuses, that run fails without touching the imported builds.
+- **A build is a variation of a character**: its role (Main DPS, Sub DPS, Support), a short qualifier where a
+  character has two builds of one role ("Melt"; at most 40 characters, one line), and the constellation it needs
+  (`min_rank`, 0-6); a stat target may start from a constellation. (character, role, qualifier without regard to
+  case, constellation) is its identity. The analysis follows the player's constellation: a build their character
+  has not reached shows a lock and "needs C4", and is never their best.
+- **Import a file** checks the file in the browser first (JSON, the format and its version 2, the game, at most
+  8 MB), then sends it as a dry run, which writes nothing and is the preview: how many builds are new, updated,
+  unchanged and removed, a warning when the file is older than the one the builds now come from, the characters
+  skipped, and the changes one by one. **Import** sends the same file for real; **Cancel** forgets it.
+- **The file is the whole truth for its game**: once imported, the game's builds are exactly the file's - a
+  character the file does not have loses its builds -, but for characters this installation's catalog lacks,
+  which are skipped and named ("Not in this installation's catalog": their list was refreshed first, at most
+  hourly - Refresh catalog later, then import the same file again). A build found again by its identity keeps its
+  id, so what names it by its id (a character's analysis asked `?build=ID`) stays valid. One import at a time: one
+  transaction under an advisory lock, and another meanwhile answers 409 and writes nothing. Every import is
+  recorded - the Builds page's recent imports (when, the file's date, what it did, who), the table
+  `build_imports`, the audit log's `builds.imported`.
+- **Refused whole** (422, naming the first problem; nothing written): a file that is not a builds file, one of
+  another game, one of format version 1 (a source's export from this site's versions before 0.5.0, said in its
+  own words), one with any malformed build, more than 5000 builds or over 8 MB; and a file none of whose characters
+  the catalog knows ("Refresh the catalog on the Builds page, then import again" - importing it would only
+  remove every build).
+- **Export** saves the game's builds as such a file - a backup, the start of a hand edit, or the builds for another
+  installation (what it writes always imports). Each installation holds its own builds: import the same file on
+  this computer and on the host.
 
 ## A person's own accounts as a file
 
@@ -327,8 +374,9 @@ a file over 8 MB is refused before it is sent). The format and every rule:
 [decisions.md](decisions.md).
 
 - **Export** saves `build-analyzer-accounts-2026-10-04.json`: every account with its characters, weapons,
-  artifacts / relics and its newest 200 import runs - keys and neutral words only, no ids. Keep it as a backup,
-  or import it on another copy.
+  artifacts and its newest 200 import runs - keys and neutral words only, no ids. Keep it as a backup, or import
+  it on another copy. A file holding a Star Rail account (exported by this site before 0.5.0) is refused (422
+  `bad_entry`): the site keeps Genshin Impact accounts alone.
 - **Import** asks first (a dry run: what would be added, replaced by a newer copy, kept, and how many entries
   this copy's catalog does not know), then imports. It never deletes an account: an account of the file that is
   not here is added; one that is here is replaced only when the file's copy was imported later; the rest stays
@@ -338,7 +386,7 @@ a file over 8 MB is refused before it is sent). The format and every rule:
   than that (422 `export_too_big`) - a few thousand artifacts take well under 2 MB. Keep `file_max_mb` at or
   below the host's PHP `post_max_size`: a larger body arrives empty ("No file arrived").
 - Entries this copy's catalog lacks (a character newer than its last catalog refresh) are left out and counted.
-  Have an editor refresh the catalog (Sources page) before importing: the same file imported again afterwards
+  Have an editor refresh the catalog (the Builds page) before importing: the same file imported again afterwards
   keeps the account as it now is here (the copies are equally new), so the left-out entries come only with a
   newer export, or by deleting that account here and importing the file again.
 
@@ -384,7 +432,8 @@ whole admin panel. No file explorer here (the owner's choice for this site).
   a failure is written: feedback's `storage_unavailable` (its limits cannot be counted), the move's
   `visitor_move_retry`. Never a request's body, query, header or token; an address only as a keyed hash. The page groups them,
   with each one's occurrences; **Clear** deletes the days chosen (audited). `storage/logs/app.log` stays the
-  site's own log of what it did (syncs, imports, the visitors' clean-up).
+  site's own log of what it did (imports that failed, catalog refreshes that failed, migrations, the visitors'
+  clean-up).
   **The errors the pages meet in the browser** are in it too (the owner's decision of 2026-10-11, every site):
   the library's reporter (`@anotoki/lib/error-report`, the app's `ErrorHandler`) scrubs each - the page's path
   alone, no address, token, secret or value the browser keeps - and sends it to `POST /api/client-errors`
@@ -394,8 +443,8 @@ whole admin panel. No file explorer here (the owner's choice for this site).
   closed while an update waits; it takes 20 an hour from one sender - a person by their account, anybody else by their address
   bucket - and 500 a day from the visitors, 500 from the people signed in (429 `too_many`), counted by keyed
   hashes in `storage/logs/client-errors.json`.
-- **Audit log** (the table `anotoki_audit_log`): what was done in the admin panel and by whom - sources switched,
-  syncs started and cancelled, a source's builds imported, strings saved and languages changed, a person's data
+- **Audit log** (the table `anotoki_audit_log`): what was done in the admin panel and by whom - a game's builds
+  imported, the catalog refreshed, strings saved and languages changed, a person's data
   deleted, the IAM's deleted accounts checked, migrations applied, the error log cleared, feedback marked and
   deleted, backups made, downloaded, deleted and restored. No address is kept. A restore keeps it as it is.
 - **Feedback** (the table `anotoki_feedback`): what visitors send from **Feedback** at the foot of every page - a
@@ -404,7 +453,7 @@ whole admin panel. No file explorer here (the owner's choice for this site).
   in the page writes their account's address into the form's address field, and the address they leave there -
   none once they cleared it - is the only one kept, unless they tick "send it without my name" (no id, no
   address): their choice (the owner's decision of 2026-10-11). Nothing on the server fills an empty field: the
-  library keeps only what the form sends (0.5.0). Kept with a message: the page and the language it was
+  library keeps only what the form sends (anotoki-lib 0.5.0). Kept with a message: the page and the language it was
   sent from and the browser's name (its user agent, blanked by the scrub with the address of a person the IAM
   deleted); never the network address it came from, nor a hash of it: the limits - 5 an hour and 20 a day from
   one sender (a signed-in person by their account; anybody else, and a message "without my name", by their
@@ -417,8 +466,9 @@ whole admin panel. No file explorer here (the owner's choice for this site).
   restore, and by hand (**Back up now**, or `php backup.php` on this computer). Making, downloading (a single-use
   link of a minute), deleting and restoring ask for a sign-in of the last ten minutes - the page offers **Sign in
   again**. A restore says first what it would take away, wants the backup's last six characters typed, and puts
-  every table back but the audit log and the counters (`cache`, `cache_locks`), after a backup of the database as
-  it was. What it must not bring back, it does again (anotoki-lib 0.5.0, `People::restoreHooks()`):
+  every table back but the audit log and the `cache` table (the counters, the claims, where each catalog list
+  stands), after a backup of the database as it was. What it must not bring back, it does again (anotoki-lib
+  0.5.0, `People::restoreHooks()`):
   - **What was deleted since the backup** is deleted again inside the restore, before anybody sees its rows: every
     person's data deleted on the People page and every feedback message deleted, as the audit log (which a
     restore keeps) says - each entry is written in its delete's own transaction, so no delete is made without
@@ -435,16 +485,19 @@ whole admin panel. No file explorer here (the owner's choice for this site).
   Only those deletes are done again: a restore brings back everything else as the backup has it - also what people
   deleted themselves since (a game account deleted on its own page), which is neither audited nor done again.
 
-  **Only a backup made here is restored here** (0.5.0): every backup is sealed - an HMAC of its id and its
-  SHA-256 under a key derived from this installation's `storage/anotoki-lib.key` - and the page and `php
+  **Only a backup made here is restored here** (anotoki-lib 0.5.0): every backup is sealed - an HMAC of its id and
+  its SHA-256 under a key derived from this installation's `storage/anotoki-lib.key` - and the page and `php
   backup.php --restore` restore a sealed one alone, hashing the very bytes they read. One brought from another
   installation (downloaded from the host and put into this computer's `storage/backups/`, sealed under the
-  host's key), one changed since, and **every backup made before 0.5.0** (they have no seal) are listed but not
-  restored here (`422 archive_invalid`): they are read offline - `php backup.php --inspect=<id>` and
+  host's key), one changed since, and **every backup made before anotoki-lib 0.5.0** (they have no seal) are listed
+  but not restored here (`422 archive_invalid`): they are read offline - `php backup.php --inspect=<id>` and
   `--extract=<id> <folder>`, then `psql \copy`. So is one made while `storage/anotoki-lib.key` could be neither
   read nor made (a storage folder PHP cannot write): the backup is still made, but unsealed - the error log says
-  so, and the list shows it not restorable here. Nothing is public yet, so none of those is needed: make a backup
-  right after the update. The seal keeps out a file put into `storage/backups` by whoever cannot reach the key;
+  so, and the list shows it not restorable here. **Nor is one made before a migration applied since**: a backup
+  is restored in place only while the database's applied migrations and columns are the ones it was made with (else
+  `409 schema_differs`, naming the files) - so every backup made before this site's 0.5.0 (migrations 014-019) is
+  read offline too ("Deploying 0.5.0", below). Make a backup right after an update. The seal keeps out a file put
+  into `storage/backups` by whoever cannot reach the key;
   whoever can write the whole storage folder can make the key their own. The backups' files are the site's own
   user's alone (`0600`, folders `0700`). The list names each backup's maker (the "By" column).
 
@@ -457,16 +510,16 @@ whole admin panel. No file explorer here (the owner's choice for this site).
 
 ## Deploying (FTP-only shared hosting)
 
-The host: Apache with `.htaccess` support (`mod_rewrite`), **PHP 8.4** (the scrapers need PHP 8.4's
-`Dom\HTMLDocument`) with `pdo_pgsql`, `openssl`, `mbstring`, `curl`, `dom` and `zlib` (the backups compress with
-it), and a PostgreSQL database made in the hosting panel. No shell, cron, queue worker or long-running process is needed. The steps, with the upload
-map, are in [DEV.md](../DEV.md) ("Deploying"); in short:
+The host: Apache with `.htaccess` support (`mod_rewrite`), **PHP 8.4** with `pdo_pgsql`, `openssl`, `mbstring`,
+`curl`, `dom` and `zlib` (the backups compress with it) - the setup page checks each -, and a PostgreSQL database
+made in the hosting panel. No shell, cron, queue worker or long-running process is needed. The steps, with the
+upload map, are in [DEV.md](../DEV.md) ("Deploying"); in short:
 
 1. `cd frontend && bun run anotoki-deploy build` (anotoki-lib's deploy tool, set up in `backend/composer.json`'s
    `extra["anotoki-deploy"]`) runs the frontend's build and `backend/tools/check-release.mjs` (it refuses a
-   frontend that names another site), then assembles the release: `dist/frontend/` (the Angular build,
-   `index.php`, `.htaccess`) and `dist/backend/` (`api/`, `src/`, `config/app.php`, `migrations/`, `vendor/`,
-   `setup.php`, `release.json`) - never a `*.local.php`.
+   frontend that names another site - a build site too, with the names file in `backend/config/`), then assembles
+   the release: `dist/frontend/` (the Angular build, `index.php`, `.htaccess`) and `dist/backend/` (`api/`, `src/`,
+   `config/app.php`, `migrations/`, `vendor/`, `setup.php`, `release.json`) - never a `*.local.php`.
 2. `bun run anotoki-deploy deploy --backups <folder> --go` puts it into `anotoki.eu/sub/builder/`: `frontend/` and
    `backend/` replaced whole beside `config/` and `storage/`, which no release writes (the first time,
    `bun run anotoki-deploy switch --go` once: the folder's `.htaccess` sends every request into `frontend/`).
@@ -476,7 +529,9 @@ map, are in [DEV.md](../DEV.md) ("Deploying"); in short:
    checks the requirements and that `storage/` is not served, builds the database, writes the config files
    (owner-only where PHP runs as the FTP account), writes `storage/installed.lock` and deletes the token and
    itself.
-4. Sign in with the ADMIN account, press **Refresh catalog**, then **Sync all**, and keep the tab open.
+4. Put the names file, `config/neutral.local.php`, beside the other settings by hand ("Configuration", "The
+   names file"). Sign in with the ADMIN account and open the admin panel's **Builds** page: **Refresh catalog**,
+   then **Import a file** - the newest builds file - and, after its preview, **Import** ("Importing builds").
 5. A new version: `bun run anotoki-deploy deploy --backups <folder> --go` again - the release replaces `frontend/` and
    `backend/` whole, nothing stale stays, and `rollback --go` brings the one before back. **While a new
    migration waits the site is closed** (the site gate - the anotoki family's one
@@ -543,7 +598,7 @@ map, are in [DEV.md](../DEV.md) ("Deploying"); in short:
      Then check: a private window where you are signed in at the IAM opens the site signed in, without a click;
      Feedback at the foot of a page sends, and the admin panel counts it beside Feedback; the People page lists
      you; the Errors, Audit and Backups pages open; **Back up now** lists a backup by you that can be restored here
-     (one made on this computer, or before 0.5.0, cannot: it is read offline); `https://builder.anotoki.eu/robots.txt`
+     (one made on this computer, or before anotoki-lib 0.5.0, cannot: it is read offline); `https://builder.anotoki.eu/robots.txt`
      says `Disallow: /auth/`. A token that does not verify now answers 401 `invalid_token` (it was
      `sign_in_required`).
    - **Version 0.4.0: Terms, Privacy and Contact, and the kit's newer pieces (anotoki-lib 0.6.2 in `vendor/` and in
@@ -566,6 +621,9 @@ map, are in [DEV.md](../DEV.md) ("Deploying"); in short:
      stays the dialog's title); the library's 012 describes the four keys, never writing over a string that is
      there. Then check: the foot of every page and of the admin panel reads as before; while "Sign-in required" is
      on, `/privacy` signed out has no Feedback at its foot and `/contact` gives the address alone.
+   - **Version 0.5.0: builds from a file, Genshin Impact alone, the catalog from genshin.anotoki.eu (migrations
+     014-019)**: genshin.anotoki.eu first, then the names file, the release, Apply, Refresh catalog and the builds
+     file's import, in one sitting - the order is its own section, "Deploying 0.5.0" (below).
    - **Version 0.3: visitors and the family's bar (migration 004, IAM migration 007)**, in this
      order: (1) before uploading, make sure an account that can sign in holds **ADMIN on `build-analyzer` now**
      (the IAM's admin panel; IAM 007 is what later gives every IAM administrator ADMIN here); (2) upload;
@@ -600,6 +658,58 @@ Check after an install: `https://builder.anotoki.eu/config/database.local.php`, 
 `/src/Config.php` must not download (403); `https://builder.anotoki.eu/api/meta` answers JSON with the IAM's
 `issuer`, `client_id` and `login_required` under `auth`; `/api/accounts` answers 401 without a token.
 
+### Deploying 0.5.0
+
+Version 0.5.0 stops syncing builds (they are imported as one file per game), drops Honkai: Star Rail and takes
+the catalog from the owner's genshin.anotoki.eu (the owner's decisions of 2026-10-20, [decisions.md](decisions.md)).
+Its migrations 014-019 change the data for good, so it goes up in this order, in one sitting:
+
+1. **genshin.anotoki.eu first.** Deploy its release and apply its migrations `genshin_impact/030` (the game's own
+   IDs: a `game_id` column) and `031` (the IDs filled in by name) on its Migrations page. Then check its catalog
+   endpoint: `curl -i https://genshin.anotoki.eu/api/catalog/characters` answers 200 with an `ETag` and a JSON
+   list, and the same request with `-H 'If-None-Match: <that ETag>'` answers 304; `/weapons` and `/artifacts`
+   likewise. Without it this site's catalog cannot be refreshed ("The catalog").
+2. **Have the builds file ready**: the newest `builds-genshin-<date>.json` the local tools wrote ("Importing
+   builds"). Before uploading, **Export** each language on the Translations page (a copy of every rewording).
+3. **The names file**: upload `config/neutral.local.php` once, by hand, beside the other settings - like
+   `cloudflare.local.php`: gitignored, never in a release, never written or read by `setup.php`, and starting with
+   `<?php` ("Configuration", "The names file").
+4. **The release**: `bun run anotoki-deploy deploy --backups <folder> --go`. From then on the site is closed
+   until the Apply.
+5. **Apply pending at once** (signed in as the ADMIN, on the Migrations page): one Apply runs 014-019 together,
+   after a backup of the database as it was ("before-migration"), each file refusing (rolled back whole) when what
+   it proves does not hold:
+   - 014 deletes every row of Star Rail - its game accounts with everything in them, its imports, its build sources
+     with their builds and sync runs, its catalog - and narrows every `game` check to `genshin` (and the sets'
+     `kind` to `artifact`);
+   - 015 retires Star Rail's 56 keys (its import guides and kinds, the import wizard's Game step, the builds page's
+     game switch) and has the six sentences that named it say Genshin Impact alone, where still as seeded;
+   - 016 drops the old `builds`, `sync_runs`, `build_sources` and `cache_locks`, and makes the new `builds` (a
+     character's variations: role, qualifier, the constellation it needs) and `build_imports`;
+   - 017 retires the sources' and the syncs' 23 keys and adds the builds' own 18 (the roles, the constellation a
+     build needs, the dashboard's builds), rewording the fifteen sentences that told of syncs where still as seeded;
+   - 018 gives the characters their region, version and version name, clears the old game data provider's icon
+     addresses and forgets where each catalog list stood (the first refresh reads every list in full);
+   - 019 adds the builds browser's 14 filter words (`builds.filter.*`), in English and Slovak.
+6. **Refresh catalog** on the admin panel's Builds page: the three lists, read in full - and the icons come back
+   with it (018 cleared the old addresses).
+7. **Import the builds file** on the same page: **Import a file**, read the dry run's preview (the counts, and
+   the characters skipped - none while the catalog is as new as the file), then **Import**.
+
+**Between the Apply and the first import the site has no builds** (016 dropped them, and the file brings them
+back): a few minutes, if steps 5-7 are done together. Then check: the builds browser (`/builds/genshin`) lists the
+characters with their roles and filters by element, weapon type, rarity, region and version; a character's page
+has a tab per variation, one their constellation does not reach showing a lock and "needs C4"; an account's page
+shows each character's best build; the Builds page lists the import under your name, and the audit log has
+`catalog.refreshed` and `builds.imported`; `/admin/sources` leads to `/admin/builds`.
+
+**The backups made before this Apply are restored offline only.** They hold Star Rail's data and the old builds
+tables, and a restore of one would bring back what 014-016 removed; the Backups page lists them but does not
+restore them in place (`409 schema_differs`: the database's migrations are not the ones they were made with). Read
+what you need from one offline (`php backup.php --inspect=<id>`, `--extract=<id> <folder>`, then `psql \copy`),
+and make a backup by hand once the import is in. An older `fetch.local.php` may keep its `cache_hours`,
+`step_seconds` and `stale_hours`: they are no longer read.
+
 ### A database made by the first (Laravel) version
 
 `001_adopt_laravel_database.sql` recognises a PostgreSQL database that the Laravel version created (its
@@ -609,19 +719,20 @@ without an owner go to IAM user 1 (the owner), runs a queue worker left "running
 verification gate compares the counts before and after. `002_schema.sql` then finishes the schema, so an
 adopted database ends up identical to a new one (`tests/migrations.test.php` proves it for the three schema
 versions that version had). Point `setup.php` at the old database and it does all of that; `migration.php`
-does the same on the command line. The old SQLite database of a local copy is not carried over: import the
-accounts again and sync (cached pages make it quick).
+does the same on the command line. The later migrations then carry it on like any other database - 014 deletes
+its Star Rail accounts, 016 its builds and sync runs -, so import a builds file afterwards. The old SQLite database
+of a local copy is not carried over: import the accounts again, and a builds file.
 
 ## Machine quirks (this Windows machine)
 
-- The `php` on PATH has changed over time (PHP 7.4, then XAMPP's 8.2; since 2026-09-28 PHP 8.5 with its own
-  php.ini: curl, fileinfo, intl, mbstring, openssl, pdo_pgsql, sodium, zip and a CA bundle). The project needs
-  8.4+: `backend/tools/php.sh` takes `BUILD_ANALYZER_PHP` and refuses anything older than 8.4.
+- The `php` on PATH has changed over time (PHP 7.4, then XAMPP's 8.2; from 2026-09-28 PHP 8.5 with its own
+  php.ini: curl, fileinfo, intl, mbstring, openssl, pdo_pgsql, sodium, zip and a CA bundle; on 2026-10-20 PHP 7.4
+  again). The project needs 8.4+: call the PHP 8.5 binary directly, or `backend/tools/php.sh`, which takes
+  `BUILD_ANALYZER_PHP` and refuses anything older than 8.4; the browser check takes it as `PHP=<it>`.
 - Outgoing requests use `composer/ca-bundle`'s certificates whatever php.ini says, so don't "fix" SSL errors by
   disabling verification.
 - PHP 8.5 deprecates `$http_response_header`, `curl_close()` and the `(integer)` / `(boolean)` / `(double)`
-  casts; the app and the vendored IAM SDK (v1.1.0) use none of them. Keep it that way: the host runs 8.4,
-  this machine 8.5.
+  casts; the app and anotoki-lib use none of them. Keep it that way: the host runs 8.4, this machine 8.5.
 - PostgreSQL 18 runs on 5432. The tests make throwaway databases on that server (`build_analyzer_test_*`) and
   drop them again; `setup.test.php` also a throwaway login (`build_analyzer_test_…_nocreate`), dropped at the
   end. The stand-in IAM of `tests/stand_in_iam.test.php` listens on a free port of 8590-8599 while it runs;
@@ -652,16 +763,18 @@ accounts again and sync (cached pages make it quick).
 | "The site is being updated" for everybody / 503 `update_pending` | a migration waits: sign in as an ADMIN (the page's Sign in), Open Migrations, Apply pending; on a computer with a shell `php migration.php` does the same |
 | "The site is not available right now", no `not_set_up` | `/api/site-status` says `unavailable`: the database cannot be reached (the log has the error) |
 | Apply answers 409 `busy` | another apply holds the lock (another tab, `migration.php`, setup): wait, then look again |
-| Source status `failed` / `partial` | Sources page run log or `sync_runs.log`; use the `debug-build-sync` skill |
-| Builds getting old, no failed runs | nobody synced: syncs only run when an editor starts them (Sources page) |
-| A sync shows "paused" | no Sources page is stepping it: press Resume (runs keep their place indefinitely) |
-| Parser change: did it break anything? | `php sync-builds.php --dry-run --cache-hours=96` → expect only intended `changed` |
-| `! unknown weapon/set` lines, "unmatched" in import summaries | [name-matching.md](name-matching.md) → add an alias, or refresh the catalog |
-| An import skipped a new character / set | the catalog lacks it: Refresh catalog (Sources page), then import again |
-| New character missing builds | released? `php sync-builds.php --check-names`; the site may not have it yet |
-| A source always fails on the host (HTTP 403) but syncs at home | its site refuses the host: sync it at home, Export, and Import on the site ("Moving builds between installations") |
-| A builds file's import skipped characters ("not in the catalog") | this catalog is older than the file: Refresh catalog on the Sources page, then import the same file again |
-| A builds file's import answers "No file arrived" | the file is larger than the host's PHP `post_max_size`; a whole source takes about 2 MB, so check the hosting panel's PHP settings |
+| No builds anywhere (the builds browser empty, no build on a character's page) | no builds file was imported since migration 016 (it dropped the old builds), or the last one held none of these characters: Import a file on the admin panel's Builds page ("Importing builds") |
+| Builds getting old | the site never fetches builds: a newer file is made on the owner's computer (`local/`, [builds.md](builds.md)) and imported on the Builds page; its "Newest file made" says when the file in use was made |
+| An import's result warns of an unknown character, weapon or set | the catalog lacks it, or a name does not resolve ([name-matching.md](name-matching.md)): refresh the catalog (Builds page) - an import by UID refreshed that list itself, at most once an hour - or add an alias, then import again |
+| A builds file's import skipped characters ("Not in this installation's catalog") | the import refreshed the characters' list first (at most once an hour) and genshin.anotoki.eu does not list them yet, or the refresh failed (the catalog card says why): Refresh catalog later, then import the same file again |
+| A builds file's import is refused: "None of the file's characters is in this installation's catalog" | the catalog is empty - never refreshed, or genshin.anotoki.eu could not be read: Refresh catalog, then import again |
+| A builds file's import is refused (422) with the file's first problem | not a builds file, another game's, format version 1 (a source's export from before 0.5.0), more than 5000 builds or one build that does not fit: nothing was written; make the file again with the local tools (they check it with the same reader) |
+| A builds file's import answers 409 | another import is writing (another tab, another editor): wait, then press Import again - the preview stays |
+| A builds file's import answers "No file arrived" | the file is larger than the host's PHP `post_max_size` (it arrives empty); a game's builds take well under 1 MB, so check the hosting panel's PHP settings |
+| The Builds page's catalog card says "The last refresh failed" | genshin.anotoki.eu did not answer as it should: "closed for now" (HTTP 503 - its update or maintenance; 401 - it requires sign-in; 423 - the route is locked), "has no such list" (404 - its catalog endpoint is missing: its release and migrations 030-031), "could not be reached" or another HTTP code. This site keeps its catalog meanwhile; the upkeep tries again an hour later, Refresh catalog at once ("The catalog") |
+| Refresh catalog answers 409 "This list is being refreshed" | another refresh of that list runs (the upkeep after an answer, another tab, an import): try again in a moment - a claim holds two minutes at most |
+| `check-names.php` lists places | those files name a build site (or their paths do): reword them ("a build site") before committing - never add the name to a tracked file to "explain" it |
+| `check-names.php` says `config/neutral.local.php` names nothing | the file is missing, empty, or passed over (does not start with `<?php`, prints, cannot be read - PHP's error log says why, once a day): put the owner's copy in `backend/config/` |
 | An accounts file's import answers 422 `no_file` / `file_too_big` | the file is larger than the host's PHP `post_max_size` (it arrives empty) or than `me.file_max_mb`; an export of this site never writes more than `me.file_max_mb` |
 | An accounts file's import answers 422 `bad_entry` `{path}` | the file was edited or is not whole: the message names the first entry that is not as the export writes it; export it again |
 | An accounts file's import kept an account the file has newer data for | the copy here was imported later (or at the same second): the newer copy wins, by `last_import_at`; nothing is merged |
@@ -669,7 +782,7 @@ accounts again and sync (cached pages make it quick).
 | "Sign in to continue." / 401 everywhere | token missing or refused: `storage/logs/app.log` has "IAM access token refused: <reason>" (issuer, audience, expiry, keys) |
 | The builds browser and visitors answer 401 `sign_in_required` to everybody signed out | the IAM says sign-in is required here (`/api/meta`: `auth.login_required: true`): switched on in its admin panel, or the IAM answers 404 for `build-analyzer` (an IAM without its public route - migration 010 - or the application switched off), or it was never reached since the answer was last deleted. `storage/logs/app.log` has "IAM sign-in answer: <reason>" (`unknown_application`, `never_read`, `stale`); `curl {issuer}/api/public/applications/build-analyzer` shows what the IAM says. A switch takes up to a minute (delete `storage/cache/iam/anotoki-iam-application-*.json` to ask again at once) |
 | 403 `editor_only` "Only an editor or an admin can do this." | a signed-in person without EDITOR or ADMIN asked for the admin panel: grant EDITOR in the IAM admin panel |
-| 403 `admin_only` "Only an admin can do this." | an EDITOR asked for an admin's route (sources on / off, migrations, adding / deleting a language, People): grant ADMIN |
+| 403 `admin_only` "Only an admin can do this." | an EDITOR asked for an admin's route (migrations, adding / deleting a language, People, the admin tools): grant ADMIN |
 | 401 `visitor_unknown` | the browser's visitor key opens nothing: swept after 30 days unseen, moved into an account at sign-in, or not a key at all; the page forgets it and starts afresh. Also an import whose visitor was moved or swept while it ran: nothing was written |
 | 401 `sign_in_required` "Your data here was deleted while this was being saved" | an admin deleted the person's data on the People page while their import ran: nothing was written, and the page's retry (with a fresh token) starts them afresh |
 | 429 `too_many_visitors` | the visitor limits (`config/app.php` `visitors`): too many new visitors from one address or in all this hour, or too many at once. Many visitors refused together: Cloudflare may serve from a range missing from `client_address.trusted_proxies` (everybody through it then shares its address) - compare the list with https://www.cloudflare.com/ips-v4 and /ips-v6 |
@@ -678,14 +791,14 @@ accounts again and sync (cached pages make it quick).
 | 503 `visitors_unavailable` | migration 004 is not applied: Apply pending on the Migrations page (members are unaffected meanwhile) |
 | 503 `visitor_move_retry` | the move at sign-in met an import still writing; the page asks again (`visitors.move_lock_timeout_ms`) |
 | The dashboard says what this browser imported "is not kept here any more" | 401 `visitor_unknown`: the browser's visitor key opens nothing - another tab signed in and moved it, or it was unvisited for 30 days and swept. The page forgets the key and starts over |
-| An editor sees no Languages, People, Migrations, Errors, Audit, Feedback or Backups link, no source switch, no database updates | by design: those are an admin's (the family's `adminGuard` sends an editor to `/admin/sources`; the server refuses with 403 `admin_only`) |
+| An editor sees no Languages, People, Migrations, Errors, Audit, Feedback or Backups link, no database updates | by design: those are an admin's (the family's `adminGuard` sends an editor to `/admin/builds`; the server refuses with 403 `admin_only`) |
 | "This part is for editors and admins" in the admin panel | the account has no EDITOR or ADMIN role here: grant one in the IAM's admin panel |
 | 401 although the person is signed in | the token the page sent was refused (`invalid_token`: expired, another IAM): the page refreshes it once, for the same person; the error log keeps no 401 - `storage/logs/app.log` says why (`[anotoki auth] token refused`) |
 | "Signing in did not work" on `/sign-in` | the sign-in came back without one, or could not start; the screen says why from the failure's code alone ("not completed": the person went back from the IAM's page, or the IAM turned the account away - grant MEMBER there; "took too long or did not start here": an old tab; "the browser does not let the site remember a sign-in": site data blocked). Try again, or Back to where it started |
 | Signed in at the IAM, but not signed in here at once | the hint's one silent try came back without a sign-in, and is not tried again for that hint (a minute at least between tries): sign in with the button. The IAM's hint must be set for the site's domain (the IAM's `hint_cookie_domain`), and in development the site opened as `localhost` |
 | "Back up now" says "Sign in again first" | the sign-in is older than ten minutes: Sign in again (back to the Backups page), then once more |
 | "Cannot reach the server" in the UI | API not running on localhost:8400 (the Angular dev server proxies `/api`) |
-| Icons missing | `/api/icons/…` could not fetch the image: `storage/icons/` writable? the provider reachable? |
+| Icons missing | `/api/icons/…` could not fetch the image: `storage/icons/` writable? genshin.anotoki.eu reachable? the catalog refreshed since migration 018 (it cleared the old provider's addresses)? The icons are AVIF, genshin.anotoki.eu's format: a browser without AVIF shows none |
 | Headless screenshots blank | timing only; see the `verify-ui` skill |
 | The browser check says "Port 8590 is in use" | a check that did not end, another check (of another site), or somebody's server: look at the process's command line before stopping it, or run it on other throwaway ports (`SITE_PORT=8593 IAM_PORT=8596`) |
 | "Stopped at NNN_….sql" on the Migrations page | that file failed and was rolled back whole (the files before it are applied); the page shows the database's error, `storage/logs/app.log` has it too. Fix the cause (or the file, if it was never applied anywhere) and press Apply pending again |

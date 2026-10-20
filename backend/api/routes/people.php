@@ -13,7 +13,7 @@ use App\People\SitePeople;
  * people (App\People\SitePeople). A person is somebody the anotoki IAM signed in here - their row is made at
  * their first request - and their data is their game accounts (with everything imported into them) and their
  * import runs. Deleting it leaves their anotoki account alone: they can sign in again, with nothing here. The
- * syncs they started and the strings they saved stay, by nobody.
+ * builds files they imported and the strings they saved stay, by nobody.
  *
  *   GET    /api/admin/people?q=&page=   {people: [{sub, name, first_seen_at, last_seen_at, anonymized_at,
  *                                       iam_url, accounts, imports, last_import}], columns, total, page,

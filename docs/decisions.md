@@ -3,6 +3,148 @@
 Short records of choices that shape the code. Add a new entry (newest first) when you make a similar call.
 Older entries describe the Laravel version as it was; where a setting has since moved, the entry says so.
 
+**2026-10-20 — Version 0.5.0, released once, at the end (the owner's decision).**
+Star Rail's removal, the builds without sources, the catalog from genshin.anotoki.eu and the builds browser's filters
+(the entries below) are one release, built phase by phase on this computer and deployed only once all of it was done:
+genshin.anotoki.eu first (its migrations 030 and 031, its catalog endpoint), then this site - the names file uploaded
+once, the release, one Apply of 014-019 at once, Refresh catalog, the first builds file imported (docs/operations.md,
+"Deploying 0.5.0"). Between the Apply and that import the site has no builds for a few minutes - accepted, as nothing
+needed carrying over: the owner was the site's only user (the live backup of 2026-10-19: one person, two accounts). The
+backups made before 014 and 016 hold Star Rail and the old builds tables: they are read offline only
+(`php backup.php --inspect`, `--extract`) - a restore would bring back what 014-016 removed. What's new says what a
+player notices: builds by what they are for, with the constellation they need; the best build following the player's
+constellation; the builds page's filters; Star Rail no longer kept.
+
+**2026-10-20 — The site reads no build site: an editor imports one merged file per game (the owner's decision; version 0.5.0).**
+The repository is public, and its scrapers named where the builds came from. Instead the build sites are read now and
+then on the owner's computer, politely (robots.txt obeyed, each site's own wait, every page kept), by untracked tools
+in the git-ignored `local/` - one per site, and one that merges them into a file per game (docs/builds.md says what the
+file must be) -, and an EDITOR imports that file on the admin panel's Builds page (`/admin/builds`): a dry run's
+preview first (the counts, the characters skipped, every change, a warning when the file is older than the last one
+imported), then Import or Cancel; Export beside it, the recent imports and the catalog below. No "Source N", no sync
+runs, no Sources page: migration 016 drops `build_sources`, `sync_runs`, the old `builds` and `cache_locks`, and the
+stepped runs and their locks, `FetchDeferred`, the fetcher's step mode, the catalog's create mode,
+`fetch.step_seconds` / `stale_hours`, `sync-builds.php` and the bar's sync widget went with them. A request stays short
+without steps: an import is one transaction of a file of 8 MB at most, a catalog refresh one list.
+- *The builds file, version 2, read strictly* (`BuildFile`): every field and no other; the game's roles, slots, stats,
+  talents and set kinds; a slot's main stats among those it can roll; `min_rank` and `from_rank` within the game's
+  constellations; a build's identity once in a file, a stat's target once per `from_rank`; 5000 builds, 8 MB. One
+  problem refuses the whole file - a version 1 file (one source's builds) with a sentence of its own. Every text is
+  made neutral on the way in and out, and what the export writes the import reads, as for the sources' files of
+  2026-09-29.
+- *The file is the whole truth for its game* (`BuildImport`): once imported, the game's builds are exactly the file's -
+  a character it lacks has none left - but for characters the catalog lacks, skipped and named (a file of none it knows
+  is refused rather than emptying the builds). One transaction under an advisory lock (another import meanwhile: 409
+  `busy`, nothing written), recorded in `build_imports` - what it did, who imported it - and in the audit log
+  (`builds.imported`); the file's times are never later than now here.
+- *Ids kept by identity*: a build the file has again - the same character, role, qualifier without regard to case and
+  `min_rank` - keeps its id, so a link to it (`?build=ID`) outlives the import; another `min_rank` is another build.
+
+**2026-10-20 — A build is a variation of a character: its role, a qualifier, the constellation it needs (the owner's decisions; version 0.5.0).**
+Without sources a build is no longer "Source 2's": it is what it is for. A role (`main_dps`, `sub_dps`, `support` -
+`Game::roles()`), a short `qualifier` only where a character has two builds of one role ("Melt": at most 40 characters,
+one line, neutral; '' otherwise) and `min_rank`, the constellation it needs (0-6); a stat target can start from a
+constellation (`from_rank`). A character's builds come in their order of preference, the first the main one; a page
+writes a variation "Main DPS · Melt · C4+" (`core/i18n/variation-words.ts`), the role in the reader's language.
+- *Constellations now* (the owner's decision): in the file and the analysis from the start, the local tools taking them
+  from what the build sites say of a build's constellation and from their tables of a stat by constellation; a site's
+  team section may add more later. The analysis follows the player's constellation: the best build is the best scored
+  of those it reaches, the earlier on a tie; one it does not reach is judged all the same and shown locked ("needs
+  C4"), the best only when none is reached (the lowest `min_rank`, `applies: false`); of a stat's targets, the one from
+  the highest constellation reached counts (`BuildEvaluator::targetsFor()`). A build without substats is scored by its
+  own main stats (`ItemScorer::fallbackSubstats()`), never by another build's; the consensus of sources went.
+- *Hand edits later, so the identity is stable now* (the owner's decision): editors will adjust builds by hand in a
+  later round, and an import will then ask per build whether the file or the edit stands. That needs one name for a
+  build in a file, in the table and in an edit - (character, role, lower(qualifier), `min_rank`), unique in `builds`
+  (016's index; the qualifier '' rather than null, as the host's PostgreSQL 14 has no `NULLS NOT DISTINCT`) - and an
+  import plan of one entry per identity, where that choice will go.
+
+**2026-10-20 — The local tools pick by a ranking of the build sites; a real date beats it (the owner's decision).**
+Where two build sites have a build for the same role and constellation, the merge takes the one of the site ranked
+higher in the tools' own settings - unless both carry a real date of their last update: then the newer wins. Only one
+site gave real page dates when this was decided, so the ranking settles most picks. The others only fill gaps -
+talents, stat targets (another role's for Energy Recharge alone) and substats (from the same role); never weapons,
+sets, main stats or notes - and the export's report names every borrow. The rule is the untracked tools'; the file
+carries its result, naming no site.
+
+**2026-10-20 — The repository names no build site; its history stays as it is (the owner's decisions; version 0.5.0).**
+The repository is public, and its tree named the build sites - the scrapers, a page of these docs, two skills, two
+agents, `Neutral`'s list, alias comments, tests, entries of this file. Now no tracked file, commit message, branch or
+PR names one: the scrapers and what served them went to the untracked `local/`, the docs, skills and agents about them
+were deleted or rewritten, and the old entries below say "a build site". The git history is left as it is (the owner's
+decision): only the current tree is cleaned.
+- *The names in an untracked settings file*: the owner's `backend/config/neutral.local.php`
+  (`['names' => [...], 'tree_words' => [...]]`, by hand; uploaded to the host once, like `cloudflare.local.php`), read
+  once through `Config::readOptionalFile()` - a broken or empty file is no file, never a looser rule. `Neutral` adds
+  its `names` to its own list of services and tools (`Neutral::localNames()`; the tests set none), so the API's
+  answers, the strings' check and the release's check keep them out as before.
+- *A check of the tracked tree*: `php backend/tools/check-names.php` reads every file git tracks or `git add -A` would
+  add for the `names` (whole words; in a file's path however the path joins their words) and the `tree_words`
+  (anywhere: typos, page parts, labels that would give a site away), says where it found one - never the list - and
+  fails; `--staged` reads the index, `--message=<file>` a commit message (git's comment lines aside). The owner's
+  untracked hooks run it - `pre-commit` with `--staged`, `commit-msg` with the message -, so neither a staged file
+  nor a commit message can name a site. Whether git answered is git's exit status: no untracked file, or nothing
+  staged, is an empty list, not a failure. A clean run is part of "done".
+- *An applied migration's comment edited* (an explicit exception to "never edit an applied migration"): a comment line
+  of 002 named a site in an example, and now gives a neutral one - as do the column comments of the Laravel schema
+  fixtures (`tests/fixtures/laravel/schema-{6,7,8}.sql`). Inert: the migration engine records a file by its name
+  alone, with no checksum, and a comment runs nothing. Anything more than a comment is a new migration, as ever.
+
+**2026-10-20 — Star Rail removed, the shape for more games kept (the owner's decision; version 0.5.0).**
+The site is Genshin Impact's alone. Star Rail's code went - its showcase and scanner parsers, its scrapers and catalog
+lists, its stats, talents, import kinds and words - and its data: migration 014 deletes its accounts (and all that
+hangs on them), imports, sync runs, build sources and catalog rows and tightens every `game` CHECK to 'genshin'
+(`game_sets.kind` to 'artifact'); 015 retires 56 keys and rewords what still named both games. The shape stays ready
+for another game: `App\Enums\Game` keeps one case, and every `$game === Game::Genshin ? X : Y` became a method of it
+(`maxRank()`, `rankPrefix()`, `roles()`, `setKinds()`, `setPieceCounts()`, `weaponLabel()`, `talentKeys()` ...); the
+routes keep `{game}`, the frontend one `GAMES` list (`core/format.ts`). A second game is a case with its arms and its
+parsers, and a migration widening the CHECKs. What a player meets: GOOD files and the showcase by UID only; an
+accounts file holding a Star Rail account refused (`bad_entry`); the import guide without its Game step (four steps);
+the library's fan clause, which names Genshin Impact alone.
+
+**2026-10-20 — The catalog from genshin.anotoki.eu; this site keeps its own while that one is closed (the owner's decision; version 0.5.0).**
+The third-party provider of 2026-09-24 is no longer asked. The owner's genshin.anotoki.eu got the game's in-game IDs
+(its migrations 030 and 031: a `game_id` per character, weapon and artifact set) and a public endpoint made for this
+site (`GET /api/catalog/{characters,weapons,artifacts}`: bare JSON lists with an ETag), read through a provider per
+game (`CatalogProvider`, `Providers\GenshinCatalog`; `config/app.php` `catalog.genshin`). Imports resolve as before:
+the in-game ID is `external_id`, the Travelers one entry per element (`traveler{element}`, `{lowest ID}-{element}`,
+both twins' IDs in `meta.ids`), the scheme imports always used. Migration 018 adds a character's region, version and
+the version's name.
+- *Where each list stands, in the cache table* (`catalog-state:{game}:{list}`, which a restore leaves as it is): its
+  ETag, when the provider last confirmed it, when it last changed, the last failure and why. A refresh asks with the
+  last ETag: 304 is "unchanged", nothing written; 401, 423 and 503 are that site's switches, "closed"; 404
+  "unavailable"; anything else, or more than 5 MB or 5000 entries, "failed". A changed list is written in one
+  transaction, each row found again by its in-game ID, then by its key - a renamed entry keeps its row and everything
+  linked to it -, and no row is ever deleted; one refresh of a list at a time. Closed or failing, genshin.anotoki.eu
+  costs freshness alone: this site keeps its catalog, and the Builds page says each list's last problem.
+- *Kept fresh by ordinary traffic* (no cron): after an answer, at most every five minutes, one list not confirmed
+  within `catalog.refresh_days` (3) is refreshed, a failed one asked again after `retry_minutes` (60) (`CatalogUpkeep`,
+  `upkeep.catalog`); by hand, Refresh catalog on the Builds page or `sync-catalog.php`.
+- *A builds import refreshes the lists that name what the catalog lacks*: a file naming a character or a weapon the
+  catalog does not know has that list refreshed first - once per `catalog.import_refresh_minutes` (60), the interval
+  an account's import shares - and only what is still unknown is skipped.
+- *AVIF icons*: genshin.anotoki.eu's icons are AVIF, so the icon route serves them (`Icons::type()`: a first `ftyp`
+  box naming avif or avis, of a box's size). An icon address is kept only on the API's own host (https; http for this
+  computer alone), with no user part, backslash or character beyond printable ASCII. A browser without AVIF shows no
+  icons, as on genshin.anotoki.eu.
+
+**2026-10-20 — Filters on the builds browser alone, kept in the address (the owner's decision; version 0.5.0).**
+The builds browser (`/builds/genshin`) filters its characters by name, element, weapon type, rarity, region and
+version: the kit's segmented controls (All first, only what its characters have, an element's colour mark) and
+selects (the versions newest first, "6.1 (Luna II)"), Reset, "Showing N of M". No other page takes these (the account
+page keeps its element filter alone). The filters live in the address (`core/query-filters.ts`): a filtered list is a
+place, not a mode - a link opens it filtered, and coming back from a character finds it as it was left; written with
+`replaceUrl`, so a filter is no step of the history (Back leaves the page, never keystroke by keystroke), and nothing
+is kept in the browser to go stale. Migration 019 has their 14 words. The anotoki library has no such helper - worth
+asking it for.
+
+**2026-10-20 — The browser check starts with the catalog marked fresh, so it never asks genshin.anotoki.eu.**
+The upkeep refreshes a stale list after an answer, and the check's throwaway database had never refreshed one: the
+check's first answers sent a real request to genshin.anotoki.eu - the network, which a check never reaches. Now
+`tests/tools/browser-db.php` writes each list's state as refreshed a moment ago, and the Builds page's tour checks
+that no list's refresh failed on the way. The tests keep `upkeep.catalog` off and fake the provider at its addresses;
+the check never presses Refresh catalog or a showcase import.
+
 **2026-10-19 — A release is `frontend/` and `backend/`, each replaced whole; the state is beside them, never in one
 (the owner's decision).** An upload of `dist/build-analyzer/*` over the old files (FTP never deletes) left every
 earlier build's hashed bundles and removed PHP files on the host, mixed with `config/*.local.php` and `storage/` -
@@ -838,7 +980,7 @@ export writes, an import reads (neutral text kept within the caps, variants it m
 "#2"). Characters the catalog lacks are skipped, as in account imports (an uploaded file never adds to the
 shared catalog), and a file of nothing but such characters is refused rather than emptying the source. The
 import runs under the sync step lock and waits for a sync of its source to end, so no step writes over it
-halfway.
+halfway. (Since 2026-10-20 a builds file holds a game's builds, not a source's - format version 2, see there.)
 
 **2026-09-29 — The backend without Laravel; the app named "build analyzer" (owner's decision).** The backend
 is rewritten in the shape of the other anotoki sites (the genshin site, the IAM): Slim 4 for routing and PSR-7
@@ -896,14 +1038,15 @@ need a queue worker or scheduler. It will be run manually by admin clicking on s
 the schedule and `runInBackground` are gone. Starting a sync only creates `sync_runs` rows; each
 `POST /api/sync/step` takes a global step lock, picks the run that is due, and works on it for at most the step
 budget (20 s, now `step_seconds` in `config/fetch.local.php`) - well inside shared-host request limits - saving
-after every character. The fetcher keeps each site's last request time in the cache, so crawl delays (Prydwen's
-10 s) also hold between requests, and a wait that does not fit into the step becomes a `FetchDeferred`: the run
-records `next_step_at` and the browser waits `wait_ms` before the next step, so a step fetches one or two
-Prydwen pages. Retries after 429/5xx also move to later steps instead of sleeping. Closing the tab pauses a run
+after every character. The fetcher keeps each site's last request time in the cache, so crawl delays (one build
+site's 10 s) also hold between requests, and a wait that does not fit into the step becomes a `FetchDeferred`: the
+run records `next_step_at` and the browser waits `wait_ms` before the next step, so a step fetches one or two of
+that site's pages. Retries after 429/5xx also move to later steps instead of sleeping. Closing the tab pauses a run
 (nothing else advances it); Resume continues from the stored state. The catalog refresh became a run too (one
 list per unit), so it follows the same rules, and a stale catalog is refreshed before the build runs of its
 game. The command-line tools loop over the same steps, so the owner's local copy and the host behave the same;
-the Windows daily task was dropped with the scheduler.
+the Windows daily task was dropped with the scheduler. (Since 2026-10-20 the site syncs no builds and the steps are
+gone - see there.)
 
 **2026-09-27 — Every person has their own accounts; imports never add to the shared catalog.** `accounts`
 and `import_runs` carry `user_id` (existing rows became the owner's, `local_user_id`), `(user_id, game, uid)`
@@ -918,7 +1061,8 @@ whoever uploads. An import may still refresh one catalog list when the data name
 lacks (a character newer than the last sync), because that data comes from the catalog provider rather than
 from the file; at most once per game and list per 60 minutes (now `catalog.import_refresh_minutes`) across all
 users, and before the import's write transaction. Only the build sync still creates characters (new releases
-appear on build sites first). The showcase import throttle (10 a minute) is per user.
+appear on build sites first; since 2026-10-20 nothing does - the catalog's refresh alone writes the catalog). The
+showcase import throttle (10 a minute) is per user.
 
 **2026-09-27 — Sign-in through the anotoki IAM.** All anotoki sites sign people in at iam.anotoki.eu (OpenID
 Connect, code flow with PKCE); this app is its client `build-analyzer` (access policy `members`, roles ADMIN
@@ -938,7 +1082,8 @@ the issuer and the client id before anything is drawn.
 **2026-09-25 — A dry run for the build sync.** A trial run of the `sync-doctor` agent showed that read-only
 diagnosis needed a way to replay cached pages against stored builds without writing, so the sync command
 gained `--dry-run` (same normalization and hash as real syncs; today `php sync-builds.php --dry-run
---cache-hours=96`). A sync timezone setting added at the same time went with the schedule on 2026-09-27.
+--cache-hours=96`). A sync timezone setting added at the same time went with the schedule on 2026-09-27. (Since
+2026-10-20 there is no sync, and no such command.)
 
 **2026-09-25 — Project AI setup.** `CLAUDE.md` + `docs/` knowledge base + project skills and agents in `.claude/`.
 The bash helper `scripts/php.sh` makes every session use PHP 8.4+ without hard-coded paths.
@@ -947,14 +1092,15 @@ The bash helper `scripts/php.sh` makes every session use PHP 8.4+ without hard-c
 fraction (and, when no recommended set is worn, the current 2pc/4pc bonuses); switching sets is shown as a
 set plan instead of misleading single-piece hints.
 
-**2026-09-24 — Build sources: genshin-builds.com + Prydwen (Genshin), Prydwen + genshin.gg (HSR, and GI as a third
-opinion).** Chosen for structured embedded data and freshness. game8 (hand-written tables, bot blocking),
-KeqingMains (prose, stale) and genshin-builds HSR (game8 copy) rejected. Prydwen "analytics-only" Genshin
-pages become "Most used" builds so every character is covered.
+**2026-09-24 — Build sources: two build sites for Genshin, and for HSR the second of them with a third (Genshin's
+third opinion as well).** Chosen for structured embedded data and freshness. Rejected: a site of hand-written tables
+behind bot blocking, a site of prose that had gone stale, and the first chosen site's HSR pages (a copy of those
+hand-written tables). The second site's Genshin pages of usage statistics alone become "Most used" builds so every
+character is covered. (Since 2026-10-20 the site reads no build site, and Star Rail is gone - see there.)
 
 **2026-09-24 — Catalog from yatta.moe, not Enka's store.** yatta has current lists for both games with IDs
 that match Enka and scanner exports; Enka's legacy name files stopped at 6.2. Enka's `store/gi/avatars.json`
-is used only for talent skill order.
+is used only for talent skill order. (Since 2026-10-20 the catalog comes from genshin.anotoki.eu - see there.)
 
 **2026-09-24 — Canonical keys = normalized English names.** One key space for GOOD keys, display names and
 slugs; aliases + unique fuzzy matching cover nicknames and typos. A shorter catalog key never matches a
@@ -971,6 +1117,7 @@ a changing request signature; revisit on request.
 Angular 21 because the installed Node (22.15) is too old for Angular 22. PHP 8.4+ required for the native
 `Dom\HTMLDocument` parser. (The backend started on Laravel 13; see 2026-09-29.)
 
-**2026-09-24 — Politeness first.** Per-host delays (Prydwen 10 s per robots.txt), 12 h page cache, a stale-hours
-guard so manual runs never re-hit a site the same day, and runs limited to a few characters never mark a
-source as synced.
+**2026-09-24 — Politeness first.** Per-host delays (10 s for one build site, as its robots.txt asks), 12 h page
+cache, a stale-hours guard so manual runs never re-hit a site the same day, and runs limited to a few characters
+never mark a source as synced. (Since 2026-10-20 the owner's local tools read the build sites, as politely - see
+there.)

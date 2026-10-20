@@ -1,6 +1,6 @@
 ---
 name: deploy-builder
-description: Build the build analyzer for the FTP-only hosting and ship it to builder.anotoki.eu with anotoki-deploy - a release of frontend/ and backend/, swapped in whole, a rollback, the setup page on a first install, a new migration's Apply. Use when the user asks to deploy, release, upload or publish the build analyzer, roll a release back, or asks what a new version needs on the hosting.
+description: Build the build analyzer for the FTP-only hosting and ship it to builder.anotoki.eu with anotoki-deploy - a release of frontend/ and backend/, swapped in whole, a rollback, the setup page on a first install, a new migration's Apply, the catalog's refresh and the builds file's import after it, and version 0.5.0's one-time steps (genshin.anotoki.eu first, the names file, Apply 014-019). Use when the user asks to deploy, release, upload or publish the build analyzer, roll a release back, or asks what a new version needs on the hosting.
 ---
 
 # Deploy the build analyzer
@@ -16,7 +16,11 @@ The site's folder on the host, `anotoki.eu/sub/builder/`: `frontend/` and
 `*.local.php` settings) and `storage/` (the lock, logs, caches, backups, the
 library's key), which no release writes, under the switch: the folder's
 `.htaccess`, which sends every request into `frontend/`. Never upload, rename
-or delete anything in `config/` or `storage/` as part of a release.
+or delete anything in `config/` or `storage/` as part of a release. The
+settings written by hand - `cloudflare.local.php` (the origin secret) and
+`neutral.local.php` (the build sites' names) - go into `config/` once, over
+SFTP, apart from any release; they are the owner's: never open, print or
+commit them.
 
 Ask for (and never print, store in a repository, or put in a commit) the SFTP
 login; it is the owner's to give per session (`ANOTOKI_DEPLOY_SECRETS` names
@@ -34,8 +38,9 @@ cd ../frontend && bun run anotoki-deploy build # the frontend's build, the neutr
 (`@anotoki/deploy`: a dev dependency of `frontend/`, from anotoki-lib's release.
 `bun run` finds it whichever tool installed `node_modules/`; on Windows, `npx`
 misses bun's links.) The build stops if the app names another site, service
-or tool (`backend/tools/check-release.php`, with a PHP 8.4+:
-`BUILD_ANALYZER_PHP`, else `php8`, else `php`).
+or tool - the build sites' names of `config/neutral.local.php` included
+(`backend/tools/check-release.php`, with a PHP 8.4+: `BUILD_ANALYZER_PHP`,
+else `php8`, else `php`).
 
 ## 2. Release
 
@@ -58,10 +63,50 @@ bun run anotoki-deploy status                           # what is on the host
   `https://builder.anotoki.eu/setup.php` with the token it writes into
   `config/setup-token.local.php` (read it over SFTP), the database and the IAM
   (`https://iam.anotoki.eu`, client id `build-analyzer`). It checks that
-  `storage/` is not served.
+  `storage/` is not served. Then, signed in as the ADMIN, on `/admin/builds`:
+  **Refresh catalog**, and **Import** the builds file (its dry run first) -
+  the site never reads a build site; its builds are that file.
 
 ## 4. Check
 
 The tool checks the live site after each swap: the app (the release just
 sent), `/api/site-status`, an old bundle answering 404, and `backend/`,
 `config/`, `storage/` never served. Then sign in as the ADMIN.
+
+## 5. Deploying 0.5.0
+
+Version 0.5.0 - Star Rail out, the builds as variations imported from a file,
+the catalog from genshin.anotoki.eu (docs/decisions.md, 2026-10-20;
+docs/operations.md, "Deploying 0.5.0") - goes up once, in this order:
+
+1. **genshin.anotoki.eu first**: its release, with its migrations 030 and
+   031 (the game's IDs) applied there. Its catalog must answer:
+   `https://genshin.anotoki.eu/api/catalog/characters` (and `/weapons`,
+   `/artifacts`) 200 with a JSON list and an `ETag`, and 304 when asked again
+   with `If-None-Match` and that tag.
+2. **The names file, once**: the owner uploads `backend/config/neutral.local.php`
+   into the host's `config/` by hand (above) - before the release, so the
+   site keeps the build sites' names out of everything it says from the start.
+3. **The release** (section 2).
+4. **Apply 014-019 at once**: signed in as the ADMIN, **Apply pending** on
+   `/admin/migrations` runs all six in one go, after a backup (Star Rail's
+   rows and words out; the sources, the syncs and the old builds out, the
+   variations and `build_imports` in, with their words; the catalog's region,
+   version and version name; the filters' words). The site is closed to
+   everybody else until then.
+5. **Refresh catalog** on `/admin/builds`: the three lists one after another,
+   each read in full the first time (018 forgot the old provider's state);
+   the page must show no list whose refresh failed.
+6. **Import the builds file** on the same page (`builds-genshin-<date>.json`,
+   from the owner's local tools): the dry run's preview first - the counts,
+   the characters skipped, the changes -, then **Import**. Until then the site
+   has no builds: keep the gap after step 4 to minutes.
+7. **Check**: `/builds/genshin` lists the characters with their roles and
+   filters; a character's page shows its variations; a UID import resolves
+   characters, weapons and sets.
+
+Backups made before 014 and 016 - the one this Apply makes too - hold Star
+Rail and the old builds tables: read them offline only
+(`php backup.php --inspect`, `--extract`), never restore one on the site (it
+would bring back what 014-016 removed). After the Apply, `rollback` is not
+clean (section 3).

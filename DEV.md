@@ -1,11 +1,12 @@
 # Developing the build analyzer
 
 How to get a copy running, work on it, test it, build it and put it on the FTP-only host. The reference behind
-these steps (configuration keys, sign-in and roles, syncs, troubleshooting) is [docs/operations.md](docs/operations.md).
+these steps (configuration keys, sign-in and roles, the catalog, importing builds, troubleshooting) is
+[docs/operations.md](docs/operations.md).
 
 | Part | Folder | Stack | Address in development |
 | --- | --- | --- | --- |
-| Backend (API, importers, scrapers, analysis) | `backend/` | PHP 8.4+, Slim 4, PostgreSQL | http://localhost:8400 |
+| Backend (API, importers, the builds' import, the catalog, analysis) | `backend/` | PHP 8.4+, Slim 4, PostgreSQL | http://localhost:8400 |
 | Frontend | `frontend/` | Angular 21, the anotoki family's kit (`@anotoki/lib`) | http://localhost:4600 (proxies `/api` and `/setup.php` to :8400) |
 | Sign-in | the anotoki IAM (`../anotoki-iam`) | | pages http://localhost:4300, API :8100 |
 
@@ -64,26 +65,32 @@ these steps (configuration keys, sign-in and roles, syncs, troubleshooting) is [
      (`build-analyzer`); "Test connection" asks the IAM for its OpenID configuration.
 
    "Save" writes `backend/config/database.local.php` and `auth.local.php` (and `fetch.local.php` with its
-   defaults when there is none: how the app names itself to the sites it reads, the delays, the sync step -
-   edit it by hand if you must; setup keeps it as it is), creates the database if it is missing and applies
-   every migration.
+   defaults when there is none: how the app names itself in its requests and the wait between two requests to
+   one host - edit it by hand if you must; setup keeps it as it is), creates the database if it is missing and
+   applies every migration.
 
-4. Back at http://localhost:4600, signed in with the IAM's administrator: open **Sources** and press **Refresh catalog**, then **Sync all**, and keep the
-   tab open (a full sync takes a while: some sites ask for 10 seconds between pages). Or from the command line:
-   `cd backend && php sync-catalog.php && php sync-builds.php`.
+4. Back at http://localhost:4600, signed in with the IAM's administrator: open the admin panel (the person's menu
+   in the top bar, "Admin panel") - its **Builds** page - and press **Refresh catalog**: Genshin Impact's
+   characters, weapons and artifact sets from genshin.anotoki.eu (or `cd backend && php sync-catalog.php`). Then
+   **Import a file** with a builds file (`builds-genshin-<date>.json`: made by the owner's local tools, or
+   exported from another installation's Builds page), read its preview and press **Import**. Without one the site
+   works, but shows no builds.
 
-5. **Import** an account: by UID (the in-game Character Showcase) or from an inventory export file.
+5. **Import** an account: by UID (the in-game Character Showcase) or from a GOOD file (an inventory exporter's).
 
 The `config/*.local.php` files hold this installation's settings, the database password included. They
-are gitignored; never commit or share them.
+are gitignored; never commit or share them. One of them is written by hand only: `config/neutral.local.php`, the
+names of the build sites, which the repository never names - copy the owner's file in before you run
+`check-names.php` (below; [docs/operations.md](docs/operations.md), "The names file").
 
 ### A database from the first (Laravel) version
 
 Point setup at it: a PostgreSQL database made by the Laravel version is recognised and brought forward in
-place, with all its accounts, builds and runs (`backend/migrations/001_adopt_laravel_database.sql`; its
-framework tables are kept aside as `laravel_*`). Back it up first (`pg_dump`). A local copy that ran on SQLite
-is not carried over: import the accounts again and sync; the old `backend/.env` and `database.sqlite` are no
-longer read and can be deleted.
+place, with its Genshin Impact accounts and imports (`backend/migrations/001_adopt_laravel_database.sql`; its
+framework tables are kept aside as `laravel_*`); the later migrations drop its Star Rail accounts (014) and its
+builds and sync runs (016), so import a builds file afterwards. Back it up first (`pg_dump`). A local copy that
+ran on SQLite is not carried over: import the accounts again, and a builds file; the old `backend/.env` and
+`database.sqlite` are no longer read and can be deleted.
 
 ## Day to day
 
@@ -91,12 +98,13 @@ longer read and can be deleted.
 | --- | --- |
 | Run everything | the two servers above |
 | Apply new migrations | `backend: php migration.php` (`--status`, `--dry-run`); or "Apply pending" on the Migrations page (`/admin/migrations`, ADMIN) |
-| Sync builds | Sources page, or `backend: php sync-builds.php [source] [--force] [--character=hu_tao] [--dry-run]` |
-| Refresh the catalog | Sources page, or `backend: php sync-catalog.php [genshin\|hsr] [--force]` |
-| Move a source's builds to another installation | Sources page: **Export** on one, **Import** on the other ([docs/operations.md](docs/operations.md)) |
-| Import from the command line | `backend: php import-account.php genshin 700123456 --user=1` or `… hsr path/to/export.json --user=1 --account=3` (`--user`: whose account, an IAM user id - required) |
+| Import the builds | the Builds page (`/admin/builds`, editors): **Import a file** - a dry run's preview first, then **Import**; the file is the whole truth for its game ([docs/operations.md](docs/operations.md), "Importing builds") |
+| Save a game's builds as a file, or carry them to another installation | the Builds page: **Export** on one, **Import a file** on the other |
+| Refresh the catalog | the Builds page, **Refresh catalog**; or `backend: php sync-catalog.php [genshin] [--list=characters\|weapons\|sets] [--force]` |
+| Import from the command line | `backend: php import-account.php genshin 700123456 --user=1` or `… genshin path/to/good.json --user=1 --account=3` (`--user`: whose account, an IAM user id - required) |
 | Reword the site's strings, add or hide a language | the Translations page (editors) and the Languages page (adding, renaming, switching, deleting a language: admins); or `backend: php translations.php [--status \| --export=sk [file] \| --import=sk file]` |
 | Change the configuration | run `setup.php` again (the password field left empty keeps the saved one) |
+| Check that nothing tracked names a build site | `root: php backend/tools/check-names.php` (`--staged`: what is staged; `--message=<file>`: a commit message) |
 | Update the shared library (anotoki-lib) | see "The shared library" below |
 
 - **Database changes** are new files in `backend/migrations/` (`NNN_what_it_does.sql`), applied in order by
@@ -109,19 +117,27 @@ longer read and can be deleted.
 - **API changes**: the shapes live in `backend/src/Presenters/` and are mirrored in
   `frontend/src/app/core/models.ts`; change both together. The strings' routes are the library's: their
   shapes come with it, in both halves.
-- **Nothing names another site** in the UI or in what the API sends to be shown: build sources are "Source 1",
-  "Source 2" …, the showcase service and the tools are described, never named. See
-  [docs/architecture.md](docs/architecture.md) ("Neutral names").
+- **Nothing names another site** in the UI or in what the API sends to be shown: the showcase service and the
+  tools are described, never named. See [docs/architecture.md](docs/architecture.md) ("Neutral names").
+- **The repository names no build site** - not in a tracked file, a commit message, a branch or a PR (the owner's
+  decision of 2026-10-20): say "a build site". Their names are in the owner's untracked
+  `backend/config/neutral.local.php`, and `php backend/tools/check-names.php` (from the root) reads the tracked
+  files - and what `git add -A` would add - for them: it prints each place it finds one and fails. Run it before a
+  commit; the owner's untracked git hooks run it on what is staged and on the message.
+- **The builds are made outside the site.** The site never fetches a build: the owner's own tools in `local/`
+  (git-ignored - never in the repository, nothing of it copied into a tracked file; its own README) read the
+  build sites on the owner's computer and write one file per game, `builds-genshin-<date>.json`, which an editor
+  imports on the Builds page. What a build is and what the file must hold: [docs/builds.md](docs/builds.md).
 - **Words a member reads are keys**: a template words a key with the `translate` pipe; a new string is its key
   and English in `frontend/src/app/core/i18n/en/*.json` plus a new migration with the key, its description, the
   English and informal Slovak ("ty"). What the server says to a member (recommendations, import errors and
   warnings) is a kind with params that the page words. Game terms and the game's notation are never
-  translated. The admin panel (`/admin/`: Sources, Translations, Languages, People) stays English. See
-  [docs/architecture.md](docs/architecture.md) ("The site's words").
+  translated. The admin panel (`/admin/`: Builds, Translations, Languages, People, Migrations and the admin tools)
+  stays English. See [docs/architecture.md](docs/architecture.md) ("The site's words").
 - **A new release**: add an entry at the top of `frontend/public/changelog.json` (version, date, and what
   changed, in plain words for the people using the app) and raise `backend/src/Version.php` and
   `frontend/package.json`'s `version` to the same version (`tests/auth.test.php` holds the three together). A
-  version has three numbers, MAJOR.MINOR.PATCH: big changes, new features, bug fixes (0.4.0). What's new holds
+  version has three numbers, MAJOR.MINOR.PATCH: big changes, new features, bug fixes (0.5.0). What's new holds
   only what the people using the site notice - nothing technical or for developers (a library, the servers, a
   visitor counter). The version shows at the foot of every page, beside the button that opens "What's new".
 
@@ -191,16 +207,19 @@ never from a local copy. Then run the tests, the production build and the browse
 ## Testing
 
 ```bash
-cd backend && php tests/run.php            # every backend test file (or one: php tests/auth.test.php)
-cd frontend && npx ng test --watch=false   # frontend unit tests (Vitest)
+cd backend && php tests/run.php            # every backend test file: 23 files, 322 tests (or one: php tests/auth.test.php)
+cd frontend && npx ng test --watch=false   # frontend unit tests (Vitest): 44 spec files, 377 tests
 cd frontend && npx ng build                # the production build must pass too
 bun run format:check                       # Prettier on every file of both halves, at the root (bun install there first)
+php backend/tools/check-names.php          # from the root: no tracked file names a build site
 ```
 
 The backend tests need `config/database.local.php` (run setup first): each test file creates its own
 throwaway database on that server (`build_analyzer_test_…`), builds it from the migrations and drops it when
-it ends. Nothing reaches the network - build pages and API answers are small fixtures, and a fake HTTP client
-fails a test on any request it was not told about. IAM tokens are signed by the library's test IAM
+it ends. Nothing reaches the network - the catalog's lists, the showcase's answers, account files and builds
+files are small synthetic fixtures, and a fake HTTP client fails a test on any request it was not told about; the
+tests give `App\Support\Neutral` none of the owner's names (`setLocalNames([])`, a test that needs one sets a
+made-up name). IAM tokens are signed by the library's test IAM
 (`Anotoki\Lib\Auth\Testing\TestIam`: its key, its tokens - `iamToken()` - and its answers as files - whether
 sign-in is required, `iamRequiresSignIn()`, false unless a test says otherwise; the accounts it deleted);
 `tests/stand_in_iam.test.php` signs in through the library's stand-in IAM
@@ -213,7 +232,9 @@ one, and drops it at the end.
 
 The browser check (the `verify-ui` skill) runs the site end to end in headless Edge, signed in through the
 stand-in IAM, on a throwaway database - nobody, a visitor's import and the move at sign-in, a member's own
-data, an editor and an admin, the top bar at 360-1280 px in light and dark with a real Tab press, Slovak at
+data, a character's variations (the build its constellation does not reach locked), the builds browser's
+filters, an editor and an admin (the Builds page: a game's builds exported and the same file imported again, its
+preview first), the top bar at 360-1280 px in light and dark with a real Tab press, Slovak at
 390 px with no key on the page, the account's theme, dates and language saved from the bar to the
 stand-in IAM, the automatic sign-in by the IAM's hint, the screen of a sign-in that failed, the feedback form,
 the People page and the admin tools (light and dark, 1280 and 390 px), Terms, Privacy and Contact from the
@@ -257,15 +278,16 @@ site; anotoki-lib's `deploy/README.md`); this site's facts are in `backend/compo
 frontend/   the built app, index.php (the front controller), .htaccess        } a release:
 backend/    api/, src/, config/app.php, migrations/, vendor/, setup.php,       } replaced whole
             release.json                                                       }
-config/     *.local.php - the settings: setup.php writes them                  never in a release
+config/     *.local.php - the settings: setup.php writes them (some by hand)   never in a release
 storage/    the lock, logs, caches, backups, the library's key                 never in a release
 ```
 
 1. **Build** on your computer, in `frontend/`: `bun run anotoki-deploy build` (`@anotoki/deploy`, a dev dependency
    of `frontend/` from anotoki-lib's release: `bun run` finds it whichever tool installed `node_modules/`; on
    Windows, `npx` misses bun's links). It runs the frontend's build and `backend/tools/check-release.mjs` (the app
-   names no other site, service or tool - else the build stops), then assembles `dist/frontend/` and
-   `dist/backend/`. No `config/*.local.php`, no command-line scripts and no tests are ever in a release. The PHP
+   names no other site, service or tool - the build sites too, with the names file in `backend/config/` - else the
+   build stops), then assembles `dist/frontend/` and `dist/backend/`. No `config/*.local.php`, no command-line
+   scripts and no tests are ever in a release. The PHP
    finds its state with one rule (`Config::stateRoot()`): with `release.json` in `backend/`, `config/` and
    `storage/` are the ones beside it; in a checkout, `backend/`'s own.
 
@@ -282,7 +304,7 @@ storage/    the lock, logs, caches, backups, the library's key                 n
 3. **Register the site at the IAM** (its admin panel, client `build-analyzer`): redirect URI
    `https://builder.anotoki.eu/auth/callback`, post-logout URI `https://builder.anotoki.eu/`, web origin
    `https://builder.anotoki.eu`. Any anotoki account may sign in; give the people who run it `ADMIN` (everything)
-   or `EDITOR` (syncs and the site's strings) there.
+   or `EDITOR` (the builds, the catalog and the site's strings) there.
 
 4. **First install**: open `https://builder.anotoki.eu/setup.php`. It writes a token into
    `config/setup-token.local.php`; download that file by FTP and paste the token into the form, with the
@@ -294,10 +316,13 @@ storage/    the lock, logs, caches, backups, the library's key                 n
 5. **Check**: `https://builder.anotoki.eu/api/meta` answers JSON with the IAM's address under `auth`;
    `/api/accounts` answers 401; `/config/database.local.php` and `/storage/logs/app.log` do not download (403).
 
-6. **First data**: sign in with the ADMIN account, open Sources, press **Refresh catalog**, then **Sync all**,
-   and keep the tab open until it is done. A source whose site refuses the host (its syncs fail with HTTP 403):
-   sync it on your own computer, **Export** it there and **Import** the file on the site's Sources page
-   ([docs/operations.md](docs/operations.md), "Moving builds between installations").
+6. **The names file**: upload `config/neutral.local.php` by hand, beside the files setup wrote - like
+   `config/cloudflare.local.php`, it is never in a release and never written by setup; an upload leaves it where
+   it is ([docs/operations.md](docs/operations.md), "The names file").
+
+7. **First data**: sign in with the ADMIN account, open the admin panel's Builds page, press **Refresh catalog**,
+   then **Import a file** with the newest builds file and, after its preview, **Import**
+   ([docs/operations.md](docs/operations.md), "Importing builds").
 
 **A new version**: build again and `bun run anotoki-deploy deploy --backups <folder> --go` (the release replaces
 `frontend/` and `backend/` whole - nothing of the version before stays). When it brings new migrations, **the site
@@ -349,6 +374,14 @@ one (the Backups page, "before an update"). `config/*.local.php` and `storage/` 
   every page has Terms · Privacy · Contact and the fan clause, and `/privacy` links "your anotoki account" to the
   IAM's own Privacy page. A change to what the site keeps, or for how long, changes the facts' strings (a
   migration) and `SITE_LEGAL_UPDATED` (`frontend/src/app/core/legal-facts.ts`). [docs/operations.md](docs/operations.md), "Deploying".
+- **Version 0.5.0: builds from a file, Genshin Impact alone, the catalog from genshin.anotoki.eu** (migrations
+  014-019), in this order and in one sitting: genshin.anotoki.eu first (its release and its migrations
+  `genshin_impact/030` and `031`; its `GET /api/catalog/characters` answering 200 with an ETag, then 304 when
+  asked with it); Export each language; upload `config/neutral.local.php` by hand; upload the release; **Apply
+  pending** at once (014-019 together - the site stays closed until then); **Refresh catalog** on the Builds page;
+  **Import a file** with the builds file (a dry run first). Between the Apply and the import the site has no builds,
+  for a few minutes. The backups made before this Apply hold Star Rail's data and the old builds: they are read
+  offline only, never restored in place. [docs/operations.md](docs/operations.md), "Deploying 0.5.0".
 - **The IAM's sign-in switch** (now the library's `SignInRule`): upload only once the IAM answers
   `https://iam.anotoki.eu/api/public/applications/build-analyzer` with 200 - before that the site requires
   sign-in (fail closed) and turns visitors away. [docs/operations.md](docs/operations.md), "Deploying".
@@ -365,5 +398,5 @@ one (the Backups page, "before an update"). `config/*.local.php` and `storage/` 
 
 **Replacing an install of the Laravel version**: its layout was different (a `public/` document root and
 Laravel's folders beside it). Upload the new build into a fresh folder, make that the site's document root,
-upload `setup.php`, and point it at the existing database - it is brought forward with all its data. When
-the new site works, delete the old folder, including its `.env`.
+upload `setup.php`, and point it at the existing database - it is brought forward with its Genshin Impact accounts
+and imports (import a builds file afterwards). When the new site works, delete the old folder, including its `.env`.

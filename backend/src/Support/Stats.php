@@ -91,7 +91,6 @@ final class Stats
             'recharge' => 'enerRech_',
             'energyrechargerate' => 'enerRech_',
             'enerrech' => 'enerRech_',
-            'energyrechage' => 'enerRech_', // typo on genshin.gg
             'healing' => 'heal_',
             'heal' => 'heal_',
             'hb' => 'heal_',
