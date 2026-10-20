@@ -6,6 +6,7 @@ use Anotoki\Lib\People\Http\PeopleUpkeep;
 use Anotoki\Lib\People\People;
 use App\App;
 use App\Cache\Prune;
+use App\Services\Catalog\CatalogUpkeep;
 use App\Support\Log;
 use App\Web\AfterResponse;
 use Psr\Http\Message\ResponseInterface;
@@ -21,7 +22,9 @@ use Psr\Http\Server\RequestHandlerInterface;
  * - the day's backup (the library's backups: the first request of a UTC day that finds none made, while
  *   nothing waits to be applied; 14 kept);
  * - the day's tidying up (App\Cache\Prune: what has expired in the cache table, the downloaded files older than
- *   three days - the first request of a UTC day, while the site is ready).
+ *   three days - the first request of a UTC day, while the site is ready);
+ * - a stale catalog list refreshed (App\Services\Catalog\CatalogUpkeep: one at a time, a look at most every five
+ *   minutes, while the site is ready).
  *
  * config/app.php `upkeep` switches each off (the tests do, but where they mean to try it). None ever fails the
  * answer: a failure is a line in the log.
@@ -41,6 +44,9 @@ function upkeepAfterAnswer(App $app, SiteState $state): Closure
             // Only while the site is ready: it reads the database, which a site not set up may not even have.
             if ($app->config->get('upkeep.prune', true) && $state->state() === SiteState::READY) {
                 $app->get(Prune::class)->dailyIfDue();
+            }
+            if ($app->config->get('upkeep.catalog', true) && $state->state() === SiteState::READY) {
+                $app->get(CatalogUpkeep::class)->soon();
             }
         } catch (Throwable $e) {
             Log::exception($e, 'The upkeep after an answer');

@@ -1,15 +1,67 @@
 <div class="page">
   <anotoki-page-header [heading]="'builds.title' | translate" [lead]="'builds.subtitle' | translate" />
 
-  <anotoki-text-field
-    class="search"
-    type="search"
-    [label]="'builds.search' | translate: { game: gameLabels[gameKey()] }"
-    [value]="search()"
-    (valueChange)="search.set($event)"
-  >
-    <anotoki-icon fieldPrefix name="search" [size]="18" />
-  </anotoki-text-field>
+  @if (characters().length > 0) {
+    <div class="filters">
+      <anotoki-text-field
+        class="search"
+        type="search"
+        [label]="'builds.search' | translate: { game: gameLabels[gameKey()] }"
+        [value]="search()"
+        (valueChange)="search.set($event)"
+      >
+        <anotoki-icon fieldPrefix name="search" [size]="18" />
+      </anotoki-text-field>
+
+      <!-- An element's and a weapon type's names are the game's; an element's colour the mark before it. Each label shown
+           as the fields' are, and said once. -->
+      <anotoki-labelled-group class="choice" [label]="'builds.filter.element' | translate" selfNamed>
+        <anotoki-segmented
+          [label]="'builds.filter.element' | translate"
+          [options]="elementOptions()"
+          [value]="element()"
+          (valueChange)="element.set($event)"
+        />
+      </anotoki-labelled-group>
+      <anotoki-labelled-group class="choice" [label]="weaponLabel()" selfNamed>
+        <anotoki-segmented [label]="weaponLabel()" [options]="weaponOptions()" [value]="weapon()" (valueChange)="weapon.set($event)" />
+      </anotoki-labelled-group>
+      <anotoki-labelled-group class="choice" [label]="'builds.filter.rarity' | translate" selfNamed>
+        <anotoki-segmented
+          [label]="'builds.filter.rarity' | translate"
+          [options]="rarityOptions()"
+          [value]="rarity()"
+          (valueChange)="rarity.set($event)"
+        />
+      </anotoki-labelled-group>
+
+      <anotoki-select
+        class="pick"
+        [label]="'builds.filter.region' | translate"
+        [options]="regionOptions()"
+        [placeholder]="'builds.filter.anyRegion' | translate"
+        [value]="region()"
+        (valueChange)="region.set($event)"
+      />
+      <anotoki-select
+        class="pick"
+        [label]="'builds.filter.version' | translate"
+        [options]="versionOptions()"
+        [placeholder]="'builds.filter.anyVersion' | translate"
+        [value]="version()"
+        (valueChange)="version.set($event)"
+      />
+
+      <button anotokiButton class="reset" type="button" [disabled]="!filtering()" (click)="reset()">
+        <anotoki-icon name="x" [size]="18" />{{ 'builds.filter.reset' | translate }}
+      </button>
+    </div>
+
+    <!-- How many show, said as the filters change it (not when the page first draws it). -->
+    <p class="count muted small" role="status">
+      {{ 'builds.filter.showing' | translate: { shown: filtered().length, total: characters().length } }}
+    </p>
+  }
 
   @if (loading()) {
     <anotoki-spinner class="loading" label [delay]="200" />
@@ -35,16 +87,22 @@
         </div>
       </a>
     } @empty {
-      @if (!loading()) {
-        <anotoki-card class="no-builds">
-          <anotoki-icon class="no-builds-icon" name="layers" [size]="28" />
-          <!-- The Builds page is the admin panel's: a link for an editor or an admin, its name alone for everybody else. -->
-          <p>
-            {{ empty()[0] }}@if (empty()[2]) {@if (auth.isStaff()) {<a routerLink="/admin/builds">{{
-                  'builds.adminPage' | translate
-                }}</a>} @else {<span>{{ 'builds.adminPage' | translate }}</span>}}{{ empty()[1] }}
-          </p>
-        </anotoki-card>
+      @if (!loading() && !error()) {
+        @if (characters().length > 0) {
+          <anotoki-empty-state class="no-match" icon="search" [heading]="'builds.filter.none' | translate" [text]="'builds.filter.noneHint' | translate">
+            <button anotokiButton type="button" (click)="reset()">{{ 'builds.filter.reset' | translate }}</button>
+          </anotoki-empty-state>
+        } @else {
+          <anotoki-card class="no-builds">
+            <anotoki-icon class="no-builds-icon" name="layers" [size]="28" />
+            <!-- The Builds page is the admin panel's: a link for an editor or an admin, its name alone for everybody else. -->
+            <p>
+              {{ empty()[0] }}@if (empty()[2]) {@if (auth.isStaff()) {<a routerLink="/admin/builds">{{
+                    'builds.adminPage' | translate
+                  }}</a>} @else {<span>{{ 'builds.adminPage' | translate }}</span>}}{{ empty()[1] }}
+            </p>
+          </anotoki-card>
+        }
       }
     }
   </div>

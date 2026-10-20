@@ -49,9 +49,9 @@ function game(overrides: Partial<AdminBuildsGame> = {}): AdminBuildsGame {
       },
     ],
     catalog: [
-      { list: 'characters', entries: 120, refreshed_at: REFRESHED },
-      { list: 'weapons', entries: 230, refreshed_at: null },
-      { list: 'sets', entries: 60, refreshed_at: null },
+      { list: 'characters', entries: 120, refreshed_at: REFRESHED, problem: null },
+      { list: 'weapons', entries: 230, refreshed_at: null, problem: null },
+      { list: 'sets', entries: 60, refreshed_at: null, problem: null },
     ],
     ...overrides,
   };
@@ -176,6 +176,7 @@ describe('the Builds page (admin panel): the builds files and the catalog', () =
 
     expect(texts('.lists anotoki-stat-tile')).toEqual([`120 Characters refreshed ${timeAgo(REFRESHED)}`, '230 Weapons never refreshed', '60 Sets never refreshed']);
     expect(host.querySelector('.catalog-progress')).toBeNull();
+    expect(host.querySelector('.list-problems')).toBeNull();
 
     // Nothing of the syncs, the sources or database updates: while one waits the site gate shows its own page.
     expect(host.textContent).not.toMatch(/\bsync|source \d|database update|migration/i);
@@ -386,9 +387,31 @@ describe('the Builds page (admin panel): the builds files and the catalog', () =
   });
 
   describe('refreshing the catalog', () => {
-    function result(list: CatalogList, entries: number): CatalogRefreshResult {
-      return { written: entries, list, entries, refreshed_at: '2026-10-20T11:59:00+00:00' };
+    function result(list: CatalogList, entries: number, outcome: CatalogRefreshResult['outcome'] = 'changed'): CatalogRefreshResult {
+      return { outcome, written: outcome === 'changed' ? entries : 0, list, entries, refreshed_at: '2026-10-20T11:59:00+00:00', problem: null };
     }
+
+    it('says which lists failed the last time - here or after an answer - and why, until a refresh of them works', async () => {
+      await setup([
+        game({
+          catalog: [
+            { list: 'characters', entries: 120, refreshed_at: REFRESHED, problem: 'The game data provider is closed for now (HTTP 423).' },
+            { list: 'weapons', entries: 230, refreshed_at: REFRESHED, problem: null },
+            { list: 'sets', entries: 60, refreshed_at: null, problem: 'The game data provider answered HTTP 500.' },
+          ],
+        }),
+      ]);
+      expect(text(host.querySelector('.list-problems .anotoki-alert__heading'))).toBe('The last refresh failed');
+      expect(texts('.list-problems .list-problem')).toEqual(['Characters: The game data provider is closed for now (HTTP 423).', 'Sets: The game data provider answered HTTP 500.']);
+      // Part of the page, not news: not read out as it is drawn.
+      expect(host.querySelector('.list-problems')?.getAttribute('role')).toBeNull();
+
+      api.refreshCatalog.mockImplementation((_game, list) => of(result(list, list === 'characters' ? 120 : list === 'weapons' ? 230 : 61, list === 'sets' ? 'changed' : 'unchanged')));
+      await press('refresh-catalog');
+      await vi.waitFor(() => expect(toasts.success).toHaveBeenCalledWith('Catalog refreshed: 120 characters (as they were), 230 weapons (as they were), 61 sets.'));
+      await fixture.whenStable();
+      expect(host.querySelector('.list-problems')).toBeNull();
+    });
 
     it("refreshes the three lists one after another - one request each, the kit's progress bar counting them - then shows their new state", async () => {
       await setup();

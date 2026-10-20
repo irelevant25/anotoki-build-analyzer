@@ -4,7 +4,6 @@ use Anotoki\Lib\Audit\AuditLog;
 use App\Admin\AdminTools;
 use App\App;
 use App\Auth\Role;
-use App\Cache\Cache;
 use App\Db\Db;
 use App\Enums\Game;
 use App\Repositories\Builds;
@@ -12,6 +11,7 @@ use App\Services\Builds\BuildFile;
 use App\Services\Builds\BuildFileException;
 use App\Services\Builds\BuildImport;
 use App\Services\Builds\BuildImportBusy;
+use App\Services\Catalog\CatalogAnswer;
 use App\Services\Catalog\CatalogSync;
 use App\Support\Clock;
 use App\Support\Log;
@@ -35,9 +35,12 @@ use Slim\Routing\RouteCollectorProxy;
  *                                             the file's - or, as a dry run, what that would do, nothing written.
  *                                             422 when the file does not fit (nothing written), 409 while another
  *                                             import writes
- *   POST /api/admin/catalog/{game}/{list}     one list of the catalog (characters, weapons, sets) refreshed from
- *                                             the game data provider; 409 while another refresh of it runs, 502
- *                                             when the provider cannot be read
+ *   POST /api/admin/catalog/{game}/{list}[?force=1]   one list of the catalog (characters, weapons, sets)
+ *                                             refreshed from the game's provider - a conditional request unless
+ *                                             forced: {outcome: changed | unchanged, written, list, entries,
+ *                                             refreshed_at, problem}; 409 while another refresh of it runs, 502 when
+ *                                             the provider is closed, has no such list or cannot be read (its
+ *                                             reason as the message)
  *
  * An import and a refresh are in the audit log (builds.imported, in the import's transaction; catalog.refreshed).
  * The group carries its role check, so a route added to it cannot go without one.
@@ -137,31 +140,34 @@ return function (Slim\App $slim, App $app): void {
                 if (!in_array($list, CatalogSync::LISTS, true)) {
                     throw HttpError::notFound();
                 }
+                $force = in_array($request->getQueryParams()['force'] ?? null, ['1', 'true'], true);
                 // A refresh that has started finishes, even when the tab is closed while it runs.
                 ignore_user_abort(true);
                 @set_time_limit(120);
 
-                // One refresh of a list at a time; the claim outlives a request that dies, by two minutes.
-                $cache = $app->get(Cache::class);
-                $claim = "catalog-refresh:{$game->value}:{$list}";
-                if (!$cache->add($claim, Clock::timestamp(), 120)) {
-                    throw new HttpError(409, 'This list is being refreshed. Try again in a moment.');
-                }
                 $sync = $app->get(CatalogSync::class);
                 try {
-                    $count = $sync->syncList($game, $list);
+                    $result = $sync->refresh($game, $list, $force);
                 } catch (Throwable $e) {
                     Log::exception($e, "Catalog refresh of {$game->value} {$list}");
 
                     throw new HttpError(502, 'The game data provider could not be read. Try again later.');
-                } finally {
-                    $cache->forget($claim);
                 }
-                $app->get(AuditLog::class)->record($request, currentUser($request)->id, 'catalog.refreshed', 'game', $game->value, ['list' => $list, 'entries' => $count]);
+                if ($result['outcome'] === CatalogSync::BUSY) {
+                    throw new HttpError(409, (string) $result['problem']);
+                }
+                if (!in_array($result['outcome'], [CatalogAnswer::CHANGED, CatalogAnswer::UNCHANGED], true)) {
+                    throw new HttpError(502, (string) $result['problem']);
+                }
+                $app->get(AuditLog::class)->record($request, currentUser($request)->id, 'catalog.refreshed', 'game', $game->value, [
+                    'list' => $list,
+                    'outcome' => $result['outcome'],
+                    'entries' => $result['written'],
+                ]);
 
                 $lists = array_column($sync->lists($game), null, 'list');
 
-                return Json::send($response, ['written' => $count] + $lists[$list]);
+                return Json::send($response, ['outcome' => $result['outcome'], 'written' => $result['written']] + $lists[$list]);
             });
         })
         ->add(requireRole($app, ...Role::STAFF));

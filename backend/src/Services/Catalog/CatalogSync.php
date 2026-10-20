@@ -6,48 +6,38 @@ use App\Cache\Cache;
 use App\Config;
 use App\Db\Db;
 use App\Enums\Game;
-use App\Http\Fetcher;
 use App\Repositories\CatalogRows;
 use App\Support\Clock;
-use App\Support\Key;
 use DateTimeImmutable;
 
 /**
- * Downloads the character / weapon / set lists of the game data provider (config/app.php "catalog") and
- * upserts the catalog.
+ * The game catalog kept up to date from each game's provider (CatalogProviders; config/app.php "catalog"), one list
+ * at a time: the admin panel's Builds page refreshes the three one after another, the upkeep after an answer one
+ * stale list (CatalogUpkeep), an import the list that names what the catalog lacks.
  *
- * Each list is one download and one transaction, so the Builds page refreshes one list per request and an
- * import can refresh just the list it needs. When a list was last refreshed, and how many entries that wrote, is
- * kept in the cache table (catalog-state:{game}:{list}), which a restore leaves as it is.
+ * A refresh is a conditional request - the version tag the last read kept - answered "unchanged" while the list is
+ * as it was; a changed list is written in one transaction, each row found again by its in-game ID, then by its key
+ * (a renamed entry keeps its row and everything linked to it, unless another row holds the new key already); no row
+ * is ever deleted. Where each list stands - its version tag, when the provider last confirmed it, when it last
+ * changed, the last failure and why - is kept in the cache table (catalog-state:{game}:{list}), which a restore
+ * leaves as it is; and one refresh of a list at a time (a claim of two minutes: busy).
  */
 class CatalogSync
 {
     /** @var list<string> the lists of one game, in the order the Builds page refreshes them */
     public const LISTS = [Catalog::CHARACTER, Catalog::WEAPON, Catalog::SET];
 
+    /** The outcome of a refresh that found another one of the same list going. */
+    public const BUSY = 'busy';
+
     /** How long a list's state is kept: for good, but for the cache table's rule that everything expires. */
     private const STATE_SECONDS = 10 * 365 * 86400;
 
-    private const GENSHIN_ELEMENTS = [
-        'Fire' => 'pyro',
-        'Water' => 'hydro',
-        'Wind' => 'anemo',
-        'Electric' => 'electro',
-        'Grass' => 'dendro',
-        'Ice' => 'cryo',
-        'Rock' => 'geo',
-    ];
-
-    private const GENSHIN_WEAPONS = [
-        'WEAPON_SWORD_ONE_HAND' => 'sword',
-        'WEAPON_CLAYMORE' => 'claymore',
-        'WEAPON_POLE' => 'polearm',
-        'WEAPON_BOW' => 'bow',
-        'WEAPON_CATALYST' => 'catalyst',
-    ];
+    /** How long a refresh holds its list's claim at most - a request that dies frees it so late. */
+    private const CLAIM_SECONDS = 120;
 
     public function __construct(
-        private readonly Fetcher $fetcher,
+        private readonly CatalogProviders $providers,
         private readonly Catalog $catalog,
         private readonly CatalogRows $rows,
         private readonly Db $db,
@@ -56,64 +46,61 @@ class CatalogSync
     ) {}
 
     /**
-     * All three lists of a game in one go.
+     * One list refreshed from the game's provider: a conditional request, unless $force; written when it changed.
      *
-     * @return array{characters: int, weapons: int, sets: int}
+     * @return array{outcome: string, written: int, problem: string|null} outcome: a CatalogAnswer outcome, or BUSY
      */
-    public function sync(Game $game): array
+    public function refresh(Game $game, string $list, bool $force = false): array
     {
-        $counts = [];
-        foreach (self::LISTS as $type) {
-            $counts[$type] = $this->syncList($game, $type);
+        if (!in_array($list, self::LISTS, true)) {
+            throw new \InvalidArgumentException("Unknown catalog list [{$list}]");
+        }
+        $claim = "catalog-refresh:{$game->value}:{$list}";
+        if (!$this->cache->add($claim, Clock::timestamp(), self::CLAIM_SECONDS)) {
+            return ['outcome' => self::BUSY, 'written' => 0, 'problem' => 'This list is being refreshed. Try again in a moment.'];
         }
 
-        /** @var array{characters: int, weapons: int, sets: int} */
-        return $counts;
+        try {
+            $state = $this->state($game, $list);
+            // Asked before any transaction starts, so none is held open across a request.
+            $answer = $this->providers->for($game)->fetch($game, $list, $force ? null : $state['etag']);
+            $now = Clock::timestamp();
+            $written = 0;
+            if ($answer->outcome === CatalogAnswer::CHANGED) {
+                $written = $this->db->transaction(fn() => $this->write($game, $list, $answer->rows));
+                $this->catalog->flush();
+                $state = ['etag' => $answer->etag, 'checked_at' => $now, 'changed_at' => $now, 'failed_at' => null, 'problem' => null, 'count' => $written] + $state;
+            } elseif ($answer->outcome === CatalogAnswer::UNCHANGED) {
+                $state = ['checked_at' => $now, 'failed_at' => null, 'problem' => null] + $state;
+            } else {
+                $state = ['failed_at' => $now, 'problem' => $answer->problem] + $state;
+            }
+            $this->cache->put(self::stateKey($game, $list), $state, self::STATE_SECONDS);
+
+            return ['outcome' => $answer->outcome, 'written' => $written, 'problem' => $answer->problem];
+        } finally {
+            $this->cache->forget($claim);
+        }
     }
 
     /**
-     * Download one list (characters, weapons or sets) and upsert it.
+     * Each list of a game as the Builds page shows it: how many entries the catalog has, when the provider last
+     * confirmed the list (null: not since this was kept), and why the last refresh failed, when it did.
      *
-     * @return int rows written
-     */
-    public function syncList(Game $game, string $type): int
-    {
-        $method = match ($type) {
-            Catalog::CHARACTER => 'Characters',
-            Catalog::WEAPON => 'Weapons',
-            Catalog::SET => 'Sets',
-            default => throw new \InvalidArgumentException("Unknown catalog list [{$type}]"),
-        };
-        $method =
-            match ($game) {
-                Game::Genshin => 'genshin',
-            } . $method;
-
-        // Downloaded before the transaction starts, so none is held open across a request.
-        $items = $this->download($game, $type);
-        $count = $this->db->transaction(fn() => $this->{$method}($items));
-        $this->catalog->flush();
-        $this->cache->put(self::stateKey($game, $type), ['refreshed_at' => Clock::timestamp(), 'count' => $count], self::STATE_SECONDS);
-
-        return $count;
-    }
-
-    /**
-     * Each list of a game as the Builds page shows it: how many entries the catalog has, and when the list was last
-     * refreshed (null: not since this was kept).
-     *
-     * @return list<array{list: string, entries: int, refreshed_at: string|null}>
+     * @return list<array{list: string, entries: int, refreshed_at: string|null, problem: string|null}>
      */
     public function lists(Game $game): array
     {
-        return array_map(
-            fn(string $type) => [
-                'list' => $type,
-                'entries' => (int) $this->db->value('SELECT count(*) FROM ' . CatalogRows::table($type) . ' WHERE game = ?', [$game->value]),
-                'refreshed_at' => Clock::iso($this->refreshedAt($game, $type)),
-            ],
-            self::LISTS,
-        );
+        return array_map(function (string $list) use ($game) {
+            $state = $this->state($game, $list);
+
+            return [
+                'list' => $list,
+                'entries' => (int) $this->db->value('SELECT count(*) FROM ' . CatalogRows::table($list) . ' WHERE game = ?', [$game->value]),
+                'refreshed_at' => Clock::iso($state['checked_at'] === null ? null : Clock::fromTimestamp($state['checked_at'])),
+                'problem' => $state['problem'],
+            ];
+        }, self::LISTS);
     }
 
     /**
@@ -121,195 +108,114 @@ class CatalogSync
      */
     public function lastSyncedAt(Game $game): ?DateTimeImmutable
     {
-        $times = array_map(fn(string $type) => $this->refreshedAt($game, $type), self::LISTS);
+        $times = array_map(fn(string $list) => $this->state($game, $list)['checked_at'], self::LISTS);
 
-        return in_array(null, $times, true) ? null : min($times);
-    }
-
-    private function refreshedAt(Game $game, string $type): ?DateTimeImmutable
-    {
-        $state = $this->cache->get(self::stateKey($game, $type));
-
-        return is_array($state) && is_int($state['refreshed_at'] ?? null) ? Clock::fromTimestamp($state['refreshed_at']) : null;
-    }
-
-    private static function stateKey(Game $game, string $type): string
-    {
-        return "catalog-state:{$game->value}:{$type}";
+        return in_array(null, $times, true) ? null : Clock::fromTimestamp(min($times));
     }
 
     /**
-     * True when the catalog for a game is empty or older than the configured refresh interval.
+     * True when the catalog for a game is empty, or a list of it has not been confirmed within refresh_days.
      */
     public function isStale(Game $game): bool
     {
-        if (!$this->hasCatalog($game)) {
-            return true;
-        }
-        $last = $this->lastSyncedAt($game);
-        $days = (int) $this->config->get('catalog.refresh_days', 3);
-
-        return !$last || $last->getTimestamp() < Clock::timestamp() - $days * 86400;
+        return !$this->hasCatalog($game) || $this->staleLists($game) !== [];
     }
 
-    /** Whether a catalog sync has run for this game at all (rows with in-game IDs exist). */
+    /**
+     * The lists of a game not confirmed within refresh_days, in LISTS' order. With $due, only those the upkeep may
+     * try now: a list whose refresh failed waits retry_minutes before the next try.
+     *
+     * @return list<string>
+     */
+    public function staleLists(Game $game, bool $due = false): array
+    {
+        $now = Clock::timestamp();
+        $days = max(1, (int) $this->config->get('catalog.refresh_days', 3));
+        $retry = max(1, (int) $this->config->get('catalog.retry_minutes', 60));
+
+        return array_values(
+            array_filter(self::LISTS, function (string $list) use ($game, $now, $days, $retry, $due) {
+                $state = $this->state($game, $list);
+                $stale = $state['checked_at'] === null || $state['checked_at'] < $now - $days * 86400;
+
+                return $stale && (!$due || $state['failed_at'] === null || $state['failed_at'] < $now - $retry * 60);
+            }),
+        );
+    }
+
+    /** Whether the game has a catalog at all (rows with in-game IDs exist). */
     public function hasCatalog(Game $game): bool
     {
         return (bool) $this->db->value('SELECT EXISTS (SELECT 1 FROM game_characters WHERE game = ? AND external_id IS NOT NULL)', [$game->value]);
     }
 
-    // ── the lists ─────────────────────────────────────────────────────────────────────────────────
+    /**
+     * Where a list stands, as the cache keeps it; what is not kept is null.
+     *
+     * @return array{etag: string|null, checked_at: int|null, changed_at: int|null, failed_at: int|null, problem: string|null, count: int|null}
+     */
+    private function state(Game $game, string $list): array
+    {
+        $kept = $this->cache->get(self::stateKey($game, $list));
+        $kept = is_array($kept) ? $kept : [];
+        $int = fn(string $name): ?int => is_int($kept[$name] ?? null) ? $kept[$name] : null;
+        $text = fn(string $name): ?string => is_string($kept[$name] ?? null) ? $kept[$name] : null;
+
+        return [
+            'etag' => $text('etag'),
+            'checked_at' => $int('checked_at'),
+            'changed_at' => $int('changed_at'),
+            'failed_at' => $int('failed_at'),
+            'problem' => $text('problem'),
+            'count' => $int('count'),
+        ];
+    }
+
+    private static function stateKey(Game $game, string $list): string
+    {
+        return "catalog-state:{$game->value}:{$list}";
+    }
 
     /**
-     * @return array<string|int, array<string, mixed>>
+     * The provider's rows into the list, in one transaction: each found again by its in-game ID, then by its key;
+     * nothing deleted.
+     *
+     * @param  list<array{key: string, row: array<string, mixed>}>  $rows
+     * @return int rows written (found again or added)
      */
-    private function download(Game $game, string $type): array
+    private function write(Game $game, string $list, array $rows): int
     {
-        $api = $this->config->get("catalog.{$game->value}.api");
-        $path = [
-            Game::Genshin->value => [Catalog::CHARACTER => 'avatar', Catalog::WEAPON => 'weapon', Catalog::SET => 'reliquary'],
-        ][$game->value][$type];
-
-        $json = $this->fetcher->getJson("{$api}/{$path}", ['delay_ms' => 300]);
-        $items = $json['data']['items'] ?? [];
-
-        // Names can contain in-game markup ("<unbreak>" ...).
-        foreach ($items as &$item) {
-            if (isset($item['name'])) {
-                $item['name'] = trim(html_entity_decode(strip_tags((string) $item['name']), ENT_QUOTES | ENT_HTML5, 'UTF-8'));
+        $byExternal = [];
+        $byKey = [];
+        foreach ($this->rows->all($game, $list) as $entry) {
+            if ($entry->external_id !== null) {
+                $byExternal[$entry->external_id] = $entry;
             }
+            $byKey[$entry->key] = $entry;
         }
 
-        return $items;
-    }
-
-    private function genshinCharacters(array $items): int
-    {
-        $assets = $this->config->get('catalog.genshin.assets');
-        $game = Game::Genshin;
-
-        $characters = 0;
-        $travelers = [];
-        foreach ($items as $id => $item) {
-            $element = self::GENSHIN_ELEMENTS[$item['element'] ?? ''] ?? null;
-            $row = [
-                'name' => $item['name'],
-                'element' => $element,
-                'rarity' => $this->rarity($item['rank'] ?? null),
-                'weapon_type' => self::GENSHIN_WEAPONS[$item['weaponType'] ?? ''] ?? null,
-                'external_id' => (string) $id,
-                'icon_url' => isset($item['icon']) ? "{$assets}/{$item['icon']}.png" : null,
-                'released_at' => isset($item['release']) ? Clock::fromTimestamp((int) $item['release']) : null,
-            ];
-
-            if ($item['name'] === 'Traveler' && $element) {
-                // Aether (10000005) and Lumine (10000007) share one entry per element.
-                $key = 'traveler' . $element;
-                $travelers[$key]['ids'][] = (string) $id;
-                $travelers[$key]['row'] ??= ['name' => 'Traveler (' . ucfirst($element) . ')'] + $row;
-
-                continue;
-            }
-
-            $this->upsert(Catalog::CHARACTER, $game, Key::from($item['name']), $row);
-            $characters++;
-        }
-
-        foreach ($travelers as $key => $traveler) {
-            $this->upsert(Catalog::CHARACTER, $game, $key, $traveler['row'] + ['meta' => ['ids' => $traveler['ids']]]);
-            $characters++;
-        }
-
-        return $characters;
-    }
-
-    private function genshinWeapons(array $items): int
-    {
-        $assets = $this->config->get('catalog.genshin.assets');
-
-        $weapons = 0;
+        $written = 0;
         $seen = [];
-        ksort($items);
-        foreach ($items as $id => $item) {
-            $key = Key::from($item['name']);
-            // A few weapons exist twice (quest / trial copies); keep the lowest ID.
-            if (isset($seen[$key])) {
+        foreach ($rows as ['key' => $key, 'row' => $row]) {
+            // A key once: a second row of it would be a second entry of one name.
+            if ($key === '' || isset($seen[$key])) {
                 continue;
             }
             $seen[$key] = true;
-            $this->upsert(Catalog::WEAPON, Game::Genshin, $key, [
-                'name' => $item['name'],
-                'rarity' => $this->rarity($item['rank'] ?? null),
-                'weapon_type' => self::GENSHIN_WEAPONS[$item['type'] ?? ''] ?? null,
-                'external_id' => (string) $id,
-                'icon_url' => isset($item['icon']) ? "{$assets}/{$item['icon']}.png" : null,
-            ]);
-            $weapons++;
+            $found = isset($row['external_id']) ? $byExternal[$row['external_id']] ?? null : null;
+            // Renamed: its row keeps it - unless another row holds the new key already.
+            if ($found !== null && $found->key !== $key && isset($byKey[$key]) && $byKey[$key]->id !== $found->id) {
+                $found = null;
+            }
+            $found ??= $byKey[$key] ?? null;
+            if ($found !== null) {
+                $this->rows->update($list, $found, ['key' => $key] + $row);
+            } else {
+                $this->rows->insert($game, $list, $key, $row);
+            }
+            $written++;
         }
 
-        return $weapons;
-    }
-
-    private function genshinSets(array $items): int
-    {
-        $assets = $this->config->get('catalog.genshin.assets');
-
-        $sets = 0;
-        foreach ($items as $id => $item) {
-            $this->upsert(Catalog::SET, Game::Genshin, Key::from($item['name']), [
-                'name' => $item['name'],
-                'kind' => 'artifact',
-                'external_id' => (string) $id,
-                'icon_url' => isset($item['icon']) ? "{$assets}/reliquary/{$item['icon']}.png" : null,
-                'meta' => ['rarities' => $item['levelList'] ?? [], 'bonuses' => array_values($item['affixList'] ?? [])],
-            ]);
-            $sets++;
-        }
-
-        return $sets;
-    }
-
-    private function rarity(mixed $rank): ?int
-    {
-        if (!is_numeric($rank)) {
-            return null;
-        }
-
-        // Aloy is flagged as a special rarity (105) in game data.
-        return (int) $rank > 5 ? 5 : (int) $rank;
-    }
-
-    /**
-     * Match by in-game ID first so a renamed entry (new English name, fixed markup) keeps its row and
-     * everything linked to it, unless another row already owns the new key.
-     *
-     * @param  array<string, mixed>  $row
-     */
-    private function upsert(string $type, Game $game, string $key, array $row): void
-    {
-        if ($key === '') {
-            return;
-        }
-
-        $existing = null;
-        if (!empty($row['external_id'])) {
-            $existing = $this->rows->findByExternalId($game, $type, (string) $row['external_id']);
-        }
-        if ($existing && $existing->key !== $key && $this->rows->findByKey($game, $type, $key)) {
-            $existing = null;
-        }
-
-        if ($existing) {
-            $this->rows->update($type, $existing, ['key' => $key] + $row);
-
-            return;
-        }
-
-        $byKey = $this->rows->findByKey($game, $type, $key);
-        if ($byKey) {
-            $this->rows->update($type, $byKey, $row);
-        } else {
-            $this->rows->insert($game, $type, $key, $row);
-        }
+        return $written;
     }
 }

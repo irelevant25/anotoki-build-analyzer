@@ -22,6 +22,7 @@ declare(strict_types=1);
 
 require __DIR__ . '/../../vendor/autoload.php';
 
+use App\Cache\Cache;
 use App\Config;
 use App\Db\Db;
 use App\Db\Migrations;
@@ -31,6 +32,8 @@ use App\Repositories\Builds;
 use App\Repositories\CatalogRows;
 use App\Services\Builds\BuildFile;
 use App\Services\Builds\BuildImport;
+use App\Services\Catalog\CatalogSync;
+use App\Support\Clock;
 use App\Support\Stats;
 
 const BROWSER_DATABASE = Config::TEST_DATABASE_PREFIX . 'browser';
@@ -106,8 +109,10 @@ if ($result['busy'] || $result['error'] !== null) {
     exit(1);
 }
 
-// The catalog the tests use (tests/support/seed.php), and Hu Tao's builds as an editor imports them: a main DPS
-// build, and a Sub DPS one that needs C2 - with an Energy Recharge target from C0 and a lower one from C1.
+// The catalog the tests use (tests/support/seed.php), with what the catalog's provider says of Hu Tao and Kazuha that
+// the builds browser filters by (migration 018's columns); Hu Tao's builds as an editor imports them - a main DPS
+// build, and a Sub DPS one that needs C2, with an Energy Recharge target from C0 and a lower one from C1 - and a Support
+// build of Kazuha's, so the builds browser has two characters to filter.
 $db = new Db($pdo);
 function db(): Db
 {
@@ -115,6 +120,8 @@ function db(): Db
 }
 require __DIR__ . '/../support/seed.php';
 seedGenshinCatalog();
+$db->run("UPDATE game_characters SET region = 'Liyue', version = '1.3', released_at = '2021-03-02 00:00:00+00' WHERE key = 'hutao'");
+$db->run("UPDATE game_characters SET region = 'Inazuma', version = '1.6', released_at = '2021-06-29 00:00:00+00', weapon_type = 'sword' WHERE key = 'kaedeharakazuha'");
 $hutao = static fn(array $fields) => $fields + [
     'character' => 'hutao',
     'character_name' => 'Hu Tao',
@@ -149,12 +156,24 @@ $hutao = static fn(array $fields) => $fields + [
         'builds' => [
             $hutao(['role' => 'main_dps']),
             $hutao(['role' => 'sub_dps', 'min_rank' => 2, 'weapons' => [['key' => 'dragonsbane', 'name' => "Dragon's Bane", 'refinement' => 5, 'note' => null]]]),
+            $hutao(['character' => 'kaedeharakazuha', 'character_name' => 'Kaedehara Kazuha', 'role' => 'support', 'weapons' => []]),
         ],
     ],
     Game::Genshin,
     // Nobody's: no person is there yet.
     new User(0, 'seed'),
 );
+
+// The catalog as refreshed a moment ago (App\Services\Catalog\CatalogSync's state of each list): the upkeep after an
+// answer has nothing to ask the catalog's provider, so the check never reaches the network.
+$cache = new Cache($db);
+foreach (CatalogSync::LISTS as $list) {
+    $cache->put(
+        "catalog-state:genshin:{$list}",
+        ['etag' => null, 'checked_at' => Clock::timestamp(), 'changed_at' => Clock::timestamp(), 'failed_at' => null, 'problem' => null, 'count' => null],
+        86400,
+    );
+}
 
 @mkdir("{$dir}/storage", 0777, true);
 file_put_contents("{$dir}/database.local.php", '<?php return ' . var_export(['database' => BROWSER_DATABASE, 'persistent' => false] + $server, true) . ";\n");

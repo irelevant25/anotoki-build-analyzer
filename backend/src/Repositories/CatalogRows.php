@@ -26,7 +26,7 @@ final class CatalogRows
 
     /** The columns a row may be written with, per list (anything else is refused). */
     private const COLUMNS = [
-        'characters' => ['name', 'element', 'rarity', 'weapon_type', 'external_id', 'icon_url', 'released_at', 'meta'],
+        'characters' => ['name', 'element', 'rarity', 'weapon_type', 'external_id', 'icon_url', 'released_at', 'region', 'version', 'version_name', 'meta'],
         'weapons' => ['name', 'rarity', 'weapon_type', 'external_id', 'icon_url', 'meta'],
         'sets' => ['name', 'kind', 'external_id', 'icon_url', 'meta'],
     ];

@@ -23,7 +23,8 @@ use Slim\Routing\RouteCollectorProxy;
  *
  *   GET /api/builds               per game: how many characters have builds, how many builds, when the newest
  *                                 file carrying them was made and when one last changed (the dashboard)
- *   GET /api/builds/{game}        characters with builds, with how many and their roles
+ *   GET /api/builds/{game}        characters with builds, with how many and their roles, and what the builds browser
+ *                                 filters them by (element, weapon type, rarity, region, version)
  *   GET /api/builds/{game}/{key}  every build of one character, in its order
  */
 return function (Slim\App $slim, App $app): void {
@@ -78,6 +79,10 @@ return function (Slim\App $slim, App $app): void {
                             'weapon_type' => $character->weapon_type,
                             'icon_url' => Icons::of($character),
                             'released_at' => $character->released_at?->format('Y-m-d'),
+                            // What the builds browser filters by besides the element, the weapon and the rarity.
+                            'region' => $character->region,
+                            'version' => $character->version,
+                            'version_name' => $character->version_name,
                             'builds' => count($list),
                             // In the game's order of roles.
                             'roles' => array_values(array_filter($game->roles(), fn(string $role) => in_array($role, $roles, true))),

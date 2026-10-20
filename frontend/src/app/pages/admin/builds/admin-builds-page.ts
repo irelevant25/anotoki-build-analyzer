@@ -17,7 +17,7 @@ import { AuthService } from '../../../core/auth';
 import { downloadName, saveFile } from '../../../core/download';
 import { GAME_LABELS, GAMES } from '../../../core/format';
 import { MetaStore } from '../../../core/meta-store';
-import { AdminBuildsGame, BuildChange, BuildImportEntry, BuildImportPlan, CatalogList, CatalogRefreshResult, GameKey } from '../../../core/models';
+import { AdminBuildsGame, BuildChange, BuildImportEntry, BuildImportPlan, CatalogList, CatalogListStatus, CatalogRefreshResult, GameKey } from '../../../core/models';
 import { TimeAgoPipe } from '../../../shared/stat-pipes';
 import {
   BUILD_FILE_MAX_BYTES,
@@ -269,7 +269,12 @@ export class AdminBuildsPage {
       this.patch(game, { refreshing: done.length });
     }
     this.patch(game, { refreshing: null });
-    this.toasts.success(`Catalog refreshed: ${done.map((result) => count(result.entries, LIST_NOUNS[result.list])).join(', ')}.`);
+    this.toasts.success(`Catalog refreshed: ${done.map((result) => count(result.entries, LIST_NOUNS[result.list]) + (result.outcome === 'unchanged' ? ' (as they were)' : '')).join(', ')}.`);
+  }
+
+  /** The lists whose last refresh failed - here or by the upkeep after an answer - and have not been refreshed since. */
+  protected failedLists(catalog: readonly CatalogListStatus[]): CatalogListStatus[] {
+    return catalog.filter((list) => list.problem !== null);
   }
 
   /** The prefix of the game's constellations (or whatever the game calls them): "C" in "C2+". */
@@ -318,7 +323,7 @@ export class AdminBuildsPage {
           ? entry
           : {
               ...entry,
-              catalog: entry.catalog.map((list) => (list.list === result.list ? { list: result.list, entries: result.entries, refreshed_at: result.refreshed_at } : list)),
+              catalog: entry.catalog.map((list) => (list.list === result.list ? { list: result.list, entries: result.entries, refreshed_at: result.refreshed_at, problem: result.problem } : list)),
             },
       ),
     );

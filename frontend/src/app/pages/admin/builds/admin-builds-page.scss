@@ -84,3 +84,9 @@
 .import-when {
   font-weight: 650;
 }
+
+// A list whose last refresh failed: a line each.
+.list-problem {
+  display: block;
+  overflow-wrap: anywhere;
+}

@@ -154,6 +154,16 @@
                 }
               </anotoki-stat-tiles>
 
+              @if (failedLists(data.catalog); as failed) {
+                @if (failed.length > 0) {
+                  <anotoki-alert class="list-problems" tone="warning" heading="The last refresh failed">
+                    @for (list of failed; track list.list) {
+                      <span class="list-problem">{{ listNames[list.list] }}: {{ list.problem }}</span>
+                    }
+                  </anotoki-alert>
+                }
+              }
+
               @if (state.refreshing !== null) {
                 <anotoki-progress-bar
                   class="catalog-progress"

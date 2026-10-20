@@ -1,5 +1,43 @@
+// The filters: a row that wraps, the name field and the selects a field's width, each segmented control as wide as its
+// choices (the kit's control wraps them onto lines where they do not fit).
+.filters {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 0.75rem 1rem;
+}
+
 .search {
+  flex: 1 1 15rem;
   max-width: 20rem;
+}
+
+.choice {
+  flex: 0 1 auto;
+  max-width: 100%;
+}
+
+.pick {
+  flex: 0 1 12rem;
+}
+
+.reset {
+  flex: none;
+}
+
+// On a phone each control has the whole width.
+@media (max-width: 600px) {
+  .search,
+  .choice,
+  .pick,
+  .reset {
+    flex: 1 1 100%;
+    max-width: none;
+  }
+}
+
+.count {
+  margin: 0;
 }
 
 .loading {
@@ -28,8 +66,12 @@
   font-weight: 650;
 }
 
-.no-builds {
+.no-builds,
+.no-match {
   grid-column: 1 / -1;
+}
+
+.no-builds {
   text-align: center;
 
   p {

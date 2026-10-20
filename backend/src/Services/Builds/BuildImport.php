@@ -2,6 +2,8 @@
 
 namespace App\Services\Builds;
 
+use App\Cache\Cache;
+use App\Config;
 use App\Db\Db;
 use App\Enums\Game;
 use App\Models\Build;
@@ -9,10 +11,13 @@ use App\Models\User;
 use App\Repositories\Builds;
 use App\Repositories\CatalogRows;
 use App\Services\Catalog\Catalog;
+use App\Services\Catalog\CatalogAnswer;
+use App\Services\Catalog\CatalogSync;
 use App\Support\Clock;
 use App\Support\Json;
 use Closure;
 use DateTimeImmutable;
+use Throwable;
 
 /**
  * A game's builds brought in from a file (BuildFile) on the admin panel's Builds page, and written out to one.
@@ -48,7 +53,20 @@ final class BuildImport
     /** How many imports of a game the Builds page lists. */
     public const RECENT = 10;
 
-    public function __construct(private readonly Db $db, private readonly Builds $builds, private readonly CatalogRows $catalog) {}
+    /**
+     * @param  ?CatalogSync  $sync  with $cache and $config: a character or a weapon the catalog lacks has its list
+     *                              refreshed first, at most once per game and list every
+     *                              catalog.import_refresh_minutes (an account's import shares the interval); none of
+     *                              the three (a tool's own import): no refresh
+     */
+    public function __construct(
+        private readonly Db $db,
+        private readonly Builds $builds,
+        private readonly CatalogRows $catalog,
+        private readonly ?CatalogSync $sync = null,
+        private readonly ?Cache $cache = null,
+        private readonly ?Config $config = null,
+    ) {}
 
     /**
      * The file of a game's builds, by character key and then in each character's order - so two exports of the
@@ -146,7 +164,12 @@ final class BuildImport
     private function prepare(mixed $file, Game $game): array
     {
         $read = BuildFile::read($file, $game);
-        $characters = $this->catalog->byKeys($game, Catalog::CHARACTER, array_values(array_unique(array_column($read['builds'], 'character'))));
+        $characterKeys = array_values(array_unique(array_column($read['builds'], 'character')));
+        $characters = $this->catalog->byKeys($game, Catalog::CHARACTER, $characterKeys);
+        // A character newer than the catalog: its list refreshed first - then skipped only if it is still not there.
+        if (count($characters) < count($characterKeys) && $this->refreshed($game, Catalog::CHARACTER)) {
+            $characters = $this->catalog->byKeys($game, Catalog::CHARACTER, $characterKeys);
+        }
         if ($read['builds'] !== [] && $characters === []) {
             // Most likely a catalog nobody refreshed yet; "importing" nothing would still remove every build.
             throw new BuildFileException("None of the file's characters is in this installation's catalog. Refresh the catalog on the Builds page, then import again.");
@@ -155,7 +178,11 @@ final class BuildImport
         foreach ($read['builds'] as $build) {
             array_push($weaponKeys, ...array_column($build['weapons'], 'key'));
         }
-        $weapons = $this->catalog->byKeys($game, Catalog::WEAPON, array_values(array_unique($weaponKeys)));
+        $weaponKeys = array_values(array_unique($weaponKeys));
+        $weapons = $this->catalog->byKeys($game, Catalog::WEAPON, $weaponKeys);
+        if (count($weapons) < count($weaponKeys) && $this->refreshed($game, Catalog::WEAPON)) {
+            $weapons = $this->catalog->byKeys($game, Catalog::WEAPON, $weaponKeys);
+        }
 
         $builds = [];
         $skipped = [];
@@ -173,6 +200,25 @@ final class BuildImport
         }
 
         return ['exported_at' => min($read['exported_at'], Clock::now()), 'builds' => $builds, 'skipped' => array_values($skipped)];
+    }
+
+    /**
+     * A list refreshed for this import, if none was within the interval: true when it changed.
+     */
+    private function refreshed(Game $game, string $list): bool
+    {
+        if ($this->sync === null || $this->cache === null || $this->config === null) {
+            return false;
+        }
+        $minutes = max(1, (int) $this->config->get('catalog.import_refresh_minutes', 60));
+        if (!$this->cache->add("catalog-import-refresh:{$game->value}:{$list}", Clock::timestamp(), $minutes * 60)) {
+            return false;
+        }
+        try {
+            return $this->sync->refresh($game, $list)['outcome'] === CatalogAnswer::CHANGED;
+        } catch (Throwable) {
+            return false;
+        }
     }
 
     /**

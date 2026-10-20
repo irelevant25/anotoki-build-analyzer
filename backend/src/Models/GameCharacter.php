@@ -22,6 +22,10 @@ final class GameCharacter extends CatalogEntry
         /** The weapon type (Game::weaponTypes()). */
         public ?string $weapon_type = null,
         public ?DateTimeImmutable $released_at = null,
+        /** The character's region ("Liyue"), version as the game numbers it ("6.1") and that version's name ("Luna II"). */
+        public ?string $region = null,
+        public ?string $version = null,
+        public ?string $version_name = null,
     ) {
         parent::__construct($id, $game, $key, $name, $external_id, $icon_url, $meta, $updated_at);
     }
@@ -38,6 +42,9 @@ final class GameCharacter extends CatalogEntry
             rarity: isset($row['rarity']) ? (int) $row['rarity'] : null,
             weapon_type: $row['weapon_type'] ?? null,
             released_at: Db::time($row['released_at'] ?? null),
+            region: $row['region'] ?? null,
+            version: $row['version'] ?? null,
+            version_name: $row['version_name'] ?? null,
         );
     }
 }

@@ -440,7 +440,7 @@ class AccountImporter
         }
 
         try {
-            $this->catalogSync->syncList($game, $type);
+            $this->catalogSync->refresh($game, $type);
         } catch (Throwable $e) {
             Log::exception($e, "Catalog refresh for an import ({$bucket})");
         }

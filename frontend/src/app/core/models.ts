@@ -335,6 +335,14 @@ export interface BuildCharacter {
   weapon_type: string | null;
   icon_url: string | null;
   released_at: string | null;
+  /**
+   * What the builds browser filters by besides the element, the weapon and the rarity - game terms, never translated:
+   * the character's region ("Liyue"), the version it came with as the game numbers it ("6.1") and that version's name
+   * where it has one ("Luna II").
+   */
+  region: string | null;
+  version: string | null;
+  version_name: string | null;
   builds: number;
   /** The roles of its builds, in the game's order. */
   roles: string[];
@@ -534,11 +542,16 @@ export interface CharacterAnalysis {
 /** A list of the game catalog, refreshed on its own. */
 export type CatalogList = 'characters' | 'weapons' | 'sets';
 
-/** A list of the catalog as the Builds page shows it: its entries, when it was last refreshed (null: not yet). */
+/**
+ * A list of the catalog as the Builds page shows it: its entries, when the game data provider last confirmed it (null:
+ * not yet), and why its last refresh failed - the Builds page's own or the upkeep's after an answer - while it has not
+ * worked since (English, as the admin panel).
+ */
 export interface CatalogListStatus {
   list: CatalogList;
   entries: number;
   refreshed_at: string | null;
+  problem: string | null;
 }
 
 /** What one import did (its summary), when, from a file made when, by whom (null: a deleted person's, or nobody's). */
@@ -591,8 +604,13 @@ export interface BuildImportPlan {
   changes_listed: number;
 }
 
-/** POST /api/admin/catalog/{game}/{list}: how many entries the refresh wrote, and the list afterwards. */
+/**
+ * POST /api/admin/catalog/{game}/{list}: whether the list changed since its last refresh (unchanged: the provider said
+ * it is as it was, nothing written), how many entries the refresh wrote, and the list afterwards. A refresh that found
+ * the provider closed, without the list or failing is an error answer (502, its sentence).
+ */
 export interface CatalogRefreshResult extends CatalogListStatus {
+  outcome: 'changed' | 'unchanged';
   written: number;
 }
 

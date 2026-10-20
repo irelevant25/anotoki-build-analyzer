@@ -8,19 +8,24 @@
 // writes; see App\Config. Nothing here is a secret or a fallback for those.
 // ---------------------------------------------------------------------------
 
+use App\Services\Catalog\Providers\GenshinCatalog;
+
 return [
     /*
-    | The game catalog (names, rarity, elements, icons): up-to-date lists keyed by in-game IDs. Refreshed list by
-    | list on the admin panel's Builds page, or by sync-catalog.php when older than refresh_days. An import that
-    | names an in-game ID the catalog lacks may refresh that one list, at most once per game and list per
-    | import_refresh_minutes (for every user together).
+    | The game catalog (names, rarity, elements, regions, versions, icons), each game's from its provider: Genshin
+    | Impact's from the owner's genshin.anotoki.eu (its public lists, App\Services\Catalog\Providers\GenshinCatalog),
+    | keyed by in-game IDs. A list is refreshed (a conditional request: nothing written while it is as it was)
+    | on the admin panel's Builds page, by sync-catalog.php, and by the upkeep after an answer once it is older than
+    | refresh_days - a failed try waits retry_minutes. An import that names what the catalog lacks may refresh that
+    | one list, at most once per game and list per import_refresh_minutes (for every user together).
     */
     'catalog' => [
         'genshin' => [
-            'api' => 'https://gi.yatta.moe/api/v2/en',
-            'assets' => 'https://gi.yatta.moe/assets/UI',
+            'provider' => GenshinCatalog::class,
+            'api' => 'https://genshin.anotoki.eu/api/catalog',
         ],
         'refresh_days' => 3,
+        'retry_minutes' => 60,
         'import_refresh_minutes' => 60,
     ],
 
@@ -152,6 +157,8 @@ return [
     |   daily_backup  the day's backup of the database (anotoki-lib's backups, storage/backups: 14 kept)
     |   prune         the day's tidying up: what has expired in the cache table, the downloaded files older
     |                 than three days (App\Cache\Prune)
+    |   catalog       a catalog list older than catalog.refresh_days refreshed, one per answer at most every five
+    |                 minutes (App\Services\Catalog\CatalogUpkeep)
     |
     | All on wherever the site runs; the tests switch them off, but where they mean to try them.
     */
@@ -159,6 +166,7 @@ return [
         'people' => true,
         'daily_backup' => true,
         'prune' => true,
+        'catalog' => true,
     ],
 
     /*

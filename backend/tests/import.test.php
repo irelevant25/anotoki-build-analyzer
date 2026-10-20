@@ -295,13 +295,9 @@ test('an unknown in-game ID refreshes that catalog list, once per interval', fun
     // A character newer than the local catalog: its ID is unknown, so the character list (only that one) is
     // downloaded - and not again for the next import within the interval.
     T::$http->fake([
-        'gi.yatta.moe/api/v2/en/avatar' => FakeHttpClient::json([
-            'data' => [
-                'items' => [
-                    '10000046' => ['name' => 'Hu Tao', 'element' => 'Fire', 'rank' => 5, 'weaponType' => 'WEAPON_POLE'],
-                    '10000999' => ['name' => 'Brand New', 'element' => 'Fire', 'rank' => 5, 'weaponType' => 'WEAPON_POLE'],
-                ],
-            ],
+        'genshin.anotoki.eu/api/catalog/characters' => FakeHttpClient::json([
+            ['game_id' => 10000046, 'name' => 'Hu Tao', 'element' => 'Pyro', 'weapon_type' => 'Polearm', 'rarity' => 5, 'is_traveler' => false],
+            ['game_id' => 10000999, 'name' => 'Brand New', 'element' => 'Pyro', 'weapon_type' => 'Polearm', 'rarity' => 5, 'is_traveler' => false],
         ]),
     ]);
     $profile = showcaseProfile();

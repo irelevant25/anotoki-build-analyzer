@@ -57,15 +57,23 @@ const FOOTER_KEYS = 3;
 
 /**
  * Version 0.5's files of this site's, in the order they run after 0.4's: Star Rail gone (014), with its words (015);
- * the builds as variations, imported from a file, the sources and syncs gone (016), with their words (017).
+ * the builds as variations, imported from a file, the sources and syncs gone (016), with their words (017); the
+ * catalog from genshin.anotoki.eu (018), and the words of the builds browser's filters (019).
  */
-const VERSION_05_FILES = ['014_star_rail_removed.sql', '015_star_rail_words.sql', '016_builds_without_sources.sql', '017_builds_without_sources_words.sql'];
+const VERSION_05_FILES = [
+    '014_star_rail_removed.sql',
+    '015_star_rail_words.sql',
+    '016_builds_without_sources.sql',
+    '017_builds_without_sources_words.sql',
+    '018_catalog_from_the_owners_site.sql',
+    '019_builds_filter_words.sql',
+];
 
 /** The tables 016 takes away: the build sources, the syncs, the syncs' locks. */
 const SYNC_TABLES = ['build_sources', 'sync_runs', 'cache_locks'];
 
-/** What version 0.5's files do to the count of the site's own keys: 015 retires 56, 017 retires 23 and adds 18. */
-const VERSION_05_KEYS = -56 - 23 + 18;
+/** What version 0.5's files do to the count of the site's own keys: 015 retires 56, 017 retires 23 and adds 18, 019 adds 14. */
+const VERSION_05_KEYS = -56 - 23 + 18 + 14;
 
 /** Every column, constraint and index of the app's tables, as comparable lines. */
 function schemaOf(PDO $pdo): array
@@ -1607,6 +1615,48 @@ test('016 never takes anything along: a view on the sync runs stops it - and not
     check(str_contains((string) $result['error'], 'depend'), 'the database says why: ' . $result['error']);
     same(SYNC_TABLES, relationsThere($pdo, SYNC_TABLES), 'the tables, all there');
     same(1, (int) $pdo->query("SELECT count(*) FROM information_schema.columns WHERE table_name = 'builds' AND column_name = 'build_source_id'")->fetchColumn(), 'the builds as they were');
+});
+
+test('018 on a database before it: a character\'s region, version and version name; the old provider\'s icons and where each list stood with it forgotten - nothing else', function () use ($server) {
+    $pdo = upTo013($server, 'to013catalog');
+    siteFilesBefore($pdo, 'to013catalog', '018')->apply();
+    $pdo->exec(
+        "INSERT INTO game_characters (game, key, name, icon_url, created_at, updated_at) VALUES
+            ('genshin', 'hutao', 'Hu Tao', 'https://gi.yatta.moe/assets/UI/UI_AvatarIcon_Hutao.png', now(), now()),
+            ('genshin', 'ineffa', 'Ineffa', 'https://genshin.anotoki.eu/media/ineffa.avif', now(), now())",
+    );
+    $pdo->exec(
+        "INSERT INTO game_weapons (game, key, name, icon_url, created_at, updated_at) VALUES ('genshin', 'staffofhoma', 'Staff of Homa', 'https://gi.yatta.moe/assets/UI/UI_EquipIcon_Pole_Homa.png', now(), now())",
+    );
+    $pdo->exec(
+        "INSERT INTO game_sets (game, key, name, kind, icon_url, created_at, updated_at)
+         VALUES ('genshin', 'crimsonwitchofflames', 'Crimson Witch of Flames', 'artifact', 'https://gi.yatta.moe/assets/UI/reliquary/UI_RelicIcon_15006_4.png', now(), now())",
+    );
+    $pdo->exec(
+        "INSERT INTO cache (key, value, expiration) VALUES
+            ('catalog-state:genshin:characters', '{}', 2000000000), ('catalog-import-refresh:genshin:sets', '1', 2000000000), ('fetcher:last-request:gi.yatta.moe', '1', 2000000000)",
+    );
+
+    $result = Migrations::migrator($pdo)->apply();
+    same(null, $result['error'], 'no error');
+    same(siteFile('018_catalog_from_the_owners_site.sql'), $result['applied'][0] ?? null, '018 first');
+    same(
+        [['hutao', null], ['ineffa', 'https://genshin.anotoki.eu/media/ineffa.avif']],
+        $pdo->query('SELECT key, icon_url FROM game_characters ORDER BY key')->fetchAll(PDO::FETCH_NUM),
+        'the old provider\'s icons gone, any other kept',
+    );
+    same([null, null], [$pdo->query('SELECT icon_url FROM game_weapons')->fetchColumn(), $pdo->query('SELECT icon_url FROM game_sets')->fetchColumn()], 'a weapon\'s and a set\'s too');
+    same(
+        ['fetcher:last-request:gi.yatta.moe'],
+        $pdo->query('SELECT key FROM cache ORDER BY key')->fetchAll(PDO::FETCH_COLUMN),
+        'where each list stood, forgotten: the first refresh reads them in full',
+    );
+
+    $pdo->exec("UPDATE game_characters SET region = 'Liyue', version = '1.3', version_name = NULL WHERE key = 'hutao'");
+    $pdo->exec("UPDATE game_characters SET region = NULL, version = '6.0', version_name = 'Luna I' WHERE key = 'ineffa'");
+    foreach (['Luna II', '6.1.2', '6', '106.1', ''] as $version) {
+        throws(PDOException::class, fn() => $pdo->exec("UPDATE game_characters SET version = '{$version}' WHERE key = 'hutao'"), "a version as the game numbers it, never \"{$version}\"");
+    }
 });
 
 finishTests();

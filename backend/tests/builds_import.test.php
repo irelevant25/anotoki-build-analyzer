@@ -3,9 +3,9 @@
 /**
  * A game's builds brought in from a file and written out to one (App\Services\Builds\BuildImport, BuildFile,
  * api/routes/admin_builds.php): the file is the whole truth for its game, a build found again by its identity
- * keeps its id, characters the catalog lacks are skipped, a dry run writes nothing, one import at a time, every
- * text neutral, every import recorded - the catalog refreshed list by list beside it - and the public builds
- * routes that show what was imported.
+ * keeps its id, characters the catalog lacks are skipped - once their list was refreshed -, a dry run writes
+ * nothing, one import at a time, every text neutral, every import recorded, and the public builds routes that show
+ * what was imported. The catalog's own refresh: catalog_refresh.test.php.
  */
 
 declare(strict_types=1);
@@ -32,6 +32,9 @@ const MEMBER = 7;
 
 beforeEach(function () {
     seedGenshinCatalog();
+    // A character or a weapon the catalog lacks has its list refreshed first: the provider is closed here, but where
+    // a test says otherwise.
+    T::$http->fake(['genshin.anotoki.eu/api/catalog/*' => FakeHttpClient::status(423)]);
 });
 
 function editor(): Client
@@ -382,6 +385,8 @@ test('who may: an editor or an admin - nobody signs in first, anybody else is re
 });
 
 test('what everybody reads: per game the counts, the characters with their roles, a character\'s builds in their order', function () {
+    // As the catalog's provider describes Hu Tao (migration 018's columns; tests/support/seed.php seeds the oldest schema too).
+    db()->run("UPDATE game_characters SET released_at = '2021-03-02 00:00:00+00', region = 'Liyue', version = '1.3' WHERE key = 'hutao'");
     import(
         buildsFile([
             fileBuild(),
@@ -396,6 +401,11 @@ test('what everybody reads: per game the counts, the characters with their roles
 
     $characters = array_column((new Client())->get('/api/builds/genshin')->status(200)->json(), null, 'key');
     same([2, ['main_dps', 'support']], [$characters['hutao']['builds'], $characters['hutao']['roles']], 'Hu Tao\'s');
+    same(
+        ['element' => 'pyro', 'rarity' => 5, 'weapon_type' => 'polearm', 'released_at' => '2021-03-02', 'region' => 'Liyue', 'version' => '1.3', 'version_name' => null],
+        array_intersect_key($characters['hutao'], array_flip(['element', 'rarity', 'weapon_type', 'released_at', 'region', 'version', 'version_name'])),
+        'what the builds browser filters by',
+    );
     same(['support'], $characters['kaedeharakazuha']['roles'], 'Kazuha\'s');
 
     $builds = (new Client())->get('/api/builds/genshin/hutao')->status(200)->json('builds');
@@ -408,34 +418,28 @@ test('what everybody reads: per game the counts, the characters with their roles
     same(['deathmatch', false], [$kazuha['key'], $kazuha['known']], 'a weapon the catalog does not know is kept, marked so');
 });
 
-test('the catalog refreshed list by list: written, kept, audited; one refresh of a list at a time; a provider that cannot be read', function () {
+test('a character or a weapon the catalog lacks: its list refreshed first - a dry run too, so it shows what the import does -, once per interval, and skipped only if still not there', function () {
     T::$http->fake([
-        'gi.yatta.moe/api/v2/en/avatar' => FakeHttpClient::json([
-            'data' => [
-                'items' => [
-                    '10000046' => ['name' => 'Hu Tao', 'element' => 'Fire', 'rank' => 5, 'weaponType' => 'WEAPON_POLE'],
-                    '10000999' => ['name' => 'The Newcomer', 'element' => 'Water', 'rank' => 4, 'weaponType' => 'WEAPON_BOW'],
-                ],
-            ],
+        'genshin.anotoki.eu/api/catalog/characters' => FakeHttpClient::json([
+            ['game_id' => 10000046, 'name' => 'Hu Tao', 'element' => 'Pyro', 'weapon_type' => 'Polearm', 'rarity' => 5, 'is_traveler' => false],
+            ['game_id' => 10000999, 'name' => 'The Newcomer', 'element' => 'Hydro', 'weapon_type' => 'Bow', 'rarity' => 4, 'is_traveler' => false],
         ]),
-        'gi.yatta.moe/api/v2/en/reliquary' => FakeHttpClient::status(404),
+        'genshin.anotoki.eu/api/catalog/weapons' => FakeHttpClient::json([['game_id' => 15599, 'name' => 'A Bow of Tomorrow', 'type' => 'Bow', 'rarity' => 5]]),
+    ]);
+    $newcomer = fileBuild([
+        'character' => 'thenewcomer',
+        'character_name' => 'The Newcomer',
+        'weapons' => [['key' => 'abowoftomorrow', 'name' => 'A Bow of Tomorrow', 'refinement' => 1, 'note' => null]],
     ]);
 
-    $answer = editor()->post('/api/admin/catalog/genshin/characters')->status(200)->json();
-    same(['written' => 2, 'list' => 'characters', 'entries' => 4], array_intersect_key($answer, array_flip(['written', 'list', 'entries'])), 'two written; the catalog has four characters now');
-    check($answer['refreshed_at'] !== null, 'refreshed now');
-    $lists = array_column(editor()->get('/api/admin/builds')->status(200)->json('0.catalog'), null, 'list');
-    same([true, null], [$lists['characters']['refreshed_at'] !== null, $lists['weapons']['refreshed_at']], 'kept for each list');
-    same(['list' => 'characters', 'entries' => 2], json_decode((string) db()->value("SELECT details FROM anotoki_audit_log WHERE action = 'catalog.refreshed'"), true), 'audited');
+    same([], import(buildsFile([fileBuild(), $newcomer]), dryRun: true)->status(200)->json('skipped'), 'the dry run: a character the refresh brought');
+    same(['https://genshin.anotoki.eu/api/catalog/characters', 'https://genshin.anotoki.eu/api/catalog/weapons'], T::$http->sent, 'each list asked once');
+    same([2, 0, 0, 0], counts(import(buildsFile([fileBuild(), $newcomer]))->status(200)->json()), 'the import: both');
+    same(true, (new Client())->get('/api/builds/genshin/thenewcomer')->status(200)->json('builds.0.weapons.0.known'), 'its weapon known too');
 
-    // The newcomer's builds import now.
-    same([], import(buildsFile([fileBuild(['character' => 'thenewcomer', 'character_name' => 'The Newcomer'])]))->status(200)->json('skipped'), 'a character the refresh brought');
-
-    T::$app->get(Cache::class)->add('catalog-refresh:genshin:weapons', Clock::timestamp(), 120);
-    same('This list is being refreshed. Try again in a moment.', editor()->post('/api/admin/catalog/genshin/weapons')->status(409)->json('message'), 'one refresh of a list at a time');
-
-    same('The game data provider could not be read. Try again later.', editor()->post('/api/admin/catalog/genshin/sets')->status(502)->json('message'), 'a provider that cannot be read');
-    editor()->post('/api/admin/catalog/genshin/sets')->status(502);
+    $someoneElse = fileBuild(['character' => 'someoneelse', 'character_name' => 'Someone Else']);
+    same([['key' => 'someoneelse', 'name' => 'Someone Else', 'builds' => 1]], import(buildsFile([fileBuild(), $newcomer, $someoneElse]))->status(200)->json('skipped'), 'still not there: skipped');
+    same(2, count(T::$http->sent), 'the list not asked again within the interval');
 });
 
 finishTests();

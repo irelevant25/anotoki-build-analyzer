@@ -796,7 +796,16 @@ try {
       await ed.waitForSelector('section.game .builds button.export', { timeout: 15000 });
       check((await ed.locator('h1').innerText()).trim() === 'Builds', 'the page: Builds');
       const tiles = (await ed.locator('section.game .builds .counts').innerText()).replace(/\s+/g, ' ');
-      check(tiles.includes('Characters with builds') && tiles.includes('1') && tiles.includes('2'), `its counts: one character, two builds (${tiles})`);
+      check(tiles.includes('Characters with builds') && tiles.includes('2') && tiles.includes('3'), `its counts: two characters, three builds (${tiles})`);
+      // The catalog as the check's database left it, refreshed a moment ago: nothing asked its provider on the way (the
+      // check never reaches the network) - no list's refresh failed.
+      const lists = (await ed.locator('section.game .lists').innerText()).replace(/\s+/g, ' ');
+      check(
+        (await ed.locator('section.game .list-problems').count()) === 0 &&
+          !lists.includes('never refreshed') &&
+          sql("SELECT count(*) AS n FROM cache WHERE key LIKE 'catalog-state:%' AND value::jsonb->>'failed_at' IS NOT NULL")[0].n == 0,
+        `the catalog: refreshed, never asked on the way (${lists})`,
+      );
       await shot(ed, '25-admin-builds-1280-light', { fullPage: true });
 
       const [download] = await Promise.all([ed.waitForEvent('download'), ed.click('section.game .builds button.export')]);
@@ -808,21 +817,21 @@ try {
         builds.format === 'build-analyzer.builds' &&
           builds.format_version === 2 &&
           builds.game === 'genshin' &&
-          builds.builds.map((build) => `${build.character} ${build.role} C${build.min_rank}`).join('|') === 'hutao main_dps C0|hutao sub_dps C2',
-        `the file: Hu Tao's two builds as variations (${builds.builds.map((build) => `${build.role} C${build.min_rank}`).join(', ')})`,
+          builds.builds.map((build) => `${build.character} ${build.role} C${build.min_rank}`).join('|') === 'hutao main_dps C0|hutao sub_dps C2|kaedeharakazuha support C0',
+        `the file: Hu Tao's two builds and Kazuha's one as variations (${builds.builds.map((build) => `${build.role} C${build.min_rank}`).join(', ')})`,
       );
       check(!/"(id|source|variant)"\s*:/.test(readFileSync(saved, 'utf8')), 'no id, no source, no variant in it');
 
       await ed.setInputFiles('section.game .builds input[type=file]', saved);
       await ed.waitForSelector('section.game .preview', { timeout: 15000 });
       const summary = (await ed.locator('section.game .preview .summary').innerText()).trim();
-      check(summary.endsWith('0 new, 0 updated, 2 unchanged, 0 removed.'), `the preview: ${summary}`);
+      check(summary.endsWith('0 new, 0 updated, 3 unchanged, 0 removed.'), `the preview: ${summary}`);
       check((await ed.locator('section.game .preview .no-changes').count()) === 1, 'it says nothing changes');
       await shot(ed, '25-admin-builds-preview-1280-light', { fullPage: true });
       await ed.click('section.game .preview button.confirm');
       await ed.waitForSelector('section.game .preview', { state: 'detached', timeout: 15000 });
       const recorded = sql('SELECT imported_by, summary FROM build_imports ORDER BY id DESC LIMIT 1')[0];
-      check(recorded?.imported_by === EDDIE.id && JSON.parse(recorded.summary).unchanged === 2, `recorded, by the editor: ${JSON.stringify(recorded)}`);
+      check(recorded?.imported_by === EDDIE.id && JSON.parse(recorded.summary).unchanged === 3, `recorded, by the editor: ${JSON.stringify(recorded)}`);
       const lines = await ed.locator('section.game .imports .import-list li').allInnerTexts();
       check(lines.length === 2 && lines[0].includes('by eddie'), `the recent imports, the newest first (${lines.map((line) => line.replace(/\s+/g, ' ')).join(' | ')})`);
 
@@ -1807,16 +1816,65 @@ try {
           await shot(page, `24-kit-import-file-${language}-${width}-${scheme}`, { fullPage: true });
         }
 
-        // The builds: each character one link card.
+        // The builds: each character one link card; the filters - the kit's segmented controls and selects, offering
+        // what the characters have - narrow them, the address follows, and Reset brings them all back.
         await open(page, `/builds/genshin?lang=${language}`);
         await page.waitForSelector('a.card', { timeout: 15000 });
         const builds = await page.evaluate(() => [...document.querySelectorAll('a.card')].map((card) => card.classList.contains('anotoki-link-card')));
-        check(builds.length > 0 && builds.every(Boolean), `the builds, ${label}: every character one link card (${builds.length})`);
+        check(builds.length === 2 && builds.every(Boolean), `the builds, ${label}: every character one link card (${builds.length})`);
+        const filters = await page.evaluate(() => ({
+          groups: [...document.querySelectorAll('.filters [role=radiogroup]')].map((group) => group.getAttribute('aria-label')),
+          selects: [...document.querySelectorAll('.filters select')].map((select) => [...select.options].map((option) => option.textContent.trim()).join('|')),
+          count: document.querySelector('.count')?.textContent?.trim() ?? null,
+        }));
+        const words =
+          language === 'sk'
+            ? { groups: 'Element|Weapon|Vzácnosť', selects: ['Akýkoľvek región|Inazuma|Liyue', 'Akákoľvek verzia|1.6|1.3'], all: 'Zobrazené: 2 z 2', one: 'Zobrazené: 1 z 2' }
+            : { groups: 'Element|Weapon|Rarity', selects: ['Any region|Inazuma|Liyue', 'Any version|1.6|1.3'], all: 'Showing 2 of 2', one: 'Showing 1 of 2' };
+        check(
+          filters.groups.join('|') === words.groups && filters.selects.join(' / ') === words.selects.join(' / ') && filters.count === words.all,
+          `the builds' filters, ${label}: element, weapon type and rarity; the regions and the versions there are, the newest first; how many show (${JSON.stringify(filters)})`,
+        );
         await fits('the builds');
         if (width < 600) {
+          // On a phone each control has the whole width.
+          const widths = await page.evaluate(() => [...document.querySelectorAll('.filters > *')].map((control) => Math.round(control.getBoundingClientRect().width)));
+          check(widths.length === 7 && new Set(widths).size === 1, `the builds' filters, ${label}: each control the whole width (${widths.join(', ')})`);
           await shot(page, `24-kit-builds-${language}-${width}-${scheme}`, { fullPage: true });
         }
+        await page.click('.filters [data-value="anemo"]');
+        await page.waitForFunction(() => document.querySelectorAll('a.card').length === 1, null, { timeout: 10000 });
+        const left = await page.locator('a.card .name').allInnerTexts();
+        check(
+          left.join('|') === 'Kaedehara Kazuha' && new URL(page.url()).searchParams.get('element') === 'anemo' && (await page.locator('.count').innerText()).trim() === words.one,
+          `the builds, ${label}: Anemo leaves Kazuha, said, and the address has it (${left.join(', ')}; ${page.url()})`,
+        );
+        await fits('the builds, filtered');
+        if (width < 600) {
+          await shot(page, `24-kit-builds-filtered-${language}-${width}-${scheme}`, { fullPage: true });
+        }
+        await page.click('.filters button.reset');
+        await page.waitForFunction(() => document.querySelectorAll('a.card').length === 2, null, { timeout: 10000 });
+        check(!new URL(page.url()).searchParams.has('element'), `the builds, ${label}: Reset brings both back, the address without the filter (${page.url()})`);
       }
+
+      // The builds' filters in English as a phone shows them (the tour above has English at 1280 px alone), opened from a
+      // filtered address: a link to a filtered list opens it filtered.
+      await page.setViewportSize({ width: 390, height: 844 });
+      await page.emulateMedia({ colorScheme: 'light' });
+      await open(page, '/builds/genshin?lang=en&rarity=5');
+      await page.waitForSelector('a.card', { timeout: 15000 });
+      const phone = await page.evaluate(() => ({
+        chosen: document.querySelector('[role=radiogroup][aria-label="Rarity"] [aria-checked=true]')?.textContent?.trim() ?? null,
+        count: document.querySelector('.count')?.textContent?.trim() ?? null,
+        scroll: document.documentElement.scrollWidth,
+      }));
+      const phoneKeys = await keysShown(page);
+      check(
+        phone.chosen === '5 stars' && phone.count === 'Showing 2 of 2' && phone.scroll <= 390 && phoneKeys.length === 0,
+        `the builds, en, light, 390 px: opened with "5 stars" chosen from the address, no sideways scroll, no key (${JSON.stringify(phone)}${phoneKeys.length ? ` - ${phoneKeys.join(', ')}` : ''})`,
+      );
+      await shot(page, '24-kit-builds-en-390-light', { fullPage: true });
       await kit.close();
     }
 

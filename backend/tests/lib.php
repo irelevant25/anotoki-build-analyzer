@@ -161,7 +161,7 @@ function testConfig(array $values = []): Config
             'fetch' => ['user_agent' => 'build-analyzer-tests', 'delay_ms' => 0],
             // The upkeep after an answer (the people's scrub, the day's backup, the day's tidying up): the tests that mean
             // to try it switch it on.
-            'upkeep' => ['people' => false, 'daily_backup' => false, 'prune' => false],
+            'upkeep' => ['people' => false, 'daily_backup' => false, 'prune' => false, 'catalog' => false],
         ],
         (string) realpath(__DIR__ . '/..'),
         T::$storage,
