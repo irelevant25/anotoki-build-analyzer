@@ -40,6 +40,9 @@ final class FakeHsrSource extends FakeBuildSource
 
 bootTests();
 
+// Until the builds come from a file only (0.5.0 replaces this file), the scrapers' own names are kept out too.
+beforeEach(fn() => App\Support\Neutral::setLocalNames(['genshin-builds.com', 'genshin-builds', 'www.prydwen.gg', 'prydwen.gg', 'prydwen', 'genshin.gg', 'game8', 'keqingmains']));
+
 beforeEach(function () {
     seedGenshinCatalog();
     // The one source: Source 1 of Genshin Impact, "genshin-1".

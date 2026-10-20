@@ -999,9 +999,9 @@ test('no string and no language names another site or holds a web address - in t
     $before = [everyString(), languageRows()];
 
     // A value that names another site: this site's own check, the library's last.
-    $named = refused(save(['test.bye' => ['sk' => 'Dovidenia'], 'test.hello' => ['sk' => 'Ahoj, {name}! Pozri Prydwen.']]), 422, 'names_another_site');
-    same(['key' => 'test.hello', 'language' => 'sk', 'found' => ['prydwen']], about($named), 'the key, the language and what was found');
-    same('The Slovak string of "test.hello" names another site ("prydwen"). Nothing the site shows names or links another website, service or tool.', $named->json('message'), 'the sentence');
+    $named = refused(save(['test.bye' => ['sk' => 'Dovidenia'], 'test.hello' => ['sk' => 'Ahoj, {name}! Pozri GitHub.']]), 422, 'names_another_site');
+    same(['key' => 'test.hello', 'language' => 'sk', 'found' => ['github']], about($named), 'the key, the language and what was found');
+    same('The Slovak string of "test.hello" names another site ("github"). Nothing the site shows names or links another website, service or tool.', $named->json('message'), 'the sentence');
     // A value that holds a web address.
     $address = refused(save(['test.bye' => ['en' => 'Goodbye - see https://elsewhere.example/builds']]), 422, 'names_another_site', 'an address');
     same(['key' => 'test.bye', 'language' => 'en', 'found' => ['a web address']], about($address), 'an address is said to be one');
@@ -1028,29 +1028,29 @@ test('no string and no language names another site or holds a web address - in t
         'every name found, once, in small letters',
     );
     // After the library's own checks: what is wrong with the text itself is said first.
-    refused(save(['test.bye' => ['sk' => 'Pozri Prydwen {kde}']]), 422, 'unknown_placeholder', 'a placeholder first');
-    refused(save(['test.bye' => ['sk' => str_repeat('Prydwen ', 300)]]), 422, 'invalid_value', 'the length first');
+    refused(save(['test.bye' => ['sk' => 'Pozri GitHub {kde}']]), 422, 'unknown_placeholder', 'a placeholder first');
+    refused(save(['test.bye' => ['sk' => str_repeat('GitHub ', 300)]]), 422, 'invalid_value', 'the length first');
 
     // The same through an import ...
-    $imported = refused(import('de', ['test.bye' => 'Tschüss', 'test.hello' => 'Hallo {name}, von Game8']), 422, 'names_another_site', 'an import');
-    same(['key' => 'test.hello', 'language' => 'de', 'found' => ['game8']], about($imported), 'what it is about');
+    $imported = refused(import('de', ['test.bye' => 'Tschüss', 'test.hello' => 'Hallo {name}, von Enka']), 422, 'names_another_site', 'an import');
+    same(['key' => 'test.hello', 'language' => 'de', 'found' => ['enka']], about($imported), 'what it is about');
     refused(import('de', ['test.bye' => 'Siehe http://elsewhere.example']), 422, 'names_another_site', 'an address in an import');
 
     // ... and the command line.
     $dir = T::$storage;
-    TranslationFile::write("{$dir}/named.json", ['test.bye' => 'Tschüss', 'test.hello' => 'Hallo {name}, von Mobalytics']);
+    TranslationFile::write("{$dir}/named.json", ['test.bye' => 'Tschüss', 'test.hello' => 'Hallo {name}, von Fribbels']);
     [$code, $out] = cli('--import=de', "{$dir}/named.json");
     same(1, $code, $out);
-    check(str_contains($out, 'Refused (names_another_site): The German string of "test.hello" names another site ("mobalytics").'), $out);
+    check(str_contains($out, 'Refused (names_another_site): The German string of "test.hello" names another site ("fribbels").'), $out);
     TranslationFile::write("{$dir}/address.json", ['test.bye' => 'Siehe https://elsewhere.example/x']);
     [$code, $out] = cli('--import=de', "{$dir}/address.json");
     same(1, $code, $out);
     check(str_contains($out, 'Refused (names_another_site): The German string of "test.bye" holds a web address.'), $out);
 
     // A language's two names.
-    $language = refused(owner()->post('/api/admin/languages', ['code' => 'fr', 'name' => 'French (Prydwen)', 'native_name' => 'Français']), 422, 'names_another_site', 'a new language\'s name');
-    same(['field' => 'name', 'found' => ['prydwen']], about($language), 'which name, and what was found');
-    same('The name in English names another site ("prydwen"). Nothing the site shows names or links another website, service or tool.', $language->json('message'), 'the sentence');
+    $language = refused(owner()->post('/api/admin/languages', ['code' => 'fr', 'name' => 'French (GitHub)', 'native_name' => 'Français']), 422, 'names_another_site', 'a new language\'s name');
+    same(['field' => 'name', 'found' => ['github']], about($language), 'which name, and what was found');
+    same('The name in English names another site ("github"). Nothing the site shows names or links another website, service or tool.', $language->json('message'), 'the sentence');
     $native = refused(owner()->post('/api/admin/languages', ['code' => 'fr', 'name' => 'French', 'native_name' => 'Français - www.elsewhere.example']), 422, 'names_another_site', 'its own name');
     same(['field' => 'native_name', 'found' => ['a web address']], about($native), 'an address in a name');
     same('The name as its speakers write it holds a web address. Nothing the site shows names or links another website, service or tool.', $native->json('message'), 'its sentence');
@@ -1241,7 +1241,7 @@ test('the command line: --status reads a frontend against the database, and exit
 
     // A stored string a save would refuse: said, so somebody rewords it - and still clean.
     db()->run("DELETE FROM translation_keys WHERE name = 'test.noEnglish'");
-    db()->run("UPDATE translations SET value = 'Pozri Prydwen, {name}!' WHERE key_name = 'test.hello' AND language_code = 'sk'");
+    db()->run("UPDATE translations SET value = 'Pozri GitHub, {name}!' WHERE key_name = 'test.hello' AND language_code = 'sk'");
     [$code, $out] = $status(['pages/home/home-page.html' => $page]);
     same(0, $code, $out);
     check((bool) preg_match('/Stored as a save would not take them.*\n\s+test\.hello \(sk\): names_another_site/', $out), $out);

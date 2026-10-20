@@ -241,6 +241,11 @@ cd frontend && bun run anotoki-deploy build   # ../dist/frontend + ../dist/backe
   nothing of the site's. That covers every string in the database, seeded or edited,
   and a language's two names: `SiteTranslations::namesAnotherSite()` (the library's last check) refuses one that
   names another site or holds a web address (422 `names_another_site`).
+- The repository is public and names no site the builds come from - not in a tracked file, a commit message, a
+  branch or a PR (the owner's decision of 2026-10-20, docs/decisions.md). Their names are in the owner's untracked
+  `backend/config/neutral.local.php` (`names`, which `Neutral` adds to its own, and `tree_words`), and
+  `php backend/tools/check-names.php` reads the tracked tree (and what `git add -A` would add) for them. The scraping
+  lives in the untracked `local/` folder (root `.gitignore`); nothing is copied from it into a tracked file.
 - No request may run long or sleep long: sync work goes through `SyncRunner` steps (bounded by `step_seconds`),
   crawl delays become `FetchDeferred`. No queue jobs, schedules or background processes.
 - Scrapers go through `Fetcher`, respect robots.txt / crawl delays (Prydwen 10 s) and are developed against

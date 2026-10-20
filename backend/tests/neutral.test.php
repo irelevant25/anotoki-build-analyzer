@@ -48,28 +48,59 @@ function assertNeutral(Tests\Support\Answer $answer, string $what, int $status =
 }
 
 test('addresses and names of other sites become neutral words', function () {
-    $cases = [
-        'HTTP 403 from https://www.prydwen.gg/star-rail/characters/kafka' => 'HTTP 403 from the source page',
-        'cURL error 6: Could not resolve host: enka.network' => 'cURL error 6: Could not resolve host: the source',
-        'Prydwen has no curated build for this character yet.' => 'The source has no curated build for this character yet.',
-        'Game data from gi.yatta.moe was refreshed.' => 'Game data from the source was refreshed.',
-        'Exported by Inventory Kamera; see www.example.org/help.' => 'Exported by the source; see the source page',
-        'Line one.' . "\n" . 'genshin.gg lists 3 builds.' => 'Line one.' . "\n" . 'The source lists 3 builds.',
-    ];
-    foreach ($cases as $text => $expected) {
-        same($expected, Neutral::text($text), $text);
+    // The names config/neutral.local.php adds - a fictitious site here: the repository names no real one.
+    Neutral::setLocalNames(['Fictional Builds', 'fictional-builds.example', '  ', 7]);
+    try {
+        same(['fictional builds', 'fictional-builds.example'], Neutral::localNames(), 'the names with something in them, lowercased');
+        $cases = [
+            'HTTP 403 from https://builds.example/characters/kafka' => 'HTTP 403 from the source page',
+            'cURL error 6: Could not resolve host: enka.network' => 'cURL error 6: Could not resolve host: the source',
+            'Fictional Builds has no curated build for this character yet.' => 'The source has no curated build for this character yet.',
+            'Game data from gi.yatta.moe was refreshed.' => 'Game data from the source was refreshed.',
+            'Exported by Inventory Kamera; see www.example.org/help.' => 'Exported by the source; see the source page',
+            'Line one.' . "\n" . 'fictional-builds.example lists 3 builds.' => 'Line one.' . "\n" . 'The source lists 3 builds.',
+        ];
+        foreach ($cases as $text => $expected) {
+            same($expected, Neutral::text($text), $text);
+        }
+        same(['fictional-builds.example', 'enka'], Neutral::namesIn('fictional-builds.example and Enka'), 'a domain whole, before the name inside it');
+    } finally {
+        Neutral::setLocalNames([]);
     }
+    same('Fictional Builds lists 3 builds.', Neutral::text('Fictional Builds lists 3 builds.'), 'without the file only the names Neutral holds itself');
 
     // Game names, places and the app's own words stay as they are.
-    foreach (['Genshin Impact', 'Honkai: Star Rail', 'Enkanomiya', 'Hu Tao', 'Source 2 (Genshin Impact)', 'genshin-2', 'build analyzer'] as $text) {
+    foreach (['Genshin Impact', 'Enkanomiya', 'Hu Tao', 'build analyzer'] as $text) {
         same($text, Neutral::text($text), $text);
         same(false, Neutral::mentionsAny($text), "{$text} mentions nothing");
     }
     same(null, Neutral::text(null), 'null');
-    same(['notes' => ['The source page', 'ok']], Neutral::deep(['notes' => ['https://game8.co/x', 'ok']]), 'nested values');
+    same(['notes' => ['The source page', 'ok']], Neutral::deep(['notes' => ['https://elsewhere.example/x', 'ok']]), 'nested values');
+});
+
+test('config/neutral.local.php is read cleanly or not at all: a broken one adds no name', function () {
+    $root = T::$storage . '/neutral-root';
+    @mkdir($root . '/config', 0775, true);
+    $file = $root . '/config/' . Neutral::LOCAL_FILE;
+    try {
+        same(null, App\Config::readOptionalFile(Neutral::LOCAL_FILE, $root), 'no file, nothing');
+        file_put_contents($file, "<?php return ['names' => ['Fictional Builds'], 'tree_words' => ['fictionalbuilds']];");
+        same(['names' => ['Fictional Builds'], 'tree_words' => ['fictionalbuilds']], App\Config::readOptionalFile(Neutral::LOCAL_FILE, $root), 'a clean one, as written');
+        foreach (["\xEF\xBB\xBF<?php return ['names' => ['x']];", "\n<?php return ['names' => ['x']];", "<?php echo 'x'; return ['names' => ['x']];", '<?php return [;'] as $broken) {
+            file_put_contents($file, $broken);
+            ob_start();
+            $value = App\Config::readOptionalFile(Neutral::LOCAL_FILE, $root);
+            same('', ob_get_clean(), 'nothing of it printed');
+            same(null, $value, 'passed over: ' . json_encode(substr($broken, 0, 12)));
+        }
+    } finally {
+        @unlink($file);
+    }
 });
 
 test('what the Sources, build and account pages get names no other site', function () {
+    // Until the builds come from a file only (0.5.0 rewrites this test), the scrapers' own names are kept out too.
+    Neutral::setLocalNames(['genshin-builds.com', 'genshin-builds', 'www.prydwen.gg', 'prydwen.gg', 'prydwen', 'genshin.gg', 'game8', 'keqingmains']);
     seedGenshinCatalog();
     seedUser(1, 'owner');
     $now = Clock::now();
@@ -206,7 +237,7 @@ test('what the Sources, build and account pages get names no other site', functi
     $file = (string) json_encode([
         'source' => 'reliquary_archiver',
         'version' => 4,
-        'metadata' => ['uid' => 'see prydwen.gg'],
+        'metadata' => ['uid' => 'see enka.network'],
         'light_cones' => [],
         'relics' => [],
         'characters' => [['id' => '1005', 'name' => 'Kafka', 'level' => 80]],
@@ -242,9 +273,9 @@ test('the site\'s own words name no other site, in English and in Slovak', funct
 
         // And the check does find a site's name in such an answer.
         db()->run("INSERT INTO translation_keys (name) VALUES ('test.named') ON CONFLICT DO NOTHING");
-        db()->run("INSERT INTO translations (key_name, language_code, value) VALUES ('test.named', 'sk', 'Pozri Prydwen')");
+        db()->run("INSERT INTO translations (key_name, language_code, value) VALUES ('test.named', 'sk', 'Pozri Fribbels')");
         $named = throws(AssertionFailed::class, fn() => assertNeutral((new Client())->get('/api/translations/sk'), 'a bundle that names a site'), 'a site\'s name in a string');
-        check(str_contains($named->getMessage(), 'test.named: Pozri Prydwen'), $named->getMessage());
+        check(str_contains($named->getMessage(), 'test.named: Pozri Fribbels'), $named->getMessage());
     } finally {
         db()->run("DELETE FROM translation_keys WHERE name IN ('test.neutral', 'test.named')");
     }

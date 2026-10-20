@@ -394,20 +394,20 @@ test('a migration with strings writes each key once, in both languages; the gate
 // ── The rules this site adds ─────────────────────────────────────────────────────────────────────
 
 test('a string names no other site and holds no web address - checked last, in any language, and in a language\'s names', function () {
-    same(['names_another_site', ['key' => 'test.bye', 'language' => 'sk', 'found' => ['prydwen']]], checked(['test.bye' => ['sk' => 'Pozri Prydwen']]), 'a name');
+    same(['names_another_site', ['key' => 'test.bye', 'language' => 'sk', 'found' => ['github']]], checked(['test.bye' => ['sk' => 'Pozri GitHub']]), 'a name');
     same(
         ['names_another_site', ['key' => 'test.bye', 'language' => 'en', 'found' => ['a web address']]],
         checked(['test.bye' => ['en' => 'See https://elsewhere.example']]),
         'an address, in English too',
     );
     same(
-        ['names_another_site', ['key' => 'test.hello', 'language' => 'sk', 'found' => ['enka.network', 'game8']]],
-        checked(['test.hello' => ['sk' => '{name}: enka.network, Game8, GAME8']]),
+        ['names_another_site', ['key' => 'test.hello', 'language' => 'sk', 'found' => ['enka.network', 'fribbels']]],
+        checked(['test.hello' => ['sk' => '{name}: enka.network, Fribbels, FRIBBELS']]),
         'every name, once',
     );
     // After the other checks: what is wrong with the text itself is said first.
-    same('unknown_placeholder', checked(['test.bye' => ['sk' => 'Pozri Prydwen {kde}']])[0], 'a placeholder first');
-    same('invalid_value', checked(['test.bye' => ['sk' => str_repeat('Prydwen ', 300)]])[0], 'the length first');
+    same('unknown_placeholder', checked(['test.bye' => ['sk' => 'Pozri GitHub {kde}']])[0], 'a placeholder first');
+    same('invalid_value', checked(['test.bye' => ['sk' => str_repeat('GitHub ', 300)]])[0], 'the length first');
     same([['key' => 'test.bye', 'language' => 'sk', 'value' => 'Dovidenia']], checked(['test.bye' => ['sk' => ' Dovidenia ']]), 'a text that names nobody is kept');
     // The game's words and the site's own are nobody else's.
     foreach (['Genshin Impact', 'Honkai: Star Rail', 'Source 2', 'Enkanomiya', 'Build Analyzer', 'CRIT Rate: {count}'] as $text) {

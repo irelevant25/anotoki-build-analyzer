@@ -63,7 +63,7 @@ beforeEach(function () use ($state) {
         ]),
         'substats' => Json::encode([['stat' => 'critRate_', 'priority' => 1], ['stat' => 'critDMG_', 'priority' => 1], ['stat' => 'eleMas', 'priority' => 2], ['stat' => 'hp_', 'priority' => 3]]),
         'stat_targets' => Json::encode([['stat' => 'critRate_', 'min' => 70, 'max' => null, 'text' => 'CRIT Rate 70%']]),
-        'notes' => 'Prydwen has no curated build for this character yet.',
+        'notes' => 'Enka has no curated build for this character yet.',
         'source_url' => 'https://fake-builds.example/hu-tao',
         'content_hash' => 'x',
     ]);

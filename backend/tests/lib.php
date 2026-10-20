@@ -31,7 +31,12 @@ use App\Db\Db;
 use App\Db\Migrations;
 use App\Http\HttpClient;
 use App\Support\Clock;
+use App\Support\Neutral;
 use Tests\Support\FakeHttpClient;
+
+// The owner's config/neutral.local.php (names of other sites) never changes a test's result: a test that needs one
+// sets its own with Neutral::setLocalNames().
+Neutral::setLocalNames([]);
 
 const TEST_ISSUER = 'https://iam.example.test';
 const TEST_CLIENT = 'build-analyzer';
@@ -109,7 +114,7 @@ function bootTests(): void
     T::$api = buildAnalyzerApi(T::$app);
 
     // Every test starts from empty tables, this configuration, no faked answers, nothing cached, a site the IAM
-    // does not require sign-in for, and an IAM that deleted nobody.
+    // does not require sign-in for, an IAM that deleted nobody, and no names added to Neutral's.
     $snapshot = $config->snapshot();
     beforeEach(function () use ($snapshot): void {
         resetDatabase();
@@ -117,6 +122,7 @@ function bootTests(): void
         T::$http->reset();
         iamRequiresSignIn(false);
         T::$iam->anonymized([]);
+        Neutral::setLocalNames([]);
         T::$app->resetScope();
         Tests\Support\FakeBuildSource::reset();
         removeTree(T::$storage . DIRECTORY_SEPARATOR . 'http-cache');

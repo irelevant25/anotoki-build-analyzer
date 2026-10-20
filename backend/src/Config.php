@@ -30,6 +30,10 @@ use Anotoki\Lib\Auth\IamClient;
  *                        in it, another key, no array) fails closed, as a broken one does (below): only deleting
  *                        the file switches the secret off. Its origin_secret and nothing else; never written or
  *                        read by setup.php, never shown or logged.
+ *   neutral.local.php    optional, written by hand: ['names' => [...], 'tree_words' => [...]] - names of other sites
+ *                        App\Support\Neutral keeps out of what the API sends, beyond the ones it names itself, and the
+ *                        words tools/check-names.php looks for in the tracked files. Read by readOptionalFile(), not
+ *                        load(); one passed over adds nothing (the names Neutral holds itself still apply).
  *
  * Every one of them is read cleanly or not at all (readLocalFile(): the anotoki family's rule of 2026-10-13, and
  * its first five bytes since 2026-10-18 - docs/decisions.md): a file that does not start with <?php is never
@@ -316,6 +320,34 @@ final class Config
             @mkdir(dirname($stamp), 0775, true);
         }
         @file_put_contents($stamp, $today, LOCK_EX);
+    }
+
+    /** The folder the settings files are read from: BUILD_ANALYZER_TEST_CONFIG's, else stateRoot()'s config/. */
+    public static function settingsDir(?string $root = null): string
+    {
+        return self::testConfigDir() ?? self::stateRoot($root) . '/config';
+    }
+
+    /**
+     * An optional settings file read outside load() - config/neutral.local.php (App\Support\Neutral) -, cleanly or
+     * not at all: its value, or null when it is not there or is passed over (said in PHP's error log at most once a
+     * UTC day, by its fault alone, as load() says the others).
+     */
+    public static function readOptionalFile(string $file, ?string $root = null): mixed
+    {
+        $path = self::settingsDir($root) . '/' . $file;
+        if (!is_file($path)) {
+            return null;
+        }
+        $read = self::readLocalFile($path);
+        if ($read['problem'] !== null) {
+            $testDir = self::testConfigDir();
+            self::sayOncePerDay($testDir !== null ? $testDir . '/storage' : self::stateRoot($root) . '/storage', "config/{$file} {$read['problem']}: it is passed over, nothing in it read");
+
+            return null;
+        }
+
+        return $read['value'];
     }
 
     /** The browser check's settings folder, when BUILD_ANALYZER_TEST_CONFIG names one. */
