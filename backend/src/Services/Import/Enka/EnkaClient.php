@@ -41,7 +41,9 @@ class EnkaClient
         }
 
         $base = rtrim((string) $this->config->get('showcase.api'), '/');
-        $url = $game === Game::Genshin ? "{$base}/uid/{$uid}" : "{$base}/hsr/uid/{$uid}";
+        $url = match ($game) {
+            Game::Genshin => "{$base}/uid/{$uid}",
+        };
 
         try {
             $response = $this->fetcher->request($url, ['delay_ms' => 500, 'headers' => ['Accept' => 'application/json']]);

@@ -7,8 +7,8 @@ namespace App\Services\Import;
  * parameters. The English sentence beside each kind (an ImportException's message, a warning's message) is
  * that kind with its parameters filled in.
  *
- * Parameters are flat strings and numbers. Game names (*_game) are Game::label(); weapon_label is
- * Game::weaponLabel() as it is ("Weapon", "Light Cone"); ref is a catalog reference's name, else its key,
+ * Parameters are flat strings and numbers. weapon_label is Game::weaponLabel() as it is ("Weapon"); ref is a
+ * catalog reference's name, else its key,
  * else its in-game ID; count is a number. What comes from an uploaded file (ref, data_uid) goes through
  * Neutral on the way out, like the messages.
  *
@@ -20,7 +20,6 @@ final class ImportKinds
     /** The kinds of an ImportException, and "unexpected" for a failure that is not one. */
     public const ERRORS = [
         'account_missing' => [],
-        'account_game_mismatch' => ['account_game', 'data_game'],
         'account_uid_mismatch' => ['data_uid', 'account_uid'],
         'unexpected' => [],
         'uid_invalid' => [],
@@ -34,14 +33,10 @@ final class ImportKinds
         'showcase_bad_answer' => [],
         'showcase_details_off' => [],
         'showcase_empty' => [],
-        'showcase_empty_hsr' => [],
         'good_not_good' => [],
         'good_empty' => [],
-        'hsr_not_export' => [],
-        'hsr_empty' => [],
         'file_not_json' => [],
         'file_unknown_format' => [],
-        'file_game_mismatch' => ['file_game', 'chosen_game'],
     ];
 
     /** The kinds of a warning of an import that went through (summary.warning_kinds). */
@@ -51,10 +46,8 @@ final class ImportKinds
         'unknown_set' => ['ref'],
         'catalog_behind' => [],
         'showcase_artifact_skipped' => [],
-        'showcase_relic_skipped' => [],
         'good_traveler_no_element' => [],
         'good_artifacts_skipped' => ['count'],
-        'hsr_relics_skipped' => ['count'],
     ];
 
     /**

@@ -8,7 +8,7 @@ import { IconComponent } from '@anotoki/lib/ui/icon';
 import { SpinnerComponent } from '@anotoki/lib/ui/spinner';
 import { TabItem, TabsComponent } from '@anotoki/lib/ui/tabs';
 import { Api } from '../../core/api';
-import { titleCase } from '../../core/format';
+import { GAMES, titleCase } from '../../core/format';
 import { ErrorTextPipe } from '../../core/i18n/error-text';
 import { TranslatePipe } from '../../core/i18n/translate';
 import { TranslatePluralPipe } from '../../core/i18n/translate-plural';
@@ -54,7 +54,7 @@ export class BuildCharacterPage {
   protected readonly chosen = signal<string | null>(null);
 
   protected readonly titleCase = titleCase;
-  protected readonly gameKey = computed<GameKey>(() => (this.game() === 'hsr' ? 'hsr' : 'genshin'));
+  protected readonly gameKey = computed<GameKey>(() => GAMES.find((offered) => offered === this.game()) ?? GAMES[0]);
 
   /** A tab a build: its source and variant. */
   protected readonly buildTabs = computed<TabItem[]>(() =>

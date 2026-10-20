@@ -22,7 +22,7 @@ export interface ItemView {
 }
 
 /**
- * One artifact / relic: set, main stat, substats (highlighted by how much the build values them) and grade - a
+ * One artifact: set, main stat, substats (highlighted by how much the build values them) and grade - a
  * tile of the site's own (the game's piece of gear), drawn with the kit's tokens, icons and tooltips.
  */
 @Component({

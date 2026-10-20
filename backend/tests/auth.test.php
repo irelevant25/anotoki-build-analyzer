@@ -530,7 +530,7 @@ test('every error a signed-in person can meet says what happened as a code, besi
         new class extends App\Services\Import\ImportService {
             public function __construct() {}
 
-            public function fromFile(string $contents, App\Models\User $owner, ?App\Enums\Game $expectedGame = null, ?App\Models\Account $target = null, ?string $fileName = null): App\Models\ImportRun
+            public function fromFile(string $contents, App\Models\User $owner, ?App\Models\Account $target = null, ?string $fileName = null): App\Models\ImportRun
             {
                 throw new LogicException('Something of the server\'s own, at C:\\somewhere\\on\\the\\host.');
             }

@@ -122,9 +122,9 @@ export class CharacterPage {
 
   protected readonly game = computed<GameKey>(() => this.data()?.account.game ?? 'genshin');
   protected readonly gameMeta = computed(() => this.meta.game(this.game()));
-  /** The game's own words for this game: "Artifacts" / "Relics", "Constellations" / "Eidolons", "Talents" / "Traces". */
+  /** The game's own words for this game: "Artifacts", "Constellations", "Talents". */
   protected readonly terms = computed(() => GAME_TERMS[this.game()]);
-  /** "Weapon" / "Light Cone", as the metadata says it. */
+  /** "Weapon", as the metadata says it. */
   protected readonly weaponTerm = computed(() => this.gameMeta()?.weapon_label ?? this.terms().weapon);
   protected readonly rankPrefix = computed(() => this.gameMeta()?.rank_prefix ?? this.terms().rankPrefix);
   protected readonly refinementPrefix = computed(() => this.gameMeta()?.refinement_prefix ?? this.terms().refinementPrefix);

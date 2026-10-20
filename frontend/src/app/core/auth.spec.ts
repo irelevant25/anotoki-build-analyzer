@@ -54,9 +54,9 @@ describe("AuthService: the auth module (@anotoki/lib/auth) under the names the s
 
   it('signs in at the IAM, back to the page asked for - or to this one - and out everywhere', async () => {
     const { handle, auth } = await start({ loginRequired: false });
-    expect(await auth.login('/builds/hsr')).toBe(true);
+    expect(await auth.login('/builds/genshin')).toBe(true);
     expect(await auth.login()).toBe(true);
-    expect(handle.client?.logins.map((login) => login.returnTo)).toEqual(['/builds/hsr', '/']);
+    expect(handle.client?.logins.map((login) => login.returnTo)).toEqual(['/builds/genshin', '/']);
 
     const signedIn = await start({ user: { sub: '7' } });
     await signedIn.auth.logout();

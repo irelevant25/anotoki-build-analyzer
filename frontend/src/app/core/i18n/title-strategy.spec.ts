@@ -75,7 +75,7 @@ describe('AppTitleStrategy: the browser tab’s title', () => {
   });
 
   it('follows the language: switching it renames the tab without a navigation', async () => {
-    const { title, i18n } = await at('/builds/hsr');
+    const { title, i18n } = await at('/builds/genshin');
     expect(title).toBe('Buildy · Build Analyzer');
 
     expect(await i18n.setLanguage('en', { remember: false })).toBe(true);

@@ -36,7 +36,7 @@ final class SyncBuilds
         $registry = $app->get(BuildSourceRegistry::class);
         $game = isset($options['game']) ? Game::tryFrom((string) $options['game']) : null;
         if (isset($options['game']) && $game === null) {
-            Cli::error('--game is genshin or hsr.');
+            Cli::error('--game is ' . implode(' or ', array_map(fn(Game $game) => $game->value, Game::cases())) . '.');
 
             return 1;
         }

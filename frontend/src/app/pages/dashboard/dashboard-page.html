@@ -60,15 +60,10 @@
             <article class="tile account-card">
               <a class="account-main" [routerLink]="['/accounts', account.id]">
                 <div class="account-head">
-                  <anotoki-icon
-                    class="game-icon"
-                    [class.hsr]="game === 'hsr'"
-                    [name]="gameIcon(game)"
-                    [size]="24"
-                  />
+                  <anotoki-icon class="game-icon" [name]="gameIcon(game)" [size]="24" />
                   <div class="names">
                     <div class="nickname">{{ account.nickname }}</div>
-                    <!-- UID, and AR / TL, are the games' own words: written as they are, never worded. -->
+                    <!-- UID and AR are the game's own words: written as they are, never worded. -->
                     <div class="muted small">
                       @if (account.uid) {
                         {{ uidTerm }} {{ account.uid }}

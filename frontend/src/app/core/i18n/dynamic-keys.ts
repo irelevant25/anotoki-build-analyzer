@@ -37,7 +37,6 @@ export const DYNAMIC_KEYS: Record<string, readonly string[]> = {
   // Why an import was refused or failed (import-words.ts): the 422's code, a failed run's error_code.
   'import.error.': [
     'account_missing',
-    'account_game_mismatch',
     'account_uid_mismatch',
     'unexpected',
     'uid_invalid',
@@ -51,27 +50,13 @@ export const DYNAMIC_KEYS: Record<string, readonly string[]> = {
     'showcase_bad_answer',
     'showcase_details_off',
     'showcase_empty',
-    'showcase_empty_hsr',
     'good_not_good',
     'good_empty',
-    'hsr_not_export',
-    'hsr_empty',
     'file_not_json',
     'file_unknown_format',
-    'file_game_mismatch',
   ],
   // What an import that went through warns about (import-words.ts): summary.warning_kinds[].code.
-  'import.warning.': [
-    'unknown_character',
-    'unknown_weapon',
-    'unknown_set',
-    'catalog_behind',
-    'showcase_artifact_skipped',
-    'showcase_relic_skipped',
-    'good_traveler_no_element',
-    'good_artifacts_skipped',
-    'hsr_relics_skipped',
-  ],
+  'import.warning.': ['unknown_character', 'unknown_weapon', 'unknown_set', 'catalog_behind', 'showcase_artifact_skipped', 'good_traveler_no_element', 'good_artifacts_skipped'],
   // An import run's status (import-words.ts).
   'import.status.': ['success', 'partial', 'failed'],
   // The whole-request failures errorKey() words (error-text.ts): the API's own codes verbatim, a visitor's

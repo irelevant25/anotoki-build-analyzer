@@ -267,7 +267,7 @@ test('behind the gate: meta, the dashboard\'s data, the builds and the sources a
             ->status(200)
             ->path('auth.issuer', TEST_ISSUER)
             ->path('games.0.key', 'genshin')
-            ->path('games.1.key', 'hsr');
+            ->path('games.1', null);
 
         $member = (new Client())->asIam(1, []);
         $member
@@ -315,12 +315,12 @@ test('behind the gate: an import works - one that goes through with a warning, a
         // A problem the person can fix: the sentence, its code and its parameters - and the failed run is kept.
         same(
             [
-                'message' => 'This file contains Genshin Impact data, but you chose Honkai: Star Rail.',
-                'code' => 'file_game_mismatch',
-                'params' => ['file_game' => 'Genshin Impact', 'chosen_game' => 'Honkai: Star Rail'],
+                'message' => 'The GOOD file contains no characters or artifacts. Check the exporter settings.',
+                'code' => 'good_empty',
+                'params' => [],
             ],
             $client
-                ->post('/api/imports/file', ['content' => goodFile(), 'game' => 'hsr', 'account_id' => $account, 'file_name' => 'wrong-game.json'])
+                ->post('/api/imports/file', ['content' => '{"format":"GOOD","weapons":[]}', 'account_id' => $account, 'file_name' => 'empty.json'])
                 ->status(422)
                 ->json(),
             'the refusal',
@@ -338,9 +338,9 @@ test('behind the gate: an import works - one that goes through with a warning, a
         same(['failed', 'partial'], array_column($history->json(), 'status'), 'the history, newest first');
         $history
             ->path('0.summary', null)
-            ->path('0.error_code', 'file_game_mismatch')
-            ->path('0.error_params', ['file_game' => 'Genshin Impact', 'chosen_game' => 'Honkai: Star Rail'])
-            ->path('0.error', 'This file contains Genshin Impact data, but you chose Honkai: Star Rail.')
+            ->path('0.error_code', 'good_empty')
+            ->path('0.error_params', [])
+            ->path('0.error', 'The GOOD file contains no characters or artifacts. Check the exporter settings.')
             ->path('1.summary.warning_kinds.0.code', 'unknown_set');
 
         // The account page and a character's analysis, on what was imported.

@@ -50,7 +50,7 @@ export class BuildDetail {
   readonly element = input<string | null>(null);
 
   protected readonly gameMeta = computed(() => this.meta.game(this.game()));
-  /** The game's own words for this game: "Weapons" / "Light Cones", "Talents" / "Traces". */
+  /** The game's own words for this game: "Weapons", "Talents". */
   protected readonly terms = computed(() => GAME_TERMS[this.game()]);
   protected readonly buildTerms = BUILD_TERMS;
   /** `en` on what a source wrote while the page is in another language; nothing while it is English. */
@@ -62,7 +62,7 @@ export class BuildDetail {
 
   protected readonly setGroups = computed<SetGroup[]>(() => {
     const groups = this.evaluation()?.sets?.groups ?? [];
-    return (['artifact', 'relic', 'planar'] as const)
+    return (Object.keys(SET_KIND_TERMS) as SetOption['kind'][])
       .map((kind) => ({
         kind,
         title: SET_KIND_TERMS[kind],

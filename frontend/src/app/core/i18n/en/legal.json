@@ -3,8 +3,7 @@
   "title.privacy": "Privacy policy",
   "title.contact": "Contact",
 
-  "legal.about": "Build Analyzer compares your Genshin Impact and Honkai: Star Rail characters with the builds community sites recommend, and shows what to improve. You import a game account by its UID or from an inventory file - with your anotoki account, or without one.",
-  "legal.fanClause": "This site is a fan-made project and is not affiliated with or endorsed by HoYoverse. Genshin Impact, Honkai: Star Rail and their names, images and content belong to their respective owners.",
+  "legal.about": "Build Analyzer compares your Genshin Impact characters with the builds community sites recommend, and shows what to improve. You import a game account by its UID or from an inventory file - with your anotoki account, or without one.",
 
   "legal.record.name": "Your record",
   "legal.record.what": "Your anotoki account's id and the name it gives (copied from each sign-in), and when you first and last used the site.",
@@ -12,7 +11,7 @@
   "legal.record.kept": "Until an administrator deletes your data here - signing in again makes a new, empty record. When your anotoki account is deleted, it stays without your name.",
 
   "legal.accounts.name": "Your game accounts",
-  "legal.accounts.what": "What you import: each game account's UID, its in-game nickname (or the name you give it), level, world level, signature and region; its characters, weapons or light cones, and artifacts or relics, with their stats; and your imports - when, by UID or from a file, the file's name, and what could not be read.",
+  "legal.accounts.what": "What you import: each game account's UID, its in-game nickname (or the name you give it), level, world level, signature and region; its characters, weapons and artifacts, with their stats; and your imports - when, by UID or from a file, the file's name, and what could not be read.",
   "legal.accounts.why": "To compare your characters with the recommended builds, and keep them for your next visit - on every device you sign in on.",
   "legal.accounts.kept": "Until you delete the game account, or an administrator deletes your data here; a new import replaces what it brings again. When your anotoki account is deleted, your game accounts stay - with their UIDs and in-game nicknames, but no longer tied to your name.",
 

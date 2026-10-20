@@ -16,7 +16,7 @@ use Slim\Routing\RouteCollectorProxy;
  * are 401 sign_in_required, and it is always the person's own data - nothing names another's.
  *
  *   GET  /api/me/export                  the file: every game account of theirs with its characters,
- *                                        weapons, artifacts / relics and import history (compact JSON,
+ *                                        weapons, artifacts and import history (compact JSON,
  *                                        Content-Disposition attachment build-analyzer-accounts-YYYY-MM-DD.json)
  *   POST /api/me/import[?dry_run=1]      the file as the request's body, as it was saved ->
  *                                        {dry_run, added, replaced, kept, skipped, accounts: [{game, uid,

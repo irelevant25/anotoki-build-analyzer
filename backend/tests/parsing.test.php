@@ -83,17 +83,6 @@ test('stat goals are read from Genshin notes', function () {
     same(200.0, $byStat['eleMas']['max'], 'EM max');
 });
 
-test('stat goals are read from an endgame list', function () {
-    $html = '<ul><li><p>HP: <b>3000+</b></p></li><li><p>ATK: <b>2500 - 3000+ </b></p></li>' . '<li><p>EHR: <b>75%</b> (More can be fine)</p></li><li><p>SPD: <b>160+</b></p></li></ul>';
-    $byStat = array_column(StatTargets::extract(Game::Hsr, $html), null, 'stat');
-
-    same(3000.0, $byStat['hp']['min'], 'HP');
-    same(2500.0, $byStat['atk']['min'], 'ATK min');
-    same(3000.0, $byStat['atk']['max'], 'ATK max');
-    same(75.0, $byStat['effectHitRate_']['min'], 'EHR');
-    same(160.0, $byStat['spd']['min'], 'SPD');
-});
-
 test('effect descriptions are not goals', function () {
     same([], StatTargets::extract(Game::Genshin, '4pc grants the party 20% ATK after Burst and 35% Charged Attack DMG.'), 'targets');
 });

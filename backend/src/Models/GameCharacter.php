@@ -19,7 +19,7 @@ final class GameCharacter extends CatalogEntry
         ?DateTimeImmutable $updated_at = null,
         public ?string $element = null,
         public ?int $rarity = null,
-        /** Genshin weapon type or HSR path. */
+        /** The weapon type (Game::weaponTypes()). */
         public ?string $weapon_type = null,
         public ?DateTimeImmutable $released_at = null,
     ) {

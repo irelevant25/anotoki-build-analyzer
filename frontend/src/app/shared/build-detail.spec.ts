@@ -39,20 +39,19 @@ const SLOVAK: Record<string, string> = {
 };
 
 function gameMeta(key: GameKey): GameMeta {
-  const genshin = key === 'genshin';
   return {
     key,
-    label: genshin ? 'Genshin Impact' : 'Honkai: Star Rail',
+    label: 'Genshin Impact',
     slots: [
       { key: 'flower', label: 'Flower of Life', variable: false },
       { key: 'sands', label: 'Sands of Eon', variable: true },
       { key: 'goblet', label: 'Goblet of Eonothem', variable: true },
     ],
-    weapon_label: genshin ? 'Weapon' : 'Light Cone',
-    item_label: genshin ? 'Artifact' : 'Relic',
-    rank_label: genshin ? 'Constellation' : 'Eidolon',
-    refinement_prefix: genshin ? 'R' : 'S',
-    rank_prefix: genshin ? 'C' : 'E',
+    weapon_label: 'Weapon',
+    item_label: 'Artifact',
+    rank_label: 'Constellation',
+    refinement_prefix: 'R',
+    rank_prefix: 'C',
     elements: [],
     weapon_types: [],
     stats: {
@@ -65,7 +64,7 @@ function gameMeta(key: GameKey): GameMeta {
   };
 }
 
-const META: Meta = { games: [gameMeta('genshin'), gameMeta('hsr')], version: '1.0.0', auth: { issuer: '', client_id: '' } };
+const META: Meta = { games: [gameMeta('genshin')], version: '1.0.0', auth: { issuer: '', client_id: '' } };
 
 const hoursAgo = (hours: number) => new Date(Date.now() - hours * 3600 * 1000 - 5000).toISOString();
 
@@ -254,16 +253,13 @@ describe('BuildDetail: a recommended build in the reader’s words, the game’s
     expect(text('.sets .w-text > .small')).toEqual(['Any: vyhovuje 5 setov']);
   });
 
-  it('uses the other game’s terms, and says so when a source lists nothing', async () => {
+  it('uses the game’s terms, and says so when a source lists nothing', async () => {
     await show(
       'sk',
-      'hsr',
+      'genshin',
       build({
         weapons: [],
-        sets: [
-          { rank: 1, kind: 'relic', choose: null, pieces: [{ label: 'Musketeer of Wild Wheat', count: 4, keys: ['m'], names: ['Musketeer of Wild Wheat'] }], note: null },
-          { rank: 1, kind: 'planar', choose: null, pieces: [{ label: 'Space Sealing Station', count: 2, keys: ['s'], names: ['Space Sealing Station'] }], note: null },
-        ],
+        sets: [{ rank: 1, kind: 'artifact', choose: null, pieces: [{ label: 'Crimson Witch of Flames', count: 4, keys: ['c'], names: ['Crimson Witch of Flames'] }], note: null }],
         substats: [],
         stat_targets: null,
         notes: null,
@@ -273,7 +269,7 @@ describe('BuildDetail: a recommended build in the reader’s words, the game’s
       }),
     );
 
-    expect(text('h3')).toEqual(['Light Cones', 'Cavern Relics', 'Planar Ornaments', 'Main stats', 'Substats: priorita', 'Traces: priorita']);
+    expect(text('h3')).toEqual(['Weapons', 'Artifact sets', 'Main stats', 'Substats: priorita', 'Talents: priorita']);
     expect(text('.block > p')).toEqual(['Tento zdroj tu nič neuvádza.', 'Tento zdroj ich neuvádza; analýza preberá priority z iného zdroja.']);
     expect(text('footer')).toEqual(['Zatiaľ neskontrolované']);
   });

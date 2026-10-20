@@ -8,7 +8,7 @@ use App\Support\Json;
 use DateTimeImmutable;
 
 /**
- * A row of the game catalog: a character, a weapon / light cone, or an artifact / relic set. The three
+ * A row of the game catalog: a character, a weapon, or an artifact set. The three
  * tables share their columns, apart from the character's element and release and the set's kind.
  */
 abstract class CatalogEntry
@@ -32,7 +32,7 @@ abstract class CatalogEntry
     abstract public static function fromRow(array $row): static;
 
     /**
-     * Every in-game ID the entry answers to (the Travelers and Trailblazers have several).
+     * Every in-game ID the entry answers to (the Travelers have several).
      *
      * @return list<string>
      */

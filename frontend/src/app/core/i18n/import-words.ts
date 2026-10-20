@@ -33,7 +33,6 @@ const NONE: readonly string[] = [];
 
 const ERRORS = new Map<string, CodeWording>([
   ['account_missing', { key: 'import.error.account_missing', needs: NONE }],
-  ['account_game_mismatch', { key: 'import.error.account_game_mismatch', needs: ['account_game', 'data_game'] }],
   ['account_uid_mismatch', { key: 'import.error.account_uid_mismatch', needs: ['data_uid', 'account_uid'] }],
   ['unexpected', { key: 'import.error.unexpected', needs: NONE }],
   ['uid_invalid', { key: 'import.error.uid_invalid', needs: NONE }],
@@ -47,14 +46,10 @@ const ERRORS = new Map<string, CodeWording>([
   ['showcase_bad_answer', { key: 'import.error.showcase_bad_answer', needs: NONE }],
   ['showcase_details_off', { key: 'import.error.showcase_details_off', needs: NONE }],
   ['showcase_empty', { key: 'import.error.showcase_empty', needs: NONE }],
-  ['showcase_empty_hsr', { key: 'import.error.showcase_empty_hsr', needs: NONE }],
   ['good_not_good', { key: 'import.error.good_not_good', needs: NONE }],
   ['good_empty', { key: 'import.error.good_empty', needs: NONE }],
-  ['hsr_not_export', { key: 'import.error.hsr_not_export', needs: NONE }],
-  ['hsr_empty', { key: 'import.error.hsr_empty', needs: NONE }],
   ['file_not_json', { key: 'import.error.file_not_json', needs: NONE }],
   ['file_unknown_format', { key: 'import.error.file_unknown_format', needs: NONE }],
-  ['file_game_mismatch', { key: 'import.error.file_game_mismatch', needs: ['file_game', 'chosen_game'] }],
 ]);
 
 const WARNINGS = new Map<string, CodeWording>([
@@ -63,10 +58,8 @@ const WARNINGS = new Map<string, CodeWording>([
   ['unknown_set', { key: 'import.warning.unknown_set', needs: ['ref'] }],
   ['catalog_behind', { key: 'import.warning.catalog_behind', needs: NONE }],
   ['showcase_artifact_skipped', { key: 'import.warning.showcase_artifact_skipped', needs: NONE }],
-  ['showcase_relic_skipped', { key: 'import.warning.showcase_relic_skipped', needs: NONE }],
   ['good_traveler_no_element', { key: 'import.warning.good_traveler_no_element', needs: NONE }],
   ['good_artifacts_skipped', { key: 'import.warning.good_artifacts_skipped', needs: ['count'], counted: 'count' }],
-  ['hsr_relics_skipped', { key: 'import.warning.hsr_relics_skipped', needs: ['count'], counted: 'count' }],
 ]);
 
 const STATUSES = new Map<string, TranslationKey>([

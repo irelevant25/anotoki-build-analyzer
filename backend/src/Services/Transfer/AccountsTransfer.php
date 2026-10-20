@@ -449,7 +449,11 @@ final class AccountsTransfer
     /** What the database calls a source: the showcase service's name, or the game's file format. */
     private static function stored(Game $game, string $kind): string
     {
-        return $kind === 'showcase' ? 'enka' : ($game === Game::Genshin ? 'good' : 'hsr_scanner');
+        return $kind === 'showcase'
+            ? 'enka'
+            : match ($game) {
+                Game::Genshin => 'good',
+            };
     }
 
     /** A stored time as the file writes it ("-" for none). */

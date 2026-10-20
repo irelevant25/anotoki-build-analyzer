@@ -49,40 +49,6 @@ class CatalogSync implements RunHandler
         'WEAPON_CATALYST' => 'catalyst',
     ];
 
-    private const HSR_ELEMENTS = [
-        'Physical' => 'physical',
-        'Fire' => 'fire',
-        'Ice' => 'ice',
-        'Thunder' => 'lightning',
-        'Wind' => 'wind',
-        'Quantum' => 'quantum',
-        'Imaginary' => 'imaginary',
-    ];
-
-    public const HSR_PATHS = [
-        'Warrior' => 'destruction',
-        'Rogue' => 'hunt',
-        'Mage' => 'erudition',
-        'Shaman' => 'harmony',
-        'Warlock' => 'nihility',
-        'Knight' => 'preservation',
-        'Priest' => 'abundance',
-        'Memory' => 'remembrance',
-        'Elation' => 'elation',
-    ];
-
-    private const HSR_PATH_LABELS = [
-        'destruction' => 'Destruction',
-        'hunt' => 'The Hunt',
-        'erudition' => 'Erudition',
-        'harmony' => 'Harmony',
-        'nihility' => 'Nihility',
-        'preservation' => 'Preservation',
-        'abundance' => 'Abundance',
-        'remembrance' => 'Remembrance',
-        'elation' => 'Elation',
-    ];
-
     public function __construct(
         private readonly Fetcher $fetcher,
         private readonly Catalog $catalog,
@@ -121,7 +87,10 @@ class CatalogSync implements RunHandler
             Catalog::SET => 'Sets',
             default => throw new \InvalidArgumentException("Unknown catalog list [{$type}]"),
         };
-        $method = ($game === Game::Genshin ? 'genshin' : 'hsr') . $method;
+        $method =
+            match ($game) {
+                Game::Genshin => 'genshin',
+            } . $method;
 
         // Downloaded before the transaction starts, so none is held open across a request.
         $items = $this->download($game, $type);
@@ -225,13 +194,12 @@ class CatalogSync implements RunHandler
         $api = $this->config->get("catalog.{$game->value}.api");
         $path = [
             Game::Genshin->value => [Catalog::CHARACTER => 'avatar', Catalog::WEAPON => 'weapon', Catalog::SET => 'reliquary'],
-            Game::Hsr->value => [Catalog::CHARACTER => 'avatar', Catalog::WEAPON => 'equipment', Catalog::SET => 'relic'],
         ][$game->value][$type];
 
         $json = $this->fetcher->getJson("{$api}/{$path}", ['delay_ms' => 300]);
         $items = $json['data']['items'] ?? [];
 
-        // Names can contain in-game markup such as "Silver Wolf LV.<unbreak>999</unbreak>".
+        // Names can contain in-game markup ("<unbreak>" ...).
         foreach ($items as &$item) {
             if (isset($item['name'])) {
                 $item['name'] = trim(html_entity_decode(strip_tags((string) $item['name']), ENT_QUOTES | ENT_HTML5, 'UTF-8'));
@@ -320,95 +288,6 @@ class CatalogSync implements RunHandler
                 'external_id' => (string) $id,
                 'icon_url' => isset($item['icon']) ? "{$assets}/reliquary/{$item['icon']}.png" : null,
                 'meta' => ['rarities' => $item['levelList'] ?? [], 'bonuses' => array_values($item['affixList'] ?? [])],
-            ]);
-            $sets++;
-        }
-
-        return $sets;
-    }
-
-    private function hsrCharacters(array $items): int
-    {
-        $assets = $this->config->get('catalog.hsr.assets');
-        $game = Game::Hsr;
-        ksort($items);
-
-        // Detect names shared by several characters (e.g. the two March 7th) to disambiguate by path.
-        $nameCounts = array_count_values(array_map(fn($item) => Key::from($item['name']), $items));
-
-        $characters = 0;
-        $trailblazers = [];
-        foreach ($items as $id => $item) {
-            $path = self::HSR_PATHS[$item['types']['pathType'] ?? ''] ?? null;
-            $row = [
-                'name' => $item['name'],
-                'element' => self::HSR_ELEMENTS[$item['types']['combatType'] ?? ''] ?? null,
-                'rarity' => $this->rarity($item['rank'] ?? null),
-                'weapon_type' => $path,
-                'external_id' => (string) $id,
-                'icon_url' => isset($item['icon']) ? "{$assets}/avatar/{$item['icon']}.png" : null,
-                'released_at' => isset($item['release']) ? Clock::fromTimestamp((int) $item['release']) : null,
-            ];
-
-            $key = Key::from($item['name']);
-            if ($key === 'trailblazer' && $path) {
-                $tbKey = 'trailblazer' . $path;
-                $trailblazers[$tbKey]['ids'][] = (string) $id;
-                $trailblazers[$tbKey]['row'] ??= ['name' => 'Trailblazer (' . self::HSR_PATH_LABELS[$path] . ')'] + $row;
-
-                continue;
-            }
-
-            if ($nameCounts[$key] > 1 && $path) {
-                $first = min(array_keys(array_filter($items, fn($other) => Key::from($other['name']) === $key)));
-                if ((string) $first !== (string) $id) {
-                    $key .= $path;
-                    $row['name'] .= ' (' . self::HSR_PATH_LABELS[$path] . ')';
-                }
-            }
-
-            $this->upsert(Catalog::CHARACTER, $game, $key, $row);
-            $characters++;
-        }
-
-        foreach ($trailblazers as $key => $trailblazer) {
-            $this->upsert(Catalog::CHARACTER, $game, $key, $trailblazer['row'] + ['meta' => ['ids' => $trailblazer['ids']]]);
-            $characters++;
-        }
-
-        return $characters;
-    }
-
-    private function hsrWeapons(array $items): int
-    {
-        $assets = $this->config->get('catalog.hsr.assets');
-
-        $weapons = 0;
-        foreach ($items as $id => $item) {
-            $this->upsert(Catalog::WEAPON, Game::Hsr, Key::from($item['name']), [
-                'name' => $item['name'],
-                'rarity' => $this->rarity($item['rank'] ?? null),
-                'weapon_type' => self::HSR_PATHS[$item['types']['pathType'] ?? ''] ?? null,
-                'external_id' => (string) $id,
-                'icon_url' => isset($item['icon']) ? "{$assets}/equipment/medium/{$item['icon']}.png" : null,
-            ]);
-            $weapons++;
-        }
-
-        return $weapons;
-    }
-
-    private function hsrSets(array $items): int
-    {
-        $assets = $this->config->get('catalog.hsr.assets');
-
-        $sets = 0;
-        foreach ($items as $id => $item) {
-            $this->upsert(Catalog::SET, Game::Hsr, Key::from($item['name']), [
-                'name' => $item['name'],
-                'kind' => $item['isPlanarSuit'] ?? false ? 'planar' : 'relic',
-                'external_id' => (string) $id,
-                'icon_url' => isset($item['icon']) ? "{$assets}/relic/{$item['icon']}.png" : null,
             ]);
             $sets++;
         }

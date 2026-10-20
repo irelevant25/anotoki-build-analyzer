@@ -62,7 +62,7 @@ export class MetaStore {
   }
 
   /**
-   * "46.6%" for percentage stats, "4,780" for flat stats. HSR SPD keeps one decimal.
+   * "46.6%" for percentage stats, "4,780" for flat stats.
    */
   formatStat(game: GameKey, stat: string, value: number | null | undefined): string {
     if (value === null || value === undefined) {

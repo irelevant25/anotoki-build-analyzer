@@ -44,10 +44,10 @@
   "confirm.delete": "Delete",
 
   "dashboard.title": "Your accounts",
-  "dashboard.subtitle": "Import a Genshin Impact or Honkai: Star Rail account and compare every character with community builds.",
+  "dashboard.subtitle": "Import a Genshin Impact account and compare every character with community builds.",
   "dashboard.importAccount": "Import account",
   "dashboard.emptyTitle": "Let's look at your characters",
-  "dashboard.emptyText": "The import guide walks you through it step by step. The quickest way needs only your UID; a full inventory export also finds better artifacts and relics you already own.",
+  "dashboard.emptyText": "The import guide walks you through it step by step. The quickest way needs only your UID; a full inventory export also finds better artifacts you already own.",
   "dashboard.importGame": "Import {game}",
   "dashboard.noUid": "No UID",
   "dashboard.imported": "Imported {when}",
@@ -68,7 +68,7 @@
   "dashboard.notSyncedYet": "not synced yet",
 
   "home.title": "Every character, measured against community builds",
-  "home.text": "Import a Genshin Impact or Honkai: Star Rail account by its UID or from an inventory file, and see per character what to improve. You can start without an account; sign in with your anotoki account to keep your data with it.",
+  "home.text": "Import a Genshin Impact account by its UID or from an inventory file, and see per character what to improve. You can start without an account; sign in with your anotoki account to keep your data with it.",
   "home.import": "Import your account",
   "home.browse": "Browse the {game} builds",
   "home.signInText": "Signed in, your accounts stay with your anotoki account, on every device.",

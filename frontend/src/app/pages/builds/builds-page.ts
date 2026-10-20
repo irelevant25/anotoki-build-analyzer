@@ -1,16 +1,15 @@
 import { Component, computed, effect, inject, input, signal } from '@angular/core';
-import { Router, RouterLink } from '@angular/router';
+import { RouterLink } from '@angular/router';
 import { AlertComponent } from '@anotoki/lib/ui/alert';
 import { CardComponent } from '@anotoki/lib/ui/card';
 import { TextFieldComponent } from '@anotoki/lib/ui/forms';
 import { IconComponent } from '@anotoki/lib/ui/icon';
 import { LinkCardComponent } from '@anotoki/lib/ui/link-card';
 import { PageHeaderComponent } from '@anotoki/lib/ui/page-header';
-import { SegmentedComponent, SegmentedOption } from '@anotoki/lib/ui/segmented';
 import { SpinnerComponent } from '@anotoki/lib/ui/spinner';
 import { Api } from '../../core/api';
 import { AuthService } from '../../core/auth';
-import { GAME_LABELS, titleCase } from '../../core/format';
+import { GAME_LABELS, GAMES, titleCase } from '../../core/format';
 import { ErrorTextPipe } from '../../core/i18n/error-text';
 import { TranslatePipe } from '../../core/i18n/translate';
 import { TranslatePluralPipe } from '../../core/i18n/translate-plural';
@@ -19,8 +18,8 @@ import { BuildCharacter, GameKey } from '../../core/models';
 import { Avatar } from '../../shared/char-avatar';
 
 /**
- * The recommended builds, for everybody (no account needed): a game at a time (the kit's segmented control), its
- * characters each the kit's link card (anotoki-lib 0.6.0: one link as a whole), a search - drawn with the anotoki
+ * The recommended builds, for everybody (no account needed): a game's characters (the game in the address, one of
+ * GAMES), each the kit's link card (anotoki-lib 0.6.0: one link as a whole), a search - drawn with the anotoki
  * family's kit.
  */
 @Component({
@@ -32,7 +31,6 @@ import { Avatar } from '../../shared/char-avatar';
     IconComponent,
     LinkCardComponent,
     PageHeaderComponent,
-    SegmentedComponent,
     SpinnerComponent,
     TextFieldComponent,
     Avatar,
@@ -45,7 +43,6 @@ import { Avatar } from '../../shared/char-avatar';
 })
 export class BuildsPage {
   private readonly api = inject(Api);
-  private readonly router = inject(Router);
   private readonly i18n = inject(TranslationService);
   protected readonly auth = inject(AuthService);
 
@@ -58,13 +55,9 @@ export class BuildsPage {
   protected readonly search = signal('');
 
   protected readonly gameLabels = GAME_LABELS;
-  /** The two games, by their own names. */
-  protected readonly gameOptions: SegmentedOption[] = [
-    { value: 'genshin', label: GAME_LABELS.genshin },
-    { value: 'hsr', label: GAME_LABELS.hsr },
-  ];
   protected readonly titleCase = titleCase;
-  protected readonly gameKey = computed<GameKey>(() => (this.game() === 'hsr' ? 'hsr' : 'genshin'));
+  /** The game the address names, when the site offers it; else the first it offers. */
+  protected readonly gameKey = computed<GameKey>(() => GAMES.find((offered) => offered === this.game()) ?? GAMES[0]);
 
   protected readonly filtered = computed(() => {
     const query = this.search().trim().toLowerCase();
@@ -90,11 +83,5 @@ export class BuildsPage {
         },
       });
     });
-  }
-
-  protected switchGame(game: string): void {
-    if (game === 'genshin' || game === 'hsr') {
-      void this.router.navigate(['/builds', game]);
-    }
   }
 }

@@ -43,7 +43,6 @@ describe('the ways in for somebody new (visitor hero)', () => {
     expect([...host.querySelectorAll('a')].map((link) => [text(link), link.getAttribute('href')])).toEqual([
       ['Importovať účet', '/import'],
       ['Buildy pre hru Genshin Impact', '/builds/genshin'],
-      ['Buildy pre hru Honkai: Star Rail', '/builds/hsr'],
     ]);
     host.querySelector<HTMLButtonElement>('button')!.click();
     expect(auth.login).toHaveBeenCalledWith(undefined);
@@ -55,6 +54,6 @@ describe('the ways in for somebody new (visitor hero)', () => {
     const fixture = TestBed.createComponent(VisitorHero);
     await fixture.whenStable();
     expect(fixture.nativeElement.querySelector('button')).toBeNull();
-    expect(fixture.nativeElement.querySelectorAll('a')).toHaveLength(3);
+    expect(fixture.nativeElement.querySelectorAll('a')).toHaveLength(2);
   });
 });

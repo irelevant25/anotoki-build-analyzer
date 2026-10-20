@@ -61,7 +61,7 @@ describe('MetaStore', () => {
 
     expect(store.loaded()).toBe(false);
     expect(store.statLabel('genshin', 'critRate_')).toBe('critRate_');
-    expect(store.formatStat('hsr', 'spd', 134.5)).toBe('134.5');
+    expect(store.formatStat('genshin', 'eleMas', 134.5)).toBe('135');
   });
 
   it('gives nothing for a server that has not been set up - the site gate says so, not this', async () => {

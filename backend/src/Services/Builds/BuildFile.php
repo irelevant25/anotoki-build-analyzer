@@ -25,8 +25,8 @@ use DateTimeInterface;
  * Reading is strict, because the analysis reads every stored build for every user. A file is refused as a
  * whole, naming its first problem, unless every build has exactly the fields and shapes a sync stores: lists
  * and objects where they belong, whole numbers where the app counts, the set kinds, slots, stats and talents
- * of the source's game, and set pieces as syncs make them - each set listed once, 2 or 4 pieces of it (2 of a
- * planar ornament), which keeps the set matcher's search small: no more than two equipped sets can satisfy
+ * of the source's game, and set pieces as syncs make them - each set listed once, 2 or 4 pieces of it, which
+ * keeps the set matcher's search small: no more than two equipped sets can satisfy
  * such pieces. The caps on sizes are well above anything a source publishes; they only keep a file from
  * being absurd. Whatever the export writes, the import reads.
  */
@@ -338,7 +338,7 @@ final class BuildFile
      */
     private function sets(mixed $value): array
     {
-        $kinds = $this->game === Game::Genshin ? ['artifact'] : ['relic', 'planar'];
+        $kinds = $this->game->setKinds();
         $sets = [];
         foreach ($this->list($value, 'sets', self::MAX_SETS) as $i => $option) {
             $at = "sets[{$i}]";
@@ -353,8 +353,8 @@ final class BuildFile
                 $piece = $this->object($piece, $in);
                 $this->fields($piece, $in, ['label', 'count', 'keys', 'names']);
                 $label = $this->text($piece['label'], "{$in}.label", self::MAX_NAME);
-                // A 2-piece or 4-piece bonus; ornaments come in pairs.
-                $count = $this->oneOf($piece['count'], "{$in}.count", $kind === 'planar' ? [2] : [2, 4]);
+                // A 2-piece or 4-piece bonus (the counts the game's kind of set knows).
+                $count = $this->oneOf($piece['count'], "{$in}.count", $this->game->setPieceCounts($kind));
                 // A piece accepts any of its sets ("any +80 EM set"), each listed once.
                 $keys = [];
                 foreach ($this->list($piece['keys'], "{$in}.keys", self::MAX_SET_KEYS, min: 1) as $k => $key) {

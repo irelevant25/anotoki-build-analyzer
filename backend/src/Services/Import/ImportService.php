@@ -9,9 +9,7 @@ use App\Models\User;
 use App\Repositories\Accounts;
 use App\Services\Import\Enka\EnkaClient;
 use App\Services\Import\Enka\EnkaGenshinParser;
-use App\Services\Import\Enka\EnkaHsrParser;
 use App\Services\Import\Files\GoodParser;
-use App\Services\Import\Files\HsrScannerParser;
 use App\Web\HttpError;
 use Throwable;
 
@@ -23,9 +21,7 @@ class ImportService
     public function __construct(
         private readonly EnkaClient $enka,
         private readonly EnkaGenshinParser $enkaGenshin,
-        private readonly EnkaHsrParser $enkaHsr,
         private readonly GoodParser $good,
-        private readonly HsrScannerParser $hsrScanner,
         private readonly AccountImporter $importer,
         private readonly Accounts $accounts,
     ) {}
@@ -43,7 +39,9 @@ class ImportService
 
         try {
             $json = $this->enka->profile($game, $uid);
-            $parsed = $game === Game::Genshin ? $this->enkaGenshin->parse($json) : $this->enkaHsr->parse($json);
+            $parsed = match ($game) {
+                Game::Genshin => $this->enkaGenshin->parse($json),
+            };
             $parsed->uid ??= $uid;
 
             return $this->importer->import($parsed, $owner, $target);
@@ -58,12 +56,12 @@ class ImportService
     }
 
     /**
-     * Import an exported JSON file. The format (GOOD or the Star Rail scanner format) is detected from the content.
+     * Import an exported JSON file. The format (GOOD) is detected from the content, and with it the game.
      */
-    public function fromFile(string $contents, User $owner, ?Game $expectedGame = null, ?Account $target = null, ?string $fileName = null): ImportRun
+    public function fromFile(string $contents, User $owner, ?Account $target = null, ?string $fileName = null): ImportRun
     {
         $source = 'file';
-        $game = $expectedGame ?? ($target?->game ?? Game::Genshin);
+        $game = $target?->game ?? Game::Genshin;
 
         try {
             // Some exporters write a UTF-8 BOM.
@@ -74,19 +72,8 @@ class ImportService
 
             [$game, $source, $parsed] = match (true) {
                 GoodParser::matches($json) => [Game::Genshin, 'good', $this->good->parse($json)],
-                HsrScannerParser::matches($json) => [Game::Hsr, 'hsr_scanner', $this->hsrScanner->parse($json)],
-                default => throw new ImportException(
-                    'Unknown file format. Upload a Genshin Impact inventory export in the GOOD format, or a Honkai: Star Rail inventory export (with "relics" and "light_cones").',
-                    'file_unknown_format',
-                ),
+                default => throw new ImportException('Unknown file format. Upload a Genshin Impact inventory export in the GOOD format.', 'file_unknown_format'),
             };
-
-            if ($expectedGame && $expectedGame !== $game) {
-                throw new ImportException("This file contains {$game->label()} data, but you chose {$expectedGame->label()}.", 'file_game_mismatch', [
-                    'file_game' => $game->label(),
-                    'chosen_game' => $expectedGame->label(),
-                ]);
-            }
 
             return $this->importer->import($parsed, $owner, $target, $fileName);
         } catch (HttpError $e) {

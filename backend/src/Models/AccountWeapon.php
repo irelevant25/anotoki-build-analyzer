@@ -3,7 +3,7 @@
 namespace App\Models;
 
 /**
- * A weapon (Genshin) or light cone (HSR) of a game account, with its catalog entry.
+ * A weapon of a game account, with its catalog entry.
  */
 final class AccountWeapon
 {

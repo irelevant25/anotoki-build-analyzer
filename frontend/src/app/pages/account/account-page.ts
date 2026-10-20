@@ -137,8 +137,8 @@ export class AccountPage {
   protected readonly titleCase = titleCase;
   protected readonly sorts = SORTS;
   /**
-   * The games' own words, the same in every language and never keys: Artifacts / Relics, Adventure Rank /
-   * Trailblaze Level, UID, "Lv. 90" - and the two parts of a build's score that the games name themselves
+   * The game's own words, the same in every language and never keys: Artifacts, Adventure Rank, UID, "Lv. 90" - and
+   * the two parts of a build's score that the games name themselves
    * ("Main stats", "Substats").
    */
   protected readonly gameTerms = GAME_TERMS;

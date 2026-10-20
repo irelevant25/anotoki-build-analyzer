@@ -14,7 +14,7 @@ import { TooltipDirective } from '@anotoki/lib/ui/tooltip';
 import { Observable } from 'rxjs';
 import { Api, errorMessage, fileErrorMessage } from '../../../core/api';
 import { AuthService } from '../../../core/auth';
-import { GAME_LABELS } from '../../../core/format';
+import { GAME_LABELS, GAMES } from '../../../core/format';
 import { GameKey, SourceStatus, SyncRunSummary, SyncStartResult } from '../../../core/models';
 import { SyncDriver } from '../../../core/sync-driver';
 import { TimeAgoPipe } from '../../../shared/stat-pipes';
@@ -64,9 +64,9 @@ export class SourcesPage {
   protected readonly now = signal(Date.now());
 
   protected readonly gameLabels = GAME_LABELS;
-  protected readonly games: GameKey[] = ['genshin', 'hsr'];
+  protected readonly games = GAMES;
   protected readonly byGame = computed(() => {
-    const groups: Record<GameKey, SourceStatus[]> = { genshin: [], hsr: [] };
+    const groups = Object.fromEntries(GAMES.map((game) => [game, [] as SourceStatus[]])) as Record<GameKey, SourceStatus[]>;
     for (const source of this.sources()) {
       groups[source.game].push(source);
     }

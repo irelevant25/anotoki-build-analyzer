@@ -5,7 +5,7 @@ namespace App\Models;
 use App\Enums\Game;
 use DateTimeImmutable;
 
-/** A Genshin weapon or an HSR light cone. */
+/** A weapon. */
 final class GameWeapon extends CatalogEntry
 {
     public function __construct(

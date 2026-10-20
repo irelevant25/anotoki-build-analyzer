@@ -28,7 +28,7 @@ use Throwable;
 /**
  * Writes a ParsedAccount to the database, into an account of the importing user.
  *
- * - Full inventory exports (GOOD, scanner files) replace all weapons and artifacts/relics of the account.
+ * - Full inventory exports (GOOD) replace all weapons and artifacts of the account.
  * - Showcase data only replaces the gear of the characters it contains.
  * Characters are always upserted, never deleted.
  *
@@ -197,10 +197,9 @@ class AccountImporter
             throw new ImportException('The selected account does not exist.', 'account_missing');
         }
         if ($target && $target->game !== $parsed->game) {
-            throw new ImportException("The selected account is a {$target->game->label()} account, but the data is from {$parsed->game->label()}.", 'account_game_mismatch', [
-                'account_game' => $target->game->label(),
-                'data_game' => $parsed->game->label(),
-            ]);
+            // One game since 0.5.0: no data can be of another game than its account (a second game brings back a
+            // kind of its own for this, with the words for it).
+            throw new \LogicException("The selected account is a {$target->game->label()} account, but the data is from {$parsed->game->label()}.");
         }
         if ($target && $target->uid && $parsed->uid && $target->uid !== $parsed->uid) {
             throw new ImportException("The data belongs to UID {$parsed->uid}, but the selected account is UID {$target->uid}.", 'account_uid_mismatch', [

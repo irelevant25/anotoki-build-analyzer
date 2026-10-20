@@ -63,7 +63,7 @@ const SLOVAK = {
   'confirm.deleteAccountKept': 'Buildy zostanú.',
   'confirm.delete': 'Vymazať',
   'dashboard.title': 'Tvoje účty',
-  'dashboard.subtitle': 'Importuj účet z hry Genshin Impact alebo Honkai: Star Rail a porovnaj každú postavu s buildmi od komunity.',
+  'dashboard.subtitle': 'Importuj účet z hry Genshin Impact a porovnaj každú postavu s buildmi od komunity.',
   'dashboard.importAccount': 'Importovať účet',
   'dashboard.emptyTitle': 'Pozrime sa na tvoje postavy',
   'dashboard.emptyText': 'Sprievodca importom ťa prevedie krok za krokom.',
@@ -187,29 +187,28 @@ describe('the dashboard', () => {
 
   it('words an account’s card in Slovak around the games’ own words', async () => {
     await setup({
-      accounts: [account(1), account(2, { game: 'hsr', uid: null, nickname: 'Stelle', level: 70, has_full_inventory: false, last_import_at: null })],
+      accounts: [account(1), account(2, { uid: null, nickname: 'Lumine', level: 70, has_full_inventory: false, last_import_at: null })],
     });
 
     expect(texts('h1')).toEqual(['Tvoje účty']);
     expect(text(host.querySelector('anotoki-page-header a'))).toBe('Importovať účet');
 
-    const [genshin, hsr] = cards();
-    // UID, AR and TL are the games' words: written as they are.
-    expect(text(genshin.querySelector('.names .small'))).toBe('UID 800000001 · AR 58');
-    expect(text(hsr.querySelector('.names .small'))).toBe('UID chýba · TL 70');
+    const [first, second] = cards();
+    // UID and AR are the game's words: written as they are.
+    expect(text(first.querySelector('.names .small'))).toBe('UID 800000001 · AR 58');
+    expect(text(second.querySelector('.names .small'))).toBe('UID chýba · AR 70');
     // A number with its caption under it: the site's word for characters, the game's for the rest.
-    expect(counts(genshin)).toEqual(['12 Postavy', '187 Artifacts', '23 Weapons']);
-    expect(counts(hsr)).toEqual(['12 Postavy', '187 Relics', '23 Light Cones']);
-    expect(text(genshin.querySelector('anotoki-badge'))).toBe('Celý inventár');
-    expect(text(hsr.querySelector('anotoki-badge'))).toBe('Len Showcase');
+    expect(counts(first)).toEqual(['12 Postavy', '187 Artifacts', '23 Weapons']);
+    expect(text(first.querySelector('anotoki-badge'))).toBe('Celý inventár');
+    expect(text(second.querySelector('anotoki-badge'))).toBe('Len Showcase');
     // A relative time goes into the sentence; a missing one is a sentence of its own - never "never" glued on.
-    expect(imported(genshin)).toBe('Importované pred 2 dňami');
-    expect(imported(hsr)).toBe('Zatiaľ bez importu');
-    expect([...genshin.querySelectorAll('.account-actions a')].map(text)).toEqual(['Otvoriť', 'Aktualizovať údaje']);
-    expect(genshin.querySelector('.account-actions button')?.getAttribute('aria-label')).toBe('Ďalšie akcie');
+    expect(imported(first)).toBe('Importované pred 2 dňami');
+    expect(imported(second)).toBe('Zatiaľ bez importu');
+    expect([...first.querySelectorAll('.account-actions a')].map(text)).toEqual(['Otvoriť', 'Aktualizovať údaje']);
+    expect(first.querySelector('.account-actions button')?.getAttribute('aria-label')).toBe('Ďalšie akcie');
 
     expect(pageText()).not.toMatch(A_KEY);
-    expect(pageText()).not.toMatch(/never|characters|artifacts|relics|light cones|weapons/);
+    expect(pageText()).not.toMatch(/never|characters|artifacts|weapons/);
   });
 
   it('counts a source’s characters the way Slovak counts, and says when it was synced', async () => {
@@ -218,7 +217,6 @@ describe('the dashboard', () => {
         source('genshin-1', { characters: 1 }),
         source('genshin-2', { name: 'Source 2', characters: 3, last_synced_at: null, last_status: null }),
         source('genshin-3', { name: 'Source 3', characters: 12, running: true }),
-        source('hsr-1', { game: 'hsr', characters: 0 }),
       ],
     });
 
@@ -227,27 +225,26 @@ describe('the dashboard', () => {
       ['Source 1', '1 postava', 'pred 3 hodinami'],
       ['Source 2', '3 postavy', 'zatiaľ bez synchronizácie'],
       ['Source 3', '12 postáv', 'synchronizuje sa…'],
-      ['Source 1', '0 postáv', 'pred 3 hodinami'],
     ]);
     // The status dot's class is not a word: a source never synced keeps its "never".
-    expect(rows().map((row) => row.querySelector('.status-dot')?.className)).toEqual(['status-dot success', 'status-dot never', 'status-dot running', 'status-dot success']);
+    expect(rows().map((row) => row.querySelector('.status-dot')?.className)).toEqual(['status-dot success', 'status-dot never', 'status-dot running']);
     expect(pageText()).not.toMatch(/never/);
   });
 
   it('reads English as it always did', async () => {
     await setup({
       language: 'en',
-      accounts: [account(1), account(2, { game: 'hsr', uid: null, last_import_at: null, has_full_inventory: false })],
+      accounts: [account(1), account(2, { uid: null, last_import_at: null, has_full_inventory: false })],
       sources: [source('genshin-1', { characters: 1 }), source('genshin-2', { characters: 12, last_synced_at: null })],
     });
 
     expect(texts('h1')).toEqual(['Your accounts']);
-    const [genshin, hsr] = cards();
-    expect(text(genshin.querySelector('.names .small'))).toBe('UID 800000001 · AR 58');
-    expect(text(hsr.querySelector('.names .small'))).toBe('No UID · TL 58');
-    expect(counts(genshin)).toEqual(['12 Characters', '187 Artifacts', '23 Weapons']);
-    expect(imported(genshin)).toBe('Imported 2 days ago');
-    expect(imported(hsr)).toBe('Not imported yet');
+    const [first, second] = cards();
+    expect(text(first.querySelector('.names .small'))).toBe('UID 800000001 · AR 58');
+    expect(text(second.querySelector('.names .small'))).toBe('No UID · AR 58');
+    expect(counts(first)).toEqual(['12 Characters', '187 Artifacts', '23 Weapons']);
+    expect(imported(first)).toBe('Imported 2 days ago');
+    expect(imported(second)).toBe('Not imported yet');
     expect(rows().map((row) => [...row.querySelectorAll('.muted')].map(text))).toEqual([
       ['1 character', '3 hours ago'],
       ['12 characters', 'not synced yet'],
@@ -256,13 +253,13 @@ describe('the dashboard', () => {
     expect(pageText()).not.toMatch(/never/);
   });
 
-  it('invites to import, a button for each game, while there is no account', async () => {
+  it('invites to import, a button for each game the site offers, while there is no account', async () => {
     await setup({ accounts: [] });
 
     expect(texts('anotoki-empty-state .anotoki-empty-state__heading')).toEqual(['Pozrime sa na tvoje postavy']);
     const buttons = [...host.querySelectorAll<HTMLAnchorElement>('anotoki-empty-state a')];
-    expect(buttons.map(text)).toEqual(['Importovať z hry Genshin Impact', 'Importovať z hry Honkai: Star Rail']);
-    expect(buttons.map((button) => button.getAttribute('href'))).toEqual(['/import?game=genshin', '/import?game=hsr']);
+    expect(buttons.map(text)).toEqual(['Importovať z hry Genshin Impact']);
+    expect(buttons.map((button) => button.getAttribute('href'))).toEqual(['/import?game=genshin']);
   });
 
   describe('while no build has been downloaded', () => {
@@ -348,7 +345,6 @@ describe('the dashboard', () => {
       expect(links.map((link) => [text(link), link.getAttribute('href')])).toEqual([
         ['Import your account', '/import'],
         ['Browse the Genshin Impact builds', '/builds/genshin'],
-        ['Browse the Honkai: Star Rail builds', '/builds/hsr'],
       ]);
       expect(texts('app-visitor-hero button')).toEqual(['Sign in']);
       // The sources' freshness is everybody's.

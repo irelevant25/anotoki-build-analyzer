@@ -110,7 +110,7 @@ class CharacterAnalyzer
             'best_build_id' => $best['build']['id'] ?? null,
             'focus_build_id' => $focus['build']['id'] ?? null,
             // The build's names as the build page shows them: neutral.
-            'consensus' => Neutral::deep($this->consensus($builds, $character->character->element)),
+            'consensus' => Neutral::deep($this->consensus($builds, $character->character->element, $account->game)),
             'suggestions' => $suggestions['items'],
             'set_plans' => $suggestions['set_plans'],
             'has_full_inventory' => $account->has_full_inventory,
@@ -217,7 +217,7 @@ class CharacterAnalyzer
     }
 
     /**
-     * Totals of everything the equipped artifacts / relics give (main + sub stats), plus crit value.
+     * Totals of everything the equipped artifacts give (main + sub stats), plus crit value.
      */
     private function equipment(AccountContext $context, AccountCharacter $character): array
     {
@@ -247,7 +247,7 @@ class CharacterAnalyzer
      *
      * @param  list<Build>  $builds
      */
-    private function consensus(array $builds, ?string $element): array
+    private function consensus(array $builds, ?string $element, Game $game): array
     {
         $mainStats = [];
         $sets = [];
@@ -265,7 +265,7 @@ class CharacterAnalyzer
                 }
             }
 
-            foreach (['artifact', 'relic', 'planar'] as $kind) {
+            foreach ($game->setKinds() as $kind) {
                 $first = null;
                 foreach ($build->sets as $option) {
                     if (($option['kind'] ?? null) === $kind) {
@@ -341,7 +341,7 @@ class CharacterAnalyzer
             $options = array_values(array_filter($build->sets, fn($o) => $o['kind'] === $kind));
             $mains = $this->mainStatsFor($build, $slot, $element);
 
-            // Set pieces in the same group (HSR: cavern relics and planar ornaments are separate).
+            // Set pieces of the same kind of set (a game with several kinds keeps them apart).
             $group = array_filter($equipped, fn($item, $itemSlot) => $this->setKind($game, $itemSlot) === $kind, ARRAY_FILTER_USE_BOTH);
             $countsWith = AccountContext::setCounts($group);
             $countsWithout = AccountContext::setCounts(array_filter($group, fn($item, $itemSlot) => $itemSlot !== $slot, ARRAY_FILTER_USE_BOTH));
@@ -420,7 +420,7 @@ class CharacterAnalyzer
 
     /**
      * When the character wears none of the recommended sets, list the best owned piece of the top set for each
-     * slot and how many of the needed pieces exist. Only for single-set options (4pc, or a 2pc planar set).
+     * slot and how many of the needed pieces exist. Only for single-set options (4pc).
      */
     private function setPlans(AccountContext $context, AccountCharacter $character, Build $build, array $evaluation, ItemScorer $scorer): array
     {
@@ -428,7 +428,7 @@ class CharacterAnalyzer
         $element = $character->character->element;
 
         $plans = [];
-        foreach (['artifact', 'relic', 'planar'] as $kind) {
+        foreach ($game->setKinds() as $kind) {
             $group = null;
             foreach ($evaluation['sets']['groups'] ?? [] as $candidate) {
                 if ($candidate['kind'] === $kind) {
@@ -541,7 +541,7 @@ class CharacterAnalyzer
 
     private function setKind(Game $game, string $slot): string
     {
-        return $game === Game::Genshin ? 'artifact' : ($game->isPlanarSlot($slot) ? 'planar' : 'relic');
+        return $game->setKindOf($slot);
     }
 
     /**

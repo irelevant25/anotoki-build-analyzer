@@ -40,27 +40,6 @@ foreach ($genshinLabels as [$label, $expected]) {
     });
 }
 
-$hsrLabels = [
-    ['SPD', ['spd']],
-    ['Speed', ['spd']],
-    ['Effect Hit Rate', ['effectHitRate_']],
-    ['EHR', ['effectHitRate_']],
-    ['Effect RES', ['effectRes_']],
-    ['Break Effect', ['breakEffect_']],
-    ['Energy Regen Rate', ['energyRegen_']],
-    ['Energy Regeneration Rate', ['energyRegen_']],
-    ['ERR', ['energyRegen_']],
-    ['Outgoing Healing Boost', ['heal_']],
-    ['Lightning DMG', ['lightning_dmg_']],
-    ['Thunder DMG Boost', ['lightning_dmg_']],
-    ['Imaginary DMG Boost', ['imaginary_dmg_']],
-];
-foreach ($hsrLabels as [$label, $expected]) {
-    test("parses the Star Rail label \"{$label}\"", function () use ($label, $expected) {
-        same($expected, Stats::parse(Game::Hsr, $label), $label);
-    });
-}
-
 test('a priority list keeps ties together', function () {
     same(
         [
@@ -77,8 +56,8 @@ test('a priority list keeps ties together', function () {
 
 test('a priority list strips notes and reads a combined crit', function () {
     same(
-        [['stat' => 'effectHitRate_', 'priority' => 1], ['stat' => 'spd', 'priority' => 2], ['stat' => 'critRate_', 'priority' => 3], ['stat' => 'critDMG_', 'priority' => 3]],
-        Stats::parsePriorityList(Game::Hsr, 'Effect Hit Rate (Until 75%) > SPD >= Crit Rate/DMG'),
+        [['stat' => 'enerRech_', 'priority' => 1], ['stat' => 'eleMas', 'priority' => 2], ['stat' => 'critRate_', 'priority' => 3], ['stat' => 'critDMG_', 'priority' => 3]],
+        Stats::parsePriorityList(Game::Genshin, 'Energy Recharge (Until 160%) > EM >= Crit Rate/DMG'),
         'priorities',
     );
 });
@@ -98,9 +77,9 @@ test('the elemental placeholder becomes the character\'s element', function () {
 
 test('talent priorities', function () {
     same(
-        [['talent' => 'ultimate', 'priority' => 1], ['talent' => 'skill', 'priority' => 1], ['talent' => 'talent', 'priority' => 2], ['talent' => 'basic', 'priority' => 3]],
-        Talents::parsePriority(Game::Hsr, 'Ultimate = Skill > Talent > Basic'),
-        'Star Rail',
+        [['talent' => 'burst', 'priority' => 1], ['talent' => 'skill', 'priority' => 1], ['talent' => 'normal', 'priority' => 2]],
+        Talents::parsePriority(Game::Genshin, 'Burst = Skill > Normal Attack'),
+        'ties and a lower group',
     );
 
     same([['talent' => 'skill', 'priority' => 1], ['talent' => 'burst', 'priority' => 2]], Talents::parsePriority(Game::Genshin, 'Skill >> Burst'), 'Genshin');

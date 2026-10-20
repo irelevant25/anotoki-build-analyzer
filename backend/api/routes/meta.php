@@ -30,7 +30,7 @@ return function (Slim\App $slim, App $app): void {
             foreach ($game->mainStatOptions() as $options) {
                 array_push($statKeys, ...$options);
             }
-            $statKeys = array_values(array_unique([...$statKeys, Stats::ELEMENTAL_DMG, 'spd_']));
+            $statKeys = array_values(array_unique([...$statKeys, Stats::ELEMENTAL_DMG]));
 
             $stats = [];
             foreach ($statKeys as $key) {
@@ -41,7 +41,7 @@ return function (Slim\App $slim, App $app): void {
                 ];
             }
 
-            $talentKeys = $game === Game::Genshin ? ['normal', 'skill', 'burst'] : ['basic', 'skill', 'ultimate', 'talent', 'memo_skill', 'memo_talent'];
+            $talentKeys = $game->talentKeys();
 
             return [
                 'key' => $game->value,
@@ -50,8 +50,8 @@ return function (Slim\App $slim, App $app): void {
                 'weapon_label' => $game->weaponLabel(),
                 'item_label' => $game->itemLabel(),
                 'rank_label' => $game->rankLabel(),
-                'refinement_prefix' => $game === Game::Genshin ? 'R' : 'S',
-                'rank_prefix' => $game === Game::Genshin ? 'C' : 'E',
+                'refinement_prefix' => $game->refinementPrefix(),
+                'rank_prefix' => $game->rankPrefix(),
                 'elements' => $game->elements(),
                 'weapon_types' => $game->weaponTypes(),
                 'stats' => $stats,

@@ -5,7 +5,7 @@ namespace App\Support;
 use App\Enums\Game;
 
 /**
- * Canonical talent keys. Genshin: normal, skill, burst. HSR: basic, skill, ultimate, talent, memo_skill, memo_talent.
+ * Canonical talent keys (Game::talentKeys()): normal, skill, burst.
  */
 final class Talents
 {
@@ -16,53 +16,37 @@ final class Talents
      */
     public static function keys(Game $game): array
     {
-        return match ($game) {
-            Game::Genshin => ['normal', 'skill', 'burst'],
-            Game::Hsr => ['basic', 'skill', 'ultimate', 'talent', 'memo_skill', 'memo_talent'],
-        };
+        return $game->talentKeys();
     }
 
     public static function parse(Game $game, string $label): ?string
     {
         $key = Key::from($label);
 
-        if ($game === Game::Genshin) {
-            return match (true) {
+        return match ($game) {
+            Game::Genshin => match (true) {
                 in_array($key, ['normal', 'normalattack', 'na', 'auto', 'autoattack', 'attack', 'n'], true) => 'normal',
                 in_array($key, ['skill', 'elementalskill', 'e'], true) => 'skill',
                 in_array($key, ['burst', 'elementalburst', 'q', 'ult', 'ultimate'], true) => 'burst',
                 default => null,
-            };
-        }
-
-        return match (true) {
-            in_array($key, ['basic', 'basicattack', 'basicatk', 'ba', 'normal', 'normalattack'], true) => 'basic',
-            in_array($key, ['skill', 'e'], true) => 'skill',
-            in_array($key, ['ult', 'ultimate', 'q', 'burst'], true) => 'ultimate',
-            $key === 'talent' => 'talent',
-            str_contains($key, 'memosprite') && str_contains($key, 'talent') => 'memo_talent',
-            str_contains($key, 'memosprite') => 'memo_skill',
-            default => null,
+            },
         };
     }
 
     public static function label(Game $game, string $key): string
     {
-        return match ($key) {
-            'normal' => 'Normal Attack',
-            'skill' => $game === Game::Genshin ? 'Elemental Skill' : 'Skill',
-            'burst' => 'Elemental Burst',
-            'basic' => 'Basic ATK',
-            'ultimate' => 'Ultimate',
-            'talent' => 'Talent',
-            'memo_skill' => 'Memosprite Skill',
-            'memo_talent' => 'Memosprite Talent',
-            default => ucfirst($key),
+        return match ($game) {
+            Game::Genshin => match ($key) {
+                'normal' => 'Normal Attack',
+                'skill' => 'Elemental Skill',
+                'burst' => 'Elemental Burst',
+                default => ucfirst($key),
+            },
         };
     }
 
     /**
-     * "Ultimate = Skill > Talent > Basic" / "Skill >> Burst" => [{talent, priority}] (ties share a priority).
+     * "Burst = Skill > Normal Attack" / "Skill >> Burst" => [{talent, priority}] (ties share a priority).
      *
      * @return list<array{talent: string, priority: int}>
      */

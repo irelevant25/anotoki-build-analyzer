@@ -3,9 +3,9 @@
 /**
  * sync-builds.php - read recommended builds from the build sources, from the command line
  *
- *   php sync-builds.php [source]                 every enabled source (or one: its key, e.g. prydwen.hsr,
- *                                                or its API key, e.g. hsr-1)
- *     --game=genshin|hsr                         only the sources of one game
+ *   php sync-builds.php [source]                 every enabled source (or one: its key, or its API key, e.g.
+ *                                                genshin-1)
+ *     --game=genshin                             only the sources of one game
  *     --character=hu_tao                         only these characters (slug or name; repeatable)
  *     --limit=5                                  stop after this many characters per source
  *     --force                                    also sources synced in the last stale_hours

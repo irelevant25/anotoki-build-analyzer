@@ -158,7 +158,7 @@ final class Input
     }
 
     /**
-     * A list of games ("games": ["genshin", "hsr"]); null when absent.
+     * A list of games ("games": ["genshin"]); null when absent.
      *
      * @return list<Game>|null
      */

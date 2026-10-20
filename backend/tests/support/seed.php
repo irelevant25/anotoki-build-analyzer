@@ -52,15 +52,6 @@ function seedGenshinCatalog(): void
     seedSet('genshin', 'Emblem of Severed Fate', 'artifact', ['external_id' => '15020']);
 }
 
-function seedHsrCatalog(): void
-{
-    seedCharacter('hsr', 'Kafka', ['element' => 'lightning', 'rarity' => 5, 'weapon_type' => 'nihility', 'external_id' => '1005']);
-    seedCharacter('hsr', 'Trailblazer (Harmony)', ['key' => 'trailblazerharmony', 'element' => 'imaginary', 'external_id' => '8005', 'meta' => ['ids' => ['8005', '8006']]]);
-    seedWeapon('hsr', 'Patience Is All You Need', ['external_id' => '23006', 'weapon_type' => 'nihility']);
-    seedSet('hsr', 'Prisoner in Deep Confinement', 'relic', ['external_id' => '117']);
-    seedSet('hsr', 'Firmament Frontline: Glamoth', 'planar', ['external_id' => '310']);
-}
-
 function seedUser(int $id, string $name): void
 {
     $now = Clock::now();

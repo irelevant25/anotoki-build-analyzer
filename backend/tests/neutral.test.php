@@ -232,19 +232,6 @@ test('what the Sources, build and account pages get names no other site', functi
     same('Staff of Homa (the source)', $weapon[0]['params']['options'] ?? null, 'the weapon to aim for, neutral: ' . json_encode($analysis->json()));
     assertNeutral($admin->get("/api/accounts/{$account}"), 'the account, with its characters\' top issues');
 
-    // A file that gives a site's name where its UID belongs: the refusal's sentence quotes it.
-    $rail = seedAccount(1, 'hsr', ['uid' => '700000002', 'nickname' => 'Rail']);
-    $file = (string) json_encode([
-        'source' => 'reliquary_archiver',
-        'version' => 4,
-        'metadata' => ['uid' => 'see enka.network'],
-        'light_cones' => [],
-        'relics' => [],
-        'characters' => [['id' => '1005', 'name' => 'Kafka', 'level' => 80]],
-    ]);
-    $refusal = $admin->post('/api/imports/file', ['content' => $file, 'account_id' => $rail]);
-    assertNeutral($refusal, 'an import\'s refusal', 422);
-    same('account_uid_mismatch', $refusal->json('code'), 'refused for its UID');
     assertNeutral($admin->get('/api/meta'), 'meta');
 });
 

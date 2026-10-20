@@ -133,7 +133,7 @@ final class BuildEvaluator
             return null;
         }
 
-        // The label goes out as it is ("Weapon", "Light Cone"); only the English sentence lower-cases it.
+        // The label goes out as it is ("Weapon"); only the English sentence lower-cases it.
         $weaponLabel = $this->game->weaponLabel();
         $label = strtolower($weaponLabel);
         $top = array_map(fn($w) => $w['name'], array_slice($list, 0, 3));
@@ -155,7 +155,7 @@ final class BuildEvaluator
         }
 
         $score = $rank === null ? 40 : max(60, 100 - ($rank - 1) * 8);
-        $maxLevel = $this->game === Game::Genshin ? 90 : 80;
+        $maxLevel = $this->game->maxWeaponLevel();
         if ($weapon->level < $maxLevel - 10) {
             $score = (int) round($score * 0.9);
             $this->recommend(
@@ -186,7 +186,7 @@ final class BuildEvaluator
             ];
         }
 
-        $refinementPrefix = $this->game === Game::Genshin ? 'R' : 'S';
+        $refinementPrefix = $this->game->refinementPrefix();
         // The best better-ranked weapon owned, as the sentences name it; who holds it is the "_on" kind.
         $owned = $ownedBetter ? ['owned' => $ownedBetter[0]['name'], 'refinement' => $refinementPrefix . $ownedBetter[0]['refinement']] : [];
         $on = $ownedBetter && $ownedBetter[0]['equipped_on'] ? ['character' => $ownedBetter[0]['equipped_on']] : [];
@@ -261,29 +261,22 @@ final class BuildEvaluator
             $names[$item->set->key] = $item->set->name;
         }
 
-        if ($this->game === Game::Genshin) {
-            $result = $this->evaluateOptions(AccountContext::setCounts($items), $names, $options, 'artifact');
-
-            return $result ? ['score' => $result['score'], 'groups' => [$result]] : null;
+        // A group per kind of set the game has (its pieces on their own slots), weighed by the game's rule.
+        $groups = [];
+        foreach ($this->game->setKinds() as $kind) {
+            $kindItems = array_filter($items, fn($item, $slot) => $this->game->setKindOf($slot) === $kind, ARRAY_FILTER_USE_BOTH);
+            $kindOptions = array_values(array_filter($options, fn($o) => ($o['kind'] ?? null) === $kind));
+            $group = $this->evaluateOptions(AccountContext::setCounts($kindItems), $names, $kindOptions, $kind);
+            if ($group !== null) {
+                $groups[] = $group;
+            }
         }
-
-        $relicItems = array_filter($items, fn($item, $slot) => !$this->game->isPlanarSlot($slot), ARRAY_FILTER_USE_BOTH);
-        $planarItems = array_filter($items, fn($item, $slot) => $this->game->isPlanarSlot($slot), ARRAY_FILTER_USE_BOTH);
-
-        $groups = array_values(
-            array_filter([
-                $this->evaluateOptions(AccountContext::setCounts($relicItems), $names, array_values(array_filter($options, fn($o) => $o['kind'] === 'relic')), 'relic'),
-                $this->evaluateOptions(AccountContext::setCounts($planarItems), $names, array_values(array_filter($options, fn($o) => $o['kind'] === 'planar')), 'planar'),
-            ]),
-        );
         if ($groups === []) {
             return null;
         }
 
-        // Cavern relics carry 4 pieces, planar ornaments 2.
-        $weights = ['relic' => 0.6, 'planar' => 0.4];
-        $total = array_sum(array_map(fn($g) => $weights[$g['kind']], $groups));
-        $score = array_sum(array_map(fn($g) => $g['score'] * $weights[$g['kind']], $groups)) / $total;
+        $total = array_sum(array_map(fn($g) => $this->game->setWeight($g['kind']), $groups));
+        $score = array_sum(array_map(fn($g) => $g['score'] * $this->game->setWeight($g['kind']), $groups)) / $total;
 
         return ['score' => (int) round($score), 'groups' => $groups];
     }
@@ -316,20 +309,12 @@ final class BuildEvaluator
 
         $best = $options[0];
         $bestLabel = self::optionLabel($best);
-        $noun = match ($kind) {
-            'planar' => 'Planar Ornament set',
-            'relic' => 'Cavern Relic set',
-            default => 'artifact set',
-        };
+        $noun = lcfirst($this->game->setLabel($kind));
         $current = $equipped === [] ? 'nothing' : implode(' + ', array_map(fn($e) => "{$e['count']}pc {$e['name']}", $equipped));
 
         // For a page: the noun with a capital (it can open a sentence before a colon) and the top option
         // without its "(any N)", which the page words itself. The English sentences keep their own nouns.
-        $setLabel = match ($kind) {
-            'planar' => 'Planar Ornament set',
-            'relic' => 'Cavern Relic set',
-            default => 'Artifact set',
-        };
+        $setLabel = $this->game->setLabel($kind);
         $bestParams = ['best' => self::optionPieces($best), 'best_choose' => self::optionChoose($best)];
 
         if ($matchedRank === null) {
@@ -595,7 +580,7 @@ final class BuildEvaluator
 
     private function levelAdvice(AccountCharacter $owned): void
     {
-        $target = $this->game === Game::Genshin ? 80 : 70;
+        $target = $this->game->characterLevelTarget();
         if ($owned->level < $target) {
             $this->recommend('medium', 'levels', 'character_level', ['level' => $owned->level], "Level the character up (level {$owned->level}); most of their stats come from character level.");
         }

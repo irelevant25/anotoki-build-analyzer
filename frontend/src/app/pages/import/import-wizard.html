@@ -21,29 +21,7 @@
     <div #panel class="step-panel">
       @switch (step()) {
         @case (0) {
-          <!-- 1. Game -->
-          <h2 class="step-title" tabindex="-1">{{ 'importWizard.game.heading' | translate }}</h2>
-          <div class="choice-grid">
-            @for (g of games; track g) {
-              <button
-                type="button"
-                class="choice"
-                [class.selected]="game() === g"
-                [attr.aria-pressed]="game() === g"
-                (click)="chooseGame(g)"
-              >
-                <anotoki-icon class="choice-icon" [class.hsr]="g === 'hsr'" [name]="gameIcon(g)" [size]="36" />
-                <span class="choice-title">{{ gameLabels[g] }}</span>
-                <span class="muted small">{{
-                  'importWizard.game.holds' | translate: { inventory: terms[g].inventory }
-                }}</span>
-              </button>
-            }
-          </div>
-        }
-
-        @case (1) {
-          <!-- 2. Method -->
+          <!-- 1. Method -->
           <h2 class="step-title" tabindex="-1">{{ 'importWizard.method.heading' | translate }}</h2>
           <div class="choice-grid">
             @for (m of methods(); track m.key) {
@@ -69,15 +47,10 @@
             }
           </div>
           <p class="muted small hint">{{ 'importWizard.method.tip' | translate }}</p>
-          <div class="actions">
-            <button anotokiButton variant="ghost" (click)="goTo(0)">
-              {{ 'importWizard.back' | translate }}
-            </button>
-          </div>
         }
 
-        @case (2) {
-          <!-- 3. Prepare -->
+        @case (1) {
+          <!-- 2. Prepare -->
           @if (guide(); as g) {
             <h2 class="step-title" tabindex="-1">{{ 'importWizard.prepare.heading' | translate }}</h2>
             <p class="intro">{{ g.intro | translate }}</p>
@@ -107,7 +80,7 @@
             </anotoki-disclosure>
           }
           <div class="actions">
-            <button anotokiButton variant="ghost" (click)="goTo(1)">
+            <button anotokiButton variant="ghost" (click)="goTo(0)">
               {{ 'importWizard.back' | translate }}
             </button>
             <button anotokiButton variant="primary" (click)="confirmPrepared()">
@@ -116,8 +89,8 @@
           </div>
         }
 
-        @case (3) {
-          <!-- 4. Import -->
+        @case (2) {
+          <!-- 3. Import -->
           @if (method() === 'showcase') {
             <h2 class="step-title" tabindex="-1">{{ 'importWizard.uid.heading' | translate }}</h2>
             <form class="uid-form" (submit)="importShowcase($event)">
@@ -240,14 +213,14 @@
           }
 
           <div class="actions">
-            <button anotokiButton variant="ghost" [disabled]="busy()" (click)="goTo(2)">
+            <button anotokiButton variant="ghost" [disabled]="busy()" (click)="goTo(1)">
               {{ 'importWizard.back' | translate }}
             </button>
           </div>
         }
 
-        @case (4) {
-          <!-- 5. Done -->
+        @case (3) {
+          <!-- 4. Done -->
           @if (result(); as run) {
             <div class="done">
               <anotoki-icon

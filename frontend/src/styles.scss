@@ -110,7 +110,7 @@
 //
 // An element's mark in the account page's element filter (the kit's segmented control, `--el-mark-*`) is its
 // colour where that reaches 3:1 on the control (surface and surface-2 - WCAG 1.4.11, as the kit asks of a mark),
-// darker where it does not: in light, ten of them; in dark, every element's own colour does (3.2 to 7.8).
+// darker where it does not: in light, six of them; in dark, every element's own colour does.
 $site-colours: (
   light: (
     grade-s: #735410,
@@ -128,13 +128,6 @@ $site-colours: (
     el-mark-dendro: #6d9221,
     el-mark-cryo: #2e92ab,
     el-mark-geo: #ab811f,
-    el-mark-physical: #858596,
-    el-mark-fire: var(--el-fire),
-    el-mark-ice: #1a90c7,
-    el-mark-lightning: var(--el-lightning),
-    el-mark-wind: #329771,
-    el-mark-quantum: var(--el-quantum),
-    el-mark-imaginary: #a18420,
   ),
   dark: (
     grade-s: #e0a526,
@@ -152,13 +145,6 @@ $site-colours: (
     el-mark-dendro: var(--el-dendro),
     el-mark-cryo: var(--el-cryo),
     el-mark-geo: var(--el-geo),
-    el-mark-physical: var(--el-physical),
-    el-mark-fire: var(--el-fire),
-    el-mark-ice: var(--el-ice),
-    el-mark-lightning: var(--el-lightning),
-    el-mark-wind: var(--el-wind),
-    el-mark-quantum: var(--el-quantum),
-    el-mark-imaginary: var(--el-imaginary),
   ),
 );
 
@@ -176,7 +162,7 @@ $site-colours: (
   --rarity-4: #9a6fd3;
   --rarity-3: #4f8fd0;
 
-  // Genshin elements
+  // The elements
   --el-pyro: #ef7a35;
   --el-hydro: #3fa9e8;
   --el-anemo: #4fbfa0;
@@ -184,14 +170,6 @@ $site-colours: (
   --el-dendro: #88b529;
   --el-cryo: #6fc3d8;
   --el-geo: #d9a52b;
-  // HSR elements
-  --el-physical: #9a9aa8;
-  --el-fire: #e5533f;
-  --el-ice: #4db7e8;
-  --el-lightning: #b25bd6;
-  --el-wind: #3fbf8f;
-  --el-quantum: #6f5fd8;
-  --el-imaginary: #d8b53a;
 }
 
 // Dark as the family's tokens are: under prefers-color-scheme unless data-theme="light", and under data-theme="dark".

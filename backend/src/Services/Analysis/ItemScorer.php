@@ -6,7 +6,7 @@ use App\Enums\Game;
 use App\Support\Stats;
 
 /**
- * Scores artifact / relic substats against a build's substat priorities.
+ * Scores artifact substats against a build's substat priorities.
  *
  * Every substat is converted to "rolls" (value / max single roll), multiplied by the weight of its priority.
  * The item's score is compared with an ideal item of the same kind: all upgrades landing in the best
@@ -18,9 +18,6 @@ final class ItemScorer
     private const PRIORITY_WEIGHTS = [1 => 1.0, 2 => 0.8, 3 => 0.6, 4 => 0.45];
 
     private const LOWEST_WEIGHT = 0.3;
-
-    /** A flat roll is worth roughly this fraction of the matching % roll at endgame stat levels. */
-    private const FLAT_FACTOR = ['genshin' => 0.35, 'hsr' => 0.4];
 
     /** @var array<string, float> stat => weight */
     private array $weights;
@@ -38,7 +35,7 @@ final class ItemScorer
 
         foreach (Stats::FLAT_TO_PERCENT as $flat => $percent) {
             if (isset($weights[$percent]) && !isset($weights[$flat])) {
-                $weights[$flat] = round($weights[$percent] * self::FLAT_FACTOR[$game->value], 3);
+                $weights[$flat] = round($weights[$percent] * $game->flatStatFactor(), 3);
             }
         }
 
@@ -161,14 +158,12 @@ final class ItemScorer
             $result[] = ['stat' => 'critRate_', 'priority' => 1];
             $result[] = ['stat' => 'critDMG_', 'priority' => 1];
         }
-        foreach (['atk_', 'hp_', 'def_', 'eleMas', 'enerRech_', 'effectHitRate_', 'breakEffect_', 'effectRes_'] as $stat) {
+        foreach (['atk_', 'hp_', 'def_', 'eleMas', 'enerRech_'] as $stat) {
             if (isset($mainKeys[$stat]) && Stats::maxRoll($game, $stat) !== null) {
                 $result[] = ['stat' => $stat, 'priority' => 2];
             }
         }
-        if ($game === Game::Hsr) {
-            $result[] = ['stat' => 'spd', 'priority' => $result === [] ? 1 : 2];
-        } elseif (!isset($mainKeys['enerRech_'])) {
+        if (!isset($mainKeys['enerRech_']) && Stats::maxRoll($game, 'enerRech_') !== null) {
             $result[] = ['stat' => 'enerRech_', 'priority' => 3];
         }
 

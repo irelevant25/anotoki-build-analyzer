@@ -2,16 +2,20 @@
 
 namespace App\Enums;
 
+/**
+ * The games the site offers - Genshin Impact alone since 0.5.0 (Honkai: Star Rail went, the owner's decision of
+ * 2026-10-20). Every fact that differs between games is a method here, a match with an arm per game, so a game
+ * added later is a case and its arms - and the CHECKs of the migrations that list the games, widened by one of its
+ * own (docs/decisions.md).
+ */
 enum Game: string
 {
     case Genshin = 'genshin';
-    case Hsr = 'hsr';
 
     public function label(): string
     {
         return match ($this) {
             self::Genshin => 'Genshin Impact',
-            self::Hsr => 'Honkai: Star Rail',
         };
     }
 
@@ -24,7 +28,6 @@ enum Game: string
     {
         return match ($this) {
             self::Genshin => ['flower', 'plume', 'sands', 'goblet', 'circlet'],
-            self::Hsr => ['head', 'hands', 'body', 'feet', 'sphere', 'rope'],
         };
     }
 
@@ -37,16 +40,7 @@ enum Game: string
     {
         return match ($this) {
             self::Genshin => ['sands', 'goblet', 'circlet'],
-            self::Hsr => ['body', 'feet', 'sphere', 'rope'],
         };
-    }
-
-    /**
-     * HSR splits equipment into Cavern relics (4 slots) and Planar ornaments (2 slots).
-     */
-    public function isPlanarSlot(string $slot): bool
-    {
-        return $this === self::Hsr && in_array($slot, ['sphere', 'rope'], true);
     }
 
     public function slotLabel(string $slot): string
@@ -57,12 +51,6 @@ enum Game: string
             'sands' => 'Sands of Eon',
             'goblet' => 'Goblet of Eonothem',
             'circlet' => 'Circlet of Logos',
-            'head' => 'Head',
-            'hands' => 'Hands',
-            'body' => 'Body',
-            'feet' => 'Feet',
-            'sphere' => 'Planar Sphere',
-            'rope' => 'Link Rope',
             default => ucfirst($slot),
         };
     }
@@ -82,14 +70,6 @@ enum Game: string
                 'goblet' => ['hp_', 'atk_', 'def_', 'eleMas', 'physical_dmg_', 'anemo_dmg_', 'geo_dmg_', 'electro_dmg_', 'hydro_dmg_', 'pyro_dmg_', 'cryo_dmg_', 'dendro_dmg_'],
                 'circlet' => ['hp_', 'atk_', 'def_', 'eleMas', 'critRate_', 'critDMG_', 'heal_'],
             ],
-            self::Hsr => [
-                'head' => ['hp'],
-                'hands' => ['atk'],
-                'body' => ['hp_', 'atk_', 'def_', 'critRate_', 'critDMG_', 'heal_', 'effectHitRate_'],
-                'feet' => ['hp_', 'atk_', 'def_', 'spd'],
-                'sphere' => ['hp_', 'atk_', 'def_', 'physical_dmg_', 'fire_dmg_', 'ice_dmg_', 'lightning_dmg_', 'wind_dmg_', 'quantum_dmg_', 'imaginary_dmg_'],
-                'rope' => ['hp_', 'atk_', 'def_', 'breakEffect_', 'energyRegen_'],
-            ],
         };
     }
 
@@ -100,46 +80,156 @@ enum Game: string
     {
         return match ($this) {
             self::Genshin => ['pyro', 'hydro', 'anemo', 'electro', 'dendro', 'cryo', 'geo'],
-            self::Hsr => ['physical', 'fire', 'ice', 'lightning', 'wind', 'quantum', 'imaginary'],
         };
     }
 
     /**
-     * Genshin weapon types / HSR paths.
-     *
      * @return list<string>
      */
     public function weaponTypes(): array
     {
         return match ($this) {
             self::Genshin => ['sword', 'claymore', 'polearm', 'bow', 'catalyst'],
-            self::Hsr => ['destruction', 'hunt', 'erudition', 'harmony', 'nihility', 'preservation', 'abundance', 'remembrance', 'elation'],
         };
     }
 
     public function weaponLabel(): string
     {
-        return $this === self::Genshin ? 'Weapon' : 'Light Cone';
+        return match ($this) {
+            self::Genshin => 'Weapon',
+        };
     }
 
     public function itemLabel(): string
     {
-        return $this === self::Genshin ? 'Artifact' : 'Relic';
+        return match ($this) {
+            self::Genshin => 'Artifact',
+        };
     }
 
+    /** What the game calls a character's rank (account_characters.rank): its constellation. */
     public function rankLabel(): string
     {
-        return $this === self::Genshin ? 'Constellation' : 'Eidolon';
+        return match ($this) {
+            self::Genshin => 'Constellation',
+        };
+    }
+
+    /** The prefix the game writes a rank with ("C2"). */
+    public function rankPrefix(): string
+    {
+        return match ($this) {
+            self::Genshin => 'C',
+        };
+    }
+
+    /** The highest rank a character reaches (C6). */
+    public function maxRank(): int
+    {
+        return match ($this) {
+            self::Genshin => 6,
+        };
+    }
+
+    /** The prefix the game writes a weapon's refinement with ("R1"). */
+    public function refinementPrefix(): string
+    {
+        return match ($this) {
+            self::Genshin => 'R',
+        };
+    }
+
+    /** A weapon's highest level. */
+    public function maxWeaponLevel(): int
+    {
+        return match ($this) {
+            self::Genshin => 90,
+        };
+    }
+
+    /** The character level below which the analysis says to level up (most stats come from it). */
+    public function characterLevelTarget(): int
+    {
+        return match ($this) {
+            self::Genshin => 80,
+        };
     }
 
     /**
-     * Maximum enhancement level of a 5-star artifact/relic.
+     * The talents a character levels, in the game's order (App\Support\Talents names them).
+     *
+     * @return list<string>
+     */
+    public function talentKeys(): array
+    {
+        return match ($this) {
+            self::Genshin => ['normal', 'skill', 'burst'],
+        };
+    }
+
+    /**
+     * The kinds of sets the game has, each worn on a part of the slots (game_sets.kind).
+     *
+     * @return list<string>
+     */
+    public function setKinds(): array
+    {
+        return match ($this) {
+            self::Genshin => ['artifact'],
+        };
+    }
+
+    /** The kind of set a slot's piece belongs to. */
+    public function setKindOf(string $slot): string
+    {
+        return match ($this) {
+            self::Genshin => 'artifact',
+        };
+    }
+
+    /** A kind of set as a sentence names it, with a capital (it can open a sentence before a colon). */
+    public function setLabel(string $kind): string
+    {
+        return match ($this) {
+            self::Genshin => 'Artifact set',
+        };
+    }
+
+    /**
+     * How many pieces of one set a build can ask for, by kind (a 2-piece and a 4-piece bonus).
+     *
+     * @return list<int>
+     */
+    public function setPieceCounts(string $kind): array
+    {
+        return match ($this) {
+            self::Genshin => [2, 4],
+        };
+    }
+
+    /** What a kind of set weighs in the sets part of a score, against the game's other kinds. */
+    public function setWeight(string $kind): float
+    {
+        return match ($this) {
+            self::Genshin => 1.0,
+        };
+    }
+
+    /** A flat roll is worth roughly this fraction of the matching % roll at endgame stat levels. */
+    public function flatStatFactor(): float
+    {
+        return match ($this) {
+            self::Genshin => 0.35,
+        };
+    }
+
+    /**
+     * Maximum enhancement level of an artifact.
      */
     public function maxItemLevel(int $rarity = 5): int
     {
         return match ($this) {
             self::Genshin => $rarity >= 3 ? $rarity * 4 : 4, // 5* => 20, 4* => 16, 3* => 12
-            self::Hsr => $rarity * 3, // 5* => 15, 4* => 12
         };
     }
 }

@@ -12,9 +12,8 @@ import { SpinnerComponent } from '@anotoki/lib/ui/spinner';
 import { StepItem, StepperComponent } from '@anotoki/lib/ui/stepper';
 import { Api } from '../../core/api';
 import { AuthService } from '../../core/auth';
-import { GAME_LABELS } from '../../core/format';
+import { GAME_LABELS, GAMES } from '../../core/format';
 import { GAME_TERMS, UID_TERM } from '../../core/game-terms';
-import { gameIcon } from '../../core/icons';
 import { TranslationKey } from '../../core/i18n/en';
 import { errorCode } from '../../core/i18n/error-text';
 import { importFailure, importWarnings } from '../../core/i18n/import-words';
@@ -35,9 +34,8 @@ export interface ChosenFile {
   game: GameKey | null;
 }
 
-/** The wizard's five steps, in order, each with the key of its name. */
+/** The wizard's four steps, in order, each with the key of its name. */
 const STEPS: readonly { key: string; label: TranslationKey }[] = [
-  { key: 'game', label: 'importWizard.step.game' },
   { key: 'method', label: 'importWizard.step.method' },
   { key: 'prepare', label: 'importWizard.step.prepare' },
   { key: 'import', label: 'importWizard.step.import' },
@@ -48,12 +46,13 @@ const STEPS: readonly { key: string; label: TranslationKey }[] = [
 const NO_ACCOUNT = '';
 
 /**
- * Importing an account, in five steps: the game, the way in (the in-game Character Showcase by UID, or an
- * inventory file), how to get the data ready (the guides, import-guides.ts), the import itself, and what came in.
+ * Importing an account, in four steps: the way in (the in-game Character Showcase by UID, or an inventory file),
+ * how to get the data ready (the guides, import-guides.ts), the import itself, and what came in. The game is the one
+ * the site offers (GAMES; a second game brings back a step to choose it), or the one `?game=` names.
  *
  * The wizard is drawn with the anotoki family's kit: its row of steps is the family's stepper (anotoki-lib 0.6.0,
- * `@anotoki/lib/ui/stepper`: the step in hand aria-current="step" and heard "Step 3 of 5: Prepare", the steps done
- * buttons back to them, heard "Game, done"; on a narrow row their marks alone), and its card, fields (the UID, the
+ * `@anotoki/lib/ui/stepper`: the step in hand aria-current="step" and heard "Step 2 of 4: Prepare", the steps done
+ * buttons back to them, heard "Method, done"; on a narrow row their marks alone), and its card, fields (the UID, the
  * account to import into, the pasted text), buttons, alerts, disclosures, spinner and icons; its choice cards and
  * the file's drop zone stay the site's own. A step is shown at a time; going on moves the focus to the new step's
  * heading, so a keyboard and a screen reader follow.
@@ -92,13 +91,11 @@ export class ImportWizard {
   protected readonly gameLabels = GAME_LABELS;
   protected readonly terms = GAME_TERMS;
   protected readonly uidTerm = UID_TERM;
-  protected readonly games: GameKey[] = ['genshin', 'hsr'];
-  protected readonly gameIcon = gameIcon;
 
-  /** The step in hand: 0 the game, 1 the way in, 2 the guide, 3 the import, 4 what came in. */
+  /** The step in hand: 0 the way in, 1 the guide, 2 the import, 3 what came in. */
   protected readonly step = signal(0);
 
-  protected readonly game = signal<GameKey | null>(null);
+  protected readonly game = signal<GameKey>(GAMES[0]);
   protected readonly method = signal<ImportMethodKey | null>(null);
   protected readonly prepared = signal(false);
   protected readonly result = signal<ImportRun | null>(null);
@@ -127,8 +124,8 @@ export class ImportWizard {
    */
   protected readonly stepItems = computed<StepItem[]>(() => STEPS.map((step) => ({ label: this.i18n.t(step.label) })));
 
-  protected readonly methods = computed(() => (this.game() ? METHODS[this.game()!] : []));
-  protected readonly guide = computed(() => (this.game() && this.method() ? GUIDES[this.game()!][this.method()!] : null));
+  protected readonly methods = computed(() => METHODS[this.game()]);
+  protected readonly guide = computed(() => (this.method() ? GUIDES[this.game()][this.method()!] : null));
   protected readonly gameAccounts = computed(() => this.accounts().filter((account) => account.game === this.game()));
   protected readonly uidValid = computed(() => /^\d{9,10}$/.test(this.uid().trim()));
   protected readonly hasFile = computed(() => !!this.fileContent() || this.pasteText().trim().length > 0);
@@ -187,27 +184,18 @@ export class ImportWizard {
     }
   }
 
-  protected chooseGame(game: GameKey): void {
-    if (this.game() !== game) {
-      this.method.set(null);
-      this.prepared.set(false);
-    }
-    this.game.set(game);
-    this.goTo(1);
-  }
-
   protected chooseMethod(method: ImportMethodKey): void {
     if (this.method() !== method) {
       this.prepared.set(false);
     }
     this.method.set(method);
-    this.targetAccountId.set(this.defaultAccount(this.game()!, method));
-    this.goTo(2);
+    this.targetAccountId.set(this.defaultAccount(this.game(), method));
+    this.goTo(1);
   }
 
   protected confirmPrepared(): void {
     this.prepared.set(true);
-    this.goTo(3);
+    this.goTo(2);
   }
 
   /** The account the select names: none for "find it by the UID" / "a new account". */
@@ -218,11 +206,10 @@ export class ImportWizard {
   protected importShowcase(event?: Event): void {
     event?.preventDefault();
     this.uidTouched.set(true);
-    const game = this.game();
-    if (!game || !this.uidValid() || this.busy()) {
+    if (!this.uidValid() || this.busy()) {
       return;
     }
-    this.run(this.api.importShowcase(game, this.uid().trim(), this.targetAccountId()));
+    this.run(this.api.importShowcase(this.game(), this.uid().trim(), this.targetAccountId()));
   }
 
   protected importFile(): void {
@@ -232,7 +219,6 @@ export class ImportWizard {
     }
     this.run(
       this.api.importFile({
-        game: this.game() ?? undefined,
         account_id: this.targetAccountId(),
         content,
         file_name: this.fileName() ?? 'pasted.json',
@@ -278,7 +264,7 @@ export class ImportWizard {
     this.uidTouched.set(false);
     this.prepared.set(false);
     this.method.set(null);
-    this.goTo(this.game() ? 1 : 0);
+    this.goTo(0);
   }
 
   protected openAccount(): void {
@@ -315,7 +301,7 @@ export class ImportWizard {
       next: (run) => {
         this.busy.set(false);
         this.result.set(run);
-        this.goTo(4);
+        this.goTo(3);
       },
       error: (err: unknown) => {
         this.busy.set(false);
@@ -336,12 +322,6 @@ export class ImportWizard {
         this.error.set({ key: 'import.error.file_not_json' });
         return;
       }
-      const chosen = this.game();
-      if (detected && chosen && detected !== chosen) {
-        // The server's own refusal of such a file, said before anything is sent: the same key, the same parameters.
-        this.error.set({ key: 'import.error.file_game_mismatch', params: { file_game: GAME_LABELS[detected], chosen_game: GAME_LABELS[chosen] } });
-        return;
-      }
       this.fileContent.set(text);
       this.fileName.set(file.name);
       this.fileInfo.set({ name: file.name, kilobytes: Math.round(file.size / 1024), game: detected });
@@ -351,13 +331,7 @@ export class ImportWizard {
   private detectGame(text: string): GameKey | 'invalid' | null {
     try {
       const json = JSON.parse(text.replace(/^﻿/, '')) as Record<string, unknown>;
-      if (json['format'] === 'GOOD') {
-        return 'genshin';
-      }
-      if (Array.isArray(json['relics'])) {
-        return 'hsr';
-      }
-      return null;
+      return json['format'] === 'GOOD' ? 'genshin' : null;
     } catch {
       return 'invalid';
     }
@@ -380,18 +354,18 @@ export class ImportWizard {
   }
 
   /**
-   * ?game=hsr&account=3 (from "Update data") preselects the game, method and account.
+   * ?game=genshin&account=3 (from "Update data") preselects the game, method and account.
    */
   private applyPrefill(accounts: AccountSummary[]): void {
     this.accounts.set(accounts);
     const params = this.route.snapshot.queryParamMap;
-    const game = params.get('game');
+    const game = GAMES.find((offered) => offered === params.get('game'));
     const accountId = Number(params.get('account')) || null;
     const account = accountId ? accounts.find((a) => a.id === accountId) : undefined;
 
-    if (game === 'genshin' || game === 'hsr') {
+    if (game) {
       this.prefillAccount.set(account ?? null);
-      this.chooseGame(game);
+      this.game.set(game);
       if (account) {
         if (account.uid) {
           this.uid.set(account.uid);

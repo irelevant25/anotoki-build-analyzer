@@ -108,7 +108,6 @@ function db(): Db
 }
 require __DIR__ . '/../support/seed.php';
 seedGenshinCatalog();
-seedHsrCatalog();
 $now = Clock::now();
 $source = (int) $db->insert('build_sources', [
     'key' => 'prydwen.genshin',

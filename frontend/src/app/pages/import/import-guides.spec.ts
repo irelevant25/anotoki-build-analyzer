@@ -1,8 +1,8 @@
+import { GAMES } from '../../core/format';
 import { en, isTranslationKey } from '../../core/i18n/en';
 import { GameKey } from '../../core/models';
 import { GUIDES, ImportMethodKey, METHODS } from './import-guides';
 
-const GAMES: GameKey[] = ['genshin', 'hsr'];
 const WAYS: ImportMethodKey[] = ['showcase', 'file'];
 
 /** Every key the two tables hold, with where it stands. */
@@ -37,7 +37,7 @@ function keysOfTheGuides(): { key: string; where: string }[] {
 describe('the import guides (METHODS and GUIDES)', () => {
   const strings = en as Record<string, string>;
 
-  it('keep their shape: both games, both ways in, the steps, tips and hints they had', () => {
+  it('keep their shape: every game the site offers, both ways in, the steps, tips and hints they had', () => {
     for (const game of GAMES) {
       expect(METHODS[game].map((method) => method.key)).toEqual(['showcase', 'file']);
       expect(METHODS[game].map((method) => method.icon)).toEqual(['user', 'layers']);
@@ -57,15 +57,12 @@ describe('the import guides (METHODS and GUIDES)', () => {
     };
     expect(shape('genshin', 'showcase')).toEqual({ pros: 3, cons: 2, steps: 5, tips: 1, troubleshooting: 3, fileHint: false });
     expect(shape('genshin', 'file')).toEqual({ pros: 3, cons: 2, steps: 4, tips: 2, troubleshooting: 3, fileHint: true });
-    expect(shape('hsr', 'showcase')).toEqual({ pros: 3, cons: 2, steps: 5, tips: 1, troubleshooting: 2, fileHint: false });
-    expect(shape('hsr', 'file')).toEqual({ pros: 3, cons: 1, steps: 5, tips: 1, troubleshooting: 4, fileHint: true });
     expect(GUIDES.genshin.showcase.steps.map((step) => step.icon)).toEqual(['user', 'columns', 'eye', 'clock', 'key']);
-    expect(GUIDES.hsr.file.steps.map((step) => step.icon)).toEqual(['download', 'pause', 'play', 'gamepad', 'save']);
   });
 
   it('hold keys and nothing else: each one a key of the site, each written once, none left over', () => {
     const found = keysOfTheGuides();
-    expect(found).toHaveLength(88);
+    expect(found).toHaveLength(44);
     expect(found.filter(({ key }) => !isTranslationKey(key)).map(({ where }) => where)).toEqual([]);
     // A list is tracked by its keys, so no key may stand twice.
     expect(new Set(found.map(({ key }) => key)).size).toBe(found.length);
@@ -90,13 +87,10 @@ describe('the import guides (METHODS and GUIDES)', () => {
   it('say in English what they said before they were keys', () => {
     expect(strings[METHODS.genshin[0].title]).toBe('Character Showcase (UID)');
     expect(strings[METHODS.genshin[1].cons[1]]).toBe('No in-game total stats (combine with a UID import)');
-    expect(strings[METHODS.hsr[1].pros[2]]).toBe('The file relic optimizers read, so one export serves both');
     expect(strings[GUIDES.genshin.showcase.steps[0].body]).toBe('In the game press Esc to open the Paimon menu, click your avatar at the top left and choose "Edit Profile".');
     // Reworded on purpose: the old tip named the system tool the exporters capture with (the neutral-names rule).
     expect(strings[GUIDES.genshin.file.steps[0].tip!]).toBe('Exporters that read the game data need administrator rights to capture the network traffic; screenshot scanners need English game text.');
     expect(strings[GUIDES.genshin.file.fileHint!]).toBe('A .json file in the GOOD format');
-    expect(strings[GUIDES.hsr.showcase.troubleshooting[0]]).toBe('"This profile shows no characters": add characters to the showcase and wait a few minutes.');
-    expect(strings[GUIDES.hsr.file.steps[1].title]).toBe('Start the game, stop at "Click to Start"');
   });
 
   it('link nowhere: no string of the guides holds a web address', () => {

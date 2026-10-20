@@ -14,7 +14,7 @@ use App\Support\Key;
 /**
  * Resolves names coming from imports and scraped builds to catalog rows.
  *
- * Resolution order: special cases (Travelers, Trailblazers, March 7th) -> configured aliases ->
+ * Resolution order: special cases (the Travelers) -> configured aliases ->
  * exact key -> unique prefix / suffix / infix match. Unknown names can be created on the fly so
  * nothing is lost; they are reported via unmatched().
  *
@@ -54,7 +54,7 @@ class Catalog
     public function set(Game $game, string $name, array $attributes = [], bool $create = true): ?GameSet
     {
         /** @var GameSet|null */
-        return $this->resolve($game, self::SET, $name, $attributes + ['kind' => $game === Game::Genshin ? 'artifact' : 'relic'], $create);
+        return $this->resolve($game, self::SET, $name, $attributes + ['kind' => $game->setKinds()[0]], $create);
     }
 
     public function byExternalId(Game $game, string $type, string|int $id): ?CatalogEntry
@@ -193,28 +193,12 @@ class Catalog
 
     private function specialCharacterKey(Game $game, string $key): string
     {
-        if ($game === Game::Genshin) {
-            $elements = 'anemo|geo|electro|dendro|hydro|pyro|cryo';
-            if (preg_match("/^(?:traveler|traveller|aether|lumine)({$elements})$/", $key, $m) || preg_match("/^({$elements})(?:traveler|traveller|aether|lumine)$/", $key, $m)) {
-                return 'traveler' . $m[1];
-            }
-
-            return $key;
-        }
-
-        $paths = 'destruction|preservation|harmony|remembrance|elation|nihility|erudition|abundance|hunt';
-        if (preg_match("/^(?:trailblazer|caelus|stelle|mc)(?:the)?({$paths})$/", $key, $m) || preg_match("/^(?:the)?({$paths})(?:trailblazer|caelus|stelle|mc)$/", $key, $m)) {
-            return 'trailblazer' . $m[1];
-        }
-
-        if (preg_match('/^march7th(?:thehunt|hunt|hunter|imaginary|swordmaster|shifu|sword)$/', $key) || preg_match('/^(?:thehunt|hunt|imaginary|swordmaster)march7th$/', $key)) {
-            return 'march7thhunt';
-        }
-
-        if (preg_match('/^march7th(?:preservation|ice|thepreservation)$/', $key)) {
-            return 'march7th';
-        }
-
-        return $key;
+        return match ($game) {
+            // The Travelers: one row per element ("Aether (Anemo)", "AnemoTraveler", "traveler_anemo" ...).
+            Game::Genshin => preg_match('/^(?:traveler|traveller|aether|lumine)(anemo|geo|electro|dendro|hydro|pyro|cryo)$/', $key, $m) ||
+            preg_match('/^(anemo|geo|electro|dendro|hydro|pyro|cryo)(?:traveler|traveller|aether|lumine)$/', $key, $m)
+                ? 'traveler' . $m[1]
+                : $key,
+        };
     }
 }

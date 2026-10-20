@@ -30,29 +30,13 @@ test('resolves Genshin character variants', function () use ($catalog) {
     }
 });
 
-test('resolves the special Star Rail names', function () use ($catalog) {
-    seedCharacter('hsr', 'Trailblazer (Harmony)', ['key' => 'trailblazerharmony']);
-    seedCharacter('hsr', 'March 7th');
-    seedCharacter('hsr', 'March 7th (The Hunt)', ['key' => 'march7thhunt']);
-    seedCharacter('hsr', 'Dan Heng • Imbibitor Lunae');
-    seedCharacter('hsr', 'Topaz & Numby');
-    seedCharacter('hsr', 'Himeko');
+test('a shorter catalog key never stands in for a longer name', function () use ($catalog) {
+    seedCharacter('genshin', 'Furina');
     $catalog = $catalog();
 
-    $cases = [
-        'Trailblazer • Harmony' => 'trailblazerharmony',
-        'Trailblazer (Imaginary)' => 'trailblazerharmony', // a build site names Trailblazers by element
-        'March 7th • The Hunt' => 'march7thhunt',
-        'March 7th' => 'march7th',
-        'Imbibitor Lunae' => 'danhengimbibitorlunae',
-        'Topaz and Numby' => 'topaznumby',
-    ];
-    foreach ($cases as $name => $key) {
-        same($key, $catalog->find(Game::Hsr, Catalog::CHARACTER, $name)?->key, $name);
-    }
-
+    same('furina', $catalog->find(Game::Genshin, Catalog::CHARACTER, 'Furina')?->key, 'Furina');
     // A brand-new alternate version must never be mistaken for the base character.
-    same(null, $catalog->find(Game::Hsr, Catalog::CHARACTER, 'Himeko • Nova'), 'Himeko • Nova');
+    same(null, $catalog->find(Game::Genshin, Catalog::CHARACTER, 'Furina • Nova'), 'Furina • Nova');
 });
 
 test('resolves set abbreviations and prefixes', function () use ($catalog) {

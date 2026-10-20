@@ -1,14 +1,5 @@
 <div class="page">
-  <anotoki-page-header [heading]="'builds.title' | translate" [lead]="'builds.subtitle' | translate">
-    <!-- The games' names are their own, in every language. -->
-    <anotoki-segmented
-      class="games"
-      [label]="'builds.game' | translate"
-      [options]="gameOptions"
-      [value]="gameKey()"
-      (valueChange)="switchGame($event)"
-    />
-  </anotoki-page-header>
+  <anotoki-page-header [heading]="'builds.title' | translate" [lead]="'builds.subtitle' | translate" />
 
   <anotoki-text-field
     class="search"

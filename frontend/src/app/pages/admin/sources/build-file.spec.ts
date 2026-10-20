@@ -34,7 +34,6 @@ describe('checkBuildFile (is a chosen file a builds file of this source?)', () =
       [file({ format: 'GOOD' }), 'This is not a builds file exported by the build analyzer.'],
       [file({ format_version: 2 }), 'This builds file has format version 2, and this installation reads version 1. Update this installation, then import again.'],
       [file({ format_version: '1' }), 'This builds file has no format version this installation reads.'],
-      [file({ game: 'hsr', source: 'hsr-1' }), 'This file holds Honkai: Star Rail builds, and Source 2 is a Genshin Impact source.'],
       [file({ game: 'toString' }), 'This builds file names no game this installation knows.'],
       [file({ source: 'genshin-1' }), 'This file holds the builds of genshin-1, not of Source 2 (genshin-2).'],
       [file({ builds: { hutao: [] } }), 'This builds file holds no list of builds.'],

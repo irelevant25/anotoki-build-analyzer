@@ -2,8 +2,10 @@ import { Grade, GameKey } from './models';
 
 export const GAME_LABELS: Record<GameKey, string> = {
   genshin: 'Genshin Impact',
-  hsr: 'Honkai: Star Rail',
 };
+
+/** The games the site offers, in the order a page lists them (the server's App\Enums\Game). */
+export const GAMES: readonly GameKey[] = ['genshin'];
 
 export function gradeColor(grade: Grade | string | null | undefined): string {
   switch (grade) {

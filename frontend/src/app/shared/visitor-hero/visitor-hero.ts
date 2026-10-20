@@ -4,7 +4,7 @@ import { ButtonComponent } from '@anotoki/lib/ui/button';
 import { CardComponent } from '@anotoki/lib/ui/card';
 import { IconComponent } from '@anotoki/lib/ui/icon';
 import { AuthService } from '../../core/auth';
-import { GAME_LABELS } from '../../core/format';
+import { GAME_LABELS, GAMES } from '../../core/format';
 import { TranslatePipe } from '../../core/i18n/translate';
 import { GameKey } from '../../core/models';
 import { signInOrSayWhy } from '../../core/sign-in';
@@ -28,7 +28,7 @@ export class VisitorHero {
   protected readonly auth = inject(AuthService);
   private readonly router = inject(Router);
 
-  protected readonly games: GameKey[] = ['genshin', 'hsr'];
+  protected readonly games = GAMES;
   protected readonly gameLabels = GAME_LABELS;
 
   /** To the IAM and back to this page; the failure's screen says why when the sign-in cannot start. */

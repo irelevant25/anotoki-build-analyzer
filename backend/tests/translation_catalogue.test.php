@@ -296,7 +296,7 @@ test('every key the frontend uses is in the database, and every key of the site\
 
 test('what the server says as a kind is a key the frontend declares: recommendations, import errors, import warnings', function () {
     $kinds = ['recommendation.' => BuildEvaluator::KINDS, 'import.error.' => ImportKinds::ERRORS, 'import.warning.' => ImportKinds::WARNINGS];
-    same([18, 23, 9], array_map('count', array_values($kinds)), 'how many kinds there are');
+    same([18, 18, 7], array_map('count', array_values($kinds)), 'how many kinds there are');
 
     $declared = KeyScanner::dynamic((string) file_get_contents(SiteTranslations::frontendRoot() . '/' . SiteTranslations::DYNAMIC_KEYS));
     same([], $declared['problems'], SiteTranslations::DYNAMIC_KEYS . ' can be read');
@@ -382,10 +382,17 @@ test('a migration with strings writes each key once, in both languages; the gate
     }
     same([], array_values(array_diff(siteKeys(), $all)), 'keys of the site\'s own in the database that no migration\'s rows name');
 
-    // The running total: the last gate counts the site's own keys - never the library's, which the library adds
-    // and words itself.
-    $last = array_key_last($gates);
-    same(count(siteKeys()), $gates[$last], "{$last}'s gate expects as many keys of the site's own as there are");
+    // The running total: the last gate of any migration counts the site's own keys - never the library's, which the
+    // library adds and words itself. (A migration that only retires keys, 015, inserts none: its gate counts all the same.)
+    $last = null;
+    foreach (glob(Migrations::directory() . '/*.sql') ?: [] as $path) {
+        $expected = migrationKeysIn((string) file_get_contents($path))['expected'];
+        if ($expected !== null) {
+            $last = [basename($path), $expected];
+        }
+    }
+    check($last !== null && $gates !== [], 'no migration counts the keys');
+    same(count(siteKeys()), $last[1], "{$last[0]}'s gate expects as many keys of the site's own as there are");
     foreach (MOVED_TO_LIBRARY as $file) {
         check(str_contains((string) file_get_contents(Migrations::directory() . '/' . $file), "WHERE name NOT LIKE 'anotoki.%'"), $file . '\'s gate leaves the library\'s keys out of its count');
     }

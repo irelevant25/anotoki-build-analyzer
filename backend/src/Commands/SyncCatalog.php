@@ -23,7 +23,7 @@ final class SyncCatalog
         if (isset($positional[0])) {
             $game = Game::tryFrom($positional[0]);
             if ($game === null) {
-                Cli::error('The game is genshin or hsr.');
+                Cli::error('The game is ' . implode(' or ', array_map(fn(Game $game) => $game->value, Game::cases())) . '.');
 
                 return 1;
             }

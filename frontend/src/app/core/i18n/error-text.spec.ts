@@ -122,14 +122,14 @@ describe('errorText() and the errorText pipe: what a page’s error holds, worde
     'error.http': 'Request failed (HTTP {status}).',
     'error.editor_only': 'Only an editor or an admin can do this.',
     'error.unknown': 'Something went wrong.',
-    'import.error.file_game_mismatch': 'This file contains {file_game} data, but you chose {chosen_game}.',
+    'import.error.account_uid_mismatch': 'The data belongs to UID {data_uid}, but the selected account is UID {account_uid}.',
   };
   const SLOVAK = {
     'error.offline': 'Nepodarilo sa spojiť so serverom. Skontroluj pripojenie a skús to znova.',
     'error.http': 'Požiadavka zlyhala (HTTP {status}).',
     'error.editor_only': 'Toto môže urobiť len editor alebo správca.',
     'error.unknown': 'Niečo sa pokazilo.',
-    'import.error.file_game_mismatch': 'Súbor obsahuje údaje z hry {file_game}, ale zvolená hra je {chosen_game}.',
+    'import.error.account_uid_mismatch': 'Údaje majú UID {data_uid}, ale vybraný účet má UID {account_uid}.',
   };
 
   function slovak() {
@@ -148,8 +148,8 @@ describe('errorText() and the errorText pipe: what a page’s error holds, worde
 
   it('words a key with its params as it is - what the page decided itself', () => {
     const { i18n } = slovak();
-    const wording = { key: 'import.error.file_game_mismatch', params: { file_game: 'Honkai: Star Rail', chosen_game: 'Genshin Impact' } };
-    expect(errorText(i18n, wording)).toBe('Súbor obsahuje údaje z hry Honkai: Star Rail, ale zvolená hra je Genshin Impact.');
+    const wording = { key: 'import.error.account_uid_mismatch', params: { data_uid: '700000002', account_uid: '700000001' } };
+    expect(errorText(i18n, wording)).toBe('Údaje majú UID 700000002, ale vybraný účet má UID 700000001.');
     expect(errorText(i18n, { key: 'error.unknown' })).toBe('Niečo sa pokazilo.');
     // Not a key: not worded as one.
     expect(errorText(i18n, { key: 'constructor' })).toBe('Niečo sa pokazilo.');

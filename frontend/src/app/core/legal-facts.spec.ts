@@ -39,7 +39,8 @@ const ADDRESSES = [
  */
 const WORDS: Record<string, string> = {
   'legal.about': 'Compares builds.',
-  'legal.fanClause': 'A fan project, about Genshin Impact and Honkai: Star Rail.',
+  // The library's key the pages read for the fan clause (its built-in words name Genshin Impact, the one game here).
+  'anotoki.legal.fanHoyoverse': 'A fan project, about Genshin Impact.',
   'legal.record.name': 'Your record',
   'legal.record.what': 'The record.',
   'legal.record.why': 'Why the record.',
@@ -184,7 +185,7 @@ describe('the legal pages, as this site fills them in', () => {
     document.body.innerHTML = '';
   });
 
-  it("the root configuration: the page's language, the database's words of the library's keys - but the fan clause, the site's own - and no facts, which come with the pages' frame", async () => {
+  it("the root configuration: the page's language, the database's words of the library's keys - the fan clause's too - and no facts, which come with the pages' frame", async () => {
     await configure({
       'anotoki.legal.privacyTitle': 'Our privacy',
       'anotoki.legal.fanHoyoverse': 'The library key, reworded',
@@ -192,8 +193,8 @@ describe('the legal pages, as this site fills them in', () => {
     const config = TestBed.inject(ANOTOKI_LEGAL_CONFIG);
     expect(config.language?.()).toBe('en');
     expect(config.translate?.('anotoki.legal.privacyTitle')).toBe('Our privacy');
-    // The library's fan clause names Genshin Impact alone: the site's names both games, whatever the library key says.
-    expect(config.translate?.('anotoki.legal.fanHoyoverse')).toBe(WORDS['legal.fanClause']);
+    // The library's fan clause names Genshin Impact - the one game here: its key's words as the database has them.
+    expect(config.translate?.('anotoki.legal.fanHoyoverse')).toBe('The library key, reworded');
     expect(config.paths).toBeUndefined();
     expect(config.operator).toBeUndefined();
     expect(() => config.facts()).toThrow(/frame/);
@@ -308,12 +309,12 @@ describe('the legal pages, as this site fills them in', () => {
     expect(links).not.toContain('https://evil.example');
   });
 
-  it("Terms: what Build Analyzer is, first, under its name - and the site's own fan clause, naming both games", async () => {
+  it("Terms: what Build Analyzer is, first, under its name - and the library's fan clause, naming Genshin Impact", async () => {
     await configure();
     const host = await draw(TermsFrame);
     expect(host.querySelector('[data-about]')?.textContent?.trim()).toBe(WORDS['legal.about']);
     expect(host.querySelector('[data-section="what"] h2')?.textContent?.trim()).toBe('What Build Analyzer is');
-    expect(host.querySelector('[data-fan]')?.textContent?.trim()).toBe(WORDS['legal.fanClause']);
+    expect(host.querySelector('[data-fan]')?.textContent?.trim()).toBe(WORDS['anotoki.legal.fanHoyoverse']);
   });
 
   it("Contact: the feedback form first - the site takes feedback -, then the address, the anotoki account's page to delete the account, and the fan clause", async () => {
@@ -325,7 +326,7 @@ describe('the legal pages, as this site fills them in', () => {
     expect(host.querySelector('[data-section="email"] a')?.getAttribute('href')).toBe('mailto:support@anotoki.eu');
     expect(host.querySelector('[data-account-page]')?.getAttribute('href')).toBe(`${IAM}/account`);
     expect(host.querySelector('[data-section="delete"]')?.textContent).toContain('Build Analyzer then keeps what you did here without your name');
-    expect(host.textContent).toContain(WORDS['legal.fanClause']);
+    expect(host.textContent).toContain(WORDS['anotoki.legal.fanHoyoverse']);
   });
 
   it('Contact offers no form to somebody signed out while the IAM requires signing in here - the server would refuse their message: the address alone; Privacy still says what a message holds', async () => {

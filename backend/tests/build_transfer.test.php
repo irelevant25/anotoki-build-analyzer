@@ -24,20 +24,6 @@ use App\Support\Neutral;
 use Tests\Support\Client;
 use Tests\Support\FakeBuildSource;
 
-/** A Star Rail source: "hsr-1" when it follows the Genshin one. */
-final class FakeHsrSource extends FakeBuildSource
-{
-    public function key(): string
-    {
-        return 'fake.hsr';
-    }
-
-    public function game(): Game
-    {
-        return Game::Hsr;
-    }
-}
-
 bootTests();
 
 // Until the builds come from a file only (0.5.0 replaces this file), the scrapers' own names are kept out too.
@@ -428,7 +414,7 @@ test('a file for another source or game, or no builds file at all, is refused an
         'This file holds the builds of genshin-2, not of Source 1 (genshin-1).' => ['source' => 'genshin-2'] + $file,
         // Whatever text the file holds there, the answer does not repeat it.
         'This file holds the builds of another source, not of Source 1 (genshin-1).' => ['source' => 'prydwen.genshin'] + $file,
-        'This file holds Honkai: Star Rail builds, and Source 1 is a Genshin Impact source.' => ['game' => 'hsr', 'source' => 'hsr-1'] + $file,
+        'This builds file names no game this installation knows.' => ['game' => 'hsr', 'source' => 'hsr-1'] + $file,
         'This builds file names no game this installation knows.' => ['game' => 'zzz'] + $file,
         'This is not a builds file exported by the build analyzer.' => ['format' => 'GOOD'] + $file,
         'This builds file has format version 2, and this installation reads version 1. Update this installation, then import again.' => ['format_version' => 2] + $file,
@@ -719,73 +705,6 @@ test('an export always imports: neutral text kept to its caps, variants it makes
     $client->post('/api/sources/genshin-1/import', $again)->status(200)->path('unchanged', 2)->path('created', 0)->path('updated', 0);
     unset($file['exported_at'], $again['exported_at']);
     same($file['builds'], $again['builds'], 'the same builds');
-});
-
-test('a Star Rail file: set kinds, ornaments in pairs, and the game\'s own stats', function () use ($admin) {
-    seedHsrCatalog();
-    T::$app->config->set('sources', [FakeBuildSource::class, FakeHsrSource::class]);
-    $file = [
-        'format' => 'build-analyzer.builds',
-        'format_version' => 1,
-        'source' => 'hsr-1',
-        'game' => 'hsr',
-        'exported_at' => BuildFile::time(Clock::now()),
-        'synced_at' => null,
-        'builds' => [
-            [
-                'character' => 'kafka',
-                'character_name' => 'Kafka',
-                'variant' => 'DoT',
-                'role' => null,
-                'recommended' => true,
-                'position' => 0,
-                'weapons' => [['key' => 'patienceisallyouneed', 'name' => 'Patience Is All You Need', 'rank' => 1, 'refinement' => 1, 'note' => null, 'known' => true]],
-                'sets' => [
-                    [
-                        'rank' => 1,
-                        'kind' => 'relic',
-                        'choose' => null,
-                        'note' => null,
-                        'pieces' => [['label' => 'Prisoner in Deep Confinement', 'count' => 4, 'keys' => ['prisonerindeepconfinement'], 'names' => ['Prisoner in Deep Confinement']]],
-                    ],
-                    [
-                        'rank' => 2,
-                        'kind' => 'planar',
-                        'choose' => null,
-                        'note' => null,
-                        'pieces' => [['label' => 'Firmament Frontline: Glamoth', 'count' => 2, 'keys' => ['firmamentfrontlineglamoth'], 'names' => ['Firmament Frontline: Glamoth']]],
-                    ],
-                ],
-                'main_stats' => ['body' => [['stat' => 'atk_', 'priority' => 1]], 'feet' => [['stat' => 'spd', 'priority' => 1]]],
-                'substats' => [['stat' => 'spd', 'priority' => 1], ['stat' => 'atk_', 'priority' => 2]],
-                'talent_priority' => [['talent' => 'ultimate', 'priority' => 1]],
-                'stat_targets' => [['stat' => 'spd', 'min' => 134, 'max' => null, 'text' => 'SPD 134+']],
-                'notes' => null,
-                'source_updated_at' => null,
-                'game_version' => null,
-            ],
-        ],
-    ];
-    $client = $admin();
-    $in = 'The file\'s builds[0] (kafka, "DoT") is not valid: ';
-
-    $cases = [
-        $in . 'sets[1].pieces[0].count must be 2.' => function (array &$f) {
-            $f['builds'][0]['sets'][1]['pieces'][0]['count'] = 4;
-        },
-        $in . 'sets[0].kind must be relic or planar.' => function (array &$f) {
-            $f['builds'][0]['sets'][0]['kind'] = 'artifact';
-        },
-        $in . 'substats[1].stat must be a stat key of Honkai: Star Rail, such as critRate_ or hp_.' => function (array &$f) {
-            $f['builds'][0]['substats'][1]['stat'] = 'eleMas';
-        },
-    ];
-    foreach ($cases as $message => $break) {
-        $broken = $file;
-        $break($broken);
-        $client->post('/api/sources/hsr-1/import', $broken)->status(422)->path('message', $message);
-    }
-    $client->post('/api/sources/hsr-1/import', $file)->status(200)->path('created', 1);
 });
 
 test('times before 1970 are no times: refused where a time must be, now where one may be left out', function () use ($admin) {

@@ -5,11 +5,9 @@ namespace App\Support;
 use App\Enums\Game;
 
 /**
- * Canonical stat keys shared by importers, scrapers and the analyzer.
+ * Canonical stat keys shared by importers, builds and the analyzer.
  *
- * Genshin keys follow the GOOD format (hp_, atk_, critRate_, enerRech_ ...);
- * HSR keys use the same style (spd, effectHitRate_, breakEffect_, energyRegen_ ...).
- * A trailing underscore marks a percentage stat.
+ * Keys follow the GOOD format (hp_, atk_, critRate_, enerRech_ ...). A trailing underscore marks a percentage stat.
  */
 final class Stats
 {
@@ -32,20 +30,6 @@ final class Stats
             'critRate_' => 3.89,
             'critDMG_' => 7.77,
         ],
-        'hsr' => [
-            'hp' => 42.337549,
-            'atk' => 21.168773,
-            'def' => 21.168773,
-            'hp_' => 4.32,
-            'atk_' => 4.32,
-            'def_' => 5.4,
-            'spd' => 2.6,
-            'critRate_' => 3.24,
-            'critDMG_' => 6.48,
-            'effectHitRate_' => 4.32,
-            'effectRes_' => 4.32,
-            'breakEffect_' => 6.48,
-        ],
     ];
 
     private const LABELS = [
@@ -60,12 +44,6 @@ final class Stats
         'critRate_' => ['CRIT Rate', 'CR'],
         'critDMG_' => ['CRIT DMG', 'CD'],
         'heal_' => ['Healing Bonus', 'Heal'],
-        'spd' => ['SPD', 'SPD'],
-        'spd_' => ['SPD%', 'SPD%'],
-        'effectHitRate_' => ['Effect Hit Rate', 'EHR'],
-        'effectRes_' => ['Effect RES', 'RES'],
-        'breakEffect_' => ['Break Effect', 'BE'],
-        'energyRegen_' => ['Energy Regeneration Rate', 'ERR'],
         self::ELEMENTAL_DMG => ['Elemental DMG Bonus', 'Elem DMG'],
     ];
 
@@ -77,7 +55,6 @@ final class Stats
     /** What parse() reads a label as: elements whose DMG bonus a label can name, then words for the stats. */
     private const ELEMENTS = [
         'genshin' => ['pyro', 'hydro', 'anemo', 'electro', 'dendro', 'cryo', 'geo', 'physical'],
-        'hsr' => ['physical', 'fire', 'ice', 'lightning', 'thunder', 'wind', 'quantum', 'imaginary'],
     ];
 
     private const COMMON = [
@@ -119,31 +96,6 @@ final class Stats
             'heal' => 'heal_',
             'hb' => 'heal_',
         ],
-        'hsr' => [
-            'spd' => 'spd',
-            'speed' => 'spd',
-            'ehr' => 'effectHitRate_',
-            'effecthitrate' => 'effectHitRate_',
-            'effecthit' => 'effectHitRate_',
-            'hitrate' => 'effectHitRate_',
-            'effectres' => 'effectRes_',
-            'effres' => 'effectRes_',
-            'res' => 'effectRes_',
-            'effectresistance' => 'effectRes_',
-            'be' => 'breakEffect_',
-            'breakeffect' => 'breakEffect_',
-            'break' => 'breakEffect_',
-            'err' => 'energyRegen_',
-            'er' => 'energyRegen_',
-            'energyregen' => 'energyRegen_',
-            'energyregenerationrate' => 'energyRegen_',
-            'energyregenrate' => 'energyRegen_',
-            'energyregeneration' => 'energyRegen_',
-            'ohb' => 'heal_',
-            'outgoinghealing' => 'heal_',
-            'healing' => 'heal_',
-            'heal' => 'heal_',
-        ],
     ];
 
     /**
@@ -155,10 +107,6 @@ final class Stats
     public static function keys(Game $game): array
     {
         $keys = [...array_values(self::COMMON), ...array_values(self::SPECIFIC[$game->value]), ...array_map(self::elementKey(...), self::ELEMENTS[$game->value])];
-        // "SPD%" (a set bonus) is the one key parse() makes of another with a "%".
-        if (in_array('spd', $keys, true)) {
-            $keys[] = 'spd_';
-        }
 
         return array_values(array_unique($keys));
     }
@@ -184,17 +132,13 @@ final class Stats
     public static function label(string $key, Game $game, bool $short = false): string
     {
         if (isset(self::LABELS[$key])) {
-            if ($game === Game::Hsr && $key === 'heal_') {
-                return $short ? 'OHB' : 'Outgoing Healing Boost';
-            }
-
             return self::LABELS[$key][$short ? 1 : 0];
         }
 
         if (str_ends_with($key, '_dmg_')) {
             $element = ucfirst(substr($key, 0, -5));
 
-            return $short ? "{$element} DMG" : ($game === Game::Hsr ? "{$element} DMG Boost" : "{$element} DMG Bonus");
+            return $short ? "{$element} DMG" : "{$element} DMG Bonus";
         }
 
         return $key;
@@ -209,7 +153,7 @@ final class Stats
     }
 
     /**
-     * Parse a human stat label ("ATK%", "Energy Recharge", "Crit", "Pyro DMG Bonus", "SPD") into canonical keys.
+     * Parse a human stat label ("ATK%", "Energy Recharge", "Crit", "Pyro DMG Bonus") into canonical keys.
      * Bare "ATK"/"HP"/"DEF" are read as percentages because builds practically never ask for flat stats.
      *
      * @return list<string> Usually one key; "Crit" / "CRIT Rate/DMG" yield both crit stats. Empty when unknown.
@@ -230,27 +174,18 @@ final class Stats
         }
         $norm = str_replace('/', '', $norm);
 
-        $isPct = str_contains($norm, '%') || str_contains($norm, 'percent');
         $norm = str_replace(['%', 'percent'], '', $norm);
 
         foreach (self::ELEMENTS[$game->value] as $element) {
-            // "Pyro DMG Bonus" => "pyrodmg"; a goblet/sphere listed just as "Pyro" means the same.
+            // "Pyro DMG Bonus" => "pyrodmg"; a goblet listed just as "Pyro" means the same.
             if ($norm === $element || $norm === $element . 'dmg') {
                 return [self::elementKey($element)];
             }
         }
 
         $key = self::SPECIFIC[$game->value][$norm] ?? (self::COMMON[$norm] ?? null);
-        if ($key === null) {
-            return [];
-        }
 
-        // "SPD%" is a real (set-bonus) stat; everything else with % is already a percentage key.
-        if ($key === 'spd' && $isPct) {
-            return ['spd_'];
-        }
-
-        return [$key];
+        return $key === null ? [] : [$key];
     }
 
     /**
@@ -328,7 +263,7 @@ final class Stats
 
     private static function elementKey(string $element): string
     {
-        return ($element === 'thunder' ? 'lightning' : $element) . '_dmg_';
+        return $element . '_dmg_';
     }
 
     /**

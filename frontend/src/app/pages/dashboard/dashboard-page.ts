@@ -16,7 +16,7 @@ import { TooltipDirective } from '@anotoki/lib/ui/tooltip';
 import { forkJoin, of } from 'rxjs';
 import { Api } from '../../core/api';
 import { AuthService } from '../../core/auth';
-import { GAME_LABELS } from '../../core/format';
+import { GAME_LABELS, GAMES } from '../../core/format';
 import { GAME_TERMS, UID_TERM } from '../../core/game-terms';
 import { gameIcon } from '../../core/icons';
 import { ErrorTextPipe, errorText } from '../../core/i18n/error-text';
@@ -92,16 +92,16 @@ export class DashboardPage {
   /** Why the page could not be loaded: the failed request itself, worded where it is shown. */
   protected readonly error = signal<unknown>(null);
 
-  protected readonly games: GameKey[] = ['genshin', 'hsr'];
+  protected readonly games = GAMES;
   protected readonly gameLabels = GAME_LABELS;
-  /** The games' own words - Artifacts / Relics, AR / TL, UID: shown as they are in every language. */
+  /** The game's own words - Artifacts, AR, UID: shown as they are in every language. */
   protected readonly terms = GAME_TERMS;
   protected readonly uidTerm = UID_TERM;
-  /** A game's mark: Genshin Impact's sparkle, Honkai: Star Rail's rocket. */
+  /** A game's mark: Genshin Impact's sparkle. */
   protected readonly gameIcon = gameIcon;
 
   protected readonly accountsByGame = computed(() => {
-    const groups: Record<GameKey, AccountSummary[]> = { genshin: [], hsr: [] };
+    const groups = Object.fromEntries(GAMES.map((game) => [game, [] as AccountSummary[]])) as Record<GameKey, AccountSummary[]>;
     for (const account of this.accounts()) {
       groups[account.game].push(account);
     }
@@ -109,7 +109,7 @@ export class DashboardPage {
   });
 
   protected readonly sourcesByGame = computed(() => {
-    const groups: Record<GameKey, SourceStatus[]> = { genshin: [], hsr: [] };
+    const groups = Object.fromEntries(GAMES.map((game) => [game, [] as SourceStatus[]])) as Record<GameKey, SourceStatus[]>;
     for (const source of this.sources()) {
       groups[source.game].push(source);
     }

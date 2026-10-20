@@ -1,7 +1,7 @@
 <?php
 
 /**
- * Imports: inventory files (GOOD, the Star Rail scanner format), showcases by UID, how they land in an
+ * Imports: inventory files (GOOD), showcases by UID, how they land in an
  * account, and how an unknown in-game ID refreshes the catalog. The showcase service and the game data
  * provider are faked.
  *
@@ -20,10 +20,8 @@ use App\Models\User;
 use App\Repositories\Accounts;
 use App\Services\Import\AccountImporter;
 use App\Services\Import\Enka\EnkaGenshinParser;
-use App\Services\Import\Enka\EnkaHsrParser;
 use App\Services\Import\Enka\EnkaStore;
 use App\Services\Import\Files\GoodParser;
-use App\Services\Import\Files\HsrScannerParser;
 use App\Services\Import\ImportException;
 use App\Services\Import\ImportKinds;
 use App\Services\Import\ImportService;
@@ -47,7 +45,6 @@ $store = new class extends EnkaStore {
 beforeEach(function () use ($store) {
     T::$app->set(EnkaStore::class, $store);
     seedGenshinCatalog();
-    seedHsrCatalog();
     seedUser(1, 'owner');
 });
 
@@ -133,7 +130,7 @@ $item = fn(string $where, array $params = []) => db()->one(
 );
 
 test('imports a GOOD file', function () use ($owner, $item) {
-    $run = T::$app->get(ImportService::class)->fromFile(goodFile(), $owner(), Game::Genshin, null, 'export.json');
+    $run = T::$app->get(ImportService::class)->fromFile(goodFile(), $owner(), null, 'export.json');
 
     $account = T::$app->get(Accounts::class)->findOwned(1, (int) $run->account_id);
     same(1, $account->user_id, 'the account is the owner\'s');
@@ -171,97 +168,17 @@ test('imports a GOOD file', function () use ($owner, $item) {
 
 test('importing a full inventory again replaces the items', function () use ($owner) {
     $service = T::$app->get(ImportService::class);
-    $first = $service->fromFile(goodFile(), $owner(), Game::Genshin);
+    $first = $service->fromFile(goodFile(), $owner());
     $account = T::$app->get(Accounts::class)->findOwned(1, (int) $first->account_id);
 
-    $service->fromFile(goodFile(), $owner(), Game::Genshin, $account);
+    $service->fromFile(goodFile(), $owner(), $account);
 
     same(2, (int) db()->value('SELECT count(*) FROM account_items WHERE account_id = ?', [$account->id]), 'items');
     same(1, (int) db()->value('SELECT count(*) FROM accounts'), 'accounts');
 });
 
-test('imports a Star Rail scanner file', function () use ($owner, $item) {
-    $file = json_encode([
-        'source' => 'reliquary_archiver',
-        'build' => '0.18.0',
-        'version' => 4,
-        'metadata' => ['uid' => 700000001, 'trailblazer' => 'Stelle'],
-        'light_cones' => [['id' => '23006', 'name' => 'Patience Is All You Need', 'level' => 80, 'ascension' => 6, 'superimposition' => 1, 'location' => '1005', 'lock' => true, '_uid' => 'lc1']],
-        'relics' => [
-            [
-                'set_id' => '117',
-                'name' => 'Prisoner in Deep Confinement',
-                'slot' => 'Feet',
-                'rarity' => 5,
-                'level' => 15,
-                'mainstat' => 'SPD',
-                'substats' => [['key' => 'CRIT Rate_', 'value' => 3.24, 'count' => 1, 'step' => 2], ['key' => 'ATK', 'value' => 42.34, 'count' => 2, 'step' => 2]],
-                'location' => '1005',
-                'lock' => true,
-                'discard' => false,
-                '_uid' => 'r1',
-            ],
-            [
-                'set_id' => '310',
-                'name' => 'Firmament Frontline: Glamoth',
-                'slot' => 'Link Rope',
-                'rarity' => 5,
-                'level' => 15,
-                'mainstat' => 'ATK',
-                'substats' => [],
-                'location' => '8006',
-                'lock' => false,
-                'discard' => false,
-                '_uid' => 'r2',
-            ],
-        ],
-        'characters' => [
-            [
-                'id' => '1005',
-                'name' => 'Kafka',
-                'path' => 'Nihility',
-                'level' => 80,
-                'ascension' => 6,
-                'eidolon' => 1,
-                'skills' => ['basic' => 6, 'skill' => 10, 'ult' => 10, 'talent' => 10],
-                'traces' => [],
-            ],
-            [
-                'id' => '8006',
-                'name' => 'Trailblazer',
-                'path' => 'Harmony',
-                'level' => 80,
-                'ascension' => 6,
-                'eidolon' => 6,
-                'skills' => ['basic' => 6, 'skill' => 10, 'ult' => 10, 'talent' => 10],
-                'traces' => [],
-            ],
-        ],
-    ]);
-
-    $run = T::$app->get(ImportService::class)->fromFile($file, $owner());
-
-    same('success', $run->status, 'status');
-    $account = T::$app->get(Accounts::class)->findOwned(1, (int) $run->account_id);
-    same(Game::Hsr, $account->game, 'game');
-    same('700000001', $account->uid, 'uid');
-
-    $feet = $item("i.slot = 'feet'");
-    same('spd', $feet['main_stat'], 'main stat');
-    near(25.032, (float) $feet['main_value'], 0.001, 'main value');
-    same([['key' => 'critRate_', 'value' => 3.24, 'rolls' => 1], ['key' => 'atk', 'value' => 42.34, 'rolls' => 2]], json_decode($feet['substats'], true), 'substats');
-
-    // "ATK" on a rope is ATK%; location 8006 (Stelle, Harmony) maps to the Harmony Trailblazer.
-    $rope = $item("i.slot = 'rope'");
-    same('atk_', $rope['main_stat'], 'rope main stat');
-    same('trailblazerharmony', $rope['equipped_key'], 'on the Trailblazer');
-
-    $kafka = db()->value("SELECT ac.talents FROM account_characters ac JOIN game_characters c ON c.id = ac.game_character_id WHERE c.key = 'kafka'");
-    same(['basic' => 6, 'skill' => 10, 'ultimate' => 10, 'talent' => 10], json_decode($kafka, true), 'traces');
-});
-
 test('a showcase import can complete an account made from a file', function () use ($owner) {
-    $fromFile = T::$app->get(ImportService::class)->fromFile(goodFile(), $owner(), Game::Genshin);
+    $fromFile = T::$app->get(ImportService::class)->fromFile(goodFile(), $owner());
     $accountId = (int) $fromFile->account_id;
     same(null, db()->value('SELECT uid FROM accounts WHERE id = ?', [$accountId]), 'no UID yet');
 
@@ -306,53 +223,6 @@ test('parses a Genshin showcase', function () use ($owner) {
     same('Crimson Witch of Flames', db()->value('SELECT s.name FROM account_items i JOIN game_sets s ON s.id = i.game_set_id LIMIT 1'), 'set');
 });
 
-test('parses a Star Rail showcase, support characters only once', function () {
-    $kafka = [
-        'avatarId' => 1005,
-        'level' => 80,
-        'promotion' => 6,
-        'rank' => 1,
-        'skillTreeList' => [
-            ['pointId' => 1005001, 'level' => 6],
-            ['pointId' => 1005002, 'level' => 10],
-            ['pointId' => 1005003, 'level' => 10],
-            ['pointId' => 1005004, 'level' => 10],
-            ['pointId' => 1005201, 'level' => 1],
-        ],
-        'equipment' => ['tid' => 23006, 'level' => 80, 'promotion' => 6, 'rank' => 1],
-        'relicList' => [
-            [
-                'tid' => 61174,
-                'type' => 4,
-                'level' => 15,
-                'mainAffixId' => 4,
-                'subAffixList' => [['affixId' => 8, 'cnt' => 3, 'step' => 2], ['affixId' => 7, 'cnt' => 2]],
-                '_flat' => ['setID' => 117, 'props' => [['type' => 'SpeedDelta', 'value' => 25.032], ['type' => 'CriticalChance', 'value' => 0.0972], ['type' => 'SpeedDelta', 'value' => 4.6]]],
-            ],
-        ],
-    ];
-    $json = [
-        'uid' => '700000002',
-        'detailInfo' => [
-            'uid' => 700000002,
-            'nickname' => 'Pom',
-            'level' => 70,
-            'worldLevel' => 6,
-            'avatarDetailList' => [$kafka + ['_assist' => true], $kafka],
-        ],
-    ];
-
-    $parsed = T::$app->get(EnkaHsrParser::class)->parse($json);
-
-    same(1, count($parsed->characters), 'one Kafka');
-    same(['basic' => 6, 'skill' => 10, 'ultimate' => 10, 'talent' => 10], $parsed->characters[0]['talents'], 'traces');
-    $relic = $parsed->items[0];
-    same(5, $relic['rarity'], 'rarity');
-    same('spd', $relic['main_stat'], 'main stat');
-    same(['key' => 'critRate_', 'value' => 9.72, 'rolls' => 3], $relic['substats'][0], 'crit');
-    same(['key' => 'spd', 'value' => 4.6, 'rolls' => 2], $relic['substats'][1], 'speed');
-});
-
 test('file imports through the API, and their errors', function () {
     $client = (new Client())->asIam(1);
 
@@ -379,21 +249,6 @@ test('file imports through the API, and their errors', function () {
         ->path('code', 'file_not_json')
         ->path('params', []);
     same('{"message":"The file is not valid JSON.","code":"file_not_json","params":{}}', $notJson->body, 'the whole answer');
-
-    $mismatch = $client
-        ->post('/api/imports/file', ['content' => goodFile(), 'game' => 'hsr'])
-        ->status(422)
-        ->path('message', 'This file contains Genshin Impact data, but you chose Honkai: Star Rail.')
-        ->path('code', 'file_game_mismatch');
-    same(
-        [
-            'message' => 'This file contains Genshin Impact data, but you chose Honkai: Star Rail.',
-            'code' => 'file_game_mismatch',
-            'params' => ['file_game' => 'Genshin Impact', 'chosen_game' => 'Honkai: Star Rail'],
-        ],
-        $mismatch->json(),
-        'the whole answer',
-    );
 
     // An upload as a file, as a script would send it.
     $path = T::$storage . DIRECTORY_SEPARATOR . 'upload.json';
@@ -492,7 +347,6 @@ test('every import problem is a kind of ImportKinds::ERRORS with exactly its par
     seedUser(2, 'somebody else');
     $accounts = T::$app->get(Accounts::class);
     $others = $accounts->findOwned(2, seedAccount(2, 'genshin', ['nickname' => 'Not mine']), withCounts: false);
-    $hsr = $accounts->findOwned(1, seedAccount(1, 'hsr', ['nickname' => 'Rail']), withCounts: false);
     $genshin = $accounts->findOwned(1, seedAccount(1, 'genshin', ['uid' => '700000001', 'nickname' => 'Main']), withCounts: false);
 
     $fetcher = fakeShowcaseAnswers();
@@ -514,11 +368,6 @@ test('every import problem is a kind of ImportKinds::ERRORS with exactly its par
         // kind => [what meets it, its parameters, its sentence - byte for byte what it was before kinds]
         $cases = [
             'account_missing' => [fn() => $importer->import($good(), $owner(), $others), [], 'The selected account does not exist.'],
-            'account_game_mismatch' => [
-                fn() => $importer->import($good(), $owner(), $hsr),
-                ['account_game' => 'Honkai: Star Rail', 'data_game' => 'Genshin Impact'],
-                'The selected account is a Honkai: Star Rail account, but the data is from Genshin Impact.',
-            ],
             'account_uid_mismatch' => [
                 fn() => $importer->import(T::$app->get(EnkaGenshinParser::class)->parse(showcaseProfile()), $owner(), $genshin),
                 ['data_uid' => '618285856', 'account_uid' => '700000001'],
@@ -543,30 +392,10 @@ test('every import problem is a kind of ImportKinds::ERRORS with exactly its par
                 [],
                 'This profile has no characters in its Character Showcase. Add characters in-game (Profile > Character Showcase), enable "Show Character Details", then try again.',
             ],
-            'showcase_empty_hsr' => [
-                fn() => T::$app->get(EnkaHsrParser::class)->parse(['detailInfo' => ['nickname' => 'Nobody shown']]),
-                [],
-                'This profile shows no characters. In-game open Phone > Profile, add characters to the Character Showcase and Support Characters, then try again in a few minutes.',
-            ],
             'good_not_good' => [fn() => T::$app->get(GoodParser::class)->parse(['format' => 'something else']), [], 'This is not a GOOD file (missing "format": "GOOD").'],
             'good_empty' => [fn() => $imports->fromFile('{"format":"GOOD","weapons":[]}', $owner()), [], 'The GOOD file contains no characters or artifacts. Check the exporter settings.'],
-            'hsr_not_export' => [fn() => T::$app->get(HsrScannerParser::class)->parse(['characters' => []]), [], 'This is not a Star Rail inventory export (it has no "relics" and "light_cones").'],
-            'hsr_empty' => [
-                fn() => $imports->fromFile('{"source":"reliquary_archiver","relics":[],"light_cones":[]}', $owner()),
-                [],
-                'The export contains no characters or relics. Check the scanner settings.',
-            ],
             'file_not_json' => [fn() => $imports->fromFile('not json', $owner()), [], 'The file is not valid JSON.'],
-            'file_unknown_format' => [
-                fn() => $imports->fromFile('{"something":"else"}', $owner()),
-                [],
-                'Unknown file format. Upload a Genshin Impact inventory export in the GOOD format, or a Honkai: Star Rail inventory export (with "relics" and "light_cones").',
-            ],
-            'file_game_mismatch' => [
-                fn() => $imports->fromFile(goodFile(), $owner(), Game::Hsr),
-                ['file_game' => 'Genshin Impact', 'chosen_game' => 'Honkai: Star Rail'],
-                'This file contains Genshin Impact data, but you chose Honkai: Star Rail.',
-            ],
+            'file_unknown_format' => [fn() => $imports->fromFile('{"something":"else"}', $owner()), [], 'Unknown file format. Upload a Genshin Impact inventory export in the GOOD format.'],
         ];
 
         foreach ($cases as $kind => [$meet, $params, $message]) {
@@ -580,7 +409,7 @@ test('every import problem is a kind of ImportKinds::ERRORS with exactly its par
 
         // "unexpected" is the one kind nothing throws: a failure that is not an import problem is recorded as it.
         same('unexpected', (new ImportException('Anything'))->kind, 'the kind of a problem that names none');
-        same(array_keys(ImportKinds::ERRORS), [...array_slice(array_keys($cases), 0, 3), 'unexpected', ...array_slice(array_keys($cases), 3)], 'every kind of the list was met');
+        same(array_keys(ImportKinds::ERRORS), [...array_slice(array_keys($cases), 0, 2), 'unexpected', ...array_slice(array_keys($cases), 2)], 'every kind of the list was met');
     } finally {
         T::$app->forget(Fetcher::class);
         T::$app->resetScope();
@@ -637,54 +466,13 @@ test('every warning is a kind of ImportKinds::WARNINGS with exactly its paramete
     );
     $kinds($run->summary['warning_kinds']);
 
-    // The Star Rail scanner format: weapon_label is the game's own word, as it is.
-    $run = $imports->fromFile(
-        (string) json_encode([
-            'source' => 'reliquary_archiver',
-            'version' => 4,
-            'characters' => [['id' => '1005', 'name' => 'Kafka', 'level' => 80]],
-            'light_cones' => [['name' => 'Cone Of Tomorrow', 'level' => 80]],
-            'relics' => [['set_id' => '117', 'slot' => 'Elbow', 'mainstat' => 'SPD']],
-        ]),
-        $owner(),
-    );
-    same(
-        [
-            '1 relic(s) with an unknown slot, set or main stat were skipped.',
-            'Unknown light cone {"name":"Cone Of Tomorrow"} was skipped.',
-            'What the game catalog does not know yet was skipped. After an admin refreshes the catalog (Sources page), import again.',
-        ],
-        $run->summary['warnings'],
-        'the sentences of a scanner file',
-    );
-    same(
-        [
-            ['code' => 'hsr_relics_skipped', 'params' => ['count' => 1]],
-            ['code' => 'unknown_weapon', 'params' => ['weapon_label' => 'Light Cone', 'ref' => 'Cone Of Tomorrow']],
-            ['code' => 'catalog_behind', 'params' => []],
-        ],
-        $run->summary['warning_kinds'],
-        'their kinds',
-    );
-    $kinds($run->summary['warning_kinds']);
-
-    // The two showcases: a piece whose data is not understood.
+    // A showcase: a piece whose data is not understood.
     $profile = showcaseProfile();
     $profile['avatarInfoList'][0]['equipList'][] = ['itemId' => 1, 'flat' => ['itemType' => 'ITEM_RELIQUARY', 'equipType' => 'EQUIP_ELBOW']];
     $parsed = T::$app->get(EnkaGenshinParser::class)->parse($profile);
     same([['message' => 'Skipped an artifact with unknown data.', 'kind' => 'showcase_artifact_skipped', 'params' => []]], $parsed->warnings, 'a Genshin showcase');
     $run = T::$app->get(AccountImporter::class)->import($parsed, $owner());
     same(['Skipped an artifact with unknown data.'], $run->summary['warnings'], 'the sentence of a showcase');
-    $kinds($run->summary['warning_kinds']);
-
-    $parsed = T::$app
-        ->get(EnkaHsrParser::class)
-        ->parse(['detailInfo' => ['uid' => 700000002, 'avatarDetailList' => [['avatarId' => 1005, 'level' => 80, 'relicList' => [['type' => 99], ['type' => 98]]]]]]);
-    same('showcase_relic_skipped', $parsed->warnings[0]['kind'], 'a Star Rail showcase');
-    same(2, count($parsed->warnings), 'said for each piece by the parser');
-    $run = T::$app->get(AccountImporter::class)->import($parsed, $owner());
-    same(['Skipped a relic with unknown data.'], $run->summary['warnings'], 'and once in the run');
-    same([['code' => 'showcase_relic_skipped', 'params' => []]], $run->summary['warning_kinds'], 'with one kind beside it');
     $kinds($run->summary['warning_kinds']);
 
     same(array_keys(ImportKinds::WARNINGS), array_values(array_filter(array_keys(ImportKinds::WARNINGS), fn(string $kind) => isset($seen[$kind]))), 'every kind of the list was met');
@@ -884,19 +672,15 @@ test('a failed run keeps what happened as a kind, and is sent without a summary 
         ->status(201)
         ->json('account_id');
 
-    // Through the API: the file is a Genshin one, the chosen game is not.
+    // Through the API: a GOOD file with nothing in it.
     $client
-        ->post('/api/imports/file', ['content' => goodFile(), 'game' => 'hsr', 'account_id' => $account, 'file_name' => 'wrong-game.json'])
+        ->post('/api/imports/file', ['content' => '{"format":"GOOD","weapons":[]}', 'account_id' => $account, 'file_name' => 'empty.json'])
         ->status(422)
-        ->path('code', 'file_game_mismatch');
+        ->path('code', 'good_empty');
 
     $stored = db()->one("SELECT * FROM import_runs WHERE status = 'failed'");
-    same('This file contains Genshin Impact data, but you chose Honkai: Star Rail.', $stored['error'], 'the error column is the sentence, as it always was');
-    same(
-        ['error' => ['code' => 'file_game_mismatch', 'params' => ['file_game' => 'Genshin Impact', 'chosen_game' => 'Honkai: Star Rail']]],
-        json_decode((string) $stored['summary'], true),
-        'the kind is kept in the summary column',
-    );
+    same('The GOOD file contains no characters or artifacts. Check the exporter settings.', $stored['error'], 'the error column is the sentence, as it always was');
+    same(['error' => ['code' => 'good_empty', 'params' => []]], json_decode((string) $stored['summary'], true), 'the kind is kept in the summary column');
 
     // A failure that is not an import problem: "unexpected", with the sentence the history always showed.
     T::$app
@@ -919,12 +703,12 @@ test('a failed run keeps what happened as a kind, and is sent without a summary 
     same(4, count($history->json()), 'the four runs: ' . $history->body);
     $one = fn(callable $is): array => array_values(array_filter($history->json(), $is))[0] ?? throw new AssertionFailed('no such run: ' . $history->body);
 
-    $failed = $one(fn(array $run) => $run['file_name'] === 'wrong-game.json');
+    $failed = $one(fn(array $run) => $run['file_name'] === 'empty.json');
     same('failed', $failed['status'], 'status');
     same(null, $failed['summary'], 'a failed run has no summary');
-    same('This file contains Genshin Impact data, but you chose Honkai: Star Rail.', $failed['error'], 'the unchanged error');
-    same('file_game_mismatch', $failed['error_code'], 'error_code');
-    same(['file_game' => 'Genshin Impact', 'chosen_game' => 'Honkai: Star Rail'], $failed['error_params'], 'error_params');
+    same('The GOOD file contains no characters or artifacts. Check the exporter settings.', $failed['error'], 'the unchanged error');
+    same('good_empty', $failed['error_code'], 'error_code');
+    same([], $failed['error_params'], 'error_params');
 
     $unexpected = $one(fn(array $run) => $run['file_name'] === 'broken.json');
     same(null, $unexpected['summary'], 'no summary');
@@ -993,32 +777,18 @@ test('warning kinds are sent only when there is one for each warning', function 
     }
 });
 
-test('the parameters of a problem never name another site, whatever the file says', function () {
+test('the parameters a file fills in never name another site, whatever the file says', function () {
     $client = (new Client())->asIam(1);
-    $account = seedAccount(1, 'hsr', ['uid' => '700000001', 'nickname' => 'Rail']);
 
-    // An export that gives a site's name where its UID belongs, imported into an account with a UID.
+    // An export that gives a site's name where a character's key belongs.
     $file = (string) json_encode([
-        'source' => 'reliquary_archiver',
-        'version' => 4,
-        'metadata' => ['uid' => 'enka.network'],
-        'light_cones' => [],
-        'relics' => [],
-        'characters' => [['id' => '1005', 'name' => 'Kafka', 'level' => 80]],
+        'format' => 'GOOD',
+        'version' => 3,
+        'characters' => [['key' => 'enka.network', 'level' => 80, 'constellation' => 0, 'ascension' => 6, 'talent' => ['auto' => 1, 'skill' => 1, 'burst' => 1]]],
     ]);
-
-    $client
-        ->post('/api/imports/file', ['content' => $file, 'account_id' => $account])
-        ->status(422)
-        ->path('code', 'account_uid_mismatch')
-        ->path('params', ['data_uid' => 'The source', 'account_uid' => '700000001']);
-
-    $client
-        ->get("/api/accounts/{$account}/imports")
-        ->status(200)
-        ->path('0.error_code', 'account_uid_mismatch')
-        ->path('0.error_params', ['data_uid' => 'The source', 'account_uid' => '700000001'])
-        ->path('0.error', 'The data belongs to UID the source, but the selected account is UID 700000001.');
+    $run = $client->post('/api/imports/file', ['content' => $file])->status(201);
+    same(['code' => 'unknown_character', 'params' => ['ref' => 'The source']], $run->json('summary.warning_kinds.0'), 'the parameter, in neutral words');
+    check(!str_contains(strtolower($run->body), 'enka'), 'the site is named nowhere: ' . $run->body);
 });
 
 finishTests();

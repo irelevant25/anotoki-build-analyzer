@@ -18,7 +18,7 @@ final class AccountCharacter
         public GameCharacter $character,
         public int $level = 1,
         public ?int $ascension = null,
-        /** Constellation / Eidolon. */
+        /** Constellation (Game::rankLabel()). */
         public int $rank = 0,
         /** @var array<string, mixed>|null */
         public ?array $talents = null,

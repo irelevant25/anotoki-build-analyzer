@@ -24,7 +24,7 @@ function result(dryRun: boolean, overrides: Partial<DataImportResult> = {}): Dat
     skipped: 3,
     accounts: [
       { game: 'genshin', uid: '700000001', nickname: 'Mona', outcome: 'added', skipped: 0 },
-      { game: 'hsr', uid: '800000001', nickname: null, outcome: 'replaced', skipped: 3 },
+      { game: 'genshin', uid: '800000001', nickname: null, outcome: 'replaced', skipped: 3 },
       { game: 'genshin', uid: null, nickname: null, outcome: 'kept', skipped: 0 },
     ],
     ...overrides,
@@ -140,7 +140,7 @@ describe('the "Your data" card', () => {
     expect(text(host.querySelector('.preview .skipped'))).toBe('3 entries this site does not know are left out.');
     expect([...host.querySelectorAll('.outcomes li')].map((item) => [text(item.querySelector('.account')), text(item.querySelector('anotoki-badge'))])).toEqual([
       ['Genshin Impact · Mona', 'new'],
-      ['Honkai: Star Rail · UID 800000001', 'replaced by the newer copy'],
+      ['Genshin Impact · UID 800000001', 'replaced by the newer copy'],
       ['Genshin Impact · -', 'kept'],
     ]);
     expect(imported).toEqual([]);

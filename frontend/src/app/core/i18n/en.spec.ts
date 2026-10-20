@@ -114,8 +114,8 @@ describe('the compiled English (en.ts and its parts)', () => {
       ).toEqual([]);
     }
     expect(DYNAMIC_KEYS['recommendation.']).toHaveLength(18);
-    expect(DYNAMIC_KEYS['import.error.']).toHaveLength(23);
-    expect(DYNAMIC_KEYS['import.warning.']).toHaveLength(9);
+    expect(DYNAMIC_KEYS['import.error.']).toHaveLength(18);
+    expect(DYNAMIC_KEYS['import.warning.']).toHaveLength(7);
   });
 
   it('tells a key from any other string', () => {

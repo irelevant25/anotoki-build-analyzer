@@ -3,7 +3,7 @@
 /**
  * sync-catalog.php - refresh the game catalog (characters, weapons, sets, icons), from the command line
  *
- *   php sync-catalog.php [genshin|hsr] [--force]
+ *   php sync-catalog.php [game] [--force]   (game: genshin)
  *
  * The same catalog runs as "Refresh catalog" on the Sources page, one per game, stepped until done. Without
  * --force a catalog refreshed within refresh_days is left as it is. (App\Commands\SyncCatalog)

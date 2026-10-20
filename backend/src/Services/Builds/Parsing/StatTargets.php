@@ -16,7 +16,6 @@ final class StatTargets
 {
     private const STAT_WORDS = [
         'genshin' => 'Energy Recharge|ER|CRIT Rate|CRIT DMG|Crit Rate|Crit DMG|Elemental Mastery|EM|ATK|HP|DEF',
-        'hsr' => 'SPD|Speed|CRIT Rate|CRIT DMG|Crit Rate|Crit DMG|Effect Hit Rate|EHR|Effect RES|Break Effect|BE|Energy Regeneration Rate|ERR|ATK|HP|DEF',
     ];
 
     // "2,000" (thousands separator) must be tried first, but only when a comma group is present;

@@ -1,6 +1,6 @@
 import type { AuthBootConfig } from '@anotoki/lib/auth';
 
-export type GameKey = 'genshin' | 'hsr';
+export type GameKey = 'genshin';
 export type Severity = 'high' | 'medium' | 'low';
 export type Grade = 'S' | 'A' | 'B' | 'C' | 'D' | '-';
 
@@ -173,13 +173,11 @@ export type ImportKind = 'showcase' | 'file';
 
 /**
  * Why an import was refused or failed (the server's ImportKinds::ERRORS): the `code` of an import's 422, and
- * a failed run's `error_code`. Their parameters: account_game_mismatch {account_game, data_game},
- * account_uid_mismatch {data_uid, account_uid}, showcase_http {status}, file_game_mismatch {file_game,
- * chosen_game}; the others have none.
+ * a failed run's `error_code`. Their parameters: account_uid_mismatch {data_uid, account_uid}, showcase_http
+ * {status}; the others have none.
  */
 export type ImportErrorCode =
   | 'account_missing'
-  | 'account_game_mismatch'
   | 'account_uid_mismatch'
   | 'unexpected'
   | 'uid_invalid'
@@ -193,30 +191,17 @@ export type ImportErrorCode =
   | 'showcase_bad_answer'
   | 'showcase_details_off'
   | 'showcase_empty'
-  | 'showcase_empty_hsr'
   | 'good_not_good'
   | 'good_empty'
-  | 'hsr_not_export'
-  | 'hsr_empty'
   | 'file_not_json'
-  | 'file_unknown_format'
-  | 'file_game_mismatch';
+  | 'file_unknown_format';
 
 /**
  * What an import that went through warns about (the server's ImportKinds::WARNINGS). Their parameters:
  * unknown_character {ref}, unknown_weapon {weapon_label, ref}, unknown_set {ref}, good_artifacts_skipped
- * {count}, hsr_relics_skipped {count}; the others have none.
+ * {count}; the others have none.
  */
-export type ImportWarningCode =
-  | 'unknown_character'
-  | 'unknown_weapon'
-  | 'unknown_set'
-  | 'catalog_behind'
-  | 'showcase_artifact_skipped'
-  | 'showcase_relic_skipped'
-  | 'good_traveler_no_element'
-  | 'good_artifacts_skipped'
-  | 'hsr_relics_skipped';
+export type ImportWarningCode = 'unknown_character' | 'unknown_weapon' | 'unknown_set' | 'catalog_behind' | 'showcase_artifact_skipped' | 'good_traveler_no_element' | 'good_artifacts_skipped';
 
 /** One warning of an import as a kind: `code` is an ImportWarningCode, or one a newer server added. */
 export interface ImportWarningKind {
@@ -302,7 +287,7 @@ export interface SetPiece {
 
 export interface SetOption {
   rank: number;
-  kind: 'artifact' | 'relic' | 'planar';
+  kind: 'artifact';
   choose: number | null;
   pieces: SetPiece[];
   note: string | null;
@@ -459,7 +444,7 @@ export interface Evaluation {
   sets: {
     score: number;
     groups: {
-      kind: 'artifact' | 'relic' | 'planar';
+      kind: 'artifact';
       score: number;
       matched_rank: number | null;
       equipped: SetCount[];
@@ -494,7 +479,7 @@ export interface Suggestion {
 
 /** How to switch to the source's top set with pieces already owned. */
 export interface SetPlan {
-  kind: 'artifact' | 'relic' | 'planar';
+  kind: 'artifact';
   set: string;
   needed: number;
   owned: number;

@@ -13,7 +13,7 @@ use App\Services\Import\ImportService;
 /**
  * import-account.php: import a game account from the command line.
  *
- *   php import-account.php <genshin|hsr> <uid | path to an exported JSON file> --user=IAM_ID [--account=ID]
+ *   php import-account.php <game> <uid | path to an exported JSON file> --user=IAM_ID [--account=ID]   (game: genshin)
  */
 final class ImportAccount
 {
@@ -23,13 +23,13 @@ final class ImportAccount
         [$options, $positional] = Cli::arguments($argv);
 
         if (count($positional) < 2) {
-            Cli::error('Usage: php import-account.php <genshin|hsr> <uid|file> --user=IAM_ID [--account=ID]');
+            Cli::error('Usage: php import-account.php <game> <uid|file> --user=IAM_ID [--account=ID]   (game: ' . implode(' or ', array_map(fn(Game $game) => $game->value, Game::cases())) . ')');
 
             return 1;
         }
         $game = Game::tryFrom($positional[0]);
         if ($game === null) {
-            Cli::error('The game is genshin or hsr.');
+            Cli::error('The game is ' . implode(' or ', array_map(fn(Game $game) => $game->value, Game::cases())) . '.');
 
             return 1;
         }
@@ -57,7 +57,7 @@ final class ImportAccount
 
         try {
             $imports = $app->get(ImportService::class);
-            $run = is_file($source) ? $imports->fromFile((string) file_get_contents($source), $owner, $game, $target, basename($source)) : $imports->fromEnka($game, $source, $owner, $target);
+            $run = is_file($source) ? $imports->fromFile((string) file_get_contents($source), $owner, $target, basename($source)) : $imports->fromEnka($game, $source, $owner, $target);
         } catch (ImportException $e) {
             Cli::error($e->getMessage());
 

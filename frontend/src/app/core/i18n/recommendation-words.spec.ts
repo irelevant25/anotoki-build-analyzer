@@ -46,13 +46,6 @@ const CASES: { kind: string; game?: GameKey; params: KindParams; english: string
     slovak: "Weapon: nič nasadené. Najlepšie možnosti: Staff of Homa, Dragon's Bane.",
   },
   {
-    kind: 'weapon_none',
-    game: 'hsr',
-    params: { weapon_label: 'Light Cone', options: 'Patience Is All You Need' },
-    english: 'Light Cone: none equipped. Best options: Patience Is All You Need.',
-    slovak: 'Light Cone: nič nasadené. Najlepšie možnosti: Patience Is All You Need.',
-  },
-  {
     kind: 'weapon_level',
     params: { name: "Dragon's Bane", level: 70, max_level: 90 },
     english: "Level up Dragon's Bane (level 70/90).",
@@ -114,13 +107,6 @@ const CASES: { kind: string; game?: GameKey; params: KindParams; english: string
     slovak: 'Artifact set: odporúča sa 4pc Crimson Witch of Flames. Teraz nemáš nasadené nič.',
   },
   {
-    kind: 'sets_missing_empty',
-    game: 'hsr',
-    params: { set_label: 'Planar Ornament set', best: '2pc Rutilant Arena', best_choose: null },
-    english: 'Planar Ornament set: use the recommended 2pc Rutilant Arena. Nothing is equipped now.',
-    slovak: 'Planar Ornament set: odporúča sa 2pc Rutilant Arena. Teraz nemáš nasadené nič.',
-  },
-  {
     kind: 'sets_lower_option',
     params: { set_label: 'Artifact set', current: "5pc Shimenawa's Reminiscence", rank: 2, best: '4pc Crimson Witch of Flames', best_choose: null },
     english: "Artifact set: yours (5pc Shimenawa's Reminiscence) is option #2. The top choice is 4pc Crimson Witch of Flames.",
@@ -128,10 +114,9 @@ const CASES: { kind: string; game?: GameKey; params: KindParams; english: string
   },
   {
     kind: 'sets_lower_option',
-    game: 'hsr',
-    params: { set_label: 'Cavern Relic set', current: '4pc Musketeer of Wild Wheat', rank: 3, best: ANY_TWO, best_choose: 1 },
-    english: `Cavern Relic set: yours (4pc Musketeer of Wild Wheat) is option #3. The top choice is ${ANY_TWO} (any 1).`,
-    slovak: `Cavern Relic set: teraz máš 4pc Musketeer of Wild Wheat, čo je možnosť č. 3. Najlepšia voľba: ${ANY_TWO} (ľubovoľný 1).`,
+    params: { set_label: 'Artifact set', current: "4pc Gladiator's Finale", rank: 3, best: ANY_TWO, best_choose: 1 },
+    english: `Artifact set: yours (4pc Gladiator's Finale) is option #3. The top choice is ${ANY_TWO} (any 1).`,
+    slovak: `Artifact set: teraz máš 4pc Gladiator's Finale, čo je možnosť č. 3. Najlepšia voľba: ${ANY_TWO} (ľubovoľný 1).`,
   },
   {
     kind: 'main_stat_missing',

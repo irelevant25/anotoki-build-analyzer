@@ -452,7 +452,6 @@ try {
     const tab = await visitor.newPage();
     await open(tab, '/import?lang=en');
     check((await tab.locator('app-visitor-notice').count()) === 1, 'the notice is on the import page before the first import');
-    await tab.locator('button.choice').first().click();
     await tab.locator('button.choice.method').nth(1).click();
     await tab.getByRole('button', { name: "I'm ready" }).click();
     await tab.setInputFiles('input[type=file]', goodFile);
@@ -485,7 +484,6 @@ try {
     }
     const keys = [];
     for (const page of [one, two]) {
-      await page.locator('button.choice').first().click();
       await page.locator('button.choice.method').nth(1).click();
       await page.getByRole('button', { name: "I'm ready" }).click();
       await page.setInputFiles('input[type=file]', goodFile);
@@ -650,7 +648,8 @@ try {
       await page.emulateMedia({ colorScheme: 'dark' });
       await shot(page, '22-feedback-form-390-dark');
       await page.fill('anotoki-feedback-form [data-message] textarea', 'Import sa zastaví pri druhom kroku.');
-      await page.click('anotoki-feedback-form [data-send]');
+      // The form's buttons are in the dialog's footer (anotoki-lib 0.8: actionsOutside), outside the form itself.
+      await page.click(`${DIALOG} [data-send]`);
       await page.waitForSelector('anotoki-feedback-form [data-thanks]', { timeout: 15000 });
       await shot(page, '22-feedback-sent-390-dark');
       const kept = sql('SELECT kind, message, language, user_id, contact_email, page FROM anotoki_feedback ORDER BY id DESC LIMIT 1')[0];
@@ -658,7 +657,7 @@ try {
         kept?.message === 'Import sa zastaví pri druhom kroku.' && kept?.language === 'sk' && kept?.user_id === null && kept?.contact_email === null && kept?.page === '/import',
         `kept: ${JSON.stringify(kept)}`,
       );
-      await page.click('anotoki-feedback-form [data-close]');
+      await page.click(`${DIALOG} [data-close]`);
       await page.waitForSelector(DIALOG, { state: 'detached' });
       await page.setViewportSize({ width: 1280, height: 900 });
       for (const scheme of ['light', 'dark']) {
@@ -1300,7 +1299,6 @@ try {
     const hurry = await newContext();
     const rushed = await hurry.newPage();
     await open(rushed, '/import?lang=en');
-    await rushed.locator('button.choice').first().click();
     await rushed.locator('button.choice.method').nth(1).click();
     await rushed.getByRole('button', { name: "I'm ready" }).click();
     await rushed.setInputFiles('input[type=file]', goodFile);
@@ -1399,7 +1397,6 @@ try {
     const late = await newContext();
     const lateTab = await late.newPage();
     await open(lateTab, '/import?lang=en');
-    await lateTab.locator('button.choice').first().click();
     await lateTab.locator('button.choice.method').nth(1).click();
     await lateTab.getByRole('button', { name: "I'm ready" }).click();
     await lateTab.setInputFiles('input[type=file]', goodFile);
@@ -1576,7 +1573,7 @@ try {
           const keys = await keysShown(page);
           check(keys.length === 0, `${label}: no key where a word should be${keys.length ? ` - ${keys.join(', ')}` : ''}`);
           if (name !== 'privacy') {
-            check(facts.fan !== null && facts.fan.includes('Honkai: Star Rail'), `${label}: the site's fan clause, naming both games`);
+            check(facts.fan !== null && facts.fan.includes('Genshin Impact') && !facts.fan.includes('Star Rail'), `${label}: the library's fan clause, naming Genshin Impact - the one game here`);
           } else {
             check(
               facts.kept === 11 &&
@@ -1705,10 +1702,9 @@ try {
         await fits('the character');
         await shot(page, `24-kit-character-${language}-${width}-${scheme}`, { fullPage: true });
 
-        // The import guide: the kit's stepper, two steps done and a way back to each; the trouble list in the kit's
+        // The import guide: the kit's stepper, the way in done and a way back to it; the trouble list in the kit's
         // disclosure; in English on to the file's step and its paste box, in the kit's disclosure too.
         await open(page, `/import?lang=${language}`);
-        await page.locator('button.choice').first().click();
         await page.locator('button.choice.method').nth(1).click();
         // The guide's step is drawn a moment after the choice (the page draws on its next turn, zoneless).
         const settled = (condition, argument) =>
@@ -1716,15 +1712,15 @@ try {
             () => true,
             () => false,
           );
-        await settled(() => document.querySelectorAll('.anotoki-stepper__step--done').length === 2);
+        await settled(() => document.querySelectorAll('.anotoki-stepper__step--done').length === 1);
         const steps = await page.evaluate(() => ({
           name: document.querySelector('.anotoki-stepper__steps')?.getAttribute('aria-label') ?? null,
           done: document.querySelectorAll('.anotoki-stepper__step--done .anotoki-stepper__button').length,
           current: document.querySelector('.anotoki-stepper__step[aria-current=step] .anotoki-stepper__label')?.textContent?.trim() ?? null,
         }));
         check(
-          steps.name !== null && steps.done === 2 && steps.current !== null,
-          `the import guide, ${label}: the kit's stepper "${steps.name}", two steps done with a way back, the one in hand "${steps.current}"`,
+          steps.name !== null && steps.done === 1 && steps.current !== null,
+          `the import guide, ${label}: the kit's stepper "${steps.name}", the way in done with a way back, the one in hand "${steps.current}"`,
         );
         /** A disclosure of the kit opened, its panel shown (the attribute and the panel follow on the page's next turn). */
         const opened = (selector) =>

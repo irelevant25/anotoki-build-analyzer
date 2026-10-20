@@ -55,6 +55,14 @@ const FOOTER_FILE = '013_footer_words_through_the_library.sql';
 /** How many keys of the site's own 013 takes away: the footer's three, the library's now. */
 const FOOTER_KEYS = 3;
 
+/**
+ * Version 0.5's files of this site's, in the order they run after 0.4's: Star Rail gone (014), with its words (015).
+ */
+const VERSION_05_FILES = ['014_star_rail_removed.sql', '015_star_rail_words.sql'];
+
+/** What version 0.5's files do to the count of the site's own keys: 015 retires 56. */
+const VERSION_05_KEYS = -56;
+
 /** Every column, constraint and index of the app's tables, as comparable lines. */
 function schemaOf(PDO $pdo): array
 {
@@ -645,10 +653,10 @@ test('006 moves the two words of the library\'s under its keys with every reword
         'a word of the library\'s this site did not have, in Slovak',
     );
     // 006 moved two of the site's keys; 009 moved five more, retired three and added five; 010 moved twelve and retired
-    // two; 011 added the legal pages' words; 012 the kit's pieces'; 013 moved the footer's three. The library's keys
-    // are every key of its words file (261 with 0.6.3).
+    // two; 011 added the legal pages' words; 012 the kit's pieces'; 013 moved the footer's three; version 0.5's files
+    // change them as VERSION_05_KEYS says. The library's keys are every key of its words file (261 with 0.6.3).
     same(
-        ['the site\'s' => $keys - 2 - 8 + 5 - 14 + LEGAL_PAGES_KEYS + KIT_PIECES_KEYS - FOOTER_KEYS, 'the library\'s' => libraryKeyCount()],
+        ['the site\'s' => $keys - 2 - 8 + 5 - 14 + LEGAL_PAGES_KEYS + KIT_PIECES_KEYS - FOOTER_KEYS + VERSION_05_KEYS, 'the library\'s' => libraryKeyCount()],
         [
             'the site\'s' => (int) $pdo->query("SELECT count(*) FROM translation_keys WHERE name NOT LIKE 'anotoki.%'")->fetchColumn(),
             'the library\'s' => (int) $pdo->query("SELECT count(*) FROM translation_keys WHERE name LIKE 'anotoki.%'")->fetchColumn(),
@@ -681,6 +689,7 @@ test('006\'s gate refuses a database whose keys are not the ones it expects - an
             LEGAL_PAGES_FILE,
             KIT_PIECES_FILE,
             FOOTER_FILE,
+            ...VERSION_05_FILES,
             ...array_column(libraryFiles(), 'name'),
             ...array_column(peopleFiles(), 'name'),
         ],
@@ -839,7 +848,11 @@ test(
         // The upload: one Apply - the library's admin tools' files, this site's three, the library's translations 003-004, its people's.
         $result = Migrations::migrator($pdo)->apply();
         same(null, $result['error'], 'no error');
-        same([...adminFiles(), ...array_map('siteFile', VERSION_04_FILES), ...array_slice(libraryFiles(), 2), ...peopleFiles()], $result['applied'], 'in the README\'s order');
+        same(
+            [...adminFiles(), ...array_map('siteFile', [...VERSION_04_FILES, ...VERSION_05_FILES]), ...array_slice(libraryFiles(), 2), ...peopleFiles()],
+            $result['applied'],
+            'in the README\'s order',
+        );
 
         // 007: a column, NULL everywhere; every row as it was.
         same($peopleBefore, $people(), 'the people and the visitor, as they were');
@@ -870,9 +883,9 @@ test(
         // The feedback button's words 009 added - under the library's key since 013, the footer the family's.
         same([['en', 'Feedback'], ['sk', 'Spätná väzba']], array_map(fn($row) => [$row['language_code'], $row['value']], stringsOf($pdo, 'anotoki.footer.feedback')), 'the feedback button\'s words');
         same(
-            $keys - 8 + 5 - 14 + LEGAL_PAGES_KEYS + KIT_PIECES_KEYS - FOOTER_KEYS,
+            $keys - 8 + 5 - 14 + LEGAL_PAGES_KEYS + KIT_PIECES_KEYS - FOOTER_KEYS + VERSION_05_KEYS,
             (int) $pdo->query("SELECT count(*) FROM translation_keys WHERE name NOT LIKE 'anotoki.%'")->fetchColumn(),
-            'the site\'s keys: eight gone and five new (009), fourteen gone (010), the legal pages\' words (011), the stepper\'s and tabs\' (012), the footer\'s three gone (013)',
+            'the site\'s keys: eight gone and five new (009), fourteen gone (010), the legal pages\' words (011), the stepper\'s and tabs\' (012), the footer\'s three gone (013), and version 0.5\'s',
         );
         same([], Migrations::migrator($pdo)->applicable(), 'nothing left to apply');
     },
@@ -887,7 +900,11 @@ test('009 where the library\'s sign-in words went in first: the site\'s words ta
 
     $result = Migrations::migrator($pdo)->apply();
     same(null, $result['error'], 'no error');
-    same([...adminFiles(), ...array_map('siteFile', VERSION_04_FILES), ...array_slice(libraryFiles(), 4), ...peopleFiles()], $result['applied'], 'the rest - and the library\'s later words');
+    same(
+        [...adminFiles(), ...array_map('siteFile', [...VERSION_04_FILES, ...VERSION_05_FILES]), ...array_slice(libraryFiles(), 4), ...peopleFiles()],
+        $result['applied'],
+        'the rest - and the library\'s later words',
+    );
 
     same($site, stringsOf($pdo, 'anotoki.signIn.expired'), 'the site\'s words, by whom and when, in place of the library\'s');
     same(
@@ -917,6 +934,7 @@ test('009\'s gate refuses a database whose keys are not the ones it expects - no
             LEGAL_PAGES_FILE,
             KIT_PIECES_FILE,
             FOOTER_FILE,
+            ...VERSION_05_FILES,
             ...array_column(array_slice(libraryFiles(), 2), 'name'),
             ...array_column(peopleFiles(), 'name'),
         ],
@@ -965,7 +983,11 @@ test(
 
         $result = Migrations::migrator($pdo)->apply();
         same(null, $result['error'], 'no error');
-        same([...adminFiles(), ...array_map('siteFile', VERSION_04_FILES), ...array_slice(libraryFiles(), 2), ...peopleFiles()], $result['applied'], 'version 0.4 in one Apply');
+        same(
+            [...adminFiles(), ...array_map('siteFile', [...VERSION_04_FILES, ...VERSION_05_FILES]), ...array_slice(libraryFiles(), 2), ...peopleFiles()],
+            $result['applied'],
+            'version 0.4 and on in one Apply',
+        );
 
         // The site's words where the library's stood as it wrote them - the Slovak role, "System" - with their writer and time.
         same($roleAdmin[1], stringsOf($pdo, 'anotoki.topbar.roleAdmin')[1], 'topbar.roleAdmin -> anotoki.topbar.roleAdmin: the Slovak "Správca" with its time, where the library said "Administrátor"');
@@ -1019,9 +1041,9 @@ test('010\'s gate refuses a database whose keys are not the ones it expects - no
         'the keys stay',
     );
     same(
-        ['010_top_bar_words_through_the_library.sql', LEGAL_PAGES_FILE, KIT_PIECES_FILE, FOOTER_FILE],
+        ['010_top_bar_words_through_the_library.sql', LEGAL_PAGES_FILE, KIT_PIECES_FILE, FOOTER_FILE, ...VERSION_05_FILES],
         array_column(Migrations::migrator($pdo)->status()['pending'], 'name'),
-        'it still waits, and 011 to 013 after it',
+        'it still waits, and the files after it',
     );
 });
 
@@ -1073,7 +1095,11 @@ test(
 
         $result = Migrations::migrator($pdo)->apply();
         same(null, $result['error'], 'no error');
-        same([siteFile(FOOTER_FILE), ...array_slice(libraryFiles(), 11)], $result['applied'], '013, then the library\'s 012 - one Apply');
+        same(
+            [siteFile(FOOTER_FILE), ...array_map('siteFile', VERSION_05_FILES), ...array_slice(libraryFiles(), 11)],
+            $result['applied'],
+            '013 and the site\'s files after it, then the library\'s 012 - one Apply',
+        );
 
         // Every string under the library's key as it was - words, writer, time; the cleared Slovak stays cleared.
         foreach (MOVED_FOOTER_KEYS as $old => $new) {
@@ -1096,7 +1122,11 @@ test(
             str_contains((string) $pdo->query("SELECT description FROM translation_keys WHERE name = 'whatsNew.title'")->fetchColumn(), 'anotoki.footer.whatsNew'),
             'whatsNew.title\'s description names the footer\'s word',
         );
-        same($keys - FOOTER_KEYS, (int) $pdo->query("SELECT count(*) FROM translation_keys WHERE name NOT LIKE 'anotoki.%'")->fetchColumn(), 'the site\'s keys less the three');
+        same(
+            $keys - FOOTER_KEYS + VERSION_05_KEYS,
+            (int) $pdo->query("SELECT count(*) FROM translation_keys WHERE name NOT LIKE 'anotoki.%'")->fetchColumn(),
+            'the site\'s keys less the three, and version 0.5\'s',
+        );
         same([], Migrations::migrator($pdo)->applicable(), 'nothing left to apply');
     },
 );
@@ -1112,7 +1142,7 @@ test('013 where the library\'s footer words went in first: the site\'s take thei
 
     $result = Migrations::migrator($pdo)->apply();
     same(null, $result['error'], 'no error');
-    same([siteFile(FOOTER_FILE)], $result['applied'], '013 alone');
+    same([siteFile(FOOTER_FILE), ...array_map('siteFile', VERSION_05_FILES)], $result['applied'], '013 and the site\'s files after it');
 
     same($feedback[0], stringsOf($pdo, 'anotoki.footer.feedback')[0], 'the editor\'s English, by whom and when, in place of the library\'s');
     same('Spätná väzba', wordsOf($pdo, 'anotoki.footer.feedback')['sk'], 'the Slovak, the same words');
@@ -1134,7 +1164,7 @@ test('013\'s gate refuses a database whose keys are not the ones it expects - no
     same(3, (int) $pdo->query("SELECT count(*) FROM translation_keys WHERE name IN ('footer.version', 'footer.feedback', 'footer.fanMade')")->fetchColumn(), 'the keys stay');
     same(0, (int) $pdo->query("SELECT count(*) FROM translation_keys WHERE name LIKE 'anotoki.footer.%'")->fetchColumn(), 'nothing of 013, nor the library\'s 012');
     // The library's 012 and every file of its set after it (anotoki-lib 0.8.0's 013, the About and Support pages' words).
-    same([FOOTER_FILE, ...array_column(array_slice(libraryFiles(), 11), 'name')], array_column(Migrations::migrator($pdo)->status()['pending'], 'name'), 'they all still wait');
+    same([FOOTER_FILE, ...VERSION_05_FILES, ...array_column(array_slice(libraryFiles(), 11), 'name')], array_column(Migrations::migrator($pdo)->status()['pending'], 'name'), 'they all still wait');
     same('012_footer_words.sql', array_column(libraryFiles(), 'name')[11], 'the library\'s 012 the first of them');
 });
 
@@ -1351,5 +1381,135 @@ foreach ([6 => 'the version first committed', 7 => 'with sign-in through the IAM
         same([], Migrations::migrator($pdo)->applicable(), 'nothing pending');
     });
 }
+
+/**
+ * A database as the owner's is before version 0.5 (0.4.0 on anotoki-lib 0.8): every file of the site's up to 013 and
+ * every file of the library's sets.
+ */
+function upTo013(array $server, string $name): PDO
+{
+    $pdo = scratchDatabase($server, $name);
+    $site = migrationsFolder("migrations-{$name}", array_values(array_filter(allMigrations(), fn(string $file): bool => strcmp($file, '014') < 0)));
+    $sets = [AdminSchema::migrationSet(), Migrations::set($site), Schema::migrationSet(), PeopleSchema::migrationSet()];
+    $result = (new Migrator($pdo, $sets, ['lock' => Migrations::LOCK]))->apply();
+    same(null, $result['error'], "{$name}: the installed version's files");
+
+    return $pdo;
+}
+
+/**
+ * Both games' rows as 0.4 kept them: a catalog each, an account each with a character, a weapon and an item (the
+ * Star Rail one a relic and an ornament), a failed import of Star Rail's without an account, a source each with a
+ * build and a run. Returns the ids, by name.
+ *
+ * @return array<string, int>
+ */
+function bothGames(PDO $pdo): array
+{
+    $now = "'2026-10-19 10:00:00+00'";
+    $insert = function (string $sql) use ($pdo): int {
+        return (int) $pdo->query($sql . ' RETURNING id')->fetchColumn();
+    };
+    $pdo->exec("INSERT INTO users (id, name, created_at, updated_at) VALUES (1, 'owner', {$now}, {$now})");
+    $ids = [];
+    $ids['hutao'] = $insert("INSERT INTO game_characters (game, key, name) VALUES ('genshin', 'hutao', 'Hu Tao')");
+    $ids['homa'] = $insert("INSERT INTO game_weapons (game, key, name) VALUES ('genshin', 'staffofhoma', 'Staff of Homa')");
+    $ids['witch'] = $insert("INSERT INTO game_sets (game, key, name, kind) VALUES ('genshin', 'crimsonwitchofflames', 'Crimson Witch of Flames', 'artifact')");
+    $ids['kafka'] = $insert("INSERT INTO game_characters (game, key, name) VALUES ('hsr', 'kafka', 'Kafka')");
+    $ids['cone'] = $insert("INSERT INTO game_weapons (game, key, name) VALUES ('hsr', 'patienceisallyouneed', 'Patience Is All You Need')");
+    $ids['relic'] = $insert("INSERT INTO game_sets (game, key, name, kind) VALUES ('hsr', 'prisonerindeepconfinement', 'Prisoner in Deep Confinement', 'relic')");
+    $ids['planar'] = $insert("INSERT INTO game_sets (game, key, name, kind) VALUES ('hsr', 'firmamentfrontlineglamoth', 'Firmament Frontline: Glamoth', 'planar')");
+
+    foreach (['genshin' => ['hutao', 'homa', ['witch' => 'flower']], 'hsr' => ['kafka', 'cone', ['relic' => 'head', 'planar' => 'sphere']]] as $game => [$character, $weapon, $items]) {
+        $account = $ids["{$game}_account"] = $insert(
+            "INSERT INTO accounts (user_id, game, uid, nickname, created_at, updated_at) VALUES (1, '{$game}', '7000000" . ($game === 'genshin' ? '01' : '02') . "', '{$game}', {$now}, {$now})",
+        );
+        $pdo->exec("INSERT INTO account_characters (account_id, game_character_id, level, source) VALUES ({$account}, {$ids[$character]}, 80, 'good')");
+        $pdo->exec("INSERT INTO account_weapons (account_id, game_weapon_id, level, source) VALUES ({$account}, {$ids[$weapon]}, 80, 'good')");
+        foreach ($items as $set => $slot) {
+            $pdo->exec("INSERT INTO account_items (account_id, game_set_id, slot, main_stat, substats, source) VALUES ({$account}, {$ids[$set]}, '{$slot}', 'hp', '[]', 'good')");
+        }
+        $pdo->exec("INSERT INTO import_runs (user_id, account_id, game, source, status, created_at, updated_at) VALUES (1, {$account}, '{$game}', 'good', 'success', {$now}, {$now})");
+        $source = $insert("INSERT INTO build_sources (key, game, name, base_url) VALUES ('fake.{$game}', '{$game}', 'Source 1', 'https://builds.example')");
+        $pdo->exec(
+            "INSERT INTO builds (build_source_id, game_character_id, variant, weapons, sets, main_stats, substats, content_hash) VALUES ({$source}, {$ids[$character]}, 'DPS', '[]', '[]', '{}', '[]', 'x')",
+        );
+        $pdo->exec("INSERT INTO sync_runs (build_source_id, game, status, started_at, kind) VALUES ({$source}, '{$game}', 'success', {$now}, 'builds')");
+    }
+    $pdo->exec("INSERT INTO import_runs (user_id, account_id, game, source, status, created_at, updated_at) VALUES (1, NULL, 'hsr', 'hsr_scanner', 'failed', {$now}, {$now})");
+    $pdo->exec("INSERT INTO sync_runs (game, status, started_at, kind) VALUES ('hsr', 'success', {$now}, 'catalog')");
+
+    return $ids;
+}
+
+/** How many rows each game holds in the tables 014 deletes from (a row of an account by its account's game). */
+function rowsByGame(PDO $pdo): array
+{
+    $counts = [];
+    foreach (['game_characters', 'game_weapons', 'game_sets', 'accounts', 'import_runs', 'build_sources', 'sync_runs'] as $table) {
+        $counts[$table] = $pdo->query("SELECT game, count(*) FROM {$table} WHERE game IS NOT NULL GROUP BY game ORDER BY game COLLATE \"C\"")->fetchAll(PDO::FETCH_KEY_PAIR);
+    }
+    foreach (['account_characters', 'account_weapons', 'account_items'] as $table) {
+        $counts[$table] = $pdo->query("SELECT a.game, count(*) FROM {$table} t JOIN accounts a ON a.id = t.account_id GROUP BY a.game ORDER BY a.game COLLATE \"C\"")->fetchAll(PDO::FETCH_KEY_PAIR);
+    }
+    $counts['builds'] = $pdo
+        ->query('SELECT s.game, count(*) FROM builds b JOIN build_sources s ON s.id = b.build_source_id GROUP BY s.game ORDER BY s.game COLLATE "C"')
+        ->fetchAll(PDO::FETCH_KEY_PAIR);
+
+    return $counts;
+}
+
+test(
+    '014 on a database with both games\' rows: Star Rail\'s go - its accounts with everything in them, its catalog, its sources -, every Genshin row stays, and the closed sets name Genshin\'s alone',
+    function () use ($server) {
+        $pdo = upTo013($server, 'to013');
+        bothGames($pdo);
+        $before = rowsByGame($pdo);
+        same(['genshin' => 1, 'hsr' => 2], $before['import_runs'], 'an import of each, and Star Rail\'s failed one');
+
+        $result = Migrations::migrator($pdo)->apply();
+        same(null, $result['error'], 'no error');
+        same(array_map('siteFile', VERSION_05_FILES), $result['applied'], 'version 0.5\'s files, in one Apply');
+
+        $after = rowsByGame($pdo);
+        foreach ($before as $table => $byGame) {
+            same($byGame['genshin'] ?? null, $after[$table]['genshin'] ?? null, "{$table}: Genshin's rows as they were");
+            same(null, $after[$table]['hsr'] ?? null, "{$table}: none of Star Rail's");
+        }
+        same(1, (int) $pdo->query('SELECT count(*) FROM users')->fetchColumn(), 'the person stays');
+
+        // The closed sets: another game, or another kind of set, is refused.
+        foreach (["INSERT INTO game_characters (game, key, name) VALUES ('hsr', 'kafka', 'Kafka')", "INSERT INTO game_sets (game, key, name, kind) VALUES ('genshin', 'x', 'X', 'relic')"] as $sql) {
+            $refused = throws(PDOException::class, fn() => $pdo->exec($sql), $sql);
+            check(str_contains($refused->getMessage(), '_check'), 'refused by its check: ' . $refused->getMessage());
+        }
+        same(
+            ["CHECK (((game)::text = 'genshin'::text))", "CHECK (((kind)::text = 'artifact'::text))"],
+            [
+                (string) $pdo->query("SELECT pg_get_constraintdef(oid) FROM pg_constraint WHERE conname = 'accounts_game_check'")->fetchColumn(),
+                (string) $pdo->query("SELECT pg_get_constraintdef(oid) FROM pg_constraint WHERE conname = 'game_sets_kind_check'")->fetchColumn(),
+            ],
+            'the constraints as the database writes them',
+        );
+    },
+);
+
+test('014\'s gate refuses a database where Star Rail\'s rows would take a Genshin row with them - nothing of it is applied', function () use ($server) {
+    $pdo = upTo013($server, 'to013gate');
+    $ids = bothGames($pdo);
+    // A Genshin account wearing a Star Rail set - what no import makes: deleting the set would take the item along.
+    $pdo->exec("INSERT INTO account_items (account_id, game_set_id, slot, main_stat, substats, source) VALUES ({$ids['genshin_account']}, {$ids['relic']}, 'plume', 'atk', '[]', 'good')");
+    $before = rowsByGame($pdo);
+
+    $result = Migrations::migrator($pdo)->apply();
+    same([[], siteFile('014_star_rail_removed.sql')], [$result['applied'], $result['failed']], 'stopped at 014');
+    check(str_contains((string) $result['error'], 'Rows of Genshin Impact or people changed: account_items 2 -> 1'), 'the gate says why: ' . $result['error']);
+    same($before, rowsByGame($pdo), 'nothing deleted');
+    same(
+        VERSION_05_FILES,
+        array_values(array_filter(array_column(Migrations::migrator($pdo)->status()['pending'], 'name'), fn(string $name): bool => in_array($name, VERSION_05_FILES, true))),
+        'both still wait',
+    );
+});
 
 finishTests();

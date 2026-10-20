@@ -14,7 +14,7 @@ use DateTimeInterface;
 /**
  * The file a signed-in person's own data is exported to and imported from: format "build-analyzer.accounts",
  * version 1 (docs/data-model.md, "Accounts files"). It carries their game accounts - each with its
- * characters, weapons, artifacts / relics and import history - from one installation to another, or keeps
+ * characters, weapons, artifacts and import history - from one installation to another, or keeps
  * them as a backup.
  *
  * It holds nothing that only makes sense here: catalog entries by their key ("hutao"), never an internal
@@ -26,7 +26,7 @@ use DateTimeInterface;
  *
  * Reading is strict: a file is refused as a whole, naming its first problem (AccountsFileException), unless
  * every entry has exactly the fields and shapes the export writes. The caps are well above what a game
- * account holds (the games keep at most a few thousand artifacts or relics); they only keep a file from
+ * account holds (the games keep at most a few thousand artifacts); they only keep a file from
  * being absurd, and the export holds to them too, so whatever the export writes, the import reads.
  */
 final class AccountsFile

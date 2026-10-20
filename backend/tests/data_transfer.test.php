@@ -30,16 +30,15 @@ const BOB = 2;
 
 beforeEach(function () {
     seedGenshinCatalog();
-    seedHsrCatalog();
     seedUser(ALICE, 'alice');
     seedUser(BOB, 'bob');
 });
 
 /**
- * Alice's three accounts, with everything an account holds: a Genshin one by UID (a showcase and two file
- * imports, one failed), a Genshin one from a file (no UID), a Star Rail one.
+ * Alice's three accounts, with everything an account holds: one by UID (a showcase and two file imports, one
+ * failed), one from a file (no UID), and a second one by UID, made last.
  *
- * @return array{main: int, file: int, hsr: int}
+ * @return array{main: int, file: int, second: int}
  */
 function aliceAccounts(): array
 {
@@ -108,28 +107,28 @@ function aliceAccounts(): array
     item($file, idOf('game_sets', 'emblemofseveredfate'), ['slot' => 'sands', 'main_stat' => 'enerRech_', 'main_value' => 51.8]);
     run($file, 'good', 'success', '2026-09-05 06:30:00+00', ['characters' => 0, 'weapons' => 0, 'items' => 1, 'full_inventory' => true, 'warnings' => []], 'export.json');
 
-    $hsr = seedAccount(ALICE, 'hsr', [
+    $second = seedAccount(ALICE, 'genshin', [
         'uid' => '800000001',
-        'nickname' => 'Trailblazer',
-        'level' => 70,
-        'world_level' => 6,
+        'nickname' => 'Second',
+        'level' => 55,
+        'world_level' => 7,
         'last_import_at' => '2026-09-21 18:00:00+00',
-        'created_at' => '2026-09-02 12:00:00+00',
-        'meta' => ['platform' => 'PC', 'trailblazer' => 'Stelle'],
+        'created_at' => '2026-09-06 12:00:00+00',
+        'meta' => ['platform' => 'PC'],
     ]);
-    $kafka = idOf('game_characters', 'kafka');
-    character($hsr, $kafka, ['level' => 80, 'ascension' => 6, 'rank' => 0, 'talents' => ['basic' => 6, 'skill' => 10], 'source' => 'hsr_scanner']);
-    weapon($hsr, idOf('game_weapons', 'patienceisallyouneed'), ['level' => 80, 'equipped_character_id' => $kafka, 'source' => 'hsr_scanner']);
-    item($hsr, idOf('game_sets', 'prisonerindeepconfinement'), ['slot' => 'head', 'main_stat' => 'hp', 'main_value' => 705, 'source' => 'hsr_scanner']);
-    item($hsr, idOf('game_sets', 'firmamentfrontlineglamoth'), [
-        'slot' => 'sphere',
-        'main_stat' => 'lightning_dmg_',
-        'main_value' => 38.8,
-        'source' => 'hsr_scanner',
-        'equipped_character_id' => $kafka,
+    $kazuha = idOf('game_characters', 'kaedeharakazuha');
+    character($second, $kazuha, ['level' => 80, 'ascension' => 6, 'rank' => 0, 'talents' => ['normal' => 6, 'skill' => 10, 'burst' => 9], 'source' => 'good']);
+    weapon($second, idOf('game_weapons', 'dragonsbane'), ['level' => 80, 'equipped_character_id' => $kazuha, 'source' => 'good']);
+    item($second, idOf('game_sets', 'crimsonwitchofflames'), ['slot' => 'flower', 'main_stat' => 'hp', 'main_value' => 4780, 'source' => 'good']);
+    item($second, idOf('game_sets', 'emblemofseveredfate'), [
+        'slot' => 'goblet',
+        'main_stat' => 'anemo_dmg_',
+        'main_value' => 46.6,
+        'source' => 'good',
+        'equipped_character_id' => $kazuha,
     ]);
 
-    return ['main' => $main, 'file' => $file, 'hsr' => $hsr];
+    return ['main' => $main, 'file' => $file, 'second' => $second];
 }
 
 function character(int $account, int $character, array $values): void
@@ -272,12 +271,12 @@ test('the export: keys, never ids; sources as showcase or file; UTC to the secon
     same([['key' => 'critRate_', 'value' => 10.5, 'rolls' => 3], ['key' => 'critDMG_', 'value' => 21, 'rolls' => null]], $main['items'][0]['substats'], 'its substats');
     same(['showcase', 'file', 'file'], array_column($main['imports'], 'source'), 'the import history, oldest first, as showcase or file');
     same(['file_not_json', 'The file is not valid JSON.'], [$main['imports'][1]['summary']['error']['code'] ?? null, $main['imports'][1]['error']], 'a failed run keeps its kind');
-    same(['PC', 'Stelle'], [$file['accounts'][2]['meta']['platform'], $file['accounts'][2]['meta']['trailblazer']], 'the Star Rail meta');
+    same(['platform' => 'PC'], $file['accounts'][2]['meta'], 'the second account\'s meta');
 
     foreach (array_merge(...array_map(fn($account) => [...$account['characters'], ...$account['weapons'], ...$account['items'], ...$account['imports']], $file['accounts'])) as $entry) {
         check(in_array($entry['source'], ['showcase', 'file'], true), 'a neutral source: ' . $entry['source']);
     }
-    foreach (['enka', 'good', 'hsr_scanner', 'GOODScanner', 'Kamera'] as $name) {
+    foreach (['enka', 'good', 'GOODScanner', 'Kamera'] as $name) {
         check(!str_contains($answer->body, '"' . $name) && !str_contains($answer->body, $name . '"'), "{$name} is nowhere");
     }
     same([], Neutral::namesIn($answer->body), 'no other site, service or tool named');
@@ -431,7 +430,7 @@ test('an import never deletes an account: one the file lacks stays, one only the
 
     same(['dry_run' => false, 'added' => 1, 'replaced' => 1, 'kept' => 0, 'skipped' => 0], outcome(importAs(ALICE, $file)->status(200)), 'replaced and added');
     same(4, (int) db()->value('SELECT count(*) FROM accounts WHERE user_id = ?', [ALICE]), 'the two the file lacks are still there, and one more');
-    check(db()->one('SELECT id FROM accounts WHERE id = ?', [$ids['file']]) !== null && db()->one('SELECT id FROM accounts WHERE id = ?', [$ids['hsr']]) !== null, 'untouched');
+    check(db()->one('SELECT id FROM accounts WHERE id = ?', [$ids['file']]) !== null && db()->one('SELECT id FROM accounts WHERE id = ?', [$ids['second']]) !== null, 'untouched');
     same(1, (int) db()->value('SELECT count(*) FROM account_items WHERE account_id = ?', [$ids['file']]), 'with what they hold');
     same(0, (int) db()->value('SELECT count(*) FROM account_characters WHERE account_id = ?', [$ids['main']]), 'the replaced one empty, as the newer copy is');
 });
@@ -568,7 +567,7 @@ test('a dry run says what the import would do and changes nothing', function () 
 
     $dry = importAs(ALICE, $file, dryRun: true)->status(200);
     same(['dry_run' => true, 'added' => 0, 'replaced' => 1, 'kept' => 2, 'skipped' => 0], outcome($dry), 'what it would do');
-    same(['game' => 'hsr', 'uid' => '800000001', 'nickname' => 'Trailblazer', 'outcome' => 'replaced', 'skipped' => 0], $dry->json('accounts.2'), 'per account');
+    same(['game' => 'genshin', 'uid' => '800000001', 'nickname' => 'Second', 'outcome' => 'replaced', 'skipped' => 0], $dry->json('accounts.2'), 'per account');
     same($before, everything(), 'nothing changed');
 
     $done = importAs(ALICE, $file)->status(200);

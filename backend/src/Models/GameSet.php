@@ -5,7 +5,7 @@ namespace App\Models;
 use App\Enums\Game;
 use DateTimeImmutable;
 
-/** An artifact set (Genshin) or a relic / planar ornament set (HSR). */
+/** An artifact set. */
 final class GameSet extends CatalogEntry
 {
     public function __construct(
@@ -17,7 +17,7 @@ final class GameSet extends CatalogEntry
         ?string $icon_url = null,
         array $meta = [],
         ?DateTimeImmutable $updated_at = null,
-        /** artifact | relic | planar */
+        /** Game::setKinds(): artifact */
         public string $kind = 'artifact',
     ) {
         parent::__construct($id, $game, $key, $name, $external_id, $icon_url, $meta, $updated_at);

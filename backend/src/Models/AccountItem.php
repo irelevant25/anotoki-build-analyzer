@@ -5,7 +5,7 @@ namespace App\Models;
 use App\Support\Json;
 
 /**
- * An artifact (Genshin) or relic (HSR) of a game account, with its set.
+ * An artifact of a game account, with its set.
  */
 final class AccountItem
 {

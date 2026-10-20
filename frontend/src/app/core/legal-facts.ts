@@ -17,7 +17,7 @@ import { VISITOR_STORAGE_KEY } from './visitor-key';
  * did. Move it with any change to what the site keeps or for how long - and the strings that say so (`legal.*`,
  * migration 011).
  */
-export const SITE_LEGAL_UPDATED = '2026-10-18';
+export const SITE_LEGAL_UPDATED = '2026-10-20';
 
 /**
  * The anotoki account's cookie for every anotoki site (the IAM's hint_cookie_name, set under the IAM's parent

@@ -13,7 +13,7 @@
   }
 
   @if (account(); as acc) {
-    <!-- What the game calls its things - Artifacts / Relics, Adventure Rank / Trailblaze Level: never worded. -->
+    <!-- What the game calls its things - Artifacts, Adventure Rank: never worded. -->
     @let terms = gameTerms[acc.game];
     <anotoki-page-header [heading]="acc.nickname ?? ''">
       <p pageMeta class="subtitle muted">

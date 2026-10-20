@@ -19,7 +19,7 @@ final class ParsedAccount
     public array $weapons = [];
 
     /**
-     * Artifacts / relics. substats: [{key, value, rolls}] with canonical stat keys.
+     * Artifacts. substats: [{key, value, rolls}] with canonical stat keys.
      *
      * @var list<array{set: array, slot: string, rarity: int, level: int, main_stat: string, main_value: float|null, substats: list<array{key: string, value: float, rolls: int|null}>, location: array|null, locked: bool, uid: string|null}>
      */
@@ -34,7 +34,7 @@ final class ParsedAccount
 
     public function __construct(
         public readonly Game $game,
-        /** enka | good | hsr_scanner */
+        /** enka | good */
         public readonly string $source,
         /** True when the source is a full inventory export (replaces previous items), false for showcase data. */
         public readonly bool $fullInventory,

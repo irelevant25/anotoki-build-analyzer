@@ -17,7 +17,7 @@ final class ImportRun
         public int $user_id,
         public ?int $account_id,
         public Game $game,
-        /** enka | good | hsr_scanner | file */
+        /** enka | good | file */
         public string $source,
         /** success | partial | failed */
         public string $status,

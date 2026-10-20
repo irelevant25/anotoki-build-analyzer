@@ -241,23 +241,23 @@ describe('the account page', () => {
     expect(host.textContent).not.toMatch(A_KEY);
   });
 
-  it('names the other game’s things by that game’s words, and says when nothing was imported', async () => {
-    await setup({ account: account({ game: 'hsr', uid: null, has_full_inventory: true, last_import_at: null, characters: [character(1, { sets: [] })] }) });
+  it('names the game’s things by the game’s words, and says when nothing was imported', async () => {
+    await setup({ account: account({ uid: null, has_full_inventory: true, last_import_at: null, characters: [character(1, { sets: [] })] }) });
 
-    expect(text(host.querySelector('.subtitle'))).toBe('Honkai: Star Rail · Trailblaze Level 58 · zatiaľ bez importu');
+    expect(text(host.querySelector('.subtitle'))).toBe('Genshin Impact · Adventure Rank 58 · zatiaľ bez importu');
     expect(tiles()).toEqual([
       ['Postavy', '12'],
       ['Priemerné skóre buildov', '72'],
-      ['Relics', '187'],
+      ['Artifacts', '187'],
       ['Údaje', 'Celý inventár'],
     ]);
     expect(host.querySelector('.note')).toBeNull();
     // The game's noun first, then a colon: no Slovak word has to agree with it.
-    expect(text(cards()[0].querySelector('.sets'))).toBe('Relics: nič nasadené');
-    // Without metadata the prefixes are the game's own: E for Eidolons, S for Superimposition.
-    expect(text(cards()[0].querySelector('.char-names .muted'))).toBe('Lv. 90 · E2');
-    expect(text(cards()[0].querySelector('.weapon span.small'))).toBe('Staff of Homa S1');
-    expect(host.textContent).not.toMatch(/never|relics|artifacts/);
+    expect(text(cards()[0].querySelector('.sets'))).toBe('Artifacts: nič nasadené');
+    // Without metadata the prefixes are the game's own: C for Constellations, R for Refinement.
+    expect(text(cards()[0].querySelector('.char-names .muted'))).toBe('Lv. 90 · C2');
+    expect(text(cards()[0].querySelector('.weapon span.small'))).toBe('Staff of Homa R1');
+    expect(host.textContent).not.toMatch(/never|artifacts/);
   });
 
   it('reads English as it always did, a game noun standing first where it used to be lower-cased', async () => {

@@ -64,21 +64,18 @@ const SLOVAK: Record<string, string> = {
 const MARKED: Record<string, string> = Object.fromEntries(Object.entries(en).map(([key, value]) => [key, `⟦${value}⟧`]));
 
 function gameMeta(key: GameKey): GameMeta {
-  const genshin = key === 'genshin';
   return {
     key,
-    label: genshin ? 'Genshin Impact' : 'Honkai: Star Rail',
-    slots: genshin
-      ? [
-          { key: 'flower', label: 'Flower of Life', variable: false },
-          { key: 'sands', label: 'Sands of Eon', variable: true },
-        ]
-      : [{ key: 'body', label: 'Body', variable: true }],
-    weapon_label: genshin ? 'Weapon' : 'Light Cone',
-    item_label: genshin ? 'Artifact' : 'Relic',
-    rank_label: genshin ? 'Constellation' : 'Eidolon',
-    refinement_prefix: genshin ? 'R' : 'S',
-    rank_prefix: genshin ? 'C' : 'E',
+    label: 'Genshin Impact',
+    slots: [
+      { key: 'flower', label: 'Flower of Life', variable: false },
+      { key: 'sands', label: 'Sands of Eon', variable: true },
+    ],
+    weapon_label: 'Weapon',
+    item_label: 'Artifact',
+    rank_label: 'Constellation',
+    refinement_prefix: 'R',
+    rank_prefix: 'C',
     elements: [],
     weapon_types: [],
     stats: {
@@ -88,11 +85,11 @@ function gameMeta(key: GameKey): GameMeta {
       hp_: { label: 'HP%', short: 'HP%', percent: true },
       hp: { label: 'HP', short: 'HP', percent: false },
     },
-    talents: genshin ? { skill: 'Elemental Skill' } : { skill: 'Skill' },
+    talents: { skill: 'Elemental Skill' },
   };
 }
 
-const META: Meta = { games: [gameMeta('genshin'), gameMeta('hsr')], version: '1.0.0', auth: { issuer: '', client_id: '' } };
+const META: Meta = { games: [gameMeta('genshin')], version: '1.0.0', auth: { issuer: '', client_id: '' } };
 
 const RECOMMENDATIONS: Recommendation[] = [
   {
@@ -253,7 +250,7 @@ function analysis(game: GameKey = 'genshin', change: Partial<CharacterAnalysis> 
       weapons: [{ name: 'Staff of Homa', count: 2 }],
     },
     suggestions: [suggestion('flower', 'better_substats', 3, 'Xiangling'), suggestion('sands', 'completes_set', 0, null), suggestion('goblet', 'sparkles', 0, null)],
-    set_plans: [plan('artifact', 4, 2), plan('relic', 1, 0), plan('planar', 5, 0)],
+    set_plans: [plan('artifact', 4, 2)],
     has_full_inventory: true,
     builds: [build(11, 'Source 1'), build(12, 'Source 2')],
     ...change,
@@ -371,13 +368,9 @@ describe('CharacterPage: the site’s words are keys, the game’s words stay', 
   it('says the counted sentences in the form the number asks for', async () => {
     await open('sk');
 
-    expect(text('.plan .anotoki-card__title')).toEqual(['Prejdi na set: 4pc Alpha', 'Prejdi na set: 4pc Alpha', 'Prejdi na set: 4pc Alpha']);
-    expect(text('.plan [cardActions] anotoki-badge')).toEqual(['Máš 2 / 4 kusy', 'Máš 0 / 1 kus', 'Máš 0 / 5 kusov']);
-    expect(text('.plan .plan-missing')).toEqual([
-      'Na celý bonus ti chýbajú ešte 2 kusy tohto setu.',
-      'Na celý bonus ti chýba ešte 1 kus tohto setu.',
-      'Na celý bonus ti chýba ešte 5 kusov tohto setu.',
-    ]);
+    expect(text('.plan .anotoki-card__title')).toEqual(['Prejdi na set: 4pc Alpha']);
+    expect(text('.plan [cardActions] anotoki-badge')).toEqual(['Máš 2 / 4 kusy']);
+    expect(text('.plan .plan-missing')).toEqual(['Na celý bonus ti chýbajú ešte 2 kusy tohto setu.']);
     expect(text('.suggestion-head anotoki-badge')).toEqual(['Substats: +3 body kvality', 'Doplní set bonus podľa odporúčania', 'Lepšie pre tento build']);
     expect(text('.suggestion > .small')).toEqual(['Terajší kus: 41 % · Teraz na postave: Xiangling', 'Terajší kus: 41 % · Nie je na žiadnej postave', 'Terajší kus: 41 % · Nie je na žiadnej postave']);
     expect(text('.bottom-grid .anotoki-card__body > p')[0]).toBe('2 buildy, zdroje: Source 1, Source 2');
@@ -386,12 +379,8 @@ describe('CharacterPage: the site’s words are keys, the game’s words stay', 
   it('says them in English too, one piece and several', async () => {
     await open('en');
 
-    expect(text('.plan [cardActions] anotoki-badge')).toEqual(['You own 2 of 4 pieces', 'You own 0 of 1 piece', 'You own 0 of 5 pieces']);
-    expect(text('.plan .plan-missing')).toEqual([
-      'Farm 2 more pieces of this set to complete the bonus.',
-      'Farm 1 more piece of this set to complete the bonus.',
-      'Farm 5 more pieces of this set to complete the bonus.',
-    ]);
+    expect(text('.plan [cardActions] anotoki-badge')).toEqual(['You own 2 of 4 pieces']);
+    expect(text('.plan .plan-missing')).toEqual(['Farm 2 more pieces of this set to complete the bonus.']);
     expect(text('.suggestion-head anotoki-badge')).toEqual(['+3 points of substat quality', 'Completes the recommended set bonus', 'Better for this build']);
     expect(text('.suggestion > .small')).toEqual(['Current piece: 41% · Currently on Xiangling', 'Current piece: 41% · Not equipped by anyone', 'Current piece: 41% · Not equipped by anyone']);
     expect(text('.bottom-grid .anotoki-card__body > p')[0]).toBe('2 builds from Source 1, Source 2');
@@ -451,17 +440,16 @@ describe('CharacterPage: the site’s words are keys, the game’s words stay', 
     }
   });
 
-  it('uses the other game’s terms for the other game', async () => {
-    await open('sk', of(analysis('hsr', { character: { ...analysis('hsr').character, final_stats: null, final_stats_source: null } })));
+  it.each([
+    { needed: 1, owned: 0, sk: ['Máš 0 / 1 kus', 'Na celý bonus ti chýba ešte 1 kus tohto setu.'], en: ['You own 0 of 1 piece', 'Farm 1 more piece of this set to complete the bonus.'] },
+    { needed: 5, owned: 0, sk: ['Máš 0 / 5 kusov', 'Na celý bonus ti chýba ešte 5 kusov tohto setu.'], en: ['You own 0 of 5 pieces', 'Farm 5 more pieces of this set to complete the bonus.'] },
+  ])('says a set plan of $owned / $needed in the form the number asks for, in Slovak and in English', async ({ needed, owned, sk, en: english }) => {
+    await open('sk', of(analysis('genshin', { set_plans: [plan('artifact', needed, owned)] })));
+    expect([...text('.plan [cardActions] anotoki-badge'), ...text('.plan .plan-missing')]).toEqual(sk);
 
-    expect(text('.hero anotoki-badge').slice(2)).toEqual(['Lv. 90', 'E1', 'Skill 12+3']);
-    expect(tooltip('.hero anotoki-badge:last-child')).toBe('Eidolons: +3');
-    expect(text('app-score-bar .anotoki-progress-bar__label')[0]).toBe('Light Cone');
-    expect(text('.weapon-line > *')).toEqual(['Light Cone:', "Dragon's Bane S5", 'Lv. 90 · možnosť č. 2 / 5']);
-    expect(text('.section-head h2')[0]).toBe('Relics na postave');
-    expect(host.querySelector('.crit-value')).toBeNull();
-    expect(text('.consensus-row > .muted').at(-1)).toBe('Light Cone – najlepšie voľby');
-    expect(text('.bottom-grid > anotoki-card:last-child .anotoki-card__body > p')).toEqual(['Zdroj: len Relics (celkové hodnoty z hry uvidíš po importe zadaním UID):']);
+    expect(await TestBed.inject(TranslationService).setLanguage('en', { remember: false })).toBe(true);
+    await fixture.whenStable();
+    expect([...text('.plan [cardActions] anotoki-badge'), ...text('.plan .plan-missing')]).toEqual(english);
   });
 
   it('leaves nothing of its own outside a key', async () => {

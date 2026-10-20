@@ -58,24 +58,6 @@ export const METHODS: Record<GameKey, ImportMethod[]> = {
       cons: ['importGuide.genshin.file.con1', 'importGuide.genshin.file.con2'],
     },
   ],
-  hsr: [
-    {
-      key: 'showcase',
-      title: 'importGuide.hsr.showcase.title',
-      icon: 'user',
-      summary: 'importGuide.hsr.showcase.summary',
-      pros: ['importGuide.hsr.showcase.pro1', 'importGuide.hsr.showcase.pro2', 'importGuide.hsr.showcase.pro3'],
-      cons: ['importGuide.hsr.showcase.con1', 'importGuide.hsr.showcase.con2'],
-    },
-    {
-      key: 'file',
-      title: 'importGuide.hsr.file.title',
-      icon: 'layers',
-      summary: 'importGuide.hsr.file.summary',
-      pros: ['importGuide.hsr.file.pro1', 'importGuide.hsr.file.pro2', 'importGuide.hsr.file.pro3'],
-      cons: ['importGuide.hsr.file.con1'],
-    },
-  ],
 };
 
 export const GUIDES: Record<GameKey, Record<ImportMethodKey, Guide>> = {
@@ -140,73 +122,6 @@ export const GUIDES: Record<GameKey, Record<ImportMethodKey, Guide>> = {
         },
       ],
       troubleshooting: ['importGuide.genshin.file.trouble1', 'importGuide.genshin.file.trouble2', 'importGuide.genshin.file.trouble3'],
-    },
-  },
-  hsr: {
-    showcase: {
-      intro: 'importGuide.hsr.showcase.intro',
-      steps: [
-        {
-          icon: 'user',
-          title: 'importGuide.hsr.showcase.step1.title',
-          body: 'importGuide.hsr.showcase.step1.body',
-        },
-        {
-          icon: 'columns',
-          title: 'importGuide.hsr.showcase.step2.title',
-          body: 'importGuide.hsr.showcase.step2.body',
-        },
-        {
-          icon: 'users',
-          title: 'importGuide.hsr.showcase.step3.title',
-          body: 'importGuide.hsr.showcase.step3.body',
-          tip: 'importGuide.hsr.showcase.step3.tip',
-        },
-        {
-          icon: 'clock',
-          title: 'importGuide.hsr.showcase.step4.title',
-          body: 'importGuide.hsr.showcase.step4.body',
-        },
-        {
-          icon: 'key',
-          title: 'importGuide.hsr.showcase.step5.title',
-          body: 'importGuide.hsr.showcase.step5.body',
-        },
-      ],
-      troubleshooting: ['importGuide.hsr.showcase.trouble1', 'importGuide.hsr.showcase.trouble2'],
-    },
-    file: {
-      intro: 'importGuide.hsr.file.intro',
-      fileHint: 'importGuide.hsr.file.fileHint',
-      steps: [
-        {
-          icon: 'download',
-          title: 'importGuide.hsr.file.step1.title',
-          body: 'importGuide.hsr.file.step1.body',
-          tip: 'importGuide.hsr.file.step1.tip',
-        },
-        {
-          icon: 'pause',
-          title: 'importGuide.hsr.file.step2.title',
-          body: 'importGuide.hsr.file.step2.body',
-        },
-        {
-          icon: 'play',
-          title: 'importGuide.hsr.file.step3.title',
-          body: 'importGuide.hsr.file.step3.body',
-        },
-        {
-          icon: 'gamepad',
-          title: 'importGuide.hsr.file.step4.title',
-          body: 'importGuide.hsr.file.step4.body',
-        },
-        {
-          icon: 'save',
-          title: 'importGuide.hsr.file.step5.title',
-          body: 'importGuide.hsr.file.step5.body',
-        },
-      ],
-      troubleshooting: ['importGuide.hsr.file.trouble1', 'importGuide.hsr.file.trouble2', 'importGuide.hsr.file.trouble3', 'importGuide.hsr.file.trouble4'],
     },
   },
 };

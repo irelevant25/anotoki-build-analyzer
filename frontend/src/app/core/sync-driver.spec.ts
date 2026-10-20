@@ -8,7 +8,7 @@ function run(status: SyncRunSummary['status'], done: number): SyncRunSummary {
   return {
     id: 1,
     kind: 'builds',
-    game: 'hsr',
+    game: 'genshin',
     status,
     started_at: '2026-09-27T10:00:00Z',
     finished_at: null,
@@ -17,7 +17,7 @@ function run(status: SyncRunSummary['status'], done: number): SyncRunSummary {
     next_step_at: null,
     last_step_at: null,
     started_by: null,
-    source: { key: 'hsr-1', name: 'Source 1', game: 'hsr' },
+    source: { key: 'genshin-1', name: 'Source 1', game: 'genshin' },
   };
 }
 

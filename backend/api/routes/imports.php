@@ -115,7 +115,7 @@ return function (Slim\App $slim, App $app): void {
                 ->post('/file', function (Request $request, Response $response) use ($app, $target, $refused, $roomForAccount, $smallEnough): Response {
                     $user = currentUser($request);
                     $input = Input::of($request);
-                    $game = $input->game('game');
+                    // The game is the file's (its format says it); a "game" sent along is not read.
                     $account = $target($input, $user);
 
                     $file = $request->getUploadedFiles()['file'] ?? null;
@@ -138,7 +138,7 @@ return function (Slim\App $slim, App $app): void {
                     }
 
                     try {
-                        $run = $app->get(ImportService::class)->fromFile((string) $content, $user, $game, $account, $fileName);
+                        $run = $app->get(ImportService::class)->fromFile((string) $content, $user, $account, $fileName);
                     } catch (ImportException $e) {
                         throw $refused($e);
                     }

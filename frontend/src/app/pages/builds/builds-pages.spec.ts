@@ -103,23 +103,18 @@ describe('the builds pages: the list of characters and one character’s builds'
     expect(text('h1')).toEqual(['Recommended builds']);
     // The plain lead (the kit's own lead with markup, `[pageLead]`, is a sibling of it - empty here).
     expect(text('p.anotoki-page-header__lead')).toEqual(['Everything the build syncs collected, per character and source.']);
-    // The kit's segmented control: one choice of two, by the games' own names.
-    expect(host.querySelector('anotoki-segmented [role="radiogroup"]')?.getAttribute('aria-label')).toBe('Game');
-    expect(text('anotoki-segmented [role="radio"]')).toEqual(['Genshin Impact', 'Honkai: Star Rail']);
-    expect(host.querySelector('anotoki-segmented [role="radio"][aria-checked="true"]')?.textContent?.trim()).toBe('Genshin Impact');
+    // One game: no switch between games.
+    expect(host.querySelector('anotoki-segmented')).toBeNull();
     expect(text('.anotoki-field__label')).toEqual(['Search Genshin Impact characters']);
     expect(text('.card .small')).toEqual(['Pyro · Polearm', '1 build · Source 1', 'Pyro · Polearm', '3 builds · Source 1, Source 2', 'Pyro · Polearm', '7 builds · Source 2']);
     expect(warn).not.toHaveBeenCalled();
   });
 
   it('lists them in Slovak: the count in the form the number asks for, the game’s and the sources’ names as they are', async () => {
-    await open(BuildsPage, 'sk', { buildCharacters: () => of(CHARACTERS) }, { game: 'hsr' });
+    await open(BuildsPage, 'sk', { buildCharacters: () => of(CHARACTERS) }, { game: 'genshin' });
 
     expect(text('h1')).toEqual(['Odporúčané buildy']);
-    expect(host.querySelector('anotoki-segmented [role="radiogroup"]')?.getAttribute('aria-label')).toBe('Hra');
-    expect(text('anotoki-segmented [role="radio"]')).toEqual(['Genshin Impact', 'Honkai: Star Rail']);
-    expect(host.querySelector('anotoki-segmented [role="radio"][aria-checked="true"]')?.textContent?.trim()).toBe('Honkai: Star Rail');
-    expect(text('.anotoki-field__label')).toEqual(['Hľadať postavy z hry Honkai: Star Rail']);
+    expect(text('.anotoki-field__label')).toEqual(['Hľadať postavy z hry Genshin Impact']);
     expect(text('.card .small')).toEqual(['Pyro · Polearm', '1 build · Source 1', 'Pyro · Polearm', '3 buildy · Source 1, Source 2', 'Pyro · Polearm', '7 buildov · Source 2']);
     expect(warn).not.toHaveBeenCalled();
   });

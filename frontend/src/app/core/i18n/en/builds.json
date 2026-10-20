@@ -1,7 +1,6 @@
 {
   "builds.title": "Recommended builds",
   "builds.subtitle": "Everything the build syncs collected, per character and source.",
-  "builds.game": "Game",
   "builds.search": "Search {game} characters",
   "builds.count.one": "{count} build",
   "builds.count.few": "{count} builds",

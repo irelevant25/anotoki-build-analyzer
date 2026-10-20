@@ -10,9 +10,7 @@
 
 use App\Services\Builds\Sources\GenshinBuildsGenshin;
 use App\Services\Builds\Sources\GenshinGgGenshin;
-use App\Services\Builds\Sources\GenshinGgHsr;
 use App\Services\Builds\Sources\PrydwenGenshin;
-use App\Services\Builds\Sources\PrydwenHsr;
 
 return [
     /*
@@ -23,7 +21,7 @@ return [
     | and the API calls it "{game}-{N}". Add a new source at the end of its game so the others keep their
     | numbers.
     */
-    'sources' => [GenshinBuildsGenshin::class, PrydwenGenshin::class, GenshinGgGenshin::class, PrydwenHsr::class, GenshinGgHsr::class],
+    'sources' => [GenshinBuildsGenshin::class, PrydwenGenshin::class, GenshinGgGenshin::class],
 
     /*
     | The game catalog (names, rarity, elements, icons): up-to-date lists for both games, keyed by in-game
@@ -35,10 +33,6 @@ return [
         'genshin' => [
             'api' => 'https://gi.yatta.moe/api/v2/en',
             'assets' => 'https://gi.yatta.moe/assets/UI',
-        ],
-        'hsr' => [
-            'api' => 'https://sr.yatta.moe/api/v2/en',
-            'assets' => 'https://sr.yatta.moe/hsr/assets/UI',
         ],
         'refresh_days' => 3,
         'import_refresh_minutes' => 60,
@@ -246,53 +240,6 @@ return [
                 'scroll' => 'scrolloftheheroofcindercity',
                 'lotss' => 'longnightsoath',
                 'emblemofseveredfates' => 'emblemofseveredfate', // typo seen on genshin.gg
-            ],
-        ],
-        'hsr' => [
-            'characters' => [
-                'dhil' => 'danhengimbibitorlunae',
-                'il' => 'danhengimbibitorlunae',
-                'imbibitorlunae' => 'danhengimbibitorlunae',
-                'sw' => 'silverwolf',
-                'ratio' => 'drratio',
-                'topaz' => 'topaznumby',
-                'numby' => 'topaznumby',
-                'topazandnumby' => 'topaznumby',
-                'boothiill' => 'boothill',
-                // Alternate versions are named "<Base> • <Name>" on Prydwen but only "<Name>" in game data.
-                'march7thevernight' => 'evernight',
-                'tingyunfugue' => 'fugue',
-                // genshin.gg names Trailblazers by element instead of path.
-                'trailblazerphysical' => 'trailblazerdestruction',
-                'trailblazerfire' => 'trailblazerpreservation',
-                'trailblazerimaginary' => 'trailblazerharmony',
-                'trailblazerice' => 'trailblazerremembrance',
-                'trailblazerlightning' => 'trailblazerelation',
-            ],
-            'weapons' => [
-                'agroundedascend' => 'agroundedascent', // typo seen on genshin.gg
-            ],
-            'sets' => [
-                // Typos / wrong names seen on genshin.gg.
-                'messengeroftraversinghackerspace' => 'messengertraversinghackerspace',
-                'poetofmourningdisciple' => 'poetofmourningcollapse',
-                'pangalacticcommercialenterprise' => 'pancosmiccommercialenterprise',
-                'pcec' => 'pancosmiccommercialenterprise',
-                'fleet' => 'fleetoftheageless',
-                'glamoth' => 'firmamentfrontlineglamoth',
-                'izumo' => 'izumogenseiandtakamadivinerealm',
-                'kalpagni' => 'forgeofthekalpagnilantern',
-                'lushaka' => 'lushakathesunkenseas',
-                'penacony' => 'penaconylandofthedreams',
-                'talia' => 'taliakingdomofbanditry',
-                'vonwacq' => 'sprightlyvonwacq',
-                'salsotto' => 'inertsalsotto',
-                'keel' => 'brokenkeel',
-                'duran' => 'durandynastyofrunningwolves',
-                'belobog' => 'belobogofthearchitects',
-                'wastelander' => 'wastelanderofbanditrydesert',
-                'genius' => 'geniusofbrilliantstars',
-                'musketeer' => 'musketeerofwildwheat',
             ],
         ],
     ],

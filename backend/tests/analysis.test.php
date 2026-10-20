@@ -603,35 +603,26 @@ test('levels, talents and stat targets: numbers go out as numbers, not as the se
     same(2, count(recommendationsOf($evaluation, 'target_below')), 'the target that is met says nothing');
 });
 
-test('Honkai: Star Rail has its own labels: Light Cone, the two kinds of set, S for the superimposition', function () use ($detail) {
-    seedHsrCatalog();
-    $prey = seedWeapon('hsr', 'Eyes of the Prey', ['rarity' => 4, 'weapon_type' => 'nihility']);
-    $kafka = idOf('game_characters', 'kafka');
-    $source = (int) db()->insert('build_sources', ['key' => 'fake.hsr', 'game' => 'hsr', 'name' => 'Fake Rail Builds', 'base_url' => 'https://fake-rail.example']);
+test('the game\'s own labels: Weapon as it is, "Artifact set", R for the refinement', function () use ($detail) {
+    $kazuha = idOf('game_characters', 'kaedeharakazuha');
+    $source = (int) db()->insert('build_sources', ['key' => 'fake.labels', 'game' => 'genshin', 'name' => 'Fake Label Builds', 'base_url' => 'https://fake-labels.example']);
 
     db()->insert('builds', [
         'build_source_id' => $source,
-        'game_character_id' => $kafka,
-        'variant' => 'DoT',
+        'game_character_id' => $kazuha,
+        'variant' => 'Labels',
         'recommended' => true,
         'weapons' => Json::encode([
-            ['key' => 'patienceisallyouneed', 'name' => 'Patience Is All You Need', 'rank' => 1, 'refinement' => null, 'note' => null, 'known' => true],
-            ['key' => 'goodnightandsleepwell', 'name' => 'Good Night and Sleep Well', 'rank' => 2, 'refinement' => null, 'note' => null, 'known' => true],
+            ['key' => 'staffofhoma', 'name' => 'Staff of Homa', 'rank' => 1, 'refinement' => null, 'note' => null, 'known' => true],
+            ['key' => 'deathmatch', 'name' => 'Deathmatch', 'rank' => 2, 'refinement' => null, 'note' => null, 'known' => false],
         ]),
         'sets' => Json::encode([
             [
                 'rank' => 1,
-                'kind' => 'relic',
+                'kind' => 'artifact',
                 'choose' => null,
                 'note' => null,
-                'pieces' => [['label' => 'Prisoner in Deep Confinement', 'count' => 4, 'keys' => ['prisonerindeepconfinement'], 'names' => ['Prisoner in Deep Confinement']]],
-            ],
-            [
-                'rank' => 1,
-                'kind' => 'planar',
-                'choose' => null,
-                'note' => null,
-                'pieces' => [['label' => 'Firmament Frontline: Glamoth', 'count' => 2, 'keys' => ['firmamentfrontlineglamoth'], 'names' => ['Firmament Frontline: Glamoth']]],
+                'pieces' => [['label' => 'Crimson Witch of Flames', 'count' => 4, 'keys' => ['crimsonwitchofflames'], 'names' => ['Crimson Witch of Flames']]],
             ],
         ]),
         'main_stats' => '{}',
@@ -639,55 +630,30 @@ test('Honkai: Star Rail has its own labels: Light Cone, the two kinds of set, S 
         'content_hash' => 'z',
     ]);
 
-    // Kafka at level 80 with no relics, a light cone the build does not list, and the listed one lying unused.
-    $account = seedAccount(1, 'hsr', ['nickname' => 'Rail', 'has_full_inventory' => true]);
-    db()->insert('account_characters', ['account_id' => $account, 'game_character_id' => $kafka, 'level' => 80, 'rank' => 0, 'source' => 'hsr_scanner']);
-    db()->insert('account_weapons', ['account_id' => $account, 'game_weapon_id' => $prey, 'level' => 80, 'refinement' => 5, 'equipped_character_id' => $kafka, 'source' => 'hsr_scanner']);
-    db()->insert('account_weapons', ['account_id' => $account, 'game_weapon_id' => idOf('game_weapons', 'patienceisallyouneed'), 'level' => 80, 'refinement' => 1, 'source' => 'hsr_scanner']);
+    // Kazuha with no artifacts, a weapon the build does not list, and the listed one lying unused.
+    $account = seedAccount(1, 'genshin', ['nickname' => 'Labels', 'has_full_inventory' => true]);
+    db()->insert('account_characters', ['account_id' => $account, 'game_character_id' => $kazuha, 'level' => 90, 'rank' => 0, 'source' => 'good']);
+    db()->insert('account_weapons', [
+        'account_id' => $account,
+        'game_weapon_id' => idOf('game_weapons', 'dragonsbane'),
+        'level' => 90,
+        'refinement' => 5,
+        'equipped_character_id' => $kazuha,
+        'source' => 'good',
+    ]);
+    db()->insert('account_weapons', ['account_id' => $account, 'game_weapon_id' => idOf('game_weapons', 'staffofhoma'), 'level' => 90, 'refinement' => 1, 'source' => 'good']);
 
-    $result = $detail($account, 'kafka');
-    $evaluation = $result['evaluations'][0];
+    $evaluation = $detail($account, 'kaedeharakazuha')['evaluations'][0];
 
     // weapon_label is the label as it is; only the English sentence lower-cases it.
-    $cone = recommendationOf($evaluation, 'weapon_unlisted_owned');
-    same(
-        ['name' => 'Eyes of the Prey', 'weapon_label' => 'Light Cone', 'options' => 'Patience Is All You Need, Good Night and Sleep Well', 'owned' => 'Patience Is All You Need', 'refinement' => 'S1'],
-        $cone['params'],
-        'the light cone',
-    );
-    same(
-        "Eyes of the Prey is not on this build's light cone list. Recommended: Patience Is All You Need, Good Night and Sleep Well. You already own Patience Is All You Need (S1).",
-        $cone['message'],
-        'the light cone, in English',
-    );
+    $weapon = recommendationOf($evaluation, 'weapon_unlisted_owned');
+    same(['name' => "Dragon's Bane", 'weapon_label' => 'Weapon', 'options' => 'Staff of Homa, Deathmatch', 'owned' => 'Staff of Homa', 'refinement' => 'R1'], $weapon['params'], 'the weapon');
+    same("Dragon's Bane is not on this build's weapon list. Recommended: Staff of Homa, Deathmatch. You already own Staff of Homa (R1).", $weapon['message'], 'the weapon, in English');
 
-    // One recommendation for each kind of set, told apart by set_label.
-    $empty = array_column(recommendationsOf($evaluation, 'sets_missing_empty'), null, 'message');
-    same(
-        [
-            'Use the recommended Cavern Relic set: 4pc Prisoner in Deep Confinement. Currently: nothing.' => [
-                'set_label' => 'Cavern Relic set',
-                'best' => '4pc Prisoner in Deep Confinement',
-                'best_choose' => null,
-            ],
-            'Use the recommended Planar Ornament set: 2pc Firmament Frontline: Glamoth. Currently: nothing.' => [
-                'set_label' => 'Planar Ornament set',
-                'best' => '2pc Firmament Frontline: Glamoth',
-                'best_choose' => null,
-            ],
-        ],
-        array_map(fn($r) => $r['params'], $empty),
-        'the two kinds of set',
-    );
-
-    same(
-        [
-            'relic' => [['name' => '4pc Prisoner in Deep Confinement', 'pieces' => '4pc Prisoner in Deep Confinement', 'choose' => null, 'count' => 1]],
-            'planar' => [['name' => '2pc Firmament Frontline: Glamoth', 'pieces' => '2pc Firmament Frontline: Glamoth', 'choose' => null, 'count' => 1]],
-        ],
-        $result['consensus']['sets'],
-        'the consensus set rows',
-    );
+    // The kind of set by the game's word for it (Game::setLabel()).
+    $empty = recommendationOf($evaluation, 'sets_missing_empty');
+    same(['set_label' => 'Artifact set', 'best' => '4pc Crimson Witch of Flames', 'best_choose' => null], $empty['params'], 'the set');
+    same('Use the recommended artifact set: 4pc Crimson Witch of Flames. Currently: nothing.', $empty['message'], 'the set, in English');
 });
 
 test('every kind of recommendation is one the cases above produce', function () use ($state) {
