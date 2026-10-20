@@ -13,3 +13,6 @@ Thumbs.db
 
 # Claude Code's personal settings (the rest of .claude/ is shared).
 .claude/settings.local.json
+
+# The owner's own folder (their tools and what they write): never in the repository.
+/local/
