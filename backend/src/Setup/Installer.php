@@ -595,7 +595,10 @@ final class Installer
             @mkdir($path, 0775, true);
         }
         if ($this->state !== rtrim(str_replace('\\', '/', $this->root), '/') && is_dir($path) && !is_file($path . '/.htaccess')) {
-            @file_put_contents($path . '/.htaccess', "# Not for the web: only PHP reads these files.\n<IfModule mod_authz_core.c>\n    Require all denied\n</IfModule>\n<IfModule !mod_authz_core.c>\n    Order allow,deny\n    Deny from all\n</IfModule>\n");
+            @file_put_contents(
+                $path . '/.htaccess',
+                "# Not for the web: only PHP reads these files.\n<IfModule mod_authz_core.c>\n    Require all denied\n</IfModule>\n<IfModule !mod_authz_core.c>\n    Order allow,deny\n    Deny from all\n</IfModule>\n",
+            );
         }
     }
 }
