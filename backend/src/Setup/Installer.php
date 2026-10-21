@@ -35,8 +35,6 @@ final class Installer
         'openssl' => 'checking sign-in tokens',
         'mbstring' => 'text handling',
         'curl' => 'downloading the catalog, the showcases and the icons',
-        // No page of another site is read here since 0.5.0, but composer.json still asks for it (its platform check).
-        'dom' => 'the PHP packages (composer.json asks for it)',
         'json' => 'everything the API answers',
         'zlib' => 'the database\'s backups (each is compressed)',
     ];

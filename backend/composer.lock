@@ -4,7 +4,7 @@
         "Read more about it at https://getcomposer.org/doc/01-basic-usage.md#installing-dependencies",
         "This file is @generated automatically"
     ],
-    "content-hash": "e66e46d66a99c18f95e9e9896c742158",
+    "content-hash": "8d88f49e94183c11543cf390f97483b0",
     "packages": [
         {
             "name": "anotoki/lib",
@@ -891,7 +891,6 @@
     "platform": {
         "php": "^8.4",
         "ext-curl": "*",
-        "ext-dom": "*",
         "ext-json": "*",
         "ext-mbstring": "*",
         "ext-openssl": "*",

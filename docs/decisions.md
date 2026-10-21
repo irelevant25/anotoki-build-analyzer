@@ -1115,7 +1115,8 @@ a changing request signature; revisit on request.
 
 **2026-09-24 — Angular 21 + Angular Material, PHP backend.** The user's stack preference (Angular, PHP).
 Angular 21 because the installed Node (22.15) is too old for Angular 22. PHP 8.4+ required for the native
-`Dom\HTMLDocument` parser. (The backend started on Laravel 13; see 2026-09-29.)
+`Dom\HTMLDocument` parser. (The backend started on Laravel 13; see 2026-09-29. Since 2026-10-21 nothing reads a
+page and the `dom` extension is no longer asked for; PHP 8.4 stays the floor.)
 
 **2026-09-24 — Politeness first.** Per-host delays (10 s for one build site, as its robots.txt asks), 12 h page
 cache, a stale-hours guard so manual runs never re-hit a site the same day, and runs limited to a few characters

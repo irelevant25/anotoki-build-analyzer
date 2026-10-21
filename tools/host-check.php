@@ -34,7 +34,6 @@ $site = array(
         'zlib' => 'the backups (each is compressed)',
         'openssl' => 'checking sign-in tokens',
         'curl' => 'downloading the catalog, the showcases and the icons',
-        'dom' => 'the PHP packages (composer.json asks for it)',
     ),
     'recommended' => array(),
     'functions' => array(),

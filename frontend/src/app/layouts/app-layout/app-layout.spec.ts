@@ -128,10 +128,15 @@ describe("everybody's pages' frame", () => {
     const { host, settle } = await draw({ who: 'visitor', language: 'sk' });
 
     host.querySelector<HTMLButtonElement>('anotoki-site-footer [data-open-feedback]')!.click();
-    await vi.waitFor(async () => {
-      await settle();
-      expect(host.querySelector('[data-feedback-dialog] anotoki-feedback-form')).not.toBeNull();
-    });
+    // The form's code is a chunk of its own, loaded with the press: on a busy computer (the backend's tests beside
+    // these) that takes longer than waitFor's one second.
+    await vi.waitFor(
+      async () => {
+        await settle();
+        expect(host.querySelector('[data-feedback-dialog] anotoki-feedback-form')).not.toBeNull();
+      },
+      { timeout: 10_000 },
+    );
     // The dialog is named by the button's words; the form offers the site's places (core/feedback.ts).
     expect(text(host.querySelector('[data-feedback-dialog] .anotoki-dialog__title'))).toBe('Spätná väzba');
     expect([...host.querySelectorAll('anotoki-feedback-form [data-section] option:not([value=""])')].map(text)).toEqual(['Prehľad', 'Import účtu', 'Tvoje účty a postavy', 'Buildy']);

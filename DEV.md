@@ -12,8 +12,8 @@ these steps (configuration keys, sign-in and roles, the catalog, importing build
 
 ## Prerequisites
 
-- **PHP 8.4 or newer** (8.5 works) with the extensions `pdo_pgsql`, `openssl`, `mbstring`, `curl`, `dom`,
-  `json` and `zlib` (the backups). If the `php` on your PATH is older, call the newer one directly, or from bash set
+- **PHP 8.4 or newer** (8.5 works) with the extensions `pdo_pgsql`, `openssl`, `mbstring`, `curl`, `json`
+  and `zlib` (the backups). If the `php` on your PATH is older, call the newer one directly, or from bash set
   `BUILD_ANALYZER_PHP` to it and run `backend/tools/php.sh ...` in place of `php ...`.
 - **Composer 2**.
 - **PostgreSQL** (14 or newer; developed on 18) and a user that may create databases - setup creates the app's
@@ -264,7 +264,7 @@ key families, and every seeded string against the checks a save makes. A new str
 ## Deploying (FTP-only hosting)
 
 The host needs Apache with `.htaccess` support (`mod_rewrite`), **PHP 8.4+** with `pdo_pgsql`, `openssl`,
-`mbstring`, `curl`, `dom` and `zlib` (the backups), and a **PostgreSQL** database made in the hosting panel - the
+`mbstring`, `curl` and `zlib` (the backups), and a **PostgreSQL** database made in the hosting panel - the
 setup page checks each extension. No shell, cron job,
 queue worker or long-running process is needed: a release goes up by SFTP, the database is built by `setup.php`
 and later changed on the admin panel's Migrations page.

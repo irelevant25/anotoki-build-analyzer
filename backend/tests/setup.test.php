@@ -209,21 +209,13 @@ test('the requirements name PHP 8.4, the extensions and the writable folders', f
     $checks = array_column($installer->requirements(), 'ok', 'label');
 
     foreach (
-        [
-            'PHP 8.4 or newer',
-            'PHP extension pdo_pgsql',
-            'PHP extension openssl',
-            'PHP extension mbstring',
-            'PHP extension curl',
-            'PHP extension dom',
-            'PHP extension zlib',
-            'config/ writable',
-            'storage/ writable',
-        ]
+        ['PHP 8.4 or newer', 'PHP extension pdo_pgsql', 'PHP extension openssl', 'PHP extension mbstring', 'PHP extension curl', 'PHP extension zlib', 'config/ writable', 'storage/ writable']
         as $label
     ) {
         same(true, $checks[$label] ?? null, $label);
     }
+    // dom read the build sites' pages: nothing reads a page since 0.5.0, and composer.json no longer asks for it.
+    check(!array_key_exists('PHP extension dom', $checks), 'dom is no longer asked for');
     // zlib: the backups are compressed with it (anotoki-lib's Backups) - a host without it could make none.
     $zlib = array_values(array_filter($installer->requirements(), fn(array $check): bool => $check['label'] === 'PHP extension zlib'));
     check(str_contains((string) ($zlib[0]['detail'] ?? ''), 'backups'), 'zlib says what it is for: ' . json_encode($zlib));

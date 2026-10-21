@@ -511,7 +511,7 @@ whole admin panel. No file explorer here (the owner's choice for this site).
 ## Deploying (FTP-only shared hosting)
 
 The host: Apache with `.htaccess` support (`mod_rewrite`), **PHP 8.4** with `pdo_pgsql`, `openssl`, `mbstring`,
-`curl`, `dom` and `zlib` (the backups compress with it) - the setup page checks each -, and a PostgreSQL database
+`curl` and `zlib` (the backups compress with it) - the setup page checks each -, and a PostgreSQL database
 made in the hosting panel. No shell, cron, queue worker or long-running process is needed. The steps, with the
 upload map, are in [DEV.md](../DEV.md) ("Deploying"); in short:
 

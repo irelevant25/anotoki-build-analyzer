@@ -53,7 +53,7 @@ Setting it up, running, testing, building and deploying: **[DEV.md](DEV.md)**.
 
 ## Quick start
 
-Requirements: PHP 8.4+ (`pdo_pgsql`, `openssl`, `mbstring`, `curl`, `dom`, `zlib`), PostgreSQL, Node.js 22.12+, Bun,
+Requirements: PHP 8.4+ (`pdo_pgsql`, `openssl`, `mbstring`, `curl`, `zlib`), PostgreSQL, Node.js 22.12+, Bun,
 and the anotoki IAM running locally (`../anotoki-iam`) to sign in.
 
 ```bash
@@ -190,7 +190,7 @@ and the upload map: [DEV.md](DEV.md) ("Deploying").
 What the host and Cloudflare need for this site - check it before the first upload and after any change of
 hosting:
 
-- **PHP 8.4 or newer** with `pdo_pgsql`, `openssl`, `mbstring`, `curl`, `dom`, `json` and `zlib` (the backups). `tools/host-check.php` checks all of it on the host: write a long
+- **PHP 8.4 or newer** with `pdo_pgsql`, `openssl`, `mbstring`, `curl`, `json` and `zlib` (the backups). `tools/host-check.php` checks all of it on the host: write a long
   random value into its `HOST_CHECK_TOKEN`, upload it beside `index.html`, open
   `https://<the site>/host-check.php?token=<that value>`, and delete it afterwards (the page has a button for
   it). It is never part of a build.
