@@ -1716,11 +1716,19 @@ try {
             name: member.querySelector('.member-name')?.textContent?.trim() ?? null,
             href: member.querySelector('a.member-name')?.getAttribute('href') ?? null,
             marks: [...member.querySelectorAll('.member-facts anotoki-badge')].map((badge) => badge.textContent.trim()),
+            below: member.querySelector('.member-below')?.textContent?.trim() ?? null,
+            // The check on the portrait of a teammate the account has, and what a screen reader hears of it.
+            checked: member.querySelector('.portrait .owned-check') !== null,
+            heard: member.querySelector('.member-head .visually-hidden')?.textContent?.trim() ?? null,
             // As written: the template adds no blank of its own beside the words.
             alternatives: member.querySelector('.alternatives')?.textContent ?? null,
             standIns: [...member.querySelectorAll('.alternatives a')].map((link) => link.getAttribute('href')),
-            standInMarks: [...member.querySelectorAll('.alternatives anotoki-badge')].map((badge) => badge.textContent.trim()),
+            standInChecks: member.querySelectorAll('.alternatives .owned-check').length,
+            // Nothing wider than its column (a name breaks between its words, never inside one).
+            spills: member.scrollWidth > member.clientWidth + 1,
           })),
+          // The team side by side: every member at the top of one row.
+          rows: new Set([...document.querySelectorAll('app-build-teams .team:first-child .member')].map((member) => Math.round(member.getBoundingClientRect().top))).size,
         }));
 
       for (const [language, scheme, width] of [
@@ -1812,20 +1820,25 @@ try {
         // the file's name alone.
         const teamWords =
           language === 'sk'
-            ? { heading: 'Tímy', marks: 'C2+|Máš|potrebuje C2', or: 'alebo Traveler (Anemo)', owned: 'Máš' }
-            : { heading: 'Teams', marks: 'C2+|Owned|needs C2', or: 'or Traveler (Anemo)', owned: 'Owned' };
+            ? { heading: 'Tímy', below: 'potrebuje C2', or: 'alebo Traveler (Anemo)', owned: 'Máš' }
+            : { heading: 'Teams', below: 'needs C2', or: 'or Traveler (Anemo)', owned: 'Owned' };
         const team = await teamShown(page);
         check(
           team.heading === teamWords.heading &&
             team.names.join('|') === 'Vaporize' &&
             team.members.map((member) => member.name).join('|') === 'Hu Tao|Kaedehara Kazuha|Xingqiu' &&
             team.members.map((member) => member.href ?? '-').join('|') === `-|/accounts/${monaAccount}/characters/kaedeharakazuha|-` &&
-            team.members[1].marks.join('|') === teamWords.marks &&
+            team.members[1].marks.join('|') === 'C2+' &&
+            team.members[1].below === teamWords.below &&
+            team.members.map((member) => member.checked).join('|') === 'false|true|false' &&
+            team.members[1].heard === teamWords.owned &&
             team.members[1].alternatives === `${teamWords.or} ${teamWords.owned}` &&
             team.members[1].standIns.join('|') === `/accounts/${monaAccount}/characters/traveleranemo` &&
-            team.members[1].standInMarks.join('|') === teamWords.owned &&
-            team.members[2].marks.join('|') === 'C6+',
-          `the character, ${label}: the main build's team - Kazuha hers below the C2 it asks, a link to her analysis of him, Traveler (Anemo) his stand-in, hers too; Xingqiu by his name alone (${JSON.stringify(team)})`,
+            team.members[1].standInChecks === 1 &&
+            team.members[2].marks.join('|') === 'C6+' &&
+            team.rows === 1 &&
+            team.members.every((member) => !member.spills),
+          `the character, ${label}: the main build's team side by side - Kazuha hers (a check on his portrait, heard "${teamWords.owned}") below the C2 it asks, a link to her analysis of him, Traveler (Anemo) his stand-in, hers too; Xingqiu by his name alone; nothing wider than its column (${JSON.stringify(team)})`,
         );
         await fits('the character');
         await shot(page, `24-kit-character-${language}-${width}-${scheme}`, { fullPage: true });
@@ -1838,8 +1851,10 @@ try {
           publicTeam.heading === teamWords.heading &&
             publicTeam.members.map((member) => member.href ?? '-').join('|') === '-|/builds/genshin/kaedeharakazuha|-' &&
             publicTeam.members[1].marks.join('|') === 'C2+' &&
+            publicTeam.members.every((member) => !member.checked && member.heard === null) &&
             publicTeam.members[1].alternatives === teamWords.or &&
-            publicTeam.members[1].standIns.length === 0,
+            publicTeam.members[1].standIns.length === 0 &&
+            publicTeam.rows === 1,
           `the builds' page, ${label}: the team, nothing marked as anybody's, Kazuha a link to his builds (${JSON.stringify(publicTeam)})`,
         );
         await fits("the builds' page");

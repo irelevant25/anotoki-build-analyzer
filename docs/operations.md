@@ -663,6 +663,14 @@ Check after an install: `https://builder.anotoki.eu/config/database.local.php`, 
 `/src/Config.php` must not download (403); `https://builder.anotoki.eu/api/meta` answers JSON with the IAM's
 `issuer`, `client_id` and `login_required` under `auth`; `/api/accounts` answers 401 without a token.
 
+### Deploying 0.6.1
+
+No migration: the release goes up (`bun run anotoki-deploy deploy --backups <folder> --go`) and the site stays open.
+Then import the builds file the local tools wrote without the sites' notes and with every team (the second export of
+2026-10-22): its dry run updates nearly every build - their notes and target wordings go, teams come (2026-10-22: 183
+updated, 7 unchanged, none new or removed, 895 teams) -, then **Import**. Check: a character's builds page shows no
+notes and its teams side by side on a phone; on an account's character page a teammate you have wears a check.
+
 ### Deploying 0.6.0
 
 Version 0.6.0 gives every build the teams it is played in (the owner's request of 2026-10-22,

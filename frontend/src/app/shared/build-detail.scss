@@ -73,10 +73,12 @@ ol li.matched {
   text-overflow: ellipsis;
 }
 
+// Two pictures wide whatever an option holds, so every option's words start in the same place.
 .set-icons {
   display: flex;
   gap: 2px;
   flex: none;
+  width: 50px;
 }
 
 .stat-rows {

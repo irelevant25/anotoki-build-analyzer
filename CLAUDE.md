@@ -92,7 +92,7 @@ variations and the imports' record in, with their words; the catalog's region, v
 filters' words): on a host applied at once after the upload, then Refresh catalog and Import (docs/operations.md,
 "Deploying 0.5.0").
 
-**Version 0.6.0 (unreleased) - a build's teams** (the owner's request of 2026-10-22, docs/decisions.md): every build
+**Version 0.6.0 - a build's teams** (the owner's request of 2026-10-22, docs/decisions.md): every build
 lists **the teams it is played in**, the best first, in the builds file - **format version 3** (version 2 refused
 with its own sentence): a team `{name, members, note}`, a member `{key, name, role, min_rank, alternatives}`, the
 build's own character among 2-4 members exactly once and with no stand-in (`BuildFile::read()`, `teamsEntry()`;
@@ -101,10 +101,14 @@ before, so the first version 3 import updates only the builds that gained teams.
 (known, picture, rarity, element) and whether it has builds are looked up when a build is shown
 (`BuildPresenter`), never stored; a teammate the catalog lacks skips nothing (`teammates_unknown` in the import's
 answer). The page (`shared/build-teams`) links a teammate to its builds; on an account's character page the
-teammates the account has are marked "Owned" / "needs C2" and link to the account's own analysis of them
-(`owned_teammates`, `Accounts::characterRanks()`). Migration **021**: the teams' two words. On a host applied at once
-after the upload, then the version 3 file imported - before the next builds refresh: the local tools write version
-3 only (docs/operations.md, "Deploying 0.6.0").
+teammates the account has wear a check (heard "Owned"; a member below the team's constellation "needs C2") and link
+to the account's own analysis of them (`owned_teammates`, `Accounts::characterRanks()`; the Traveler the account's in
+every element once it has it in one - `Game::isTraveler()`, its constellation there null). Migration **021**: the
+teams' three words. On a host applied at once after the upload, then the version 3 file imported - before the next
+builds refresh: the local tools write version 3 only (docs/operations.md, "Deploying 0.6.0"). **0.6.1** (the owner's
+look at it, 2026-10-22): a team side by side on a phone too, 64 px portraits (and in the builds list - the avatar's
+`lg`; its 88 px heroes `xl`), a check for "Owned", the Traveler in every element, a set option's pictures in a column
+of one width; and the local tools write no notes of the sites' (`export.notes`) and keep every team.
 
 **The shared library, anotoki-lib** (`irelevant25/anotoki-lib` on GitHub: Composer `anotoki/lib` ^0.9.0 through a
 `vcs` repository - 0.9.2 now -, npm `@anotoki/lib` 0.9.2 from its release tarball - never a local path, never 0.4.0; DEV.md "The

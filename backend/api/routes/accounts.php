@@ -27,7 +27,8 @@ use Slim\Routing\RouteCollectorProxy;
  *   GET    /api/accounts/{id}/imports                 import history (50 newest)
  *   GET    /api/accounts/{id}/characters/{key}?build= full analysis of one character, its builds, and owned_teammates:
  *                                                     which of the builds' teammates the account has, with each one's
- *                                                     constellation ({key: rank}; the character itself left out)
+ *                                                     constellation ({key: rank}; the character itself left out; a
+ *                                                     Traveler of another element than the account's null - unknown)
  */
 return function (Slim\App $slim, App $app): void {
     $own = function (Request $request, array $args) use ($app): Account {
@@ -92,8 +93,17 @@ return function (Slim\App $slim, App $app): void {
 
                 $buildIds = array_map(fn($evaluation) => $evaluation['build']['id'], $detail['evaluations']);
                 $builds = $app->get(Builds::class)->byIds($buildIds);
-                // The teammates the player has: only of these teams, never the character itself.
+                // The teammates the player has, with each one's constellation: only of these teams, never the character
+                // itself. The Traveler is one character in several elements: the account's, in whichever element it was
+                // imported, makes every Traveler of the teams its own - its constellation in another element unknown, null
+                // (the owner's word of 2026-10-22).
+                $accounts = $app->get(Accounts::class);
                 $teammates = array_values(array_diff(BuildPresenter::teammateKeys($builds), [$owned->character->key]));
+                $ranks = $accounts->characterRanks($account->id, $teammates);
+                $travelers = array_values(array_filter($teammates, fn(string $key) => $account->game->isTraveler($key) && !array_key_exists($key, $ranks)));
+                if ($travelers !== [] && array_filter($accounts->characterKeys($account->id), $account->game->isTraveler(...)) !== []) {
+                    $ranks += array_fill_keys($travelers, null);
+                }
 
                 return Json::send(
                     $response,
@@ -101,7 +111,7 @@ return function (Slim\App $slim, App $app): void {
                         $detail + [
                             'builds' => $app->get(BuildPresenter::class)->collection($builds),
                             // An object, {} when there is none.
-                            'owned_teammates' => (object) $app->get(Accounts::class)->characterRanks($account->id, $teammates),
+                            'owned_teammates' => (object) $ranks,
                         ],
                 );
             });

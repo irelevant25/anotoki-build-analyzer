@@ -10,38 +10,45 @@
                     @for (member of team.members; track member.key) {
                         @let to = member.own ? null : link(member);
                         <li class="member" [class.own]="member.own">
-                            <!-- The name is the avatar's words: the picture is hidden from a screen reader, which would say both. The link is
-                                 the name alone, a link as the kit draws them: around the picture too, its underline would cross the
-                                 initials a picture that cannot load leaves. -->
+                            <!-- The name is the portrait's words: the picture is hidden from a screen reader, which would say both - and so is
+                                 the check on a teammate the account has, which is heard after the name. The link is the name alone, a link
+                                 as the kit draws them: around the picture too, its underline would cross the initials a picture that cannot
+                                 load leaves. -->
                             <span class="member-head">
-                                <app-avatar aria-hidden="true" [src]="member.icon_url" [alt]="member.name" [rarity]="member.rarity" [element]="member.element" size="md" />
+                                <span class="portrait">
+                                    <app-avatar aria-hidden="true" [src]="member.icon_url" [alt]="member.name" [rarity]="member.rarity" [element]="member.element" size="lg" />
+                                    @if (owns(member)) {
+                                        <span class="owned-check" aria-hidden="true"><anotoki-icon name="check" [size]="13" [strokeWidth]="3" /></span>
+                                    }
+                                </span>
                                 @if (to) {
                                     <a class="member-name" [routerLink]="to">{{ member.name }}</a>
                                 } @else {
                                     <span class="member-name">{{ member.name }}</span>
                                 }
+                                @if (owns(member)) {
+                                    <span class="visually-hidden">{{ "buildDetail.owned" | translate }}</span>
+                                }
                             </span>
-                            @if (member.role || rank(member) || ownedRank(member) !== null) {
+                            @if (member.role || rank(member) || belowRank(member)) {
                                 <span class="member-facts">
                                     @if (member.role) {
-                                        <span class="muted small">{{ role(member.role) }}</span>
+                                        <span class="member-role muted small">{{ role(member.role) }}</span>
                                     }
                                     @if (rank(member); as mark) {
                                         <anotoki-badge class="member-rank">{{ mark }}</anotoki-badge>
                                     }
-                                    @if (ownedRank(member) !== null) {
-                                        <anotoki-badge class="member-owned" tone="success">{{ "buildDetail.owned" | translate }}</anotoki-badge>
-                                        @if (belowRank(member)) {
-                                            <anotoki-badge class="member-below" tone="warning">{{ "character.needsRank" | translate: { rank: rankText(member.min_rank) } }}</anotoki-badge>
-                                        }
+                                    @if (belowRank(member)) {
+                                        <!-- Words, not a badge: they break between them in a column a quarter of a phone wide ("potrebuje C2"). -->
+                                        <span class="member-below small">{{ "character.needsRank" | translate: { rank: rankText(member.min_rank) } }}</span>
                                     }
                                 </span>
                             }
                             @if (member.alternatives.length > 0) {
                                 <!-- "or Yelan / Mona": the names the game's, each a link where it has builds (or the account has it), one the
-                                     account has marked "Owned" after a blank of its own. Every text in an element of its own: Angular drops
-                                     the blank between two elements, but keeps a line break beside a text as a space, which a rewording such
-                                     as "({names})" would show. -->
+                                     account has with the same check after a blank of its own. Every text in an element of its own: Angular
+                                     drops the blank between two elements, but keeps a line break beside a text as a space, which a rewording
+                                     such as "({names})" would show. -->
                                 <span class="alternatives muted small">
                                     <span>{{ alternatives()[0] }}</span>
                                     @for (alternative of member.alternatives; track alternative.key; let last = $last) {
@@ -50,9 +57,10 @@
                                         } @else {
                                             <span>{{ alternative.name }}</span>
                                         }
-                                        @if (ownedRank(alternative) !== null) {
+                                        @if (owns(alternative)) {
                                             <span>{{ " " }}</span>
-                                            <anotoki-badge class="alternative-owned" tone="success">{{ "buildDetail.owned" | translate }}</anotoki-badge>
+                                            <span class="owned-check inline" aria-hidden="true"><anotoki-icon name="check" [size]="10" [strokeWidth]="3" /></span>
+                                            <span class="visually-hidden">{{ "buildDetail.owned" | translate }}</span>
                                         }
                                         @if (!last) {
                                             <span>{{ " / " }}</span>

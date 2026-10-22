@@ -1,6 +1,6 @@
 {
   "name": "build-analyzer-frontend",
-  "version": "0.6.0",
+  "version": "0.6.1",
   "scripts": {
     "ng": "ng",
     "start": "bun ci && ng serve --port 4600 --proxy-config proxy.conf.json",

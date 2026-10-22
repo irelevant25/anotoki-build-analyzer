@@ -419,8 +419,10 @@ name or address either:
   character evaluated, the best and the one in focus, suggestions, set plans) + full builds via
   `BuildPresenter` (each team's members with what the catalog says of them, looked up as they are shown) + the
   teammates the account has (`owned_teammates`: `{key: constellation}` of the account's characters among the
-  builds' teammates and stand-ins, the character itself left out - `Accounts::characterRanks()`; `{}` for none),
-  which the page marks "Owned" and links to their own analysis. By the character's constellation (`account_characters.rank`): the best build is, of the
+  builds' teammates and stand-ins, the character itself left out - `Accounts::characterRanks()`; `{}` for none; the
+  Traveler, one character in several elements (`Game::isTraveler()`), the account's in every element once it has it
+  in one - its constellation in the others null, unknown), which the page checks and links to their own analysis.
+  By the character's constellation (`account_characters.rank`): the best build is, of the
   builds it reaches (`min_rank` ≤ its constellation), the highest overall score, a tie to the earlier
   (`position`: the first build is the character's main one); when it reaches none, the build needing the lowest
   constellation, marked `applies: false` - the page shows a lock and "needs C4", and never calls it the best.
@@ -544,7 +546,7 @@ bar took the place of the site's own), each with every rewording.
 | `GET /api/meta` | anyone (also while sign-in is required) | slots, stat labels, talent names, elements, weapon types and the game's labels per game (one, Genshin Impact); `version`; `auth {issuer, client_id, login_required, sign_in_available}` (whether the IAM requires sign-in here, and whether it knows the site); `visitors {keep_days}` |
 | `GET /api/icons/{c\|w\|s}/{id}` | anyone (also while sign-in is required) | a character / weapon / set icon, served from `storage/icons/` |
 | `GET /api/accounts`, `GET/PATCH/DELETE /api/accounts/{id}` | signed in or visitor (own) | list / overview (+ characters with best build) / rename / delete |
-| `GET /api/accounts/{id}/characters/{key}?build=ID` | signed in or visitor (own) | full analysis of one character (key = catalog key, e.g. `hutao`), its builds in full, and `owned_teammates` (`{key: constellation}`: the account's characters among the builds' teammates; `{}` for none) |
+| `GET /api/accounts/{id}/characters/{key}?build=ID` | signed in or visitor (own) | full analysis of one character (key = catalog key, e.g. `hutao`), its builds in full, and `owned_teammates` (`{key: constellation}`: the account's characters among the builds' teammates; `{}` for none; a Traveler of another element than the account's `null`) |
 | `GET /api/accounts/{id}/imports` | signed in or visitor (own) | import history |
 | `POST /api/imports/showcase` `{game, uid, account_id?}` | signed in or visitor (own); nobody: makes a visitor (JSON only: else 415) | Character Showcase import (10 a minute per person; a visitor's per address, all visitors' 20 together) |
 | `POST /api/imports/file` `{content \| file, game?, account_id?, file_name?}` | signed in or visitor (own); nobody: makes a visitor (JSON only: else 415) | GOOD import - the game is the file's, a `game` sent along is not read (20 a minute per person; a visitor's per address); a person or a visitor may upload `file` as multipart |
@@ -790,13 +792,14 @@ again). The Migrations page's API answers its own: 404 `not_found` (a file that 
 - `shared/`: `build-detail` (renders a build, optionally annotated with an evaluation: its weapons and sets in
   order of rank, main stats, substats - "not listed for this build" with what the analysis goes by when it lists
   none -, talents, stat targets, a target from a constellation marked "C2+", its teams, its notes in the kit's
-  disclosure, when the file that last brought it was made), `build-teams` (a build's teams - each under its name,
-  members two across on a phone and four on a wide page, their roles, a constellation a team asks, the stand-ins'
-  line built from `buildDetail.teamAlternatives` with every text in an element of its own; a teammate with builds a
-  link to them; each team's note titled with its name, `buildDetail.teamNotes`; given the account's
-  `owned_teammates`, the members and stand-ins it has marked "Owned" - a member also "needs C2" - and linked to its
-  own analysis), `item-card`, `grade-badge`, `score-bar`, `char-avatar`
-  (`app-avatar`), `changelog-dialog`,
+  disclosure, when the file that last brought it was made; a set option's pictures two at most, in a column of one
+  width, none for a piece any of several sets fills), `build-teams` (a build's teams - each under its name, members
+  side by side on a phone too, 64 px portraits, names broken between their words, their roles, a constellation a team
+  asks, the stand-ins' line built from `buildDetail.teamAlternatives` with every text in an element of its own; a
+  teammate with builds a link to them; each team's note titled with its name, `buildDetail.teamNotes`; given the
+  account's `owned_teammates`, a check on the members and stand-ins it has - heard "Owned" -, a member also "needs
+  C2", linked to its own analysis where the account has it as it is), `item-card`, `grade-badge`, `score-bar`,
+  `char-avatar` (`app-avatar`: 24, 32, 48, 64 or 88 px - `xs` to `xl`), `changelog-dialog`,
   `stat-pipes` (`statLabel`, `statValue`, `slotLabel`, `timeAgo`), `visitor-notice/` (for somebody not signed
   in: kept for this browser on the server for `visitors.keep_days` days after the last visit, signing in keeps
   it - with a Sign in button), `visitor-hero/` (nobody's ways in: import, each game's builds, sign in),

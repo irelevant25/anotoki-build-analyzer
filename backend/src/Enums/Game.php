@@ -152,6 +152,18 @@ enum Game: string
         };
     }
 
+    /**
+     * Whether a catalog key is the game's one character played in several elements, a row for each (the Travelers,
+     * `traveler{element}` - Providers\GenshinCatalog): an account has it in the element it was imported in, and plays
+     * it in any.
+     */
+    public function isTraveler(string $key): bool
+    {
+        return match ($this) {
+            self::Genshin => preg_match('/^traveler(?:anemo|geo|electro|dendro|hydro|pyro|cryo)$/', $key) === 1,
+        };
+    }
+
     /** The prefix the game writes a weapon's refinement with ("R1"). */
     public function refinementPrefix(): string
     {

@@ -23,7 +23,7 @@ Setting it up, running, testing, building and deploying: **[DEV.md](DEV.md)**.
   Import). The site never fetches a build page, and names no build site anywhere.
 - **Teams for every build**: the teams a build is played in, the best first - what each teammate does in it, a
   constellation the team asks of one, who can stand in -, each teammate with builds of its own a link to them; on
-  your own characters' pages the teammates you already have are marked, and lead to your analysis of them.
+  your own characters' pages the teammates you already have wear a check, and lead to your analysis of them.
 - **The builds browser**: every character with builds, with its roles, and filters - name, element, weapon type,
   rarity, region and the version a character came with ("6.1 (Luna II)") - kept in the page's address.
 - **The game catalog from genshin.anotoki.eu**, the owner's own Genshin Impact site: characters, weapons and

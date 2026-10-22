@@ -27,34 +27,37 @@
 
 .team {
   min-width: 0;
-  padding: 10px 12px;
+  padding: 10px 8px;
   border: 1px solid var(--anotoki-border);
   border-radius: 12px;
 }
 
 .team-name {
-  margin: 0 0 8px;
+  margin: 0 4px 8px;
   font-size: 0.9375rem;
   font-weight: 600;
   overflow-wrap: anywhere;
 }
 
-// Two across on a phone, four on a wide sheet; nothing of a fixed width. Each member as tall as it is: the build's own,
-// set apart, is not drawn to the height of the member beside it.
+// A team side by side, on a phone too: four columns (Game::teamSize()) as wide as a portrait and a little more on a
+// wide sheet, narrower on a phone - nothing of a fixed width. Each member as tall as it is: the build's own, set apart,
+// is not drawn to the height of the member beside it.
 .members {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(136px, 1fr));
+  grid-template-columns: repeat(4, minmax(0, 7.5rem));
   align-items: start;
-  gap: 8px 12px;
+  gap: 8px 4px;
 }
 
 .member {
   display: flex;
   flex-direction: column;
+  align-items: center;
   gap: 4px;
   min-width: 0;
-  padding: 4px 6px;
+  padding: 6px 2px;
   border-radius: 10px;
+  text-align: center;
 }
 
 // The build's own character: set apart without a colour this sheet gives a meaning (green is what the player has).
@@ -62,30 +65,74 @@
   background: var(--anotoki-surface-3);
 }
 
-// The picture over the name: the name has the member's whole width, so a two-word name ("Kaedehara Kazuha") breaks
-// between its words on a phone, not inside one. A member that is a link looks as the kit's links do, as the stand-ins'.
 .member-head {
   display: flex;
   flex-direction: column;
-  align-items: flex-start;
+  align-items: center;
   gap: 6px;
   min-width: 0;
+  max-width: 100%;
 }
 
+.portrait {
+  position: relative;
+  display: inline-block;
+  line-height: 0;
+}
+
+// A teammate the account has: a check in the portrait's corner (and after a stand-in's name), the family's green with
+// the check in the ground's colour - each 3:1 on the other in both themes -, a ring of the ground keeping it off the
+// picture. A screen reader hears "Owned" after the name instead.
+.owned-check {
+  position: absolute;
+  top: -5px;
+  right: -5px;
+  display: grid;
+  place-items: center;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: var(--anotoki-success);
+  color: var(--anotoki-surface);
+  box-shadow: 0 0 0 2px var(--anotoki-surface);
+}
+
+.owned-check.inline {
+  position: static;
+  display: inline-grid;
+  width: 15px;
+  height: 15px;
+  vertical-align: -2px;
+  box-shadow: none;
+}
+
+// Whole words: a name breaks between its words, never inside one ("Kaedehara" over "Kazuha").
 .member-name {
+  font-size: 0.8125rem;
   font-weight: 600;
-  overflow-wrap: anywhere;
+  line-height: 1.3;
+  overflow-wrap: normal;
+  word-break: normal;
 }
 
 .member-facts {
   display: flex;
   flex-wrap: wrap;
+  justify-content: center;
   align-items: center;
-  gap: 4px 6px;
+  gap: 4px;
+}
+
+// "needs C2": the family's warning ink, 4.5:1 on the ground in both themes; a line of its own.
+.member-below {
+  flex-basis: 100%;
+  color: var(--anotoki-warning-text);
+  font-weight: 600;
+  line-height: 1.3;
 }
 
 .alternatives {
-  overflow-wrap: anywhere;
+  line-height: 1.4;
 }
 
 .team-note {

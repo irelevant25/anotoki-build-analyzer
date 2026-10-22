@@ -76,7 +76,7 @@
       <!-- The kit's link card: the character's name first (where it goes), nothing to press inside. -->
       <a anotokiLinkCard class="card" [routerLink]="['/builds', gameKey(), c.key]">
         <div class="card-body">
-          <app-avatar [src]="c.icon_url" [alt]="c.name" [rarity]="c.rarity" [element]="c.element" />
+          <app-avatar [src]="c.icon_url" [alt]="c.name" [rarity]="c.rarity" [element]="c.element" size="lg" />
           <div class="text">
             <div class="name">{{ c.name }}</div>
             <div class="muted small">

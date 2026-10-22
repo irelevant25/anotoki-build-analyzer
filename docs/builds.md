@@ -51,7 +51,7 @@ file's message says `main_dps "Melt" C4+` (`BuildFile::variation()`).
 
 ## Teams (since 0.6.0)
 
-A build lists the teams it is played in, the best first (at most 20; the local tools keep eight): each a name
+A build lists the teams it is played in, the best first (at most 20 - thirteen at most so far): each a name
 ("Vaporize"), its members in the order the team is written, and a note. A member is a character by the catalog's
 key, with its name, the role it plays in the team (one of `Game::roles()`, or null where nobody said), the
 constellation the team asks of it (`min_rank`, 0 for none) and the characters who can take its place
@@ -66,15 +66,19 @@ catalog learns of later shows its picture without an import (weapons store `know
 [decisions.md](decisions.md)).
 
 Where they show (`shared/build-teams`, after the stat targets): each team under its name - the stored English, read
-with `lang="en"` -, its members two across on a phone and four on a wide page, each with its picture, its name, its
+with `lang="en"` -, its members side by side, on a phone too (four columns as wide as a 64 px portrait and a little
+more, narrower on a phone), each with its portrait, its name - broken between its words, never inside one -, its
 role in the reader's language and a constellation the team asks as "C2+" (on the build's own character only where it
 is above the constellation the build needs). The build's own character is set apart and not a link; a teammate
 with builds of its own links to them (`/builds/genshin/{key}`), one the catalog lacks shows the file's name, without
-a picture or a link; the stand-ins follow as "or Yelan / Mona", each a link where it has builds; the note opens in the
+a picture or a link; the stand-ins follow as "or Yelan / Mona", each a link where it has builds; a note opens in the
 kit's disclosure, titled with the team's name ("Notes on Vaporize": a screen reader tells one team's notes from
-another's). On an account's character page the teammates the account has - members and stand-ins - are marked
-"Owned" (a member also "needs C2" where the account's constellation is below the team's) and link to the account's
-own analysis of them (`owned_teammates` in the character's answer: [architecture.md](architecture.md)).
+another's). On an account's character page a teammate the account has - a member or a stand-in - wears a check (on
+the portrait, after a stand-in's name; a screen reader hears "Owned" after the name), a member also "needs C2" where
+the account's constellation is below the team's, and links to the account's own analysis of it (`owned_teammates` in
+the character's answer: [architecture.md](architecture.md)). The Traveler is one character in several elements: the
+account's, in whichever element it was imported, makes every Traveler of the teams its own - checked, its
+constellation there unknown (never "needs"), linked to its builds, as the account has no analysis of it.
 
 ## The builds file (format version 3)
 
@@ -315,10 +319,13 @@ Energy Recharge) and substats (only from the same role); a variation is named on
 about another character are dropped; the teams the sites recommend for a character go with its variation of the
 role it plays in each team (of the constellation the team asks, then the one a team's name speaks of, then the
 first), the best site's first, one of the same members once with the stand-ins of both, named without the
-character's own name, at most eight a build; every text is made neutral; the file is checked with the analyzer's
-own `BuildFile::read()`; an export more than a fifth smaller than the last one is refused; and
-`builds-genshin-<date>.json` is written with a report. The first export (2026-10-20): 192 builds of 127 characters;
-the first with teams (2026-10-22): 809 teams on 147 of 190 builds.
+character's own name, every one (within the 20 a file holds); the sites' notes - a build's, a weapon's, a set
+option's, a team's - and a target's wording are not written (the owner's word of 2026-10-22: a reader could tell
+from them where the builds come from; notes of the site's own are to be written on the site); every text is made
+neutral; the file is checked with the analyzer's own `BuildFile::read()`; an export more than a fifth smaller than
+the last one is refused; and `builds-genshin-<date>.json` is written with a report. The first export (2026-10-20):
+192 builds of 127 characters; the first with teams (2026-10-22): 809 teams on 147 of 190 builds; then without notes
+and with every team: 895 teams.
 
 What a file must be, whatever makes it:
 

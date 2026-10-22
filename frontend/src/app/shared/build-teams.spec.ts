@@ -80,7 +80,11 @@ describe('BuildTeams: the teams a build is played in - its teammates linked, wha
   const text = (selector: string) => [...host.querySelectorAll<HTMLElement>(selector)].map((element) => element.textContent?.replace(/\s+/g, ' ').trim() ?? '');
   const hrefs = (selector: string) => [...host.querySelectorAll<HTMLAnchorElement>(selector)].map((element) => element.getAttribute('href'));
 
-  async function show(language: 'en' | 'sk' | Record<string, string>, teams: BuildTeam[], inputs: { buildMinRank?: number; owned?: Record<string, number>; accountId?: number } = {}): Promise<void> {
+  async function show(
+    language: 'en' | 'sk' | Record<string, string>,
+    teams: BuildTeam[],
+    inputs: { buildMinRank?: number; owned?: Record<string, number | null>; accountId?: number } = {},
+  ): Promise<void> {
     TestBed.configureTestingModule({
       providers: [
         typeof language === 'object'
@@ -118,7 +122,7 @@ describe('BuildTeams: the teams a build is played in - its teammates linked, wha
     expect(text('h3')).toEqual(['Teams']);
     expect(text('.team-name')).toEqual(['Vaporize', 'Melt']);
     expect(text('.team:first-child .member-name')).toEqual(['Hu Tao', 'Kaedehara Kazuha', 'Xingqiu']);
-    expect(text('.team:first-child .member-facts > .small')).toEqual(['Main DPS', 'Support', 'Sub DPS']);
+    expect(text('.team:first-child .member-role')).toEqual(['Main DPS', 'Support', 'Sub DPS']);
     expect(text('.member-rank')).toEqual(['C2+']);
     // Its team's name in the title: one team's notes told from another's, and from the build's own.
     expect(text('.team-note .anotoki-disclosure__button')).toEqual(['Notes on Vaporize']);
@@ -145,21 +149,41 @@ describe('BuildTeams: the teams a build is played in - its teammates linked, wha
     expect(hrefs('.alternatives a')).toEqual(['/builds/genshin/sucrose']);
   });
 
-  it('on a player\'s own page: "Owned" on a teammate the account has - a member or one who can stand in -, "needs C2" below the constellation the team asks, a link to the player\'s own analysis of it', async () => {
+  it('on a player\'s own page: a check on a teammate the account has - a member or one who can stand in -, heard "Owned"; "needs C2" below the constellation the team asks; a link to the player\'s own analysis of it', async () => {
     await show('en', [vaporize()], { owned: { kaedeharakazuha: 1, traveleranemo: 0 }, accountId: 3 });
 
-    expect(text('.member-owned')).toEqual(['Owned']);
+    // The check on Kazuha's portrait, hidden from a screen reader, which hears "Owned" after his name instead.
+    const checked = [...host.querySelectorAll('.member')].map((member) => member.querySelector('.portrait .owned-check') !== null);
+    expect(checked).toEqual([false, true, false]);
+    expect(host.querySelector('.portrait .owned-check')?.getAttribute('aria-hidden')).toBe('true');
+    expect(text('.member-head .visually-hidden')).toEqual(['Owned']);
+    expect(host.querySelector('anotoki-badge.member-owned')).toBeNull();
     expect(text('.member-below')).toEqual(['needs C2']);
     expect(hrefs('a.member-name')).toEqual(['/accounts/3/characters/kaedeharakazuha']);
     expect(hrefs('.alternatives a')).toEqual(['/accounts/3/characters/traveleranemo', '/builds/genshin/sucrose']);
-    // The stand-in the account has marked too - a blank of its own before the mark, so the words never run together.
+    // The stand-in the account has checked too - a blank of its own before the check, so the words never run together.
     expect(host.querySelector('.alternatives')?.textContent).toBe('or Traveler (Anemo) Owned / Sucrose');
-    expect(text('.alternatives .alternative-owned')).toEqual(['Owned']);
+    expect(host.querySelectorAll('.alternatives .owned-check')).toHaveLength(1);
 
     TestBed.resetTestingModule();
     await show('en', [vaporize()], { owned: { kaedeharakazuha: 2 }, accountId: 3 });
-    expect(text('.member-owned')).toEqual(['Owned']);
+    expect(host.querySelectorAll('.portrait .owned-check')).toHaveLength(1);
     expect(text('.member-below')).toEqual([]);
+  });
+
+  it('a Traveler of another element than the account\'s: checked, its constellation unknown - never "needs" -, a link to its builds, as the account has no analysis of it', async () => {
+    const geo = vaporize({
+      name: 'Geo',
+      members: [member('hutao', 'Hu Tao', { own: true }), member('travelergeo', 'Traveler (Geo)', { min_rank: 6, has_builds: true })],
+      note: null,
+    });
+    await show('en', [geo], { owned: { travelergeo: null }, accountId: 3 });
+
+    expect(host.querySelectorAll('.portrait .owned-check')).toHaveLength(1);
+    expect(text('.member-head .visually-hidden')).toEqual(['Owned']);
+    expect(text('.member-rank')).toEqual(['C6+']);
+    expect(text('.member-below')).toEqual([]);
+    expect(hrefs('a.member-name')).toEqual(['/builds/genshin/travelergeo']);
   });
 
   it("marks the build's own member with the constellation a team asks only above what the build itself needs", async () => {
@@ -176,10 +200,10 @@ describe('BuildTeams: the teams a build is played in - its teammates linked, wha
     await show('sk', [vaporize()], { owned: { kaedeharakazuha: 1 }, accountId: 3 });
 
     expect(text('h3')).toEqual(['Tímy']);
-    expect(text('.team:first-child .member-facts > .small')).toEqual(['Hlavný DPS', 'Podpora', 'Vedľajší DPS']);
+    expect(text('.team:first-child .member-role')).toEqual(['Hlavný DPS', 'Podpora', 'Vedľajší DPS']);
     expect(text('.alternatives')).toEqual(['alebo Traveler (Anemo) / Sucrose']);
     expect(text('.team-note .anotoki-disclosure__button')).toEqual(['Poznámky k tímu Vaporize']);
-    expect(text('.member-owned')).toEqual(['Máš']);
+    expect(text('.member-head .visually-hidden')).toEqual(['Máš']);
     expect(text('.member-below')).toEqual(['potrebuje C2']);
     expect(host.querySelector('.team-name')?.getAttribute('lang')).toBe('en');
     expect(warn).not.toHaveBeenCalled();

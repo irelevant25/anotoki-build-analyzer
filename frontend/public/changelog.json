@@ -1,5 +1,18 @@
 [
   {
+    "version": "0.6.1",
+    "date": "2026-10-22",
+    "changes": {
+      "updated": [
+        "A build's teams sit side by side on a phone too, with bigger portraits - and a build shows every team recommended for it",
+        "On your own characters' pages, a teammate you have wears a check on its portrait",
+        "A Traveler you have counts as yours in every element",
+        "Bigger portraits in the list of characters with builds",
+        "Artifact sets read more clearly: an option that any of several sets can fill no longer shows letters in place of a picture"
+      ]
+    }
+  },
+  {
     "version": "0.6.0",
     "date": "2026-10-22",
     "changes": {

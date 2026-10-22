@@ -68,8 +68,8 @@ final class BuildFile
 
     private const MAX_TARGETS = 30;
 
-    /** A build's teams: the sites list a few; the local tools keep eight at most. */
-    private const MAX_TEAMS = 20;
+    /** A build's teams: the sites list a few - thirteen at most so far (2026-10-22); more makes a file absurd. */
+    public const MAX_TEAMS = 20;
 
     /** A team's name: a few words ("Vaporize", "Hyperbloom Aggravate"), one line. */
     public const MAX_TEAM_NAME = 60;

@@ -403,7 +403,17 @@ test('a build\'s teams on the account\'s character page: each teammate as the ca
         ],
         'note' => 'Swirl the Pyro onto the rain.',
     ];
-    db()->run('UPDATE builds SET teams = ? WHERE id = ?', [Json::encode([$team]), $state->build]);
+    // A second team with Traveler (Geo): the account's Traveler is Anemo, and the Traveler is one character in every
+    // element - Geo too is the account's, its constellation unknown.
+    $geo = [
+        'name' => 'Geo',
+        'members' => [
+            ['key' => 'hutao', 'name' => 'Hu Tao', 'role' => 'main_dps', 'min_rank' => 0, 'alternatives' => []],
+            ['key' => 'travelergeo', 'name' => 'Traveler (Geo)', 'role' => 'support', 'min_rank' => 0, 'alternatives' => []],
+        ],
+        'note' => null,
+    ];
+    db()->run('UPDATE builds SET teams = ? WHERE id = ?', [Json::encode([$team, $geo]), $state->build]);
     // Kazuha has builds of his own; the account has him at C1 and the Traveler (Anemo) who can take his place.
     $kazuha = idOf('game_characters', 'kaedeharakazuha');
     seedBuild($kazuha, ['role' => 'support', 'content_hash' => 'y']);
@@ -412,7 +422,11 @@ test('a build\'s teams on the account\'s character page: each teammate as the ca
 
     $client = (new Client())->asIam(1);
     $answer = $client->get("/api/accounts/{$state->account}/characters/hutao")->status(200);
-    same(['kaedeharakazuha' => 1, 'traveleranemo' => 0], $answer->json('owned_teammates'), 'the teammates the account has - a stand-in too -, each with its constellation; Hu Tao herself left out');
+    same(
+        ['kaedeharakazuha' => 1, 'traveleranemo' => 0, 'travelergeo' => null],
+        $answer->json('owned_teammates'),
+        'the teammates the account has - a stand-in too -, each with its constellation; Hu Tao herself left out; the Traveler in another element the account\'s too, its constellation unknown',
+    );
 
     [$own, $kazuhaMember, $xingqiu] = $answer->json('builds.0.teams.0.members');
     same(['Vaporize', 'Swirl the Pyro onto the rain.'], [$answer->json('builds.0.teams.0.name'), $answer->json('builds.0.teams.0.note')], 'the team\'s name and note');
@@ -454,7 +468,7 @@ test('a build\'s teams on the account\'s character page: each teammate as the ca
         db()->insert('account_characters', ['account_id' => $elsewhere, 'game_character_id' => $xingqiuId, 'level' => 90, 'rank' => 6, 'source' => 'good']);
     }
     same(
-        ['kaedeharakazuha' => 1, 'traveleranemo' => 0],
+        ['kaedeharakazuha' => 1, 'traveleranemo' => 0, 'travelergeo' => null],
         $client
             ->get("/api/accounts/{$state->account}/characters/hutao")
             ->status(200)
@@ -462,7 +476,7 @@ test('a build\'s teams on the account\'s character page: each teammate as the ca
         'Xingqiu held elsewhere: not this account\'s',
     );
 
-    // An account with none of the teammates: an object still, empty.
+    // An account with none of the teammates - no Traveler of any element either: an object still, empty.
     db()->run('DELETE FROM account_characters WHERE account_id = ? AND game_character_id <> ?', [$state->account, $state->character]);
     check(str_contains($client->get("/api/accounts/{$state->account}/characters/hutao")->status(200)->body, '"owned_teammates":{}'), 'none: {}');
 });

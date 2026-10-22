@@ -155,6 +155,16 @@ final class Accounts
         return $ranks;
     }
 
+    /**
+     * The keys of the account's characters. The account is one the caller found as its owner's (findOwned()).
+     *
+     * @return list<string>
+     */
+    public function characterKeys(int $accountId): array
+    {
+        return array_map('strval', $this->db->column('SELECT c.key FROM account_characters ac JOIN game_characters c ON c.id = ac.game_character_id WHERE ac.account_id = ?', [$accountId]));
+    }
+
     public function characterRow(int $accountId, int $gameCharacterId): ?array
     {
         return $this->db->one('SELECT * FROM account_characters WHERE account_id = ? AND game_character_id = ?', [$accountId, $gameCharacterId]);

@@ -44,8 +44,10 @@
         @for (option of group.options; track $index) {
           <li [class.matched]="group.matchedRank === $index + 1">
             <span class="rank">{{ $index + 1 }}</span>
-            <div class="set-icons">
-              @for (piece of option.pieces; track $index) {
+            <!-- The pictures of the option's sets, two at most, in a column of one width for every option: a piece any of
+                 several sets fills has none (its words below say which) - initials of its label would read as nothing. -->
+            <div class="set-icons" aria-hidden="true">
+              @for (piece of setPictures(option); track $index) {
                 <app-avatar [src]="piece.icon_url" [alt]="piece.label" size="xs" />
               }
             </div>

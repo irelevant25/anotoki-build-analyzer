@@ -3,6 +3,25 @@
 Short records of choices that shape the code. Add a new entry (newest first) when you make a similar call.
 Older entries describe the Laravel version as it was; where a setting has since moved, the entry says so.
 
+**2026-10-22 — Version 0.6.1: the owner's look at 0.6.0 (no notes from the sites, every team, a check for "Owned").**
+The owner's round on what 0.6.0 put live, each point the owner's word:
+- **The sites' notes are not shown - not even sent.** A build's notes, a weapon's, a set option's and a team's note,
+  and a target's wording are the sites' own sentences, from which a reader could tell where the builds come from. The
+  local tools no longer write them into the builds file (their `export.notes`, off), so an import clears them from
+  the site; the site keeps showing notes when a file has some, for the ones the owner will write on the site (the
+  editor still to come). A target keeps its numbers, which say all it needs.
+- **No cap on teams.** The local tools kept eight a build, which dropped the second site's teams of a few characters;
+  now every one goes (thirteen at most so far), within the 20 a builds file holds.
+- **"Owned" is a check on the portrait**, the owner's choice of two (the other: the teammates the player lacks
+  greyed out). A screen reader hears "Owned" after the name; "needs C2" stays as it was.
+- **The Traveler counts in every element.** An account has the Traveler in the element it was imported in, but a
+  player switches it at will: having one Traveler makes every Traveler of the teams the player's - its constellation
+  there unknown, so never "needs", and linked to its builds, as the account has no analysis of it (`owned_teammates`
+  null; `Game::isTraveler()`).
+- **A team side by side on a phone too**, 64 px portraits, names broken between their words; 64 px portraits in the
+  builds list; a set option's pictures in a column of one width, none for a piece any of several sets fills (its
+  label's initials read as nothing).
+
 **2026-10-22 — Version 0.6.0: a build's teams, in the builds file (the owner's request).**
 Each build said what to wear, not whom to play it with; the owner asked for the recommended teams per build, and for
 the teammates a player already has to be marked on their own character pages (the owner's answer of 2026-10-22).

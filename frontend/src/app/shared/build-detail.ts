@@ -10,7 +10,7 @@ import { TranslatePluralPipe } from '../core/i18n/translate-plural';
 import { TranslationService } from '../core/i18n/translation';
 import { rankMark } from '../core/i18n/variation-words';
 import { MetaStore } from '../core/meta-store';
-import { Build, Evaluation, GameKey, SetOption, StatPriority, TalentPriority } from '../core/models';
+import { Build, Evaluation, GameKey, SetOption, SetPiece, StatPriority, TalentPriority } from '../core/models';
 import { BUILD_TERMS } from './build-terms';
 import { BuildTeams } from './build-teams';
 import { Avatar } from './char-avatar';
@@ -51,7 +51,7 @@ export class BuildDetail {
   /** Character element, used to show "Elemental DMG" as e.g. "Pyro DMG". */
   readonly element = input<string | null>(null);
   /** On a player's own character page: the teams' teammates the account has, with each one's constellation (BuildTeams). */
-  readonly ownedTeammates = input<Record<string, number> | null>(null);
+  readonly ownedTeammates = input<Record<string, number | null> | null>(null);
   readonly accountId = input<number | null>(null);
 
   protected readonly gameMeta = computed(() => this.meta.game(this.game()));
@@ -111,6 +111,11 @@ export class BuildDetail {
   /** "C1+" on a target that holds from a constellation; none on one from the start. */
   protected targetRank(fromRank: number | undefined): string | null {
     return rankMark(this.gameMeta()?.rank_prefix ?? this.terms().rankPrefix, fromRank ?? 0);
+  }
+
+  /** The pieces that are one set each - the ones with a picture -, the first two. */
+  protected setPictures(option: SetOption): SetPiece[] {
+    return option.pieces.filter((piece) => piece.keys.length === 1).slice(0, 2);
   }
 
   /** "4pc A + 2pc B": the game's notation, the same in every language. */

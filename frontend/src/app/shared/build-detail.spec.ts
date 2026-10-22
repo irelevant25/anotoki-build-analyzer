@@ -188,6 +188,8 @@ describe('BuildDetail: a recommended build in the reader’s words, the game’s
     expect(text('.w-name .small')).toEqual(['R1']);
     expect(text('.sets .w-text > div:first-child')).toEqual(['4pc Crimson Witch of Flames', '2pc Alpha + 2pc Beta + 2pc ATK +18% set (any 2)']);
     expect(text('.sets .w-text > .small:not(.note)')).toEqual(['ATK +18% set: 2 sets qualify']);
+    // A picture a set: none for the piece any of several sets fills (no initials of its label), two at most.
+    expect([...host.querySelectorAll('.sets li')].map((option) => option.querySelectorAll('.set-icons app-avatar').length)).toEqual([1, 2]);
     expect(text('.sets anotoki-badge')).toEqual(['In use']);
     expect(text('.stat-row anotoki-badge')).toEqual(['HP%', 'Pyro DMG Bonus']);
     expect(tooltips('.check')).toEqual(['Yours: ATK%', 'Your main stat matches']);

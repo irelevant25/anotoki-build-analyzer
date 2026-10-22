@@ -14,7 +14,8 @@ export class Avatar {
   readonly alt = input('');
   readonly rarity = input<number | null | undefined>(null);
   readonly element = input<string | null | undefined>(null);
-  readonly size = input<'xs' | 'sm' | 'md' | 'lg'>('md');
+  /** 24, 32, 48, 64 or 88 pixels across. */
+  readonly size = input<'xs' | 'sm' | 'md' | 'lg' | 'xl'>('md');
 
   protected broken = false;
 

@@ -568,7 +568,7 @@ export interface CharacterAnalysis {
   has_full_inventory: boolean;
   builds: Build[];
   /** Which of the builds' teammates the account has, by key, with each one's constellation (the character itself left out). */
-  owned_teammates: Record<string, number>;
+  owned_teammates: Record<string, number | null>;
 }
 
 // ------------------------------------------------------------------ the admin panel's Builds page

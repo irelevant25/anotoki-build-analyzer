@@ -1,6 +1,6 @@
 ---
 name: deploy-builder
-description: Build the build analyzer for the FTP-only hosting and ship it to builder.anotoki.eu with anotoki-deploy - a release of frontend/ and backend/, swapped in whole, a rollback, the setup page on a first install, a new migration's Apply, the catalog's refresh and the builds file's import after it, version 0.5.0's one-time steps (genshin.anotoki.eu first, the names file, Apply 014-019) and 0.6.0's (Apply 020-021, then a version 3 builds file - the teams - before the next builds refresh). Use when the user asks to deploy, release, upload or publish the build analyzer, roll a release back, or asks what a new version needs on the hosting.
+description: Build the build analyzer for the FTP-only hosting and ship it to builder.anotoki.eu with anotoki-deploy - a release of frontend/ and backend/, swapped in whole, a rollback, the setup page on a first install, a new migration's Apply, the catalog's refresh and the builds file's import after it, version 0.5.0's one-time steps (genshin.anotoki.eu first, the names file, Apply 014-019), 0.6.0's (Apply 020-021, then a version 3 builds file - the teams - before the next builds refresh) and 0.6.1's (no migration; the builds file without the sites' notes). Use when the user asks to deploy, release, upload or publish the build analyzer, roll a release back, or asks what a new version needs on the hosting.
 ---
 
 # Deploy the build analyzer
@@ -132,3 +132,11 @@ version reads no other, so it goes up before the next builds file:
 
 The backups made before the Apply are restored offline only, as after every
 Apply (`409 schema_differs`).
+
+## 7. Deploying 0.6.1
+
+No migration, so nothing waits after the swap: the release (section 2), then
+the builds file the local tools wrote without the sites' notes and with every
+team (the second export of 2026-10-22) imported on `/admin/builds` - its dry
+run 183 updated, 7 unchanged, none new or removed (docs/operations.md,
+"Deploying 0.6.1").

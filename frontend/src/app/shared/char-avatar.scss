@@ -18,6 +18,10 @@
   border-radius: 10px;
 }
 .avatar.lg {
+  --dim: 64px;
+  border-radius: 17px;
+}
+.avatar.xl {
   --dim: 88px;
   border-radius: 20px;
 }
