@@ -2,7 +2,7 @@ import { HttpErrorResponse } from '@angular/common/http';
 import { Type, signal } from '@angular/core';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { Router, provideRouter } from '@angular/router';
-import { Observable, of, throwError } from 'rxjs';
+import { Observable, Subject, of, throwError } from 'rxjs';
 import { provideTestTranslations } from '@anotoki/lib/translations/testing';
 import { Api } from '../../core/api';
 import { AuthService } from '../../core/auth';
@@ -103,6 +103,7 @@ function builds(count: number): CharacterBuilds {
       substats: [],
       talent_priority: null,
       stat_targets: null,
+      teams: [],
       notes: null,
       game_version: null,
       checked_at: null,
@@ -324,6 +325,25 @@ describe('the builds pages: the list of characters and one character’s builds'
     await fixture.whenStable();
     expect(tabs.map((tab) => tab.getAttribute('aria-selected'))).toEqual(['false', 'true']);
     expect(host.querySelector('[role="tabpanel"]')?.getAttribute('aria-labelledby')).toBe(tabs[1].id);
+  });
+
+  it('shows the character its address names: a late answer for the one before never stands for it', async () => {
+    // A teammate's link leads from one character to the next on this same page: Hu Tao's answer, still on its way when
+    // Kazuha is asked for, arrives after his.
+    const answers: Record<string, Subject<CharacterBuilds>> = { hutao: new Subject(), kaedeharakazuha: new Subject() };
+    const fixture = await open(BuildCharacterPage, 'en', { characterBuilds: (...asked: unknown[]) => answers[String(asked[1])] }, { game: 'genshin', key: 'hutao' });
+    fixture.componentRef.setInput('key', 'kaedeharakazuha');
+    await fixture.whenStable();
+
+    const kazuha = builds(1);
+    kazuha.character = { ...kazuha.character, key: 'kaedeharakazuha', name: 'Kaedehara Kazuha', element: 'anemo', weapon_type: 'sword' };
+    answers['kaedeharakazuha'].next(kazuha);
+    answers['hutao'].next(builds(2));
+    await fixture.whenStable();
+
+    expect(text('h1')).toEqual(['Kaedehara Kazuha']);
+    expect(text('.hero .muted')).toEqual(['Anemo · Sword · 1 build']);
+    expect(answers['hutao'].observed).toBe(false);
   });
 
   it('words a character that is not there from the answer’s code, never with the server’s sentence', async () => {

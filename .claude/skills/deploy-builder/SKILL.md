@@ -1,6 +1,6 @@
 ---
 name: deploy-builder
-description: Build the build analyzer for the FTP-only hosting and ship it to builder.anotoki.eu with anotoki-deploy - a release of frontend/ and backend/, swapped in whole, a rollback, the setup page on a first install, a new migration's Apply, the catalog's refresh and the builds file's import after it, and version 0.5.0's one-time steps (genshin.anotoki.eu first, the names file, Apply 014-019). Use when the user asks to deploy, release, upload or publish the build analyzer, roll a release back, or asks what a new version needs on the hosting.
+description: Build the build analyzer for the FTP-only hosting and ship it to builder.anotoki.eu with anotoki-deploy - a release of frontend/ and backend/, swapped in whole, a rollback, the setup page on a first install, a new migration's Apply, the catalog's refresh and the builds file's import after it, version 0.5.0's one-time steps (genshin.anotoki.eu first, the names file, Apply 014-019) and 0.6.0's (Apply 020-021, then a version 3 builds file - the teams - before the next builds refresh). Use when the user asks to deploy, release, upload or publish the build analyzer, roll a release back, or asks what a new version needs on the hosting.
 ---
 
 # Deploy the build analyzer
@@ -110,3 +110,25 @@ Rail and the old builds tables: read them offline only
 (`php backup.php --inspect`, `--extract`), never restore one on the site (it
 would bring back what 014-016 removed). After the Apply, `rollback` is not
 clean (section 3).
+
+## 6. Deploying 0.6.0
+
+Version 0.6.0 - every build with the teams it is played in (docs/decisions.md,
+2026-10-22; docs/operations.md, "Deploying 0.6.0"). The builds file becomes
+format version 3: the owner's local tools write no other from now on, and this
+version reads no other, so it goes up before the next builds file:
+
+1. **The builds file ready**: a version 3 `builds-genshin-<date>.json` from
+   the local tools; the version 2 files are refused from now on.
+2. **The release** (section 2).
+3. **Apply 020-021 at once**: `builds.teams` (NULL for every build: none
+   changes) and the teams' two words, after the Apply's backup.
+4. **Import the builds file** on `/admin/builds`: the dry run's preview says
+   "with N teams" and updates only the builds that gained teams (the
+   2026-10-22 file: 147 updated, 43 unchanged, none new or removed), with no
+   teammate the catalog lacks; then **Import**.
+5. **Check**: `/builds/genshin/hutao` lists each build's teams; on an
+   account's character page the teammates it has are marked "Owned".
+
+The backups made before the Apply are restored offline only, as after every
+Apply (`409 schema_differs`).

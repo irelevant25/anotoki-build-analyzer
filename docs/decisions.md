@@ -3,6 +3,33 @@
 Short records of choices that shape the code. Add a new entry (newest first) when you make a similar call.
 Older entries describe the Laravel version as it was; where a setting has since moved, the entry says so.
 
+**2026-10-22 — Version 0.6.0: a build's teams, in the builds file (the owner's request).**
+Each build said what to wear, not whom to play it with; the owner asked for the recommended teams per build, and for
+the teammates a player already has to be marked on their own character pages (the owner's answer of 2026-10-22).
+How: the teams come in the builds file like everything else of a build - **format version 3**, a version 2 file
+refused with its own sentence (the rule since version 1: a change of meaning is a new version) - as a list per build
+of `{name, members, note}`, a member `{key, name, role, min_rank, alternatives}`. The reader holds a team to what a
+team is: the build's own character among 2-4 members, exactly once and with no stand-in (the team is the build's),
+every member once, no stand-in a member, no two teams of a build with the same members; at most 20 a build, 5
+stand-ins a member, a name of one line and 60 characters. Three choices worth keeping:
+- **What the catalog says of a teammate is never stored.** Whether the catalog has it, its picture, rarity and
+  element, and whether it has builds are looked up when a build is shown (`BuildPresenter`, one query each per
+  answer): a teammate the catalog learns of later shows up at once, with no import, and no build's hash moves when
+  the catalog changes. Weapons store `known`, as they did; teams deliberately do not. A teammate the catalog lacks
+  skips no build: it is kept, shown by the file's name, and the import names it.
+- **A build without teams hashes as it did** (`BuildImport::content()` adds the teams last, only when there are
+  some), so the first version 3 file updated only the builds that gained teams (147 of 190), and their "changed"
+  dates alone moved.
+- **The marks are the account page's.** "Owned" (on a member, and on a stand-in - the team may be playable with the
+  stand-in the player has instead), "needs C2" (on a member) and the link to the player's own analysis appear on an
+  account's character page only (`owned_teammates`, from the account the route already found as its owner's); the
+  public builds pages show the teams as everybody's. No new table, no new route.
+Where the teams come from is the local tools' affair (docs/builds.md, "The local tools"): the teams the build sites
+recommend for a character go with its variation of the role the character plays in the team, the best site's first,
+one of the same members once with the stand-ins of both, at most eight a build. Order of release: once the code was
+version 3 the tools wrote version 3 files only, so 0.6.0 goes live before the next builds file (docs/operations.md,
+"Deploying 0.6.0").
+
 **2026-10-20 — Version 0.5.0, released once, at the end (the owner's decision).**
 Star Rail's removal, the builds without sources, the catalog from genshin.anotoki.eu and the builds browser's filters
 (the entries below) are one release, built phase by phase on this computer and deployed only once all of it was done:

@@ -32,6 +32,7 @@ import {
   momentText,
   planSummary,
   skippedHeading,
+  unknownTeammates,
 } from './build-file';
 
 /** The catalog's lists, refreshed one after another in this order - one request each. */
@@ -305,6 +306,10 @@ export class AdminBuildsPage {
 
   protected skippedHeading(plan: BuildImportPlan): string {
     return skippedHeading(plan);
+  }
+
+  protected unknownTeammates(plan: BuildImportPlan): string | null {
+    return unknownTeammates(plan);
   }
 
   protected count(value: number, noun: string): string {

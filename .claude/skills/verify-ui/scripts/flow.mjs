@@ -124,12 +124,19 @@ const PIA = { id: 12, username: 'pia', roles: ['MEMBER'], locale: 'en', preferen
 /** Signed in at the IAM (on another anotoki site), never here: the sign-in hint signs her in. */
 const HANA = { id: 13, username: 'hana', roles: ['MEMBER'] };
 
-/** A GOOD file (the tests' own sample): one Genshin account, no UID. */
+/**
+ * A GOOD file (the tests' own sample): one Genshin account, no UID - Hu Tao; Kazuha at C0, whom her main build's team
+ * (tests/tools/browser-db.php) asks at C2; and Traveler (Anemo), who can stand in for him there.
+ */
 const GOOD = JSON.stringify({
   format: 'GOOD',
   version: 3,
   source: 'Some Exporter',
-  characters: [{ key: 'HuTao', level: 90, constellation: 1, ascension: 6, talent: { auto: 10, skill: 9, burst: 8 } }],
+  characters: [
+    { key: 'HuTao', level: 90, constellation: 1, ascension: 6, talent: { auto: 10, skill: 9, burst: 8 } },
+    { key: 'KaedeharaKazuha', level: 90, constellation: 0, ascension: 6, talent: { auto: 1, skill: 9, burst: 9 } },
+    { key: 'TravelerAnemo', level: 70, constellation: 0, ascension: 5, talent: { auto: 1, skill: 6, burst: 6 } },
+  ],
   weapons: [{ key: 'StaffOfHoma', level: 90, ascension: 6, refinement: 1, location: 'HuTao', lock: true }],
   artifacts: [
     {
@@ -815,23 +822,35 @@ try {
       const builds = JSON.parse(readFileSync(saved, 'utf8'));
       check(
         builds.format === 'build-analyzer.builds' &&
-          builds.format_version === 2 &&
+          builds.format_version === 3 &&
           builds.game === 'genshin' &&
           builds.builds.map((build) => `${build.character} ${build.role} C${build.min_rank}`).join('|') === 'hutao main_dps C0|hutao sub_dps C2|kaedeharakazuha support C0',
         `the file: Hu Tao's two builds and Kazuha's one as variations (${builds.builds.map((build) => `${build.role} C${build.min_rank}`).join(', ')})`,
+      );
+      const teams = builds.builds.map((build) => build.teams.map((team) => `${team.name}: ${team.members.map((member) => `${member.key} C${member.min_rank}`).join(' ')}`).join(', '));
+      check(
+        teams.join('|') === 'Vaporize: hutao C0 kaedeharakazuha C2 xingqiu C6||' &&
+          builds.builds[0].teams[0].members[1].alternatives.map((alternative) => alternative.key).join('|') === 'traveleranemo',
+        `the main build's team in it, Kazuha's stand-in too; the other two none (${teams.join(' | ')})`,
       );
       check(!/"(id|source|variant)"\s*:/.test(readFileSync(saved, 'utf8')), 'no id, no source, no variant in it');
 
       await ed.setInputFiles('section.game .builds input[type=file]', saved);
       await ed.waitForSelector('section.game .preview', { timeout: 15000 });
       const summary = (await ed.locator('section.game .preview .summary').innerText()).trim();
-      check(summary.endsWith('0 new, 0 updated, 3 unchanged, 0 removed.'), `the preview: ${summary}`);
+      check(summary.includes(', with 1 team, ') && summary.endsWith('0 new, 0 updated, 3 unchanged, 0 removed.'), `the preview: ${summary}`);
       check((await ed.locator('section.game .preview .no-changes').count()) === 1, 'it says nothing changes');
+      const strangers = (await ed.locator('section.game .preview .teammates-unknown').allInnerTexts()).join(' ');
+      check(strangers.endsWith(': Xingqiu.'), `the teammate the catalog lacks, named - no build skipped for him: ${strangers}`);
       await shot(ed, '25-admin-builds-preview-1280-light', { fullPage: true });
       await ed.click('section.game .preview button.confirm');
       await ed.waitForSelector('section.game .preview', { state: 'detached', timeout: 15000 });
       const recorded = sql('SELECT imported_by, summary FROM build_imports ORDER BY id DESC LIMIT 1')[0];
       check(recorded?.imported_by === EDDIE.id && JSON.parse(recorded.summary).unchanged === 3, `recorded, by the editor: ${JSON.stringify(recorded)}`);
+      // The teammate the catalog lacks asks for no refresh here (the check's database has the lists refreshed a moment
+      // ago): the catalog is the three characters the check began with, nothing asked of its provider.
+      const catalog = sql('SELECT count(*) AS n FROM game_characters')[0].n;
+      check(catalog == 3, `the catalog as the check's database made it, its provider never asked (${catalog} characters)`);
       const lines = await ed.locator('section.game .imports .import-list li').allInnerTexts();
       check(lines.length === 2 && lines[0].includes('by eddie'), `the recent imports, the newest first (${lines.map((line) => line.replace(/\s+/g, ' ')).join(' | ')})`);
 
@@ -1688,6 +1707,21 @@ try {
             return { value: mark.closest('[role=radio]')?.getAttribute('data-value'), lowest: Math.min(...grounds.map((ground) => ratio(colour, ground))) };
           });
         }, selector);
+      /** The teams of the build shown: their heading, each team's name, each member's name, link, marks and stand-ins. */
+      const teamShown = (page) =>
+        page.evaluate(() => ({
+          heading: document.querySelector('app-build-teams h3')?.textContent?.trim() ?? null,
+          names: [...document.querySelectorAll('app-build-teams .team-name')].map((name) => name.textContent.trim()),
+          members: [...document.querySelectorAll('app-build-teams .team:first-child .member')].map((member) => ({
+            name: member.querySelector('.member-name')?.textContent?.trim() ?? null,
+            href: member.querySelector('a.member-name')?.getAttribute('href') ?? null,
+            marks: [...member.querySelectorAll('.member-facts anotoki-badge')].map((badge) => badge.textContent.trim()),
+            // As written: the template adds no blank of its own beside the words.
+            alternatives: member.querySelector('.alternatives')?.textContent ?? null,
+            standIns: [...member.querySelectorAll('.alternatives a')].map((link) => link.getAttribute('href')),
+            standInMarks: [...member.querySelectorAll('.alternatives anotoki-badge')].map((badge) => badge.textContent.trim()),
+          })),
+        }));
 
       for (const [language, scheme, width] of [
         ['en', 'light', 1280],
@@ -1772,8 +1806,44 @@ try {
         const targetMarks = await page.locator('.build-card .t-rank').allInnerTexts();
         check(targetMarks.join('|') === 'C1+', `the character, ${label}: the stat target of her constellation, marked C1+ (${targetMarks.join(', ')})`);
         check((await page.locator('app-score-bar [role=progressbar]').count()) === 5, `the character, ${label}: the five score bars, the kit's progress bars`);
+        // The main build's team (tests/tools/browser-db.php): Hu Tao herself, no link; Kazuha, whom the account has below
+        // the C2 the team asks - marked so, and a link to the account's own analysis of him -, and Traveler (Anemo), his
+        // stand-in, whom it has too - marked, a link to its analysis of her; Xingqiu, whom the catalog does not know, by
+        // the file's name alone.
+        const teamWords =
+          language === 'sk'
+            ? { heading: 'Tímy', marks: 'C2+|Máš|potrebuje C2', or: 'alebo Traveler (Anemo)', owned: 'Máš' }
+            : { heading: 'Teams', marks: 'C2+|Owned|needs C2', or: 'or Traveler (Anemo)', owned: 'Owned' };
+        const team = await teamShown(page);
+        check(
+          team.heading === teamWords.heading &&
+            team.names.join('|') === 'Vaporize' &&
+            team.members.map((member) => member.name).join('|') === 'Hu Tao|Kaedehara Kazuha|Xingqiu' &&
+            team.members.map((member) => member.href ?? '-').join('|') === `-|/accounts/${monaAccount}/characters/kaedeharakazuha|-` &&
+            team.members[1].marks.join('|') === teamWords.marks &&
+            team.members[1].alternatives === `${teamWords.or} ${teamWords.owned}` &&
+            team.members[1].standIns.join('|') === `/accounts/${monaAccount}/characters/traveleranemo` &&
+            team.members[1].standInMarks.join('|') === teamWords.owned &&
+            team.members[2].marks.join('|') === 'C6+',
+          `the character, ${label}: the main build's team - Kazuha hers below the C2 it asks, a link to her analysis of him, Traveler (Anemo) his stand-in, hers too; Xingqiu by his name alone (${JSON.stringify(team)})`,
+        );
         await fits('the character');
         await shot(page, `24-kit-character-${language}-${width}-${scheme}`, { fullPage: true });
+
+        // The same team on the builds' own page, which is anybody's: nothing marked as anybody's, Kazuha a link to his builds.
+        await open(page, `/builds/genshin/hutao?lang=${language}`);
+        await page.waitForSelector('app-build-teams .member', { timeout: 15000 });
+        const publicTeam = await teamShown(page);
+        check(
+          publicTeam.heading === teamWords.heading &&
+            publicTeam.members.map((member) => member.href ?? '-').join('|') === '-|/builds/genshin/kaedeharakazuha|-' &&
+            publicTeam.members[1].marks.join('|') === 'C2+' &&
+            publicTeam.members[1].alternatives === teamWords.or &&
+            publicTeam.members[1].standIns.length === 0,
+          `the builds' page, ${label}: the team, nothing marked as anybody's, Kazuha a link to his builds (${JSON.stringify(publicTeam)})`,
+        );
+        await fits("the builds' page");
+        await shot(page, `24-kit-build-page-${language}-${width}-${scheme}`, { fullPage: true });
 
         // The import guide: the kit's stepper, the way in done and a way back to it; the trouble list in the kit's
         // disclosure; in English on to the file's step and its paste box, in the kit's disclosure too.

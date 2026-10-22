@@ -342,11 +342,15 @@ format and what the tools must deliver: [builds.md](builds.md).
   character has two builds of one role ("Melt"; at most 40 characters, one line), and the constellation it needs
   (`min_rank`, 0-6); a stat target may start from a constellation. (character, role, qualifier without regard to
   case, constellation) is its identity. The analysis follows the player's constellation: a build their character
-  has not reached shows a lock and "needs C4", and is never their best.
-- **Import a file** checks the file in the browser first (JSON, the format and its version 2, the game, at most
+  has not reached shows a lock and "needs C4", and is never their best. Since 0.6.0 a build also lists the teams
+  it is played in, the best first: each teammate's role in the team, a constellation the team asks of one, and who
+  can stand in.
+- **Import a file** checks the file in the browser first (JSON, the format and its version 3, the game, at most
   8 MB), then sends it as a dry run, which writes nothing and is the preview: how many builds are new, updated,
-  unchanged and removed, a warning when the file is older than the one the builds now come from, the characters
-  skipped, and the changes one by one. **Import** sends the same file for real; **Cancel** forgets it.
+  unchanged and removed (and how many teams the file holds), a warning when the file is older than the one the
+  builds now come from, the characters skipped, the teammates the catalog lacks (kept, shown by their names until a
+  refresh brings them - they skip nothing), and the changes one by one. **Import** sends the same file for real;
+  **Cancel** forgets it.
 - **The file is the whole truth for its game**: once imported, the game's builds are exactly the file's - a
   character the file does not have loses its builds -, but for characters this installation's catalog lacks,
   which are skipped and named ("Not in this installation's catalog": their list was refreshed first, at most
@@ -356,8 +360,9 @@ format and what the tools must deliver: [builds.md](builds.md).
   recorded - the Builds page's recent imports (when, the file's date, what it did, who), the table
   `build_imports`, the audit log's `builds.imported`.
 - **Refused whole** (422, naming the first problem; nothing written): a file that is not a builds file, one of
-  another game, one of format version 1 (a source's export from this site's versions before 0.5.0, said in its
-  own words), one with any malformed build, more than 5000 builds or over 8 MB; and a file none of whose characters
+  another game, one of format version 2 (made before 0.6.0: builds without their teams) or 1 (a source's export
+  from this site's versions before 0.5.0), each said in its own words, one with any malformed build or team, more
+  than 5000 builds or over 8 MB; and a file none of whose characters
   the catalog knows ("Refresh the catalog on the Builds page, then import again" - importing it would only
   remove every build).
 - **Export** saves the game's builds as such a file - a backup, the start of a hand edit, or the builds for another
@@ -658,6 +663,34 @@ Check after an install: `https://builder.anotoki.eu/config/database.local.php`, 
 `/src/Config.php` must not download (403); `https://builder.anotoki.eu/api/meta` answers JSON with the IAM's
 `issuer`, `client_id` and `login_required` under `auth`; `/api/accounts` answers 401 without a token.
 
+### Deploying 0.6.0
+
+Version 0.6.0 gives every build the teams it is played in (the owner's request of 2026-10-22,
+[decisions.md](decisions.md)): the builds file becomes format version 3, and its migrations 020 (the builds' `teams`
+column) and 021 (the teams' words) only add. The local tools write version 3 files only from now on, and this site
+reads no other, so the release goes up before the next builds file is imported:
+
+1. **Have the builds file ready**: a `builds-genshin-<date>.json` of format version 3 ("Importing builds"; the
+   version 2 files made before are refused from now on). Before uploading, **Export** each language on the
+   Translations page (a copy of every rewording).
+2. **The release**: `bun run anotoki-deploy deploy --backups <folder> --go`. From then on the site is closed until
+   the Apply.
+3. **Apply pending at once** (signed in as the ADMIN, on the Migrations page): one Apply runs 020 and 021, after a
+   backup of the database as it was ("before-migration"):
+   - 020 adds `builds.teams`, NULL for every build until the import: no build changes;
+   - 021 adds the teams' two words (the section's heading, the line of a member's stand-ins) in English and Slovak,
+     and widens the descriptions of the three words the teams reuse.
+4. **Import the builds file** on the Builds page: the dry run's preview says the file's teams in its first line
+   ("…, with 809 teams, made …") and updates only the builds that gained teams - the 2026-10-22 file: 147 updated,
+   43 unchanged, none new or removed -, with no teammate the catalog lacks; then **Import**. The updated builds'
+   "changed" date becomes the file's.
+
+Then check: a character's builds page (`/builds/genshin/hutao`) lists each build's teams under "Teams", a teammate
+with builds of its own a link to them; on an account's character page the teammates the account has are marked
+"Owned" - with "needs C2" where the team asks more - and link to their own analysis; in Slovak the section reads
+"Tímy". **The backups made before this Apply are restored offline only** (`409 schema_differs`, as after every
+Apply): make a backup by hand once the import is in.
+
 ### Deploying 0.5.0
 
 Version 0.5.0 stops syncing builds (they are imported as one file per game), drops Honkai: Star Rail and takes
@@ -768,9 +801,9 @@ of a local copy is not carried over: import the accounts again, and a builds fil
 | An import's result warns of an unknown character, weapon or set | the catalog lacks it, or a name does not resolve ([name-matching.md](name-matching.md)): refresh the catalog (Builds page) - an import by UID refreshed that list itself, at most once an hour - or add an alias, then import again |
 | A builds file's import skipped characters ("Not in this installation's catalog") | the import refreshed the characters' list first (at most once an hour) and genshin.anotoki.eu does not list them yet, or the refresh failed (the catalog card says why): Refresh catalog later, then import the same file again |
 | A builds file's import is refused: "None of the file's characters is in this installation's catalog" | the catalog is empty - never refreshed, or genshin.anotoki.eu could not be read: Refresh catalog, then import again |
-| A builds file's import is refused (422) with the file's first problem | not a builds file, another game's, format version 1 (a source's export from before 0.5.0), more than 5000 builds or one build that does not fit: nothing was written; make the file again with the local tools (they check it with the same reader) |
+| A builds file's import is refused (422) with the file's first problem | not a builds file, another game's, format version 2 (made before 0.6.0: builds without their teams) or 1 (a source's export from before 0.5.0), more than 5000 builds or one build or team that does not fit: nothing was written; make the file again with the local tools (they check it with the same reader) |
 | A builds file's import answers 409 | another import is writing (another tab, another editor): wait, then press Import again - the preview stays |
-| A builds file's import answers "No file arrived" | the file is larger than the host's PHP `post_max_size` (it arrives empty); a game's builds take well under 1 MB, so check the hosting panel's PHP settings |
+| A builds file's import answers "No file arrived" | the file is larger than the host's PHP `post_max_size` (it arrives empty); a game's builds take about 1 MB (1.2 MB with their teams), so check the hosting panel's PHP settings |
 | The Builds page's catalog card says "The last refresh failed" | genshin.anotoki.eu did not answer as it should: "closed for now" (HTTP 503 - its update or maintenance; 401 - it requires sign-in; 423 - the route is locked), "has no such list" (404 - its catalog endpoint is missing: its release and migrations 030-031), "could not be reached" or another HTTP code. This site keeps its catalog meanwhile; the upkeep tries again an hour later, Refresh catalog at once ("The catalog") |
 | Refresh catalog answers 409 "This list is being refreshed" | another refresh of that list runs (the upkeep after an answer, another tab, an import): try again in a moment - a claim holds two minutes at most |
 | `check-names.php` lists places | those files name a build site (or their paths do): reword them ("a build site") before committing - never add the name to a tracked file to "explain" it |

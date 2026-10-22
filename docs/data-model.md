@@ -183,6 +183,21 @@ the site is closed to everybody but its ADMIN on the Migrations page (the site g
   the game's own word (`/api/meta`'s `weapon_label`) and no key, and the names of elements, weapon types, regions
   and versions are the game's, never translated. Gated: the 14 in both languages, and the site's own keys
   (422 + 14 = 436).
+- `020_build_teams.sql` adds `builds.teams` (JSON, NULL for none: the teams a build is played in, the builds file's
+  shape - [builds.md](builds.md), "Teams"), every row NULL. No build changes: a build without teams hashes as it did
+  before (`BuildImport::content()` adds the teams last, and only when a build has some), so the first import of a
+  version 3 file updates only the builds that gained teams. Gated: the column of type `json`, nullable and without
+  a default, every row NULL, every build there before still there with its content hash (a temporary copy taken
+  first), and the identity index `builds_identity_unique` still there.
+- `021_build_teams_words.sql` adds the teams' three words in English and informal Slovak - the section's heading
+  (`buildDetail.teams`, "Teams" / "Tímy"), the line of a member's stand-ins (`buildDetail.teamAlternatives`,
+  "or {names}" / "alebo {names}": the names the game's) and the title of a team's note (`buildDetail.teamNotes`,
+  "Notes on {team}" / "Poznámky k tímu {team}": with the team's name, so a screen reader tells one team's notes from
+  another's) - and widens the descriptions of the two words the teams reuse: `buildDetail.owned` (a member or a
+  stand-in the account has) and `character.needsRank` (a member the account has below the constellation the team
+  asks). Gated: the three new keys in both languages, the two reused ones there with their English - not their
+  Slovak, which an editor may have deleted (a gate that asked for it would keep the site closed, with no way to put
+  it back while the update waits) -, and the site's own keys (436 + 3 = 439).
 
 Rules: never edit a migration that has run somewhere; add `NNN_what.sql`. A migration runs in one transaction
 (PostgreSQL DDL is transactional), so a failing one leaves nothing behind. A migration that changes data ends
@@ -291,7 +306,7 @@ Import semantics (`AccountImporter`):
 
 | Table | Notes |
 | --- | --- |
-| `builds` | A variation of a character's (migration 016): `game_character_id` → `game_characters` (cascade), `role` (VARCHAR(16): `main_dps` \| `sub_dps` \| `support`, `builds_role_check` - `Game::roles()`), `qualifier` (VARCHAR(40) NOT NULL DEFAULT '': a word or two telling two builds of one role apart, "Melt", '' for most; trimmed - `builds_qualifier_check`), `min_rank` (SMALLINT NOT NULL DEFAULT 0, 0-6 - `builds_min_rank_check`: the constellation the build needs; a character below it sees the build, marked, and it is never their best), `position` (SMALLINT, ≥ 0 - `builds_position_check`: the build's place among the character's, the file's order; the first is the main one), the JSON columns below (`weapons`, `sets`, `main_stats`, `substats` NOT NULL; `talent_priority`, `stat_targets` NULL for none), `notes`, `game_version` (VARCHAR(20)), `content_hash` (VARCHAR(64): the SHA-256 of the build's content as JSON - weapons, sets, main stats, substats, talent priority, stat targets, notes and game version, in that order - which tells a changed build from an unchanged one), `checked_at` (when the file that last carried the build was made), `changed_at` (when a file first carried it as it is now), `created_at`, `updated_at` - every time NOT NULL. Its identity is the unique index `builds_identity_unique` on (`game_character_id`, `role`, `lower(qualifier)`, `min_rank`): the qualifier compared without regard to case, and an empty one '' rather than NULL, as the host's PostgreSQL 14 has no `NULLS NOT DISTINCT`. No source, no page address: nothing in a row says where a build came from |
+| `builds` | A variation of a character's (migration 016): `game_character_id` → `game_characters` (cascade), `role` (VARCHAR(16): `main_dps` \| `sub_dps` \| `support`, `builds_role_check` - `Game::roles()`), `qualifier` (VARCHAR(40) NOT NULL DEFAULT '': a word or two telling two builds of one role apart, "Melt", '' for most; trimmed - `builds_qualifier_check`), `min_rank` (SMALLINT NOT NULL DEFAULT 0, 0-6 - `builds_min_rank_check`: the constellation the build needs; a character below it sees the build, marked, and it is never their best), `position` (SMALLINT, ≥ 0 - `builds_position_check`: the build's place among the character's, the file's order; the first is the main one), the JSON columns below (`weapons`, `sets`, `main_stats`, `substats` NOT NULL; `talent_priority`, `stat_targets` and - migration 020 - `teams` NULL for none), `notes`, `game_version` (VARCHAR(20)), `content_hash` (VARCHAR(64): the SHA-256 of the build's content as JSON - weapons, sets, main stats, substats, talent priority, stat targets, notes and game version, in that order, then its teams only when it has some, so a build without teams hashes as it did before 020 - which tells a changed build from an unchanged one), `checked_at` (when the file that last carried the build was made), `changed_at` (when a file first carried it as it is now), `created_at`, `updated_at` - every time NOT NULL. Its identity is the unique index `builds_identity_unique` on (`game_character_id`, `role`, `lower(qualifier)`, `min_rank`): the qualifier compared without regard to case, and an empty one '' rather than NULL, as the host's PostgreSQL 14 has no `NULLS NOT DISTINCT`. No source, no page address: nothing in a row says where a build came from |
 | `build_imports` | Every import of a builds file (migration 016): `game` (`build_imports_game_check`), `file_exported_at` (when its file was made, never later than the import), `summary` (JSON `{characters, builds, created, updated, unchanged, removed, skipped}`: what it did, in counts - nobody's name), `imported_by` → `users` (ON DELETE SET NULL: nobody's once their data is deleted; `build_imports_imported_by_check`: above 0 - a person, never a visitor), `created_at`; index `build_imports_game_created_at_index` on (`game`, `created_at`). The Builds page lists a game's last ten with who made each; an import's answer says whether its file was made before the one the builds there came from (`older_than_current`) |
 
 Gone with migration 016, none of it carried over: the builds of the sources (one per source, character and
@@ -307,7 +322,11 @@ catalog's runs, worked through in steps) and `cache_locks` (the sync step lock).
 "main_stats": {"sands": [{"stat": "hp_", "priority": 1}, {"stat": "eleMas", "priority": 2}], "goblet": [{"stat": "elemental_dmg_", "priority": 1}]},
 "substats":  [{"stat": "critRate_", "priority": 1}, {"stat": "critDMG_", "priority": 1}, {"stat": "atk_", "priority": 2}],
 "talent_priority": [{"talent": "burst", "priority": 1}],
-"stat_targets":    [{"stat": "enerRech_", "min": 180, "max": null, "text": "…", "from_rank": 0}]
+"stat_targets":    [{"stat": "enerRech_", "min": 180, "max": null, "text": "…", "from_rank": 0}],
+"teams":           [{"name": "Vaporize", "note": "…"|null,
+                     "members": [{"key": "hutao", "name": "Hu Tao", "role": "main_dps", "min_rank": 0, "alternatives": []},
+                                 {"key": "xingqiu", "name": "Xingqiu", "role": "sub_dps"|null, "min_rank": 6,
+                                  "alternatives": [{"key": "yelan", "name": "Yelan"}]}]}]
 ```
 
 - A weapon's and a set option's `rank` is its place in its list, from 1 (the file's order); `known` says whether
@@ -319,6 +338,11 @@ catalog's runs, worked through in steps) and `cache_locks` (the sync step lock).
 - A stat target holds from a constellation (`from_rank`, 0-6), each (stat, `from_rank`) once in a build: the
   analysis holds a character to, per stat, the target from the highest constellation it has reached
   (`BuildEvaluator::targetsFor()`); a stat whose targets all start later has none for it.
+- A team (migration 020) lists 2-4 members by the catalog's keys, the build's own character among them once and
+  without stand-ins, each with its role in the team (or null), the constellation the team asks of it and at most
+  five stand-ins, none a member; no two teams of a build have the same members. What the catalog says of a
+  teammate - whether it has it, its picture, rarity and element - and whether it has builds are looked up when a
+  build is shown (`BuildPresenter`), never stored.
 - Import rules (`BuildImport`; [architecture.md](architecture.md), "Main flows"): the file is the whole truth for
   its game. A build the file has again by its identity keeps its id - a link `?build=ID` stays - and is updated
   when its content hash, its position or its qualifier's spelling changed (`changed_at` and `checked_at` the
@@ -334,11 +358,12 @@ JSON as the body; `?dry_run=1` only says what would happen) and exported there
 (`GET /api/admin/builds/{game}/export`, `builds-{game}-{date}.json`): `Services/Builds/BuildFile` is the format,
 `BuildImport` the import and export. The site never puts a builds file together itself: the owner's untracked
 local tools read the build sites and write one per game ([builds.md](builds.md)), and the export serves as a
-backup and as the start of a hand edit. The file is the whole truth for its game. Format version 2:
+backup and as the start of a hand edit. The file is the whole truth for its game. Format version 3 (2 until 0.6.0,
+which gave builds their teams):
 
 ```jsonc
 {
-  "format": "build-analyzer.builds", "format_version": 2, "game": "genshin",
+  "format": "build-analyzer.builds", "format_version": 3, "game": "genshin",
   "exported_at": "2026-10-20T10:00:00Z",             // when the file was made: the export writes UTC to the second (an offset and fractions are read too)
   "builds": [{                                       // a character's builds in their order of preference: the first is its main one
     "character": "furina",                           // game_characters.key, matched by (game, key)
@@ -351,6 +376,9 @@ backup and as the start of a hand edit. The file is the whole truth for its game
     "substats": [{"stat": "critRate_", "priority": 1}, {"stat": "critDMG_", "priority": 1}],   // [] for none
     "talent_priority": [{"talent": "skill", "priority": 1}],                                    // or null
     "stat_targets": [{"stat": "enerRech_", "min": 200, "max": null, "text": "…", "from_rank": 1}],   // or null
+    "teams": [{"name": "Hydro", "members": [{"key": "furina", "name": "Furina", "role": "support", "min_rank": 0, "alternatives": []},
+                                            {"key": "neuvillette", "name": "Neuvillette", "role": null, "min_rank": 0, "alternatives": []}],
+               "note": null}],                                                                 // [] for none
     "notes": null, "game_version": "6.1"
   }]
 }
@@ -361,10 +389,14 @@ backup and as the start of a hand edit. The file is the whole truth for its game
   qualifier without regard to case, `min_rank`) is its identity, once in a file; a character's builds come in
   their order of preference, which becomes their `position`, and the order of a build's weapons and set options
   is their rank. A stat target holds from a constellation (`from_rank`), each (stat, `from_rank`) once in a build.
+  A build's teams come the best first, `[]` for none.
 - **Reading is strict**, the whole file before anything is written, naming the first problem (422, the
   sentence naming the build - `builds[3] (hutao, main_dps C2+)` - and the field): the format and its version (a
-  version 1 file - the builds of one source, before builds had variations - is refused with its own message, a
-  newer one asks for this installation to be updated) and the game; exactly the fields of the format, none
+  version 2 file - builds without their teams - and a version 1 file - the builds of one source, before builds had
+  variations - are refused each with its own message, a newer one asks for this installation to be updated) and
+  the game; a team's rules (2-4 members each once, the build's own character among them without stand-ins, no
+  stand-in a member, no two teams of the same members, a name of one line and at most 60 characters); exactly the
+  fields of the format, none
   missing and none more; lists and objects where they belong, whole numbers where the app counts (`min_rank`
   and `from_rank` 0-6, priorities 1-99, refinements 1-5); the game's roles, set kinds (`artifact`), the slots
   whose main stat varies and the main stats each can have (an "Elemental DMG", `elemental_dmg_`, where the slot
@@ -372,8 +404,9 @@ backup and as the start of a hand edit. The file is the whole truth for its game
   set matcher reads them - each set listed once in a piece, a `count` of 2 or 4; a target's `min` not above its
   `max`; times in ISO 8601 with their offset, from 1970 on; each identity once in the file; and caps well above
   what a build needs (5000 builds, 100 weapons and 50 set options a build, 30 pieces an option, 100 sets a
-  piece, 30 stats, 10 talents, 30 targets), and 8 MB for the file - a common default of PHP's `post_max_size`,
-  against well under 1 MB for a game's builds. Every text is made neutral on the way in too (`Neutral`), so a
+  piece, 30 stats, 10 talents, 30 targets, 20 teams with 5 stand-ins a member at most), and 8 MB for the file -
+  a common default of PHP's `post_max_size`, against a game's builds in about 1 MB (1.2 MB with 809 teams,
+  2026-10-22). Every text is made neutral on the way in too (`Neutral`), so a
   file edited by hand cannot bring a site's name into the analysis; a character's key is matched with the
   catalog as it is, and a skipped one named only neutrally.
 - Those piece rules keep the set matcher small: with each set listed once and 2 or 4 pieces asked of it, no
@@ -384,12 +417,17 @@ backup and as the start of a hand edit. The file is the whole truth for its game
   goes through `Neutral::text()`, as in every answer of the API, kept within the caps the import reads with (the
   words that replace an address can take more room than it did); a piece's sets that neutral words make alike
   are listed once, and two qualifiers of a character's that neutral words make alike are told apart (the later
-  "… #2"). Whatever an export writes, an import reads.
+  "… #2"); a team's members or stand-ins that neutral words make alike are listed once, and a team left with fewer
+  than two members or with another's members is left out (`BuildFile::teamsEntry()`). Whatever an export writes,
+  an import reads.
 - **An import** makes the game's builds exactly the file's (see "Builds" above for how each build is matched and
   written) - but for characters the catalog lacks: the characters' list is refreshed first, at most once per game
   and list per `catalog.import_refresh_minutes` (60, `config/app.php`, shared with the account imports), and
   what is still missing is skipped and named in the answer (`skipped: [{key, name, builds}]`); a weapon the
-  catalog lacks likewise refreshes its list once and is kept, `known: false`. A file whose builds name no
+  catalog lacks likewise refreshes its list once and is kept, `known: false`; a teammate the catalog lacks shares
+  the characters' one refresh, skips nothing - it is kept, shown by its name - and is named in the answer
+  (`teammates_unknown: [{key, name}]`, the first 50 of the builds kept, and `teammates_unknown_total`). A file whose
+  builds name no
   character the catalog knows is refused - most likely a catalog nobody has refreshed yet, and "importing"
   nothing would remove every build. The file's `exported_at` becomes the builds' `checked_at` (and the
   `changed_at` of those it creates or changes) and the import's `file_exported_at`, never later than now. One

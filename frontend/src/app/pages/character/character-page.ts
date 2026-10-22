@@ -1,4 +1,4 @@
-import { Component, computed, effect, inject, input, signal } from '@angular/core';
+import { Component, DestroyRef, computed, effect, inject, input, signal } from '@angular/core';
 import { RouterLink } from '@angular/router';
 import { AlertComponent } from '@anotoki/lib/ui/alert';
 import { BadgeComponent } from '@anotoki/lib/ui/badge';
@@ -31,6 +31,7 @@ import { ScoreBar } from '../../shared/score-bar';
 import { SlotLabelPipe, StatLabelPipe, StatValuePipe } from '../../shared/stat-pipes';
 import { VisitorHero } from '../../shared/visitor-hero/visitor-hero';
 import { VisitorNotice } from '../../shared/visitor-notice/visitor-notice';
+import { Subscription } from 'rxjs';
 
 /**
  * What a recommendation is filed under, where that is the site's own word. The other categories are the
@@ -112,6 +113,8 @@ export class CharacterPage {
   protected readonly data = signal<CharacterAnalysis | null>(null);
   protected readonly selectedBuildId = signal<number | null>(null);
   protected readonly loading = signal(true);
+  /** The analysis on its way: the newest asked wins (load()). */
+  private request: Subscription | null = null;
   /** The failed request itself: the template words it, in the language on the page. */
   protected readonly error = signal<unknown>(null);
   /** Opened by somebody this account is not theirs to open - not signed in, no key that opens it: the ways in instead. */
@@ -249,6 +252,7 @@ export class CharacterPage {
     effect(() => {
       this.load(Number(this.id()), this.key(), null);
     });
+    inject(DestroyRef).onDestroy(() => this.request?.unsubscribe());
   }
 
   /** A build's tab chosen (by its build's id). */
@@ -294,9 +298,15 @@ export class CharacterPage {
     return this.i18n.t(REASON_KEYS.get(reason) ?? REASON_FALLBACK);
   }
 
+  /**
+   * The analysis asked for. One still on its way - another character's, or another build's - is dropped (its request
+   * cancelled): a late answer never stands for the page's address, now that a teammate's link leads from one character
+   * to the next on this same page.
+   */
   private load(accountId: number, key: string, buildId: number | null): void {
+    this.request?.unsubscribe();
     this.loading.set(true);
-    this.api.character(accountId, key, buildId).subscribe({
+    this.request = this.api.character(accountId, key, buildId).subscribe({
       next: (data) => {
         this.data.set(data);
         this.selectedBuildId.set(data.focus_build_id ?? data.best_build_id);

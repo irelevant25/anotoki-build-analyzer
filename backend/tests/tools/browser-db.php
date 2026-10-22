@@ -112,7 +112,9 @@ if ($result['busy'] || $result['error'] !== null) {
 // The catalog the tests use (tests/support/seed.php), with what the catalog's provider says of Hu Tao and Kazuha that
 // the builds browser filters by (migration 018's columns); Hu Tao's builds as an editor imports them - a main DPS
 // build, and a Sub DPS one that needs C2, with an Energy Recharge target from C0 and a lower one from C1 - and a Support
-// build of Kazuha's, so the builds browser has two characters to filter.
+// build of Kazuha's, so the builds browser has two characters to filter. The main build is played in a team: Kazuha, whom
+// the team asks at C2 - with builds, so a link - and Traveler (Anemo) can stand in for, and Xingqiu at C6, whom this
+// catalog does not know (the file's name, no link).
 $db = new Db($pdo);
 function db(): Db
 {
@@ -144,6 +146,7 @@ $hutao = static fn(array $fields) => $fields + [
     'substats' => [['stat' => 'critRate_', 'priority' => 1], ['stat' => 'critDMG_', 'priority' => 1], ['stat' => 'hp_', 'priority' => 2]],
     'talent_priority' => [['talent' => 'skill', 'priority' => 1], ['talent' => 'burst', 'priority' => 2]],
     'stat_targets' => [['stat' => 'enerRech_', 'min' => 120, 'max' => null, 'text' => '', 'from_rank' => 0], ['stat' => 'enerRech_', 'min' => 110, 'max' => null, 'text' => '', 'from_rank' => 1]],
+    'teams' => [],
     'notes' => null,
     'game_version' => '5.4',
 ];
@@ -154,7 +157,26 @@ $hutao = static fn(array $fields) => $fields + [
         'game' => 'genshin',
         'exported_at' => '2026-10-01T10:00:00Z',
         'builds' => [
-            $hutao(['role' => 'main_dps']),
+            $hutao([
+                'role' => 'main_dps',
+                'teams' => [
+                    [
+                        'name' => 'Vaporize',
+                        'members' => [
+                            ['key' => 'hutao', 'name' => 'Hu Tao', 'role' => 'main_dps', 'min_rank' => 0, 'alternatives' => []],
+                            [
+                                'key' => 'kaedeharakazuha',
+                                'name' => 'Kaedehara Kazuha',
+                                'role' => 'support',
+                                'min_rank' => 2,
+                                'alternatives' => [['key' => 'traveleranemo', 'name' => 'Traveler (Anemo)']],
+                            ],
+                            ['key' => 'xingqiu', 'name' => 'Xingqiu', 'role' => 'sub_dps', 'min_rank' => 6, 'alternatives' => []],
+                        ],
+                        'note' => "Xingqiu's rain keeps the enemies wet, and Kazuha gathers them for Hu Tao's charged attacks.",
+                    ],
+                ],
+            ]),
             $hutao(['role' => 'sub_dps', 'min_rank' => 2, 'weapons' => [['key' => 'dragonsbane', 'name' => "Dragon's Bane", 'refinement' => 5, 'note' => null]]]),
             $hutao(['character' => 'kaedeharakazuha', 'character_name' => 'Kaedehara Kazuha', 'role' => 'support', 'weapons' => []]),
         ],
@@ -164,8 +186,9 @@ $hutao = static fn(array $fields) => $fields + [
     new User(0, 'seed'),
 );
 
-// The catalog as refreshed a moment ago (App\Services\Catalog\CatalogSync's state of each list): the upkeep after an
-// answer has nothing to ask the catalog's provider, so the check never reaches the network.
+// The catalog as refreshed a moment ago (App\Services\Catalog\CatalogSync's state of each list), and each list as an
+// import refreshed it (BuildImport's interval): neither the upkeep after an answer nor an import of builds naming what
+// this catalog lacks - Xingqiu - asks the catalog's provider, so the check never reaches the network.
 $cache = new Cache($db);
 foreach (CatalogSync::LISTS as $list) {
     $cache->put(
@@ -173,6 +196,7 @@ foreach (CatalogSync::LISTS as $list) {
         ['etag' => null, 'checked_at' => Clock::timestamp(), 'changed_at' => Clock::timestamp(), 'failed_at' => null, 'problem' => null, 'count' => null],
         86400,
     );
+    $cache->put("catalog-import-refresh:genshin:{$list}", Clock::timestamp(), 86400);
 }
 
 @mkdir("{$dir}/storage", 0777, true);

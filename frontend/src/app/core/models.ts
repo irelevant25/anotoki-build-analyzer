@@ -320,11 +320,43 @@ export interface Build {
   substats: StatPriority[];
   talent_priority: TalentPriority[] | null;
   stat_targets: StatTarget[] | null;
+  /** The teams the build is played in, best first; [] for none. */
+  teams: BuildTeam[];
   notes: string | null;
   game_version: string | null;
   /** When the file that last carried the build was made. */
   checked_at: string | null;
   changed_at: string | null;
+}
+
+/**
+ * A character a team names - a member or one who can take a member's place - as the catalog knows it now: its name
+ * the catalog's where it is there (`known`), and whether it has builds to link to.
+ */
+export interface Teammate {
+  key: string;
+  name: string;
+  known: boolean;
+  icon_url: string | null;
+  rarity: number | null;
+  element: string | null;
+  has_builds: boolean;
+}
+
+/** A team's member: the role it plays (a BuildRole, or null), the constellation the team asks of it, who can stand in. */
+export interface TeamMember extends Teammate {
+  role: string | null;
+  min_rank: number;
+  /** The build's own character - one member of each of its teams. */
+  own: boolean;
+  alternatives: Teammate[];
+}
+
+/** A team a build is played in: its name and note as the builds file has them (stored English), its members in order. */
+export interface BuildTeam {
+  name: string;
+  members: TeamMember[];
+  note: string | null;
 }
 
 export interface BuildCharacter {
@@ -535,6 +567,8 @@ export interface CharacterAnalysis {
   set_plans: SetPlan[];
   has_full_inventory: boolean;
   builds: Build[];
+  /** Which of the builds' teammates the account has, by key, with each one's constellation (the character itself left out). */
+  owned_teammates: Record<string, number>;
 }
 
 // ------------------------------------------------------------------ the admin panel's Builds page
@@ -590,15 +624,20 @@ export interface BuildImportPlan {
   exported_at: string;
   /** The file is older than the one the builds there are now came from. */
   older_than_current: boolean;
-  /** Characters and builds of the file this installation has. */
+  /** Characters and builds of the file this installation has, and the teams of those builds. */
   characters: number;
   builds: number;
+  teams: number;
   created: number;
   updated: number;
   unchanged: number;
   removed: number;
   /** Characters of the file this installation's catalog lacks: skipped until the catalog is refreshed. */
   skipped: { key: string; name: string; builds: number }[];
+  /** Teammates of the builds imported that the catalog lacks, the first 50: shown by their names; no build is skipped for one. */
+  teammates_unknown: { key: string; name: string }[];
+  /** How many teammates the catalog lacks, all told. */
+  teammates_unknown_total: number;
   /** The changes, the first MAX of them; changes_listed says how many. */
   changes: BuildChange[];
   changes_listed: number;

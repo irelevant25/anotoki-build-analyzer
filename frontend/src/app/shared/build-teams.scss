@@ -1,0 +1,98 @@
+:host {
+  display: block;
+}
+
+// The build sheet's section heading (build-detail.scss), here for the teams.
+.block h3 {
+  margin: 0 0 8px;
+  font-size: 0.8125rem;
+  font-weight: 700;
+  color: var(--anotoki-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.teams,
+.members {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.teams {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 10px;
+}
+
+.team {
+  min-width: 0;
+  padding: 10px 12px;
+  border: 1px solid var(--anotoki-border);
+  border-radius: 12px;
+}
+
+.team-name {
+  margin: 0 0 8px;
+  font-size: 0.9375rem;
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+
+// Two across on a phone, four on a wide sheet; nothing of a fixed width. Each member as tall as it is: the build's own,
+// set apart, is not drawn to the height of the member beside it.
+.members {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(136px, 1fr));
+  align-items: start;
+  gap: 8px 12px;
+}
+
+.member {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+  padding: 4px 6px;
+  border-radius: 10px;
+}
+
+// The build's own character: set apart without a colour this sheet gives a meaning (green is what the player has).
+.member.own {
+  background: var(--anotoki-surface-3);
+}
+
+// The picture over the name: the name has the member's whole width, so a two-word name ("Kaedehara Kazuha") breaks
+// between its words on a phone, not inside one. A member that is a link looks as the kit's links do, as the stand-ins'.
+.member-head {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 6px;
+  min-width: 0;
+}
+
+.member-name {
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+
+.member-facts {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 6px;
+}
+
+.alternatives {
+  overflow-wrap: anywhere;
+}
+
+.team-note {
+  margin-top: 8px;
+}
+
+.team-note-text {
+  margin: 0;
+  white-space: pre-line;
+}

@@ -32,6 +32,12 @@ final class Build
         public ?array $talent_priority = null,
         /** @var list<array{stat: string, min: int|float|null, max: int|float|null, text: string, from_rank: int}>|null */
         public ?array $stat_targets = null,
+        /**
+         * The teams the build is played in, best first (BuildFile, format version 3); [] for none.
+         *
+         * @var list<array{name: string, members: list<array{key: string, name: string, role: string|null, min_rank: int, alternatives: list<array{key: string, name: string}>}>, note: string|null}>
+         */
+        public array $teams = [],
         public ?string $notes = null,
         public ?string $game_version = null,
         public string $content_hash = '',
@@ -56,6 +62,8 @@ final class Build
             substats: Json::decode($row['substats'] ?? null) ?? [],
             talent_priority: Json::decode($row['talent_priority'] ?? null),
             stat_targets: Json::decode($row['stat_targets'] ?? null),
+            // NULL for none (migration 020), never '[]'; a build stored before 0.6 has none.
+            teams: Json::decode($row['teams'] ?? null) ?? [],
             notes: $row['notes'] ?? null,
             game_version: $row['game_version'] ?? null,
             content_hash: (string) ($row['content_hash'] ?? ''),

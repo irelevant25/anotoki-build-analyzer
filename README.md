@@ -21,6 +21,9 @@ Setting it up, running, testing, building and deploying: **[DEV.md](DEV.md)**.
   needs ("C4+"). They are put together on the owner's computer from community build sites and imported by an
   editor as one file per game on the admin panel's Builds page (Export, Import a file: a dry run's preview, then
   Import). The site never fetches a build page, and names no build site anywhere.
+- **Teams for every build**: the teams a build is played in, the best first - what each teammate does in it, a
+  constellation the team asks of one, who can stand in -, each teammate with builds of its own a link to them; on
+  your own characters' pages the teammates you already have are marked, and lead to your analysis of them.
 - **The builds browser**: every character with builds, with its roles, and filters - name, element, weapon type,
   rarity, region and the version a character came with ("6.1 (Luna II)") - kept in the page's address.
 - **The game catalog from genshin.anotoki.eu**, the owner's own Genshin Impact site: characters, weapons and
@@ -95,7 +98,9 @@ behind them are described in [docs/import-formats.md](docs/import-formats.md).
 - **A build is a variation of a character**: its role (Main DPS, Sub DPS or Support), a short qualifier where a
   character has two builds of one role, and the constellation it needs (C0-C6); then its weapons in order, artifact
   sets, main stats per slot, substats by priority, talent priority, stat targets (one may start from a
-  constellation: "C2+") and notes. A character's builds are in its order of preference: the first is its main one.
+  constellation: "C2+"), the teams it is played in (since 0.6.0: each teammate's role, the constellation the team
+  asks of it, who can stand in) and notes. A character's builds are in its order of preference: the first is its
+  main one.
 - **They come in as one file per game** (`builds-genshin-<date>.json`), imported by an editor on the admin panel's
   **Builds** page: the file is checked, a dry run shows what it would change (new, updated, unchanged, removed, the
   characters skipped, each change), and **Import** makes the game's builds exactly the file's - but for characters
@@ -105,8 +110,9 @@ behind them are described in [docs/import-formats.md](docs/import-formats.md).
 - **The site never fetches a build page.** The file is put together on the owner's computer by the owner's own
   tools, which are not in this repository (the git-ignored `local/` folder): they read the community build sites
   politely (their robots.txt, each site's own wait between pages), keep the pages on disk, sort each site's builds
-  by role, pick per role and constellation, fill only gaps (talents, Energy Recharge targets, substats), make every
-  text neutral, check the file with this site's own reader and refuse an export that shrinks by more than a fifth.
+  by role, pick per role and constellation, fill only gaps (talents, Energy Recharge targets, substats), give each
+  build the teams the sites recommend for the role it is, make every text neutral, check the file with this site's
+  own reader and refuse an export that shrinks by more than a fifth.
   What a build and the file are, and what the tools must deliver: [docs/builds.md](docs/builds.md).
 - **Nothing names a build site** - not the pages, not the API, not this repository. Their names live in an
   untracked settings file of the owner's (`backend/config/neutral.local.php`, uploaded to the host by hand), which

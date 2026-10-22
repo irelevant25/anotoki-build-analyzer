@@ -54,7 +54,8 @@ character's talent levels: [data-model.md](data-model.md).
 | --- | --- |
 | `label()` | "Genshin Impact" |
 | `rankLabel()`, `rankPrefix()`, `maxRank()` | Constellation, "C", 6 (a build's `min_rank` and a target's `from_rank` go up to it) |
-| `roles()` | `main_dps`, `sub_dps`, `support` (a build's role) |
+| `roles()` | `main_dps`, `sub_dps`, `support` (a build's role, and what a member plays in a team - or none) |
+| `teamSize()` | 4: the most members a team of a build has (two at least) |
 | `refinementPrefix()`, `maxWeaponLevel()` | "R", 90 |
 | `characterLevelTarget()` | 80 (below it the analysis says to level the character up) |
 | `elements()`, `weaponTypes()` | the seven elements; sword, claymore, polearm, bow, catalyst |

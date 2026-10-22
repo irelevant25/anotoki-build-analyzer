@@ -207,8 +207,8 @@ never from a local copy. Then run the tests, the production build and the browse
 ## Testing
 
 ```bash
-cd backend && php tests/run.php            # every backend test file: 23 files, 322 tests (or one: php tests/auth.test.php)
-cd frontend && npx ng test --watch=false   # frontend unit tests (Vitest): 44 spec files, 377 tests
+cd backend && php tests/run.php            # every backend test file: 23 files, 329 tests (or one: php tests/auth.test.php)
+cd frontend && npx ng test --watch=false   # frontend unit tests (Vitest): 45 spec files, 388 tests
 cd frontend && npx ng build                # the production build must pass too
 bun run format:check                       # Prettier on every file of both halves, at the root (bun install there first)
 php backend/tools/check-names.php          # from the root: no tracked file names a build site

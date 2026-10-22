@@ -14,6 +14,7 @@ import {
   planSummary,
   roleName,
   skippedHeading,
+  unknownTeammates,
   variationName,
 } from './build-file';
 
@@ -21,7 +22,7 @@ import {
 function file(fields: Record<string, unknown> = {}): string {
   return JSON.stringify({
     format: BUILD_FILE_FORMAT,
-    format_version: 2,
+    format_version: 3,
     game: 'genshin',
     exported_at: '2026-10-20T10:00:00Z',
     builds: [
@@ -41,11 +42,14 @@ function plan(overrides: Partial<BuildImportPlan> = {}): BuildImportPlan {
     older_than_current: false,
     characters: 110,
     builds: 250,
+    teams: 0,
     created: 2,
     updated: 1,
     unchanged: 247,
     removed: 3,
     skipped: [],
+    teammates_unknown: [],
+    teammates_unknown_total: 0,
     changes: [],
     changes_listed: 6,
     ...overrides,
@@ -69,7 +73,11 @@ describe('checkBuildFile (is a chosen file a builds file of this game this insta
       ['', 'This is not a builds file: it is not JSON.'],
       ['[1, 2]', 'This is not a builds file exported by the build analyzer.'],
       [file({ format: 'build-analyzer.accounts' }), 'This is not a builds file exported by the build analyzer.'],
-      [file({ format_version: 3 }), 'This builds file has format version 3, and this installation reads version 2. Update this installation, then import again.'],
+      [file({ format_version: 4 }), 'This builds file has format version 4, and this installation reads version 3. Update this installation, then import again.'],
+      [
+        file({ format_version: 2 }),
+        'This builds file has format version 2, from before builds had their teams. This installation reads version 3: make the file again, or export it again from this page.',
+      ],
       [file({ format_version: '2' }), 'This builds file has no format version this installation reads.'],
       [file({ format_version: 2.5 }), 'This builds file has no format version this installation reads.'],
       [file({ format_version: null }), 'This builds file has no format version this installation reads.'],
@@ -85,7 +93,7 @@ describe('checkBuildFile (is a chosen file a builds file of this game this insta
   it('says a file of version 1 is from before builds had variations', () => {
     expect(checkBuildFile(file({ format_version: 1, source: 'genshin-2' }), 'genshin')).toEqual({
       ok: false,
-      message: "This builds file has format version 1, from before builds had variations. This installation reads version 2: a game's builds, each a variation of its character's.",
+      message: "This builds file has format version 1, from before builds had variations. This installation reads version 3: a game's builds, each a variation of its character's.",
     });
   });
 
@@ -128,6 +136,22 @@ describe('the words around an import', () => {
     expect(planSummary(skipped)).toMatch(/^The file's 1 build of 1 character this installation knows, made 20 October 2026/);
     expect(skippedHeading(skipped)).toBe('1 character skipped');
     expect(skippedHeading(plan({ skipped: [skipped.skipped[0], { key: 'flins', name: 'Flins', builds: 1 }] }))).toBe('2 characters skipped');
+  });
+
+  it("says the file's teams, and names the teammates the catalog lacks - how many more past those listed", () => {
+    expect(planSummary(plan({ exported_at: NOON, teams: 809 }))).toMatch(/^The file's 250 builds of 110 characters, with 809 teams, made 20 October 2026/);
+    expect(planSummary(plan({ exported_at: NOON, teams: 1 }))).toMatch(/, with 1 team, made /);
+    expect(planSummary(plan({ exported_at: NOON }))).not.toContain('team');
+
+    expect(unknownTeammates(plan())).toBeNull();
+    const two = [
+      { key: 'xingqiu', name: 'Xingqiu' },
+      { key: 'yelan', name: 'Yelan' },
+    ];
+    expect(unknownTeammates(plan({ teammates_unknown: two, teammates_unknown_total: 2 }))).toBe(
+      "Teammates not in this installation's catalog, shown by their names alone until a refresh brings them: Xingqiu, Yelan.",
+    );
+    expect(unknownTeammates(plan({ teammates_unknown: two, teammates_unknown_total: 14 }))).toMatch(/: Xingqiu, Yelan and 12 more\.$/);
   });
 
   it("writes a moment in the account's date order and clock, where the person has chosen them", () => {

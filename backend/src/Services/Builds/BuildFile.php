@@ -14,7 +14,7 @@ use DateTimeImmutable;
 use DateTimeInterface;
 
 /**
- * The file a game's builds are imported from and exported to: format "build-analyzer.builds", version 2
+ * The file a game's builds are imported from and exported to: format "build-analyzer.builds", version 3
  * (docs/builds.md). The builds are put together elsewhere and brought in as one file per game on the admin
  * panel's Builds page (BuildImport); the export writes the same, as a backup and as the start of a hand edit.
  *
@@ -22,6 +22,8 @@ use DateTimeInterface;
  * role apart, and the constellation it needs (min_rank). (character, role, qualifier without regard to case,
  * min_rank) is its identity, once in a file. A character's builds come in the order of preference: the first is
  * the main one. A stat target can start from a constellation (from_rank), each (stat, from_rank) once in a build.
+ * A build lists the teams it is played in (version 3): each a name, its members - the build's own character
+ * among them - with the constellation the team asks of each and who can take a member's place, and a note.
  *
  * Like every answer of the API the file names no site: every text passes through Neutral - on the way out, and
  * again on the way in, so a file edited by hand cannot bring a site's name into what the API sends or the
@@ -39,9 +41,9 @@ final class BuildFile
 {
     public const FORMAT = 'build-analyzer.builds';
 
-    public const VERSION = 2;
+    public const VERSION = 3;
 
-    /** A common default of PHP's post_max_size; a game's builds take well under 1 MB. */
+    /** A common default of PHP's post_max_size; a game's builds take about 1 MB (1.2 MB with their teams, 2026-10-22). */
     public const MAX_BYTES = 8 * 1024 * 1024;
 
     public const MAX_BUILDS = 5000;
@@ -65,6 +67,15 @@ final class BuildFile
     private const MAX_TALENTS = 10;
 
     private const MAX_TARGETS = 30;
+
+    /** A build's teams: the sites list a few; the local tools keep eight at most. */
+    private const MAX_TEAMS = 20;
+
+    /** A team's name: a few words ("Vaporize", "Hyperbloom Aggravate"), one line. */
+    public const MAX_TEAM_NAME = 60;
+
+    /** Who can take a team member's place. */
+    public const MAX_ALTERNATIVES = 5;
 
     /** A weapon's refinement, as the games count it. */
     private const MAX_REFINEMENT = 5;
@@ -102,9 +113,15 @@ final class BuildFile
         'substats',
         'talent_priority',
         'stat_targets',
+        'teams',
         'notes',
         'game_version',
     ];
+
+    /** A team, and a member of one (format version 3). */
+    private const TEAM_FIELDS = ['name', 'members', 'note'];
+
+    private const MEMBER_FIELDS = ['key', 'name', 'role', 'min_rank', 'alternatives'];
 
     private const TIME = '/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{1,6})?(?:Z|[+-]\d{2}:\d{2})$/';
 
@@ -186,9 +203,71 @@ final class BuildFile
                         ],
                         $build->stat_targets,
                     ),
+            'teams' => self::teamsEntry($build->teams),
             'notes' => self::neutral($build->notes, self::MAX_NOTES),
             'game_version' => self::neutral($build->game_version, self::MAX_GAME_VERSION),
         ];
+    }
+
+    /**
+     * A build's teams as the file holds them, every text neutral within its cap. Neutral words can make two keys
+     * alike: a member or an alternative already there is left out, so is an alternative that is a member too, and
+     * a team whose members are then another team's, or fewer than two - so the file always imports.
+     *
+     * @param  list<array<string, mixed>>  $teams
+     * @return list<array<string, mixed>>
+     */
+    public static function teamsEntry(array $teams): array
+    {
+        $entries = [];
+        $seen = [];
+        foreach ($teams as $team) {
+            $members = [];
+            foreach ($team['members'] ?? [] as $member) {
+                $key = self::neutralKey((string) ($member['key'] ?? ''));
+                $members[$key] ??= [
+                    'key' => $key,
+                    'name' => self::neutral((string) ($member['name'] ?? ''), self::MAX_CHARACTER_NAME),
+                    'role' => $member['role'] ?? null,
+                    'min_rank' => $member['min_rank'] ?? 0,
+                    'alternatives' => $member['alternatives'] ?? [],
+                ];
+            }
+            foreach ($members as $key => $member) {
+                $alternatives = [];
+                foreach ($member['alternatives'] as $alternative) {
+                    $other = self::neutralKey((string) ($alternative['key'] ?? ''));
+                    if (!isset($members[$other])) {
+                        $alternatives[$other] ??= ['key' => $other, 'name' => self::neutral((string) ($alternative['name'] ?? ''), self::MAX_CHARACTER_NAME)];
+                    }
+                }
+                $members[$key]['alternatives'] = array_values($alternatives);
+            }
+            $set = self::memberSet(array_keys($members));
+            if (count($members) < 2 || isset($seen[$set])) {
+                continue;
+            }
+            $seen[$set] = true;
+            $entries[] = [
+                'name' => self::lineText((string) ($team['name'] ?? ''), self::MAX_TEAM_NAME),
+                'members' => array_values($members),
+                'note' => self::neutral($team['note'] ?? null, self::MAX_NOTE),
+            ];
+        }
+
+        return $entries;
+    }
+
+    /**
+     * A team's members as a set, whatever their order: what tells two teams of a build apart.
+     *
+     * @param  list<string>  $keys
+     */
+    private static function memberSet(array $keys): string
+    {
+        sort($keys);
+
+        return implode(' ', $keys);
     }
 
     /** A time as the file writes it: UTC, to the second ("2026-10-20T10:00:00Z"). */
@@ -215,7 +294,13 @@ final class BuildFile
     /** A qualifier as it is stored: neutral, trimmed, within its column. */
     public static function qualifierText(string $qualifier): string
     {
-        return trim((string) self::neutral(trim($qualifier), self::MAX_QUALIFIER));
+        return self::lineText($qualifier, self::MAX_QUALIFIER);
+    }
+
+    /** One line of text as it is stored (a qualifier, a team's name): neutral, trimmed, within $max. */
+    private static function lineText(string $text, int $max): string
+    {
+        return trim((string) self::neutral(trim($text), $max));
     }
 
     /** A key of the form Key makes, the same way: one that spells a site's name stops doing so. */
@@ -227,7 +312,8 @@ final class BuildFile
     /**
      * The builds of a file of $game's, checked and normalized as they are stored: each weapon and set option with
      * its rank (its place in its list, from 1), each build with its position among its character's (from 0), an
-     * empty talent priority or list of targets as null. Whether a weapon is in the catalog is the import's to say.
+     * empty talent priority or list of targets as null, its teams a list ([] for none). Whether a weapon is in the
+     * catalog is the import's to say; whether a teammate is, the page's.
      *
      * @return array{exported_at: DateTimeImmutable, builds: list<array<string, mixed>>}
      *
@@ -250,6 +336,9 @@ final class BuildFile
                     $version === 1 => 'This builds file has format version 1 (the builds of one source). This installation reads version ' .
                         self::VERSION .
                         ': the builds of a game, as variations of each character.',
+                    $version === 2 => 'This builds file has format version 2 (builds without their teams). This installation reads version ' .
+                        self::VERSION .
+                        ': make the file again, or export it again from this installation.',
                     is_int($version) && $version > self::VERSION => "This builds file has format version {$version}, and this installation reads version " .
                         self::VERSION .
                         '. Update this installation, then import again.',
@@ -317,6 +406,7 @@ final class BuildFile
             'substats' => $this->ranked($entry['substats'], 'substats', 'stat', self::MAX_STATS, Stats::substatKeys($this->game)),
             'talent_priority' => $this->ranked($entry['talent_priority'], 'talent_priority', 'talent', self::MAX_TALENTS, Talents::keys($this->game), nullable: true) ?: null,
             'stat_targets' => $this->targets($entry['stat_targets']) ?: null,
+            'teams' => $this->teams($entry['teams'], $character),
             'notes' => $this->text($entry['notes'], 'notes', self::MAX_NOTES, nullable: true),
             'game_version' => $this->text($entry['game_version'], 'game_version', self::MAX_GAME_VERSION, nullable: true),
         ];
@@ -325,17 +415,7 @@ final class BuildFile
     /** One line of text, at most MAX_QUALIFIER characters once trimmed; empty for a build that needs none. */
     private function qualifier(mixed $value): string
     {
-        if (!is_string($value)) {
-            $this->fail('qualifier', 'must be text (empty for none)');
-        }
-        if (preg_match('/[\x00-\x1F\x7F]/', $value)) {
-            $this->fail('qualifier', 'must be one line of text');
-        }
-        if (mb_strlen(trim($value)) > self::MAX_QUALIFIER) {
-            $this->fail('qualifier', 'must not be longer than ' . self::MAX_QUALIFIER . ' characters');
-        }
-
-        return self::qualifierText($value);
+        return $this->line($value, 'qualifier', self::MAX_QUALIFIER, empty: true);
     }
 
     /**
@@ -496,6 +576,94 @@ final class BuildFile
         return $targets;
     }
 
+    /**
+     * The teams the build is played in, best first. A team has its name, its members in the order the team lists
+     * them - 2 to Game::teamSize(), each character once, the build's own character among them (a team without it
+     * is no team of this build) - and a note. A member has the role it plays (null where unknown), the
+     * constellation the team asks of it, and who can take its place: none a member of the same team, and none for
+     * the build's own character, whose stand-in would make the team another character's. No two teams of a build
+     * have the same members. Teammates are matched with the catalog when the build is shown, never here: one the
+     * catalog lacks is no reason to skip the build.
+     *
+     * @return list<array{name: string, members: list<array<string, mixed>>, note: string|null}>
+     */
+    private function teams(mixed $value, string $character): array
+    {
+        // Compared as members' keys are read: made neutral (the character itself is matched as it is).
+        $own = self::neutralKey($character);
+        $teams = [];
+        $seen = [];
+        foreach ($this->list($value, 'teams', self::MAX_TEAMS) as $i => $team) {
+            $at = "teams[{$i}]";
+            $team = $this->object($team, $at);
+            $this->fields($team, $at, self::TEAM_FIELDS);
+            $name = $this->line($team['name'], "{$at}.name", self::MAX_TEAM_NAME);
+
+            $members = [];
+            foreach ($this->list($team['members'], "{$at}.members", $this->game->teamSize(), min: 2) as $j => $member) {
+                $in = "{$at}.members[{$j}]";
+                $member = $this->object($member, $in);
+                $this->fields($member, $in, self::MEMBER_FIELDS);
+                $key = $this->unique($this->key($member['key'], "{$in}.key", self::MAX_CHARACTER), array_column($members, 'key'), "{$in}.key");
+                if ($member['role'] !== null && !in_array($member['role'], $this->game->roles(), true)) {
+                    $this->fail("{$in}.role", 'must be ' . implode(', ', $this->game->roles()) . ', or null');
+                }
+                $members[] = [
+                    'key' => $key,
+                    'name' => $this->text($member['name'], "{$in}.name", self::MAX_CHARACTER_NAME, empty: false),
+                    'role' => $member['role'],
+                    'min_rank' => $this->integer($member['min_rank'], "{$in}.min_rank", 0, $this->game->maxRank()),
+                    'alternatives' => $this->alternatives($member['alternatives'], "{$in}.alternatives"),
+                ];
+            }
+
+            $keys = array_column($members, 'key');
+            if (!in_array($own, $keys, true)) {
+                $this->fail("{$at}.members", "must have the build's own character ({$own}) among them");
+            }
+            foreach ($members as $j => $member) {
+                if ($member['key'] === $own && $member['alternatives'] !== []) {
+                    $this->fail("{$at}.members[{$j}].alternatives", "must be empty: the build's own character has no stand-in in its team");
+                }
+                foreach ($member['alternatives'] as $k => $alternative) {
+                    if (in_array($alternative['key'], $keys, true)) {
+                        $this->fail("{$at}.members[{$j}].alternatives[{$k}].key", 'is a member of the same team');
+                    }
+                }
+            }
+            $set = self::memberSet($keys);
+            if (isset($seen[$set])) {
+                $this->fail("{$at}.members", "are those of teams[{$seen[$set]}] too");
+            }
+            $seen[$set] = $i;
+
+            $teams[] = ['name' => $name, 'members' => $members, 'note' => $this->text($team['note'], "{$at}.note", self::MAX_NOTE, nullable: true)];
+        }
+
+        return $teams;
+    }
+
+    /**
+     * Who can take a team member's place, each once.
+     *
+     * @return list<array{key: string, name: string}>
+     */
+    private function alternatives(mixed $value, string $where): array
+    {
+        $alternatives = [];
+        foreach ($this->list($value, $where, self::MAX_ALTERNATIVES) as $k => $alternative) {
+            $at = "{$where}[{$k}]";
+            $alternative = $this->object($alternative, $at);
+            $this->fields($alternative, $at, ['key', 'name']);
+            $alternatives[] = [
+                'key' => $this->unique($this->key($alternative['key'], "{$at}.key", self::MAX_CHARACTER), array_column($alternatives, 'key'), "{$at}.key"),
+                'name' => $this->text($alternative['name'], "{$at}.name", self::MAX_CHARACTER_NAME, empty: false),
+            ];
+        }
+
+        return $alternatives;
+    }
+
     // ── the shapes ────────────────────────────────────────────────────────────────────────────────
 
     /**
@@ -556,7 +724,7 @@ final class BuildFile
             $this->fail($where, 'must be a list' . ($nullable ? ', or null' : ''));
         }
         if (count($value) < $min) {
-            $this->fail($where, 'must not be empty');
+            $this->fail($where, $min === 1 ? 'must not be empty' : "must have at least {$min} entries");
         }
         if (count($value) > $max) {
             $this->fail($where, "must not have more than {$max} entries");
@@ -581,6 +749,28 @@ final class BuildFile
         }
 
         return $value;
+    }
+
+    /**
+     * One line of text (a qualifier, a team's name) - no line break or other control character -, at most $max
+     * characters once trimmed as the file spells it, made neutral and trimmed; empty only where $empty allows it.
+     */
+    private function line(mixed $value, string $where, int $max, bool $empty = false): string
+    {
+        if (!is_string($value)) {
+            $this->fail($where, $empty ? 'must be text (empty for none)' : 'must be text');
+        }
+        if (preg_match('/[\x00-\x1F\x7F]/', $value)) {
+            $this->fail($where, 'must be one line of text');
+        }
+        if (!$empty && trim($value) === '') {
+            $this->fail($where, 'must not be empty');
+        }
+        if (mb_strlen(trim($value)) > $max) {
+            $this->fail($where, "must not be longer than {$max} characters");
+        }
+
+        return self::lineText($value, $max);
     }
 
     /** Text from the file, made neutral (neutral()); its length is checked as the file spells it. */

@@ -3,19 +3,19 @@ import { DateChoices, OwnDateParts, chosenMoment } from '../../../core/i18n/date
 import { BuildChange, BuildImportEntry, BuildImportPlan, GameKey } from '../../../core/models';
 
 /**
- * A game's builds file (backend: Services/Builds/BuildFile): format "build-analyzer.builds", version 2 - the builds
+ * A game's builds file (backend: Services/Builds/BuildFile): format "build-analyzer.builds", version 3 - the builds
  * of one game, each a variation of its character's (its role, a short qualifier telling two builds of one role
- * apart, the constellation it needs). The server checks every build of it; the Builds page checks only enough to say
- * plainly what a chosen file is not before sending it, and words what the server says importing it does. English,
- * as the whole admin panel: its words are written here.
+ * apart, the constellation it needs), with the teams it is played in. The server checks every build of it; the
+ * Builds page checks only enough to say plainly what a chosen file is not before sending it, and words what the
+ * server says importing it does. English, as the whole admin panel: its words are written here.
  */
 
 export const BUILD_FILE_FORMAT = 'build-analyzer.builds';
-export const BUILD_FILE_VERSION = 2;
+export const BUILD_FILE_VERSION = 3;
 /**
  * The largest file the server takes (BuildFile::MAX_BYTES), checked before the file is read: 8 MB is a common default
  * of PHP's post_max_size, and a server sent more can answer with a warning page instead of the API's JSON. A game's
- * builds take well under 1 MB.
+ * builds take about 1 MB (1.2 MB with their teams, 2026-10-22).
  */
 export const BUILD_FILE_MAX_BYTES = 8 * 1024 * 1024;
 
@@ -45,6 +45,11 @@ export function checkBuildFile(text: string, game: GameKey): BuildFileCheck {
   if (version === 1) {
     return problem(
       `This builds file has format version 1, from before builds had variations. This installation reads version ${BUILD_FILE_VERSION}: a game's builds, each a variation of its character's.`,
+    );
+  }
+  if (version === 2) {
+    return problem(
+      `This builds file has format version 2, from before builds had their teams. This installation reads version ${BUILD_FILE_VERSION}: make the file again, or export it again from this page.`,
     );
   }
   if (version !== BUILD_FILE_VERSION) {
@@ -113,10 +118,24 @@ export function changeCount(plan: Pick<BuildImportPlan, 'created' | 'updated' | 
  */
 export function planSummary(plan: BuildImportPlan, dates: DateChoices | null = null): string {
   const known = plan.skipped.length > 0 ? ' this installation knows' : '';
+  const teams = plan.teams > 0 ? `, with ${count(plan.teams, 'team')}` : '';
   return (
-    `The file's ${count(plan.builds, 'build')} of ${count(plan.characters, 'character')}${known}, made ${momentText(plan.exported_at, dates)}: ` +
+    `The file's ${count(plan.builds, 'build')} of ${count(plan.characters, 'character')}${known}${teams}, made ${momentText(plan.exported_at, dates)}: ` +
     `${plan.created} new, ${plan.updated} updated, ${plan.unchanged} unchanged, ${plan.removed} removed.`
   );
+}
+
+/**
+ * The teammates the file's teams name that this installation's catalog lacks - none skips a build: the page shows
+ * such a teammate by its name, without a picture or a link, until the catalog has it. Null when there is none.
+ */
+export function unknownTeammates(plan: Pick<BuildImportPlan, 'teammates_unknown' | 'teammates_unknown_total'>): string | null {
+  const names = plan.teammates_unknown.map((teammate) => teammate.name);
+  if (names.length === 0) {
+    return null;
+  }
+  const more = plan.teammates_unknown_total - names.length;
+  return `Teammates not in this installation's catalog, shown by their names alone until a refresh brings them: ${names.join(', ')}${more > 0 ? ` and ${more} more` : ''}.`;
 }
 
 /** Over the characters an import skips: "2 characters skipped". */

@@ -111,6 +111,7 @@ function build(change: Partial<Build> = {}): Build {
       { talent: 'burst', priority: 2 },
     ],
     stat_targets: [{ stat: 'critRate_', min: 70, max: null, text: 'At least 70% CRIT Rate.', from_rank: 0 }],
+    teams: [],
     notes: 'Keep her HP below half.',
     game_version: '5.2',
     checked_at: hoursAgo(2),

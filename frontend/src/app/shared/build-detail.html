@@ -199,6 +199,17 @@
   </section>
 }
 
+@if (b.teams.length > 0) {
+  <app-build-teams
+    [teams]="b.teams"
+    [game]="game()"
+    [buildId]="b.id"
+    [buildMinRank]="b.min_rank"
+    [owned]="ownedTeammates()"
+    [accountId]="accountId()"
+  />
+}
+
 @if (b.notes) {
   <anotoki-disclosure class="notes" [heading]="'buildDetail.notes' | translate">
     <p class="notes-text" [attr.lang]="storedLang()">{{ b.notes }}</p>

@@ -25,7 +25,9 @@ use Slim\Routing\RouteCollectorProxy;
  *   PATCH  /api/accounts/{id}  {nickname}             rename
  *   DELETE /api/accounts/{id}                         delete, with everything imported into it
  *   GET    /api/accounts/{id}/imports                 import history (50 newest)
- *   GET    /api/accounts/{id}/characters/{key}?build= full analysis of one character
+ *   GET    /api/accounts/{id}/characters/{key}?build= full analysis of one character, its builds, and owned_teammates:
+ *                                                     which of the builds' teammates the account has, with each one's
+ *                                                     constellation ({key: rank}; the character itself left out)
  */
 return function (Slim\App $slim, App $app): void {
     $own = function (Request $request, array $args) use ($app): Account {
@@ -90,12 +92,16 @@ return function (Slim\App $slim, App $app): void {
 
                 $buildIds = array_map(fn($evaluation) => $evaluation['build']['id'], $detail['evaluations']);
                 $builds = $app->get(Builds::class)->byIds($buildIds);
+                // The teammates the player has: only of these teams, never the character itself.
+                $teammates = array_values(array_diff(BuildPresenter::teammateKeys($builds), [$owned->character->key]));
 
                 return Json::send(
                     $response,
                     ['account' => AccountPresenter::summary($account)] +
                         $detail + [
                             'builds' => $app->get(BuildPresenter::class)->collection($builds),
+                            // An object, {} when there is none.
+                            'owned_teammates' => (object) $app->get(Accounts::class)->characterRanks($account->id, $teammates),
                         ],
                 );
             });

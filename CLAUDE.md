@@ -92,6 +92,20 @@ variations and the imports' record in, with their words; the catalog's region, v
 filters' words): on a host applied at once after the upload, then Refresh catalog and Import (docs/operations.md,
 "Deploying 0.5.0").
 
+**Version 0.6.0 (unreleased) - a build's teams** (the owner's request of 2026-10-22, docs/decisions.md): every build
+lists **the teams it is played in**, the best first, in the builds file - **format version 3** (version 2 refused
+with its own sentence): a team `{name, members, note}`, a member `{key, name, role, min_rank, alternatives}`, the
+build's own character among 2-4 members exactly once and with no stand-in (`BuildFile::read()`, `teamsEntry()`;
+`Game::teamSize()`). Stored in `builds.teams` (migration **020**, NULL for none); a build without teams hashes as
+before, so the first version 3 import updates only the builds that gained teams. What the catalog says of a teammate
+(known, picture, rarity, element) and whether it has builds are looked up when a build is shown
+(`BuildPresenter`), never stored; a teammate the catalog lacks skips nothing (`teammates_unknown` in the import's
+answer). The page (`shared/build-teams`) links a teammate to its builds; on an account's character page the
+teammates the account has are marked "Owned" / "needs C2" and link to the account's own analysis of them
+(`owned_teammates`, `Accounts::characterRanks()`). Migration **021**: the teams' two words. On a host applied at once
+after the upload, then the version 3 file imported - before the next builds refresh: the local tools write version
+3 only (docs/operations.md, "Deploying 0.6.0").
+
 **The shared library, anotoki-lib** (`irelevant25/anotoki-lib` on GitHub: Composer `anotoki/lib` ^0.9.0 through a
 `vcs` repository - 0.9.2 now -, npm `@anotoki/lib` 0.9.2 from its release tarball - never a local path, never 0.4.0; DEV.md "The
 shared library" says how to update both halves together) holds the auth, people and admin tools modules (above),
@@ -176,7 +190,7 @@ ADMIN applies it** - apply at once.
 ## Commands
 
 ```bash
-cd backend && php tests/run.php                      # backend tests (throwaway databases, 23 files, ~322 tests)
+cd backend && php tests/run.php                      # backend tests (throwaway databases, 23 files, ~329 tests)
 (cd frontend && npx ng build && npx ng test --watch=false)   # Vitest: every spec beside its code in src/app
 bun run format:check                                 # Prettier on every file of both halves, at the root (bun install there first)
 node .claude/skills/verify-ui/scripts/run.mjs [--no-build] [--keep]   # the browser check (8590 + 8597, a throwaway database; PHP=<8.4+> where php is older)
@@ -204,7 +218,7 @@ cd frontend && bun run anotoki-deploy build   # ../dist/frontend + ../dist/backe
 - A person's own accounts as a file (signed in only; never a visitor's): `api/routes/me.php` (`GET /api/me/export`, `POST /api/me/import[?dry_run=1]`), `src/Services/Transfer/AccountsFile.php` (format, strict reading, writing only what it reads), `AccountsTransfer.php` (export; import: match by game + UID or game + `created_at` in UTC to the second, the newer `last_import_at` wins, never deletes, unknown catalog keys skipped and counted, the person's `users` row `FOR UPDATE` via `Users::lockForWrite()`, which `AccountImporter` takes too), limits `config/app.php` `me`, `tests/data_transfer.test.php`; frontend `shared/data-card/` (export, import: the dry run's preview, then Confirm), `core/download.ts`
 - Catalog / names: `src/Services/Catalog/Catalog.php` (lookups only - an import never adds a row; players' nicknames in `config/app.php`'s aliases), `CatalogSync.php` (`refresh()`: one list from its game's provider by a conditional request, written in one transaction - a row found again by its in-game ID, then its key, none deleted -, where each list stands kept in the cache table, one refresh of a list at a time), `CatalogProvider` / `CatalogAnswer` / `CatalogProviders` (`config/app.php` `catalog.{game}.provider`), `Providers/GenshinCatalog.php` (genshin.anotoki.eu's `/api/catalog/{characters,weapons,artifacts}`: the mapping, the Travelers one entry per element, icons on its host alone), `CatalogUpkeep.php` (a stale list refreshed after an answer; `upkeep.catalog`), `src/Presenters/Icons.php` (AVIF too), migration 018, `sync-catalog.php`; tests `tests/catalog_refresh.test.php`
 - Imports: `src/Services/Import/ImportService.php` → parsers → `ParsedAccount` → `AccountImporter.php` (always for one user)
-- Builds (variations imported from a file; docs/builds.md): `src/Services/Builds/BuildFile.php` (format version 2, strict reading, a build's identity), `BuildImport.php` (the plan, the apply under an advisory lock - `BuildImportBusy` -, a dry run, the lists refreshed for what the catalog lacks), `src/Models/Build.php`, `src/Repositories/Builds.php`, `api/routes/admin_builds.php` (STAFF: `/api/admin/builds`, `…/{game}/export`, `…/{game}/import[?dry_run=1]`, `/api/admin/catalog/{game}/{list}`), `api/routes/builds.php` (public: `/api/builds`, `/api/builds/{game}`, `/api/builds/{game}/{key}`), migrations 016-017, `src/Cache/Prune.php` (the day's tidying up after an answer; `upkeep.prune`); tests `tests/builds_import.test.php`; frontend `pages/admin/builds/` (+ `build-file.ts`), `core/i18n/variation-words.ts`, `pages/builds/` (the browser and its filters, `core/query-filters.ts`), `pages/character/` (a tab per variation)
+- Builds (variations imported from a file; docs/builds.md): `src/Services/Builds/BuildFile.php` (format version 3, strict reading, a build's identity, its teams - `teamsEntry()` writes them), `BuildImport.php` (the plan, the apply under an advisory lock - `BuildImportBusy` -, a dry run, the lists refreshed for what the catalog lacks, the teammates it lacks named), `src/Models/Build.php`, `src/Repositories/Builds.php` (`keysWithBuilds()`), `src/Presenters/BuildPresenter.php` (a team's members with what the catalog says of them, looked up as shown), `api/routes/admin_builds.php` (STAFF: `/api/admin/builds`, `…/{game}/export`, `…/{game}/import[?dry_run=1]`, `/api/admin/catalog/{game}/{list}`), `api/routes/builds.php` (public: `/api/builds`, `/api/builds/{game}`, `/api/builds/{game}/{key}`), `api/routes/accounts.php` (a character's `owned_teammates`, `Accounts::characterRanks()`), migrations 016-017 and 020-021 (the teams), `src/Cache/Prune.php` (the day's tidying up after an answer; `upkeep.prune`); tests `tests/builds_import.test.php`; frontend `pages/admin/builds/` (+ `build-file.ts`), `core/i18n/variation-words.ts`, `pages/builds/` (the browser and its filters, `core/query-filters.ts`), `pages/character/` (a tab per variation), `shared/build-teams` (a build's teams, the teammates the account has marked)
 - Fetching: `src/Http/Fetcher.php` (each host's wait kept in the cache table; in a web request one retry at most) - the catalog's provider and the showcase service
 - Analysis: `src/Services/Analysis/BuildEvaluator.php` (a build applies from its `min_rank`; `targetsFor()` by `from_rank`), `ItemScorer.php`, `SetMatcher.php`, `CharacterAnalyzer.php` (`best()`: among the builds that apply)
 - Output: `src/Presenters/*` (mirrored in `frontend/src/app/core/models.ts`), `src/Support/Neutral.php`

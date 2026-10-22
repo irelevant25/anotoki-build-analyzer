@@ -53,6 +53,9 @@ final class BuildImport
     /** How many imports of a game the Builds page lists. */
     public const RECENT = 10;
 
+    /** How many teammates the catalog lacks an answer names; the editor needs a few to see what is missing. */
+    public const MAX_UNKNOWN_TEAMMATES = 50;
+
     /**
      * @param  ?CatalogSync  $sync  with $cache and $config: a character or a weapon the catalog lacks has its list
      *                              refreshed first, at most once per game and list every
@@ -104,7 +107,7 @@ final class BuildImport
      *
      * @param  mixed  $file  the decoded JSON of the file
      * @param  (Closure(array<string, mixed>): void)|null  $record  inside the import's transaction, with its answer: what else records it
-     * @return array{dry_run: bool, game: string, exported_at: string, older_than_current: bool, characters: int, builds: int, created: int, updated: int, unchanged: int, removed: int, skipped: list<array{key: string, name: string, builds: int}>, changes: list<array<string, mixed>>, changes_listed: int}
+     * @return array{dry_run: bool, game: string, exported_at: string, older_than_current: bool, characters: int, builds: int, teams: int, created: int, updated: int, unchanged: int, removed: int, skipped: list<array{key: string, name: string, builds: int}>, teammates_unknown: list<array{key: string, name: string}>, teammates_unknown_total: int, changes: list<array<string, mixed>>, changes_listed: int}
      *
      * @throws BuildFileException the file does not fit this game; nothing was written
      * @throws BuildImportBusy another import is writing; nothing was written
@@ -157,19 +160,26 @@ final class BuildImport
 
     /**
      * The file read for $game and matched with the catalog: its builds of known characters (each with its
-     * character's id, every weapon with whether the catalog knows it), the characters it skips, when it was made.
+     * character's id, every weapon with whether the catalog knows it), the characters it skips, the teammates of the
+     * builds it keeps that the catalog lacks (a build is never skipped for one: the page shows such a teammate by its
+     * name) - the first MAX_UNKNOWN_TEAMMATES, and how many -, when it was made.
      *
-     * @return array{exported_at: DateTimeImmutable, builds: list<array<string, mixed>>, skipped: list<array{key: string, name: string, builds: int}>}
+     * @return array{exported_at: DateTimeImmutable, builds: list<array<string, mixed>>, skipped: list<array{key: string, name: string, builds: int}>, teammates_unknown: list<array{key: string, name: string}>, teammates_unknown_total: int}
      */
     private function prepare(mixed $file, Game $game): array
     {
         $read = BuildFile::read($file, $game);
         $characterKeys = array_values(array_unique(array_column($read['builds'], 'character')));
-        $characters = $this->catalog->byKeys($game, Catalog::CHARACTER, $characterKeys);
+        // The builds' characters and their teammates looked up together, so one refresh serves both.
+        $teammates = self::teammates($read['builds']);
+        $lookup = array_values(array_unique([...$characterKeys, ...array_keys($teammates)]));
+        $found = $this->catalog->byKeys($game, Catalog::CHARACTER, $lookup);
         // A character newer than the catalog: its list refreshed first - then skipped only if it is still not there.
-        if (count($characters) < count($characterKeys) && $this->refreshed($game, Catalog::CHARACTER)) {
-            $characters = $this->catalog->byKeys($game, Catalog::CHARACTER, $characterKeys);
+        if (count($found) < count($lookup) && $this->refreshed($game, Catalog::CHARACTER)) {
+            $found = $this->catalog->byKeys($game, Catalog::CHARACTER, $lookup);
         }
+        // Skipped and refused by the builds' own characters alone.
+        $characters = array_intersect_key($found, array_flip($characterKeys));
         if ($read['builds'] !== [] && $characters === []) {
             // Most likely a catalog nobody refreshed yet; "importing" nothing would still remove every build.
             throw new BuildFileException("None of the file's characters is in this installation's catalog. Refresh the catalog on the Builds page, then import again.");
@@ -198,8 +208,39 @@ final class BuildImport
             $build['weapons'] = array_map(fn(array $weapon) => $weapon + ['known' => isset($weapons[$weapon['key']])], $build['weapons']);
             $builds[] = ['character_id' => $character->id, 'character_name' => $character->name] + $build;
         }
+        // The teammates of the builds kept: a skipped build's teams say nothing of what is imported (its character is
+        // named among the skipped). Keys and names are neutral already (BuildFile reads them so).
+        $unknown = array_values(array_diff_key(self::teammates($builds), $found));
 
-        return ['exported_at' => min($read['exported_at'], Clock::now()), 'builds' => $builds, 'skipped' => array_values($skipped)];
+        return [
+            'exported_at' => min($read['exported_at'], Clock::now()),
+            'builds' => $builds,
+            'skipped' => array_values($skipped),
+            'teammates_unknown' => array_slice($unknown, 0, self::MAX_UNKNOWN_TEAMMATES),
+            'teammates_unknown_total' => count($unknown),
+        ];
+    }
+
+    /**
+     * Every teammate the builds' teams name - a member or a stand-in - by key, with the first name it goes by.
+     *
+     * @param  list<array<string, mixed>>  $builds
+     * @return array<string, array{key: string, name: string}>
+     */
+    private static function teammates(array $builds): array
+    {
+        $teammates = [];
+        foreach ($builds as $build) {
+            foreach ($build['teams'] as $team) {
+                foreach ($team['members'] as $member) {
+                    foreach ([$member, ...$member['alternatives']] as $one) {
+                        $teammates[$one['key']] ??= ['key' => $one['key'], 'name' => $one['name']];
+                    }
+                }
+            }
+        }
+
+        return $teammates;
     }
 
     /**
@@ -333,11 +374,14 @@ final class BuildImport
             'older_than_current' => $last !== null && $prepared['exported_at'] < $last,
             'characters' => count(array_unique(array_column($prepared['builds'], 'character_id'))),
             'builds' => count($prepared['builds']),
+            'teams' => array_sum(array_map(fn(array $build) => count($build['teams']), $prepared['builds'])),
             'created' => count($diff['create']),
             'updated' => count($diff['update']),
             'unchanged' => count($diff['keep']),
             'removed' => count($diff['remove']),
             'skipped' => $prepared['skipped'],
+            'teammates_unknown' => $prepared['teammates_unknown'],
+            'teammates_unknown_total' => $prepared['teammates_unknown_total'],
             'changes' => array_slice($diff['changes'], 0, self::MAX_CHANGES),
             'changes_listed' => min(count($diff['changes']), self::MAX_CHANGES),
         ];
@@ -362,14 +406,16 @@ final class BuildImport
     }
 
     /**
-     * What is stored of a build besides its character, identity and place, in the order its content hash reads it.
+     * What is stored of a build besides its character, identity and place, in the order its content hash reads it:
+     * 0.5's content, then its teams when it has any - so a build without teams keeps the hash it had, and the first
+     * import of a version 3 file changes only the builds that gained teams.
      *
      * @param  array<string, mixed>  $build
      * @return array<string, mixed>
      */
     private static function content(array $build): array
     {
-        return [
+        $content = [
             'weapons' => $build['weapons'],
             'sets' => $build['sets'],
             'main_stats' => $build['main_stats'],
@@ -379,6 +425,11 @@ final class BuildImport
             'notes' => $build['notes'],
             'game_version' => $build['game_version'],
         ];
+        if ($build['teams'] !== []) {
+            $content['teams'] = $build['teams'];
+        }
+
+        return $content;
     }
 
     /** The hash that tells a changed build from an unchanged one: of its content's JSON (App\Support\Json). */
@@ -401,6 +452,8 @@ final class BuildImport
         }
         // An empty main stats object is {}, not [].
         $columns['main_stats'] = Json::column((object) $build['main_stats']);
+        // Always written - NULL for none -, so an update that leaves a build without teams clears its old ones.
+        $columns['teams'] = $build['teams'] === [] ? null : Json::column($build['teams']);
 
         return $columns + ['content_hash' => $build['content_hash']];
     }

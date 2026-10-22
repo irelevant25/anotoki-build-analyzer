@@ -285,10 +285,10 @@ test('the error log is cleared by an admin - everything, or the days before one 
 test('the audit log: what was done in the admin panel, by whom and when - builds imported, a language - read with filters, an ADMIN\'s; nothing refused or only tried', function () {
     seedGenshinCatalog();
     $eddie = fn(): Client => (new Client())->asIam(EDITOR, [Role::EDITOR], ['preferred_username' => 'eddie']);
-    // A builds file of one build (format version 2, App\Services\Builds\BuildFile) of a character the catalog has.
+    // A builds file of one build (format version 3, App\Services\Builds\BuildFile) of a character the catalog has.
     $file = [
         'format' => 'build-analyzer.builds',
-        'format_version' => 2,
+        'format_version' => 3,
         'game' => 'genshin',
         'exported_at' => '2026-10-01T10:00:00Z',
         'builds' => [
@@ -311,6 +311,7 @@ test('the audit log: what was done in the admin panel, by whom and when - builds
                 'substats' => [['stat' => 'critRate_', 'priority' => 1]],
                 'talent_priority' => null,
                 'stat_targets' => [['stat' => 'enerRech_', 'min' => 120, 'max' => null, 'text' => '', 'from_rank' => 0]],
+                'teams' => [],
                 'notes' => null,
                 'game_version' => '5.4',
             ],

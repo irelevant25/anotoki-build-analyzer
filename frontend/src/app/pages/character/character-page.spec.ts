@@ -167,6 +167,7 @@ function build(id: number, variation: Variation): Build {
     substats: [],
     talent_priority: null,
     stat_targets: null,
+    teams: [],
     notes: null,
     game_version: null,
     checked_at: null,
@@ -251,6 +252,7 @@ function analysis(game: GameKey = 'genshin', change: Partial<CharacterAnalysis> 
     set_plans: [plan('artifact', 4, 2)],
     has_full_inventory: true,
     builds: [build(11, MAIN), build(12, SUPPORT_C2)],
+    owned_teammates: {},
     ...change,
   };
 }

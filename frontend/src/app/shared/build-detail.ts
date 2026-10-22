@@ -12,6 +12,7 @@ import { rankMark } from '../core/i18n/variation-words';
 import { MetaStore } from '../core/meta-store';
 import { Build, Evaluation, GameKey, SetOption, StatPriority, TalentPriority } from '../core/models';
 import { BUILD_TERMS } from './build-terms';
+import { BuildTeams } from './build-teams';
 import { Avatar } from './char-avatar';
 import { StatValuePipe } from './stat-pipes';
 
@@ -32,11 +33,11 @@ interface SetGroup {
  *
  * The build sheet is the site's own; its parts are the kit's: badges for the stats and what the player has, its
  * icons, tooltips for the notes cut to a line, and the kit's disclosure (`@anotoki/lib/ui/disclosure`) for the
- * build's notes.
+ * build's notes. The teams it is played in are BuildTeams'.
  */
 @Component({
   selector: 'app-build-detail',
-  imports: [Avatar, StatValuePipe, LocalDatePipe, TranslatePipe, TranslatePluralPipe, BadgeComponent, DisclosureComponent, IconComponent, TooltipDirective],
+  imports: [Avatar, BuildTeams, StatValuePipe, LocalDatePipe, TranslatePipe, TranslatePluralPipe, BadgeComponent, DisclosureComponent, IconComponent, TooltipDirective],
   templateUrl: './build-detail.html',
   styleUrl: './build-detail.scss',
 })
@@ -49,6 +50,9 @@ export class BuildDetail {
   readonly evaluation = input<Evaluation | null>(null);
   /** Character element, used to show "Elemental DMG" as e.g. "Pyro DMG". */
   readonly element = input<string | null>(null);
+  /** On a player's own character page: the teams' teammates the account has, with each one's constellation (BuildTeams). */
+  readonly ownedTeammates = input<Record<string, number> | null>(null);
+  readonly accountId = input<number | null>(null);
 
   protected readonly gameMeta = computed(() => this.meta.game(this.game()));
   /** The game's own words for this game: "Weapons", "Talents". */

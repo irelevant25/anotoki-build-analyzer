@@ -1,5 +1,15 @@
 [
   {
+    "version": "0.6.0",
+    "date": "2026-10-22",
+    "changes": {
+      "added": [
+        "Each build shows the teams it is played in, the best first: who to play it with, what each teammate does in the team, a constellation a team asks of one, and who can take a teammate's place",
+        "On your own characters' pages, the teammates you already have are marked - with a note where a team asks a higher constellation than yours - and each one takes you to your own analysis of that character"
+      ]
+    }
+  },
+  {
     "version": "0.5.0",
     "date": "2026-10-20",
     "changes": {

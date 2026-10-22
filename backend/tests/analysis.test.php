@@ -393,6 +393,80 @@ test('the account overview and the character API: the build as a variation, and 
     $client->get("/api/accounts/{$state->account}/characters/nobody")->status(404);
 });
 
+test('a build\'s teams on the account\'s character page: each teammate as the catalog knows it now, and which ones the account has, with their constellation', function () use ($state) {
+    $team = [
+        'name' => 'Vaporize',
+        'members' => [
+            ['key' => 'hutao', 'name' => 'Hu Tao', 'role' => 'main_dps', 'min_rank' => 0, 'alternatives' => []],
+            ['key' => 'kaedeharakazuha', 'name' => 'Kazuha', 'role' => 'support', 'min_rank' => 2, 'alternatives' => [['key' => 'traveleranemo', 'name' => 'Traveler (Anemo)']]],
+            ['key' => 'xingqiu', 'name' => 'Xingqiu', 'role' => 'sub_dps', 'min_rank' => 6, 'alternatives' => []],
+        ],
+        'note' => 'Swirl the Pyro onto the rain.',
+    ];
+    db()->run('UPDATE builds SET teams = ? WHERE id = ?', [Json::encode([$team]), $state->build]);
+    // Kazuha has builds of his own; the account has him at C1 and the Traveler (Anemo) who can take his place.
+    $kazuha = idOf('game_characters', 'kaedeharakazuha');
+    seedBuild($kazuha, ['role' => 'support', 'content_hash' => 'y']);
+    db()->insert('account_characters', ['account_id' => $state->account, 'game_character_id' => $kazuha, 'level' => 90, 'rank' => 1, 'source' => 'good']);
+    db()->insert('account_characters', ['account_id' => $state->account, 'game_character_id' => idOf('game_characters', 'traveleranemo'), 'level' => 70, 'rank' => 0, 'source' => 'good']);
+
+    $client = (new Client())->asIam(1);
+    $answer = $client->get("/api/accounts/{$state->account}/characters/hutao")->status(200);
+    same(['kaedeharakazuha' => 1, 'traveleranemo' => 0], $answer->json('owned_teammates'), 'the teammates the account has - a stand-in too -, each with its constellation; Hu Tao herself left out');
+
+    [$own, $kazuhaMember, $xingqiu] = $answer->json('builds.0.teams.0.members');
+    same(['Vaporize', 'Swirl the Pyro onto the rain.'], [$answer->json('builds.0.teams.0.name'), $answer->json('builds.0.teams.0.note')], 'the team\'s name and note');
+    same(['hutao', true, true, true], [$own['key'], $own['own'], $own['known'], $own['has_builds']], 'the build\'s own member');
+    same(
+        ['Kaedehara Kazuha', false, true, true, 'support', 2],
+        [$kazuhaMember['name'], $kazuhaMember['own'], $kazuhaMember['known'], $kazuhaMember['has_builds'], $kazuhaMember['role'], $kazuhaMember['min_rank']],
+        'Kazuha by the catalog\'s name, with builds to link to, at the C2 the team asks of him',
+    );
+    same(
+        ['traveleranemo', true, false],
+        [$kazuhaMember['alternatives'][0]['key'], $kazuhaMember['alternatives'][0]['known'], $kazuhaMember['alternatives'][0]['has_builds']],
+        'his stand-in: in the catalog, without builds',
+    );
+    same(
+        ['Xingqiu', false, false, null],
+        [$xingqiu['name'], $xingqiu['known'], $xingqiu['has_builds'], $xingqiu['icon_url']],
+        'Xingqiu, whom the catalog does not know: by the file\'s name, no icon, no link',
+    );
+
+    // The catalog catches up: known at once, no import needed.
+    db()->insert('game_characters', ['game' => 'genshin', 'key' => 'xingqiu', 'name' => 'Xingqiu', 'element' => 'hydro', 'rarity' => 4, 'created_at' => Clock::now(), 'updated_at' => Clock::now()]);
+    same(
+        true,
+        $client
+            ->get("/api/accounts/{$state->account}/characters/hutao")
+            ->status(200)
+            ->json('builds.0.teams.0.members.2.known'),
+        'Xingqiu known now',
+    );
+
+    // Xingqiu held elsewhere - in another account of the same person's, and in another person's - is none of this
+    // account's: the marks are the account's own.
+    $xingqiuId = idOf('game_characters', 'xingqiu');
+    $second = seedAccount(1, 'genshin', ['nickname' => 'Second', 'uid' => '700000002']);
+    seedUser(2, 'someone else');
+    $theirs = seedAccount(2, 'genshin', ['nickname' => 'Theirs', 'uid' => '700000003']);
+    foreach ([$second, $theirs] as $elsewhere) {
+        db()->insert('account_characters', ['account_id' => $elsewhere, 'game_character_id' => $xingqiuId, 'level' => 90, 'rank' => 6, 'source' => 'good']);
+    }
+    same(
+        ['kaedeharakazuha' => 1, 'traveleranemo' => 0],
+        $client
+            ->get("/api/accounts/{$state->account}/characters/hutao")
+            ->status(200)
+            ->json('owned_teammates'),
+        'Xingqiu held elsewhere: not this account\'s',
+    );
+
+    // An account with none of the teammates: an object still, empty.
+    db()->run('DELETE FROM account_characters WHERE account_id = ? AND game_character_id <> ?', [$state->account, $state->character]);
+    check(str_contains($client->get("/api/accounts/{$state->account}/characters/hutao")->status(200)->body, '"owned_teammates":{}'), 'none: {}');
+});
+
 test('a character with nothing to recommend has no top issue, no kind and no params', function () use ($detail, $state) {
     // Kazuha at level 90 against a build that says nothing the analysis could compare.
     $kazuha = idOf('game_characters', 'kaedeharakazuha');

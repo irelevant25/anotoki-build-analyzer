@@ -249,15 +249,32 @@ test('what the builds browser, the Builds page and the account pages get names n
         'substats' => [['stat' => 'eleMas', 'priority' => 1]],
         'talent_priority' => null,
         'stat_targets' => [['stat' => 'eleMas', 'min' => 800, 'max' => null, 'text' => '800 EM (fictional-builds.example)', 'from_rank' => 0]],
+        'teams' => [
+            [
+                'name' => 'Fictional Builds Swirl',
+                'members' => [
+                    ['key' => 'kaedeharakazuha', 'name' => 'Kaedehara Kazuha', 'role' => 'support', 'min_rank' => 0, 'alternatives' => []],
+                    [
+                        'key' => 'xiangling',
+                        'name' => 'Xiangling of fictional-builds.example',
+                        'role' => null,
+                        'min_rank' => 0,
+                        'alternatives' => [['key' => 'bennett', 'name' => 'Bennett (Fictional Builds)']],
+                    ],
+                ],
+                'note' => 'As https://fictional-builds.example/teams plays it',
+            ],
+        ],
         'notes' => 'From https://fictional-builds.example/kazuha - thanks Fictional Builds!',
         'game_version' => '5.4',
     ];
     $file = [
         'format' => 'build-analyzer.builds',
-        'format_version' => 2,
+        'format_version' => 3,
         'game' => 'genshin',
         'exported_at' => '2026-10-01T10:00:00Z',
-        'builds' => [$kazuha, ['character' => 'fictionalbuilds', 'character_name' => 'Fictional Builds mascot'] + $kazuha],
+        // The mascot's build is Kazuha's under another key: a team of Kazuha's is none of its.
+        'builds' => [$kazuha, ['character' => 'fictionalbuilds', 'character_name' => 'Fictional Builds mascot', 'teams' => []] + $kazuha],
     ];
     assertNeutral($admin->post('/api/admin/builds/genshin/import?dry_run=1', $file), 'a dry run\'s answer');
     $imported = $admin->post('/api/admin/builds/genshin/import', $file);

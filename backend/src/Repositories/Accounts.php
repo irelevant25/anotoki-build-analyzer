@@ -128,6 +128,33 @@ final class Accounts
         return $row === null ? null : AccountCharacter::fromRow($row);
     }
 
+    /**
+     * Which of these characters the account has, by key, with each one's rank (constellation): the teammates a
+     * player already has. The account is one the caller found as its owner's (findOwned()).
+     *
+     * @param  list<string>  $keys
+     * @return array<string, int>
+     */
+    public function characterRanks(int $accountId, array $keys): array
+    {
+        if ($keys === []) {
+            return [];
+        }
+        [$in, $params] = Db::in(array_values(array_unique($keys)));
+        $ranks = [];
+        foreach (
+            $this->db->all("SELECT c.key, ac.rank FROM account_characters ac JOIN game_characters c ON c.id = ac.game_character_id WHERE ac.account_id = ? AND c.key IN ({$in})", [
+                $accountId,
+                ...$params,
+            ])
+            as $row
+        ) {
+            $ranks[(string) $row['key']] = (int) $row['rank'];
+        }
+
+        return $ranks;
+    }
+
     public function characterRow(int $accountId, int $gameCharacterId): ?array
     {
         return $this->db->one('SELECT * FROM account_characters WHERE account_id = ? AND game_character_id = ?', [$accountId, $gameCharacterId]);

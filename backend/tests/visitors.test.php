@@ -162,10 +162,12 @@ test('nobody\'s first import that goes through makes a visitor: the key once, in
         ->get("/api/accounts/{$account}/imports")
         ->status(200)
         ->path('0.status', 'success');
-    $visitor
+    $character = $visitor
         ->get("/api/accounts/{$account}/characters/hutao")
         ->status(200)
         ->path('account.id', $account);
+    // Which teammates the account has - none of no team here -, as for a person: an object even when empty.
+    check(str_contains($character->body, '"owned_teammates":{}'), 'the teammates a visitor\'s account has: ' . $character->body);
     $visitor
         ->patch("/api/accounts/{$account}", ['nickname' => 'Mine'])
         ->status(200)

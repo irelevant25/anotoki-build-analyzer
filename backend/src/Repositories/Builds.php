@@ -74,6 +74,23 @@ final class Builds
     }
 
     /**
+     * Which of these characters of a game have builds - by key: a teammate links to its builds page only then.
+     *
+     * @param  list<string>  $keys
+     * @return array<string, true>
+     */
+    public function keysWithBuilds(Game $game, array $keys): array
+    {
+        if ($keys === []) {
+            return [];
+        }
+        [$in, $params] = Db::in(array_values(array_unique($keys)));
+        $rows = $this->db->all("SELECT DISTINCT c.key FROM builds b JOIN game_characters c ON c.id = b.game_character_id WHERE c.game = ? AND c.key IN ({$in})", [$game->value, ...$params]);
+
+        return array_fill_keys(array_column($rows, 'key'), true);
+    }
+
+    /**
      * Characters of a game that have builds, a line per build: the builds browser.
      *
      * @return list<array{id: int|string, game_character_id: int|string, role: string, min_rank: int|string, checked_at: string|null, changed_at: string|null}>

@@ -268,7 +268,14 @@
                   <anotoki-badge tone="primary">{{ 'character.closestMatch' | translate }}</anotoki-badge>
                 </div>
               }
-              <app-build-detail [build]="b" [game]="game()" [evaluation]="e" [element]="d.character.element" />
+              <app-build-detail
+                [build]="b"
+                [game]="game()"
+                [evaluation]="e"
+                [element]="d.character.element"
+                [ownedTeammates]="d.owned_teammates"
+                [accountId]="d.account.id"
+              />
             </anotoki-card>
           }
         </div>

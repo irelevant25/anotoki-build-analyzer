@@ -144,6 +144,14 @@ enum Game: string
         };
     }
 
+    /** The most characters a team has - the party the game fields: a build's recommended teams have 2 to this many. */
+    public function teamSize(): int
+    {
+        return match ($this) {
+            self::Genshin => 4,
+        };
+    }
+
     /** The prefix the game writes a weapon's refinement with ("R1"). */
     public function refinementPrefix(): string
     {

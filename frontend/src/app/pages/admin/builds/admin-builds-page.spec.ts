@@ -17,7 +17,7 @@ import { BUILD_FILE_MAX_BYTES, BUILD_FILE_TOO_LARGE, momentText } from './build-
 const settle = () => new Promise((resolve) => setTimeout(resolve, 0));
 
 const FILE_NAME = 'builds-genshin-2026-10-20.json';
-const FILE_TEXT = JSON.stringify({ format: 'build-analyzer.builds', format_version: 2, game: 'genshin', exported_at: '2026-10-20T10:00:00Z', builds: [] });
+const FILE_TEXT = JSON.stringify({ format: 'build-analyzer.builds', format_version: 3, game: 'genshin', exported_at: '2026-10-20T10:00:00Z', builds: [] });
 
 const CHECKED = '2026-10-19T10:00:00+00:00';
 const CHANGED = '2026-10-18T10:00:00+00:00';
@@ -66,11 +66,14 @@ function plan(dryRun: boolean, overrides: Partial<BuildImportPlan> = {}): BuildI
     older_than_current: false,
     characters: 110,
     builds: 250,
+    teams: 0,
     created: 2,
     updated: 1,
     unchanged: 247,
     removed: 3,
     skipped: [],
+    teammates_unknown: [],
+    teammates_unknown_total: 0,
     changes: [
       { change: 'created', character: { key: 'hutao', name: 'Hu Tao' }, role: 'main_dps', qualifier: 'Melt', min_rank: 2 },
       { change: 'updated', character: { key: 'furina', name: 'Furina' }, role: 'support', qualifier: '', min_rank: 0 },
@@ -341,7 +344,7 @@ describe('the Builds page (admin panel): the builds files and the catalog', () =
     const version1 = JSON.stringify({ format: 'build-analyzer.builds', format_version: 1, source: 'genshin-2', game: 'genshin', builds: [] });
     await choose({ text: () => Promise.resolve(version1) });
 
-    expect(problem()).toBe("This builds file has format version 1, from before builds had variations. This installation reads version 2: a game's builds, each a variation of its character's.");
+    expect(problem()).toBe("This builds file has format version 1, from before builds had variations. This installation reads version 3: a game's builds, each a variation of its character's.");
     expect(api.importBuilds).not.toHaveBeenCalled();
 
     await choose({ text: () => Promise.resolve('{"format": ') });

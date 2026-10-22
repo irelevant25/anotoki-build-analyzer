@@ -66,11 +66,13 @@ export class BuildCharacterPage {
   protected readonly build = computed(() => this.data()?.builds.find((build) => String(build.id) === this.activeTab()) ?? null);
 
   constructor() {
-    effect(() => {
+    // The newest character asked wins: one still on its way is dropped (its request cancelled), so a late answer never
+    // stands for the page's address - a teammate's link leads from one character to the next on this same page.
+    effect((onCleanup) => {
       const game = this.gameKey();
       const key = this.key();
       this.loading.set(true);
-      this.api.characterBuilds(game, key).subscribe({
+      const request = this.api.characterBuilds(game, key).subscribe({
         next: (data) => {
           this.data.set(data);
           this.chosen.set(null);
@@ -82,6 +84,7 @@ export class BuildCharacterPage {
           this.loading.set(false);
         },
       });
+      onCleanup(() => request.unsubscribe());
     });
   }
 }

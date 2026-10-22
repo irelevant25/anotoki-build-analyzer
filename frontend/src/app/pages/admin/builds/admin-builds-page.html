@@ -81,6 +81,10 @@
                     </anotoki-alert>
                   }
 
+                  @if (unknownTeammates(preview.plan); as teammates) {
+                    <p class="muted small teammates-unknown">{{ teammates }}</p>
+                  }
+
                   @let changes = changeCount(preview.plan);
                   @if (changes > 0) {
                     <anotoki-disclosure class="changes" [heading]="'Changes (' + changes + ')'">

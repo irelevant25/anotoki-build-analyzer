@@ -28,8 +28,14 @@ Correctness first:
   `from_rank` within `Game::maxRank()`, a build's identity (character, role, lower(qualifier), `min_rank`) once in
   a file, (stat, `from_rank`) once in a build, the caps -, every text through `Neutral` in and out, and whatever the
   export writes the import reads (a new field goes into both, the round trip in `builds_import.test.php`); a change
-  of meaning is a new `format_version`, the old one refused with a sentence of its own. `BuildImport`: the file is
-  the whole truth for its game (a character the catalog lacks skipped and named, a file of none it knows refused),
+  of meaning is a new `format_version`, the old one refused with a sentence of its own. A build's teams (format 3):
+  the build's own character among 2-`Game::teamSize()` members exactly once and with no stand-in, members once, no
+  stand-in a member, no two teams of the same members; what the catalog says of a teammate (known, picture, rarity,
+  element, has_builds) looked up in `BuildPresenter` when shown, never stored - stored texts made neutral before
+  icon addresses are added -; the teams in `content_hash` last and only when there are some (a build without teams
+  keeps its hash); `owned_teammates` from the account the route found as its owner's alone. `BuildImport`: the file is
+  the whole truth for its game (a character the catalog lacks skipped and named, a teammate it lacks kept and named -
+  never a skip -, a file of none it knows refused),
   a build found again by its identity keeps its id (`?build=ID` links), one transaction under its advisory lock
   (409 `busy`), a dry run writes nothing, every import in `build_imports` and the audit log, the catalog never
   written; its routes (`api/routes/admin_builds.php`) in the STAFF group.
