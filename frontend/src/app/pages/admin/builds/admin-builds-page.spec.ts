@@ -1,10 +1,8 @@
 import { HttpErrorResponse, HttpHeaders, HttpResponse } from '@angular/common/http';
 import { signal } from '@angular/core';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
-import { By } from '@angular/platform-browser';
-import { Router, provideRouter } from '@angular/router';
+import { provideRouter } from '@angular/router';
 import { provideTestTranslations } from '@anotoki/lib/translations/testing';
-import { ComboboxComponent } from '@anotoki/lib/ui/combobox';
 import { ToastService } from '@anotoki/lib/ui/toast';
 import { Observable, Subject, of, throwError } from 'rxjs';
 import { Api } from '../../../core/api';
@@ -676,54 +674,65 @@ describe('the Builds page (admin panel): the builds files and the catalog', () =
         { key: 'xiangling', name: 'Xiangling', icon_url: null, builds: 1, edited: 0, made_here: 0, removed: 0, notes: 0, ordered: false },
       ],
     });
-    const picker = () => fixture.debugElement.query(By.directive(ComboboxComponent)).componentInstance as ComboboxComponent;
+    // Each row's cells as read - the name by itself: a character with no picture draws its initials (hidden from a screen reader).
+    const rows = () =>
+      [...host.querySelectorAll<HTMLTableRowElement>('.editor-table tbody tr')].map((row) =>
+        [...row.querySelectorAll('td')].map((cell, i) => text(i === 0 ? cell.querySelector('.editor-name') : cell)),
+      );
+    const links = () => [...host.querySelectorAll<HTMLAnchorElement>('.editor-table a.editor-character')].map((link) => link.getAttribute('href'));
 
-    it('offers every character of the catalog by name and picture - with its builds and what was done to them here - and links to those changed here', async () => {
+    async function find(words: string): Promise<void> {
+      const input = host.querySelector<HTMLInputElement>('.editor-find input')!;
+      input.value = words;
+      input.dispatchEvent(new Event('input'));
+      await fixture.whenStable();
+    }
+
+    it('lists every character of the catalog in a table - its picture and name a link to its editor, its element, weapon, builds and what was done to them here', async () => {
       await setup([changedHere]);
 
       expect(text(host.querySelector('.editor .anotoki-card__title'))).toBe('Edit builds');
-      expect(picker().label()).toBe('Character');
-      expect(
-        picker()
-          .options()
-          .map((option) => [option.value, option.label, option.picture]),
-      ).toEqual([
-        ['furina', 'Furina · no builds', '/icons/furina.png'],
-        ['hutao', 'Hu Tao · 2 builds · 1 edited · 1 removed · notes on 1', '/icons/hutao.png'],
-        ['xiangling', 'Xiangling · 1 build', null],
+      expect([...host.querySelectorAll('.editor-table th')].map((cell) => text(cell))).toEqual(['Character', 'Element', 'Weapon', 'Builds', 'Changed here']);
+      expect(rows()).toEqual([
+        ['Furina', 'Hydro', 'Sword', '0', 'Nothing yet'],
+        ['Hu Tao', 'Pyro', 'Polearm', '2', '1 edited · 1 removed · notes on 1'],
+        ['Xiangling', 'Pyro', 'Polearm', '1', 'Nothing yet'],
       ]);
-      // Found by element and weapon type too, which are never shown.
-      expect(picker().options()[1].keywords).toBe('pyro polearm');
-
-      // Only what an editor changed: Xiangling's builds are the file's as they are.
-      expect(text(host.querySelector('.edited-heading'))).toBe('Changed here (1)');
-      const cards = [...host.querySelectorAll<HTMLAnchorElement>('a.edited-character')];
-      expect(cards.map((card) => [text(card), card.getAttribute('href')])).toEqual([['Hu Tao: 2 builds · 1 edited · 1 removed · notes on 1', '/admin/builds/genshin/hutao']]);
-      expect(host.querySelector('.no-edits')).toBeNull();
+      expect(links()).toEqual(['/admin/builds/genshin/furina', '/admin/builds/genshin/hutao', '/admin/builds/genshin/xiangling']);
+      expect(text(host.querySelector('.editor-count'))).toBe('3 of 3 characters');
+      // On a phone each row a small card of its own, labelled from its cells (the kit's table-stack).
+      expect(host.querySelector('.editor-table table')!.classList.contains('table-stack')).toBe(true);
+      expect(host.querySelector('.editor-table td')!.getAttribute('data-label')).toBe('Character');
       expect(api.editorCatalog).toHaveBeenCalledWith('genshin');
     });
 
-    it('opens the builds editor of the character picked', async () => {
+    it('narrows the table to the words typed - a name, an element, a weapon -, or to the characters changed here', async () => {
       await setup([changedHere]);
-      const navigate = vi.spyOn(TestBed.inject(Router), 'navigate').mockResolvedValue(true);
 
-      picker().value.set('furina');
+      await find('pyro');
+      expect(rows().map((row) => row[0])).toEqual(['Hu Tao', 'Xiangling']);
+      await find('hu   pyro');
+      expect(rows().map((row) => row[0])).toEqual(['Hu Tao']);
+      expect(text(host.querySelector('.editor-count'))).toBe('1 of 3 characters');
+      // Without regard to case or accents.
+      await find('FURÍNA');
+      expect(rows().map((row) => row[0])).toEqual(['Furina']);
+      await find('nobody');
+      expect(host.querySelector('.editor-table')).toBeNull();
+      expect(text(host.querySelector('.editor-none'))).toBe('No character matches.');
+
+      await find('');
+      host.querySelector<HTMLInputElement>('.editor-changed input')!.click();
       await fixture.whenStable();
-      expect(navigate).toHaveBeenCalledWith(['/admin/builds', 'genshin', 'furina']);
+      expect(rows().map((row) => row[0])).toEqual(['Hu Tao']);
     });
 
-    it('says so where nothing was changed here yet', async () => {
-      await setup();
-      expect(text(host.querySelector('.no-edits'))).toBe("No character's builds were changed here yet.");
-      expect(host.querySelector('.edited-heading')).toBeNull();
-    });
-
-    it('says why the characters could not be read, in place of the picker', async () => {
+    it('says why the characters could not be read, in place of the table', async () => {
       await setup([game()], undefined, () => throwError(() => refused(500, 'Something broke.')));
       await settle();
       await fixture.whenStable();
       expect(text(host.querySelector('.editor-problem .anotoki-alert__text'))).toBe('The characters could not be read: Something broke.');
-      expect(host.querySelector('anotoki-combobox')).toBeNull();
+      expect(host.querySelector('.editor-table')).toBeNull();
     });
   });
 });

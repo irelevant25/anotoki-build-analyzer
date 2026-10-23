@@ -45,6 +45,8 @@ export interface DraftBuild {
   checkedAt: string | null;
   changedAt: string | null;
   editedAt: string | null;
+  /** The build of the file's this one was renamed from on this page (its uid, set aside in the draft's `deleted`); null otherwise. */
+  renamedFrom: string | null;
 }
 
 /** A stored build deleted on this page, and the place it had: put back there. */
@@ -118,6 +120,7 @@ function entryDraft(entry: EditorEntry): DraftBuild {
     checkedAt: entry.checked_at,
     changedAt: entry.changed_at,
     editedAt: entry.edited_at,
+    renamedFrom: null,
   };
 }
 
@@ -297,7 +300,7 @@ function freeQualifier(draft: Draft, role: string, minRank: number, base: string
 }
 
 function newDraftBuild(build: EditorBuild, notes: DraftNotes): DraftBuild {
-  return { uid: newUid(), id: null, removal: null, build, file: null, filePosition: null, notes, checkedAt: null, changedAt: null, editedAt: null };
+  return { uid: newUid(), id: null, removal: null, build, file: null, filePosition: null, notes, checkedAt: null, changedAt: null, editedAt: null, renamedFrom: null };
 }
 
 /** A new, empty build of the editor's own, last: the first role with no build of its own yet, else "New" (to be renamed). */
@@ -341,6 +344,7 @@ export function bringBack(draft: Draft, removalId: number): { draft: Draft; uid:
     checkedAt: null,
     changedAt: null,
     editedAt: null,
+    renamedFrom: null,
   };
   return { draft: { ...draft, builds: placed(draft.builds, build) }, uid: build.uid };
 }
@@ -408,6 +412,49 @@ export function replaced<T extends object>(list: readonly T[], index: number, ch
 }
 
 // ── changing a build ──────────────────────────────────────────────────────────────────────────────
+
+/** A build's name: its role, its qualifier, the constellation it needs. */
+export type BuildName = Pick<EditorBuild, 'role' | 'qualifier' | 'min_rank'>;
+
+/** The build of the file's a build was renamed from on this page, set aside - or none (never renamed, or put back since). */
+export function renamedOriginal(draft: Draft, build: DraftBuild): DraftBuild | null {
+  return build.renamedFrom === null ? null : (draft.deleted.find((entry) => entry.build.uid === build.renamedFrom)?.build ?? null);
+}
+
+/**
+ * A build's name changed on the page - its role, qualifier or constellation. A build of the file's keeps its name
+ * (the server keeps it, its spelling too): changed, it becomes a build of the editor's own in its place - its parts and
+ * its notes with it -, the file's set aside to be removed at the save (remembered there: no import brings it back
+ * unasked; until then Add build puts it back). Named as that build of the file's again (without regard to case), it
+ * is that build again - in its place, with the file's spelling and what it holds now. A name with no other identity
+ * than it had (the case of a file build's qualifier) changes nothing: the file's spelling stays.
+ */
+export function renameBuild(draft: Draft, uid: string, name: Partial<BuildName>): { draft: Draft; uid: string } {
+  const index = draft.builds.findIndex((one) => one.uid === uid);
+  const build = draft.builds[index];
+  if (!build) {
+    return { draft, uid };
+  }
+  const next: EditorBuild = { ...build.build, ...name };
+  const replace = (builds: readonly DraftBuild[], one: DraftBuild) => builds.map((each, i) => (i === index ? one : each));
+  // Back to the file's build it was renamed from: that one, holding what this one holds now.
+  const original = renamedOriginal(draft, build);
+  if (original && identityOf(next) === identityOf(original.build)) {
+    const named: BuildName = { role: original.build.role, qualifier: original.build.qualifier, min_rank: original.build.min_rank };
+    const back: DraftBuild = { ...original, build: { ...next, ...named }, notes: build.notes };
+    return { draft: { ...draft, builds: replace(draft.builds, back), deleted: draft.deleted.filter((entry) => entry.build !== original) }, uid: back.uid };
+  }
+  if (!nameFixed(build)) {
+    return { draft: { ...draft, builds: replace(draft.builds, { ...build, build: next }) }, uid };
+  }
+  if (identityOf(next) === identityOf(build.build)) {
+    return { draft, uid };
+  }
+  // A build of the file's renamed: one of the editor's own in its place, the file's set aside (a stored one, to come back to).
+  const copy: DraftBuild = { ...newDraftBuild(next, build.notes), renamedFrom: build.id !== null ? build.uid : null };
+  const without = deleteBuild(draft, uid);
+  return { draft: { ...without, builds: [...without.builds.slice(0, index), copy, ...without.builds.slice(index)] }, uid: copy.uid };
+}
 
 /** The draft with one build changed. */
 export function updateBuild(draft: Draft, uid: string, change: (build: DraftBuild) => DraftBuild): Draft {

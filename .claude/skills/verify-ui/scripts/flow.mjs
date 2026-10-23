@@ -910,29 +910,54 @@ try {
       const english = 'Keep her HP below half before her skill.';
       const slovak = 'Pred jej skillom drž HP pod polovicou.';
       await open(ed, '/admin/builds');
-      await ed.waitForSelector('section.game .editor .editor-pick input', { timeout: 15000 });
+      await ed.waitForSelector('section.game .editor .editor-table tbody tr', { timeout: 15000 });
+      // Every character of the catalog in a table, each row's cells as read - the name by itself: a picture, where
+      // there is none, draws the initials.
+      const tableRows = () =>
+        ed
+          .locator('section.game .editor-table tbody tr')
+          .evaluateAll((rows) =>
+            rows.map((row) => [...row.querySelectorAll('td')].map((cell, i) => (i === 0 ? cell.querySelector('.editor-name') : cell)?.textContent?.replace(/\s+/g, ' ').trim()).join(' | ')),
+          );
+      const everyone = await tableRows();
+      check(
+        everyone.length === 3 && everyone.includes('Hu Tao | Pyro | Polearm | 2 | Nothing yet'),
+        `Edit builds: every character of the catalog in a table, with its builds (${everyone.join(' / ')})`,
+      );
+      // The table drawn anew after a filter: the page draws on its next turn (zoneless).
+      const rowsCome = (count) => ed.waitForFunction((n) => document.querySelectorAll('section.game .editor-table tbody tr').length === n, count, { timeout: 5000 });
       // Kazuha's game version was edited above: the one character changed here.
-      // Each card's name and line by themselves: its picture, where there is none, draws the initials.
-      const changedHere = await ed
-        .locator('section.game .edited-character')
-        .evaluateAll((cards) => cards.map((card) => `${card.querySelector('.edited-name')?.textContent?.trim()}: ${card.querySelector('.edited-text .muted')?.textContent?.trim()}`));
-      check(changedHere.join(' | ') === 'Kaedehara Kazuha: 1 build · 1 edited', `the characters changed here: ${changedHere.join(' | ')}`);
+      await ed.click('section.game .editor-changed input');
+      await rowsCome(1);
+      const changedHere = await tableRows();
+      check(changedHere.join(' / ') === 'Kaedehara Kazuha | Anemo | Sword | 1 | 1 edited', `only those changed here: ${changedHere.join(' / ')}`);
+      await ed.click('section.game .editor-changed input');
+      await rowsCome(3);
+      await shot(ed, '25-admin-builds-editor-table-1280-light', { fullPage: true });
 
-      // Hu Tao, picked by typing - the kit's combobox, every character of the catalog.
-      await ed.fill('section.game .editor-pick input', 'hu');
-      const option = ed.locator('[role=option]', { hasText: 'Hu Tao' });
-      await option.first().waitFor({ timeout: 10000 });
-      check((await option.first().innerText()).replace(/\s+/g, ' ').trim().startsWith('Hu Tao · 2 builds'), `the picker says what she has: ${(await option.first().innerText()).trim()}`);
-      // Taken with Enter, the first match being the active one: a click can land where the list stood a frame before.
-      await ed.press('section.game .editor-pick input', 'Enter');
+      // Hu Tao, found by typing in the table's search, and opened by her name.
+      await ed.fill('section.game .editor-find input', 'hu');
+      await rowsCome(1);
+      const found = await tableRows();
+      check(found.join(' / ') === 'Hu Tao | Pyro | Polearm | 2 | Nothing yet', `the table narrowed to the words typed (${found.join(' / ')})`);
+      await ed.click('section.game .editor-table a.editor-character');
       await ed.waitForURL('**/admin/builds/genshin/hutao', { timeout: 15000 });
       await ed.waitForSelector('.build-panel [data-path="notes.build.en"] textarea', { timeout: 15000 });
       check((await ed.locator('h1').innerText()).trim() === 'Builds of Hu Tao', 'the editor: Builds of Hu Tao');
       check((await ed.locator(`${BAR_LINK}.anotoki-top-bar__link--active`).innerText()).trim() === 'Builds', "the bar's Builds marked as the section the page is in: the editor is the Builds page's");
       const tabs = await ed.locator('.build-tabs .anotoki-tabs__label').allInnerTexts();
       check(tabs.join('|') === 'Main DPS|Sub DPS · C2+', `a tab a build, by its variation (${tabs.join(', ')})`);
-      const fixed = await ed.locator('.build-panel [data-path="role"] select').isDisabled();
-      check(fixed && (await ed.locator('.build-panel .fixed-name').count()) === 1, "a build of the file's keeps its role, qualifier and constellation, and says why");
+      // A build of the file's: its name there changeable - renamed, it becomes one of the editor's own, said so, and back.
+      const changeable = await ed.locator('.build-panel [data-path="role"] select').isEnabled();
+      check(changeable && (await ed.locator('.build-panel .fixed-name').count()) === 1, "a build of the file's: its role, qualifier and constellation changeable, what it means said");
+      await ed.fill('.build-panel [data-path="qualifier"] input', 'Melt');
+      await ed.waitForSelector('.build-panel .renamed', { timeout: 5000 });
+      const renamedTab = (await ed.locator('.build-tabs [role=tab][aria-selected=true] .anotoki-tabs__badge').innerText()).trim();
+      check(renamedTab === 'Renamed', `renamed: one of the editor's own, its tab says so (${renamedTab})`);
+      await shot(ed, '26-build-editor-renamed-1280-light', { fullPage: true });
+      await ed.click('.build-panel button.undo-rename');
+      await ed.waitForSelector('.build-panel .renamed', { state: 'detached', timeout: 5000 });
+      check((await ed.locator('.save-bar').count()) === 0, "back to the file's name: the file's build again, nothing to save");
 
       // The note: the English, and the Slovak in its block of Slovak.
       await ed.fill('.build-panel [data-path="notes.build.en"] textarea', english);

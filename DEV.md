@@ -209,7 +209,7 @@ never from a local copy. Then run the tests, the production build and the browse
 
 ```bash
 cd backend && php tests/run.php            # every backend test file: 24 files, 364 tests (or one: php tests/auth.test.php)
-cd frontend && npx ng test --watch=false   # frontend unit tests (Vitest): 56 spec files, 497 tests
+cd frontend && npx ng test --watch=false   # frontend unit tests (Vitest): 56 spec files, 502 tests
 cd frontend && npx ng build                # the production build must pass too
 bun run format:check                       # Prettier on every file of both halves, at the root (bun install there first)
 php backend/tools/check-names.php          # from the root: no tracked file names a build site
@@ -390,6 +390,7 @@ one (the Backups page, "before an update"). `config/*.local.php` and `storage/` 
 - **Version 0.7.0: the builds editor** (migrations 022-023): Export each language, upload the release, **Apply
   pending** at once - no build changes, and nothing is imported again; a note saved to check it is seen by every
   member at once (a real one, or deleted again). [docs/operations.md](docs/operations.md), "Deploying 0.7.0".
+- **Version 0.7.1** (no migration): the release only. [docs/operations.md](docs/operations.md), "Deploying 0.7.1".
 - **The IAM's sign-in switch** (now the library's `SignInRule`): upload only once the IAM answers
   `https://iam.anotoki.eu/api/public/applications/build-analyzer` with 200 - before that the site requires
   sign-in (fail closed) and turns visitors away. [docs/operations.md](docs/operations.md), "Deploying".

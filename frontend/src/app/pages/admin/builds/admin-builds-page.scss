@@ -24,37 +24,37 @@
   grid-column: 1 / -1;
 }
 
-// A character's name to type: no wider than a name needs.
-.editor-pick {
-  max-width: 36rem;
-}
-
-// The characters whose builds were changed here: link cards side by side, one under another on a phone.
-.edited-heading {
-  margin: 0;
-  font-size: 0.9375rem;
-}
-
-.edited-list {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(min(100%, 16rem), 1fr));
-  gap: 0.5rem;
-}
-
-.edited-character {
+// What the table is narrowed to: the words to find, the characters changed here alone.
+.editor-filters {
   display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 0.75rem 1.5rem;
+}
+
+.editor-find {
+  flex: 0 1 24rem;
+  min-width: min(100%, 16rem);
+}
+
+// Every character: on a wide screen a table that scrolls within the card, its heads staying; on a phone the page's own
+// scroll, each row a small card of its own (the kit's table-stack).
+.editor-table {
+  border: 1px solid var(--anotoki-border);
+  border-radius: 12px;
+}
+
+@media (min-width: 721px) {
+  .editor-table {
+    max-height: 30rem;
+    overflow-y: auto;
+  }
+}
+
+.editor-character {
+  display: inline-flex;
   align-items: center;
-  gap: 0.75rem;
-}
-
-.edited-text {
-  display: flex;
-  flex-direction: column;
-  min-width: 0;
-  overflow-wrap: anywhere;
-}
-
-.edited-name {
+  gap: 0.6rem;
   font-weight: 650;
 }
 

@@ -160,13 +160,16 @@ describe("the teams' form: a build's teams, each its members, their stand-ins an
     expect(document.activeElement).toBe(field('teams[1].members[2].key').querySelector('input'));
     second().querySelector<HTMLButtonElement>('button.add-member')!.click();
     await update();
-    expect(second().querySelector<HTMLButtonElement>('button.add-member')!.disabled).toBe(true);
+    // Four, the most a team has: no more to add.
+    expect(second().querySelector('button.add-member')).toBeNull();
   });
 
   it("moves and removes members - never the build's own character -, the focus on the picker of the one now in its place", async () => {
     await setup([DOUBLE]);
     const members = () => fixture.componentInstance.teams()[0].members;
     const own = rowId(members()[1]);
+    // The members side by side: moved left and right.
+    expect(host.querySelectorAll<HTMLElement>('.member')[1].querySelector('button.move-up')!.getAttribute('aria-label')).toBe('Move Hu Tao in team 1 (Double Hydro) left');
 
     host.querySelectorAll<HTMLButtonElement>('.member')[1].querySelector<HTMLButtonElement>('button.move-up')!.click();
     await update();

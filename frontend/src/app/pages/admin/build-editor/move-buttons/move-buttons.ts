@@ -8,7 +8,8 @@ import { EditorAnnouncer } from '../editor-announcer';
  * Move up, move down and remove, for one entry of an ordered list of the builds editor - a build among its character's,
  * a weapon, a set option, a team... (the anotoki-genshin-impact site's way, the owner's choice of 2026-10-22): each an
  * icon-only button of the kit's with its whole name ("Move weapon Staff of Homa up") and a tooltip. Up is off on the
- * first entry, down on the last.
+ * first entry, down on the last. A list whose entries stand side by side (`axis`: a team's members) moves them left and
+ * right.
  *
  * The list's owner moves the entry (`move`: -1 or 1) and removes it (`remove`: asking first where that cannot be
  * undone). Once the entry is drawn in its new place - which the page does by moving it, losing the focus on the way - the
@@ -36,6 +37,17 @@ export class MoveButtons {
   readonly removable = input(true);
   /** What removing is called on its button: "Remove", "Delete". */
   readonly removeLabel = input('Remove');
+  /** Which way the list runs: one entry under another (up, down), or side by side (left, right - a team's members). */
+  readonly axis = input<'vertical' | 'horizontal'>('vertical');
+
+  /** The words and pictures of the way the list runs: [earlier, later]. */
+  protected ways(): [string, string] {
+    return this.axis() === 'horizontal' ? ['left', 'right'] : ['up', 'down'];
+  }
+
+  protected icons(): [string, string] {
+    return this.axis() === 'horizontal' ? ['arrowLeft', 'arrowRight'] : ['arrowUp', 'arrowDown'];
+  }
 
   readonly move = output<-1 | 1>();
   readonly remove = output<void>();
@@ -57,7 +69,7 @@ export class MoveButtons {
         const further = delta < 0 ? index > 0 : index < count - 1;
         (further ? pressed : other)?.focus();
         const name = this.name();
-        this.announcer.announce(`${name.charAt(0).toUpperCase()}${name.slice(1)} moved ${delta < 0 ? 'up' : 'down'}: ${index + 1} of ${count}.`);
+        this.announcer.announce(`${name.charAt(0).toUpperCase()}${name.slice(1)} moved ${this.ways()[delta < 0 ? 0 : 1]}: ${index + 1} of ${count}.`);
       },
       { injector: this.injector },
     );

@@ -39,6 +39,7 @@ import {
 import { TimeAgoPipe } from '../../../shared/stat-pipes';
 import { roleName, variationName } from '../builds/build-file';
 import {
+  BuildName,
   Draft,
   DraftBuild,
   NoteDraft,
@@ -62,6 +63,8 @@ import {
   partText,
   problems,
   putBack,
+  renameBuild,
+  renamedOriginal,
   saveBody,
   saveText,
   updateBuild,
@@ -123,8 +126,9 @@ const UNREADABLE = 'Write a number, such as 70 or 120.5 - or leave it empty.';
  * remembered with its notes) or one deleted on this page; a build is moved earlier or later (the order then the
  * editor's - said, kept by every import; "Give the order back to the file" undoes it) or deleted, which asks first.
  *
- * A build's cards: its Variation - role, qualifier, constellation (fixed for a build of the file's: its name there; a
- * copy of it can be renamed) and game version -, its Notes - the site's own, English and Slovak (shown to members in
+ * A build's cards: its Variation - role, qualifier, constellation (a build of the file's renamed becomes one of the
+ * editor's own in its place, the file's set aside to be removed at the save - said so, with the way back) and game
+ * version -, its Notes - the site's own, English and Slovak (shown to members in
  * their language where written, else in English) -, and its parts, each with "Edited" / "Unsaved" and "Use the
  * file's" - a form each, the teams' with each team's note (teams-form). A part changed
  * back to what was loaded is what was loaded again (editor-draft.ts: withPart()), so the page holds no change nobody
@@ -457,6 +461,10 @@ export class BuildEditorPage implements HoldsUnsavedChanges {
   private stateOf(build: DraftBuild): BuildState | null {
     const loaded = this.loadedBuilds().get(build.uid);
     if (!loaded) {
+      const draft = this.draft();
+      if (draft && renamedOriginal(draft, build)) {
+        return { label: 'Renamed', tone: 'warning' };
+      }
       return build.removal !== null ? { label: 'Brought back', tone: 'success' } : { label: 'New', tone: 'success' };
     }
     if (JSON.stringify(buildBody(build)) !== JSON.stringify(buildBody(loaded))) {
@@ -470,6 +478,9 @@ export class BuildEditorPage implements HoldsUnsavedChanges {
 
   /** Where a build comes from, in a line over its cards. */
   protected origin(build: DraftBuild): string {
+    if (this.renamedName(build) !== null) {
+      return 'Renamed from the builds file: a build of your own once saved';
+    }
     if (build.removal !== null) {
       return 'Brought back: from the builds file, removed by an editor';
     }
@@ -477,6 +488,13 @@ export class BuildEditorPage implements HoldsUnsavedChanges {
       return 'Made here: not saved yet';
     }
     return build.file !== null ? 'From the builds file' : 'Made here: no builds file has it';
+  }
+
+  /** The name of the build of the file's a build was renamed from on this page ("Main DPS · Vape"); null for none. */
+  protected renamedName(build: DraftBuild): string | null {
+    const draft = this.draft();
+    const original = draft ? renamedOriginal(draft, build) : null;
+    return original ? this.variation(original.build) : null;
   }
 
   /** The problem shown at a field of a build, or none. */
@@ -503,10 +521,49 @@ export class BuildEditorPage implements HoldsUnsavedChanges {
    */
   private edit(uid: string, places: readonly string[], change: (build: DraftBuild) => DraftBuild): void {
     this.draft.update((draft) => draft && updateBuild(draft, uid, change));
+    this.forget(uid, places);
+  }
+
+  /** The problems shown at some places of a build forgotten - at each place, and inside it. */
+  private forget(uid: string, places: readonly string[]): void {
     const within = (key: string) => places.some((place) => key === `${uid} ${place}` || key.startsWith(`${uid} ${place}.`) || key.startsWith(`${uid} ${place}[`));
     const errors = this.fieldErrors();
     if (Object.keys(errors).some(within)) {
       this.fieldErrors.set(Object.fromEntries(Object.entries(errors).filter(([key]) => !within(key))));
+    }
+  }
+
+  /**
+   * A build's name changed - its role, qualifier or constellation (renameBuild()): a build of the file's becomes one of
+   * the editor's own in its place, or one renamed so is the file's again - its tab open, what was typed in its targets
+   * with it, said to a screen reader.
+   */
+  private rename(build: DraftBuild, name: Partial<BuildName>, places: readonly string[]): void {
+    const draft = this.draft();
+    if (!draft || this.saving()) {
+      return;
+    }
+    const result = renameBuild(draft, build.uid, name);
+    this.draft.set(result.draft);
+    this.forget(build.uid, places);
+    if (result.uid === build.uid) {
+      return;
+    }
+    const typed = this.unreadable()[build.uid];
+    if (typed) {
+      this.unreadable.update(({ [build.uid]: _moved, ...rest }) => ({ ...rest, [result.uid]: typed }));
+    }
+    this.active.set(result.uid);
+    const now = result.draft.builds.find((one) => one.uid === result.uid);
+    this.announcer.announce(now?.file === null ? "Renamed: a build of your own now - the builds file's is removed when you save." : "Back to the builds file's build, with what it holds now.");
+  }
+
+  /** A renamed build named as the file's again: that build again. */
+  protected undoRename(build: DraftBuild): void {
+    const draft = this.draft();
+    const original = draft ? renamedOriginal(draft, build) : null;
+    if (original) {
+      this.rename(build, { role: original.build.role, qualifier: original.build.qualifier, min_rank: original.build.min_rank }, ['role', 'qualifier', 'min_rank']);
     }
   }
 
@@ -580,15 +637,15 @@ export class BuildEditorPage implements HoldsUnsavedChanges {
   }
 
   protected setRole(build: DraftBuild, role: string): void {
-    this.edit(build.uid, ['role', 'qualifier'], (one) => withField(one, 'role', role));
+    this.rename(build, { role }, ['role', 'qualifier']);
   }
 
   protected setQualifier(build: DraftBuild, qualifier: string): void {
-    this.edit(build.uid, ['qualifier'], (one) => withField(one, 'qualifier', qualifier));
+    this.rename(build, { qualifier }, ['qualifier']);
   }
 
   protected setRank(build: DraftBuild, rank: string): void {
-    this.edit(build.uid, ['min_rank', 'qualifier'], (one) => withField(one, 'min_rank', Number(rank)));
+    this.rename(build, { min_rank: Number(rank) }, ['min_rank', 'qualifier']);
   }
 
   /** The game version as typed; none where nothing is. */

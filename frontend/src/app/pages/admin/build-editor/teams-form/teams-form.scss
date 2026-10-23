@@ -29,6 +29,8 @@
   align-items: flex-start;
   gap: 0.75rem;
   min-width: 0;
+  // Its members are laid out by its width (a query sizes what is inside the box it measures, never the box itself).
+  container: team / inline-size;
   padding: 0.75rem;
   border: 1px solid var(--anotoki-border);
   border-radius: 12px;
@@ -59,61 +61,57 @@
   align-self: stretch;
 }
 
-// The members are laid out by the room their team gives them, not by the window.
+// The members side by side, laid out by the room their team gives them (its container), not by the window: four columns
+// where there is room for them, two on a narrower screen, one on a phone.
 .members {
-  display: flex;
-  flex-direction: column;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
   align-self: stretch;
   gap: 0.75rem;
   margin: 0;
   padding: 0;
   list-style: none;
-  container-type: inline-size;
 }
 
-// A line between members.
-.member {
-  min-width: 0;
-  padding-top: 0.75rem;
-  border-top: 1px solid var(--anotoki-border);
-
-  &:first-child {
-    padding-top: 0;
-    border-top: 0;
+@container team (min-width: 30rem) {
+  .members {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
 
-// A member: who it is, its role, the constellation it needs and its buttons, its stand-ins under them - in a narrow
-// team (a phone) who it is a line of its own, then two fields to a line; with room enough, the four on one line.
+@container team (min-width: 52rem) {
+  .members {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+}
+
+// A member: a column of its own - its portrait and buttons, its character, role, constellation and stand-ins, one
+// under another -, on the kit's surface within the team's quieter one.
+.member {
+  min-width: 0;
+  padding: 0.75rem;
+  border: 1px solid var(--anotoki-border);
+  border-radius: 10px;
+  background: var(--anotoki-surface);
+}
+
 .member-row {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  grid-template-areas:
-    "who who"
-    "role rank"
-    "stand-ins stand-ins"
-    "buttons buttons";
-  align-items: end;
-  gap: 0.5rem 0.75rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
   min-width: 0;
 }
 
-.who {
+.member-top {
   display: flex;
-  grid-area: who;
-  align-items: flex-end;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
   gap: 0.5rem;
-  min-width: 0;
 }
 
 .picture {
   flex: none;
-  margin-bottom: 0.25rem;
-}
-
-.pick {
-  flex: 1 1 auto;
-  min-width: 0;
 }
 
 // The build's own character: its name where another member has its picker - no field, nothing to change.
@@ -133,38 +131,27 @@
   font-weight: 600;
 }
 
-.role {
-  grid-area: role;
-}
-
-.rank {
-  grid-area: rank;
-}
-
-.buttons {
-  grid-area: buttons;
-  justify-self: start;
-  padding-bottom: 0.25rem;
+.unknown {
+  align-self: flex-start;
 }
 
 .stand-ins {
   display: flex;
-  grid-area: stand-ins;
   flex-direction: column;
   align-items: flex-start;
   gap: 0.5rem;
   min-width: 0;
+  padding-top: 0.6rem;
+  border-top: 1px solid var(--anotoki-border);
 }
 
 .stand-ins-label {
-  margin-bottom: -0.25rem;
   font-size: 0.875rem;
   font-weight: 650;
 }
 
 .add-stand-in {
   align-self: stretch;
-  max-width: 32rem;
 }
 
 .full {
@@ -175,16 +162,6 @@
   display: block;
   color: var(--anotoki-danger-text);
   font-weight: 600;
-}
-
-@container (min-width: 44rem) {
-  .member-row {
-    // The buttons' column as wide as three buttons, whether a row has its remove or not: the rows' columns line up.
-    grid-template-columns: minmax(0, 2fr) minmax(0, 1.2fr) minmax(0, 1.2fr) 6.625rem;
-    grid-template-areas:
-      "who role rank buttons"
-      "stand-ins stand-ins stand-ins .";
-  }
 }
 
 // The notes waiting for a team: under the teams, each with its members, its words and what can be done with it.

@@ -111,7 +111,7 @@ look at it, 2026-10-22): a team side by side on a phone too, 64 px portraits (an
 `lg`; its 88 px heroes `xl`), a check for "Owned", the Traveler in every element, a set option's pictures in a column
 of one width; and the local tools write no notes of the sites' (`export.notes`) and keep every team.
 
-**Version 0.7.0 (unreleased) - the builds editor, task 9** (the owner's round of 2026-10-22, docs/decisions.md; the
+**Version 0.7.0 - the builds editor, task 9** (the owner's round of 2026-10-22, docs/decisions.md; the
 plan in seven steps, a pause after each for the owner's word): editors change builds by hand in the admin panel - a
 form for every part, drawn with the kit -, make builds of their own, remove others and write **the site's own notes**
 (English, Slovak optional) on a build and its teams; **every import keeps what they did** (docs/builds.md, "Hand
@@ -129,7 +129,10 @@ the Privacy page's audit-log sentence with hand edits; the legal pages' date mov
 editor"), the editor's page with its Variation and Notes cards and the notes on the member pages (step 3:
 `/admin/builds/:game/:key`), the forms of the weapons and the artifact sets (step 4), of the main stats, substats,
 talents and stat targets (step 5) and of the teams with their notes (step 6), and the release - the version, What's
-new, docs/operations.md "Deploying 0.7.0" (step 7); deployed only at the owner's word.
+new, docs/operations.md "Deploying 0.7.0" (step 7); deployed 2026-10-23. **0.7.1** (the owner's look at it,
+2026-10-23): Edit builds a table of every character; a build's role, qualifier and constellation changeable - a build
+of the file's renamed becomes the editor's own, the file's set aside (`renameBuild()`); a team's members side by side,
+a column each, the note under them.
 
 **The shared library, anotoki-lib** (`irelevant25/anotoki-lib` on GitHub: Composer `anotoki/lib` ^0.9.0 through a
 `vcs` repository - 0.9.2 now -, npm `@anotoki/lib` 0.9.2 from its release tarball - never a local path, never 0.4.0; DEV.md "The

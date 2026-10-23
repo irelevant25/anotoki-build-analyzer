@@ -17,32 +17,45 @@
                 [maxlength]="maxName()"
                 [error]="error('teams[' + t + '].name')"
                 [attr.data-path]="'teams[' + t + '].name'" />
+            <!-- The members side by side, four to a row where there is room: each one's column its portrait, character, role, constellation and stand-ins. -->
             <ol class="members">
                 @for (member of team.members; track rowId(member); let m = $index) {
                     <li class="member">
                         <!-- A group of its own inside the list's item: the item stays the list's. -->
                         <div class="member-row" role="group" [attr.aria-label]="memberLabel(member, m)">
-                            <div class="who">
-                                <!-- The name beside it says it: the picture is hidden from a screen reader. -->
-                                <app-avatar class="picture" aria-hidden="true" [src]="icon(member.key)" [alt]="member.name || '?'" size="sm" />
-                                @if (isOwn(member)) {
-                                    <div class="own">
-                                        <span class="own-label">Character</span>
-                                        <span class="own-name">{{ memberName(member, m) }}</span>
-                                        <span class="muted small">This build's: in every team, with no stand-in.</span>
-                                    </div>
-                                } @else {
-                                    <anotoki-combobox
-                                        class="pick"
-                                        label="Character"
-                                        placeholder="Type a character's name"
-                                        [options]="memberOptions(team, member)"
-                                        [value]="member.key === '' ? null : member.key"
-                                        (valueChange)="pickMember(t, m, $event)"
-                                        [error]="error('teams[' + t + '].members[' + m + '].key')"
-                                        [attr.data-path]="'teams[' + t + '].members[' + m + '].key'" />
-                                }
+                            <div class="member-top">
+                                <!-- The name under it says it: the picture is hidden from a screen reader. -->
+                                <app-avatar class="picture" aria-hidden="true" [src]="icon(member.key)" [alt]="member.name || '?'" size="md" />
+                                <app-move-buttons
+                                    class="buttons"
+                                    axis="horizontal"
+                                    [index]="m"
+                                    [count]="team.members.length"
+                                    [name]="memberName(member, m) + ' in ' + teamName(team, t)"
+                                    [removable]="!isOwn(member)"
+                                    (move)="moveMember(t, m, $event)"
+                                    (remove)="removeMember(t, m)" />
                             </div>
+                            @if (isOwn(member)) {
+                                <div class="own">
+                                    <span class="own-label">Character</span>
+                                    <span class="own-name">{{ memberName(member, m) }}</span>
+                                    <span class="muted small">This build's: in every team, with no stand-in.</span>
+                                </div>
+                            } @else {
+                                <anotoki-combobox
+                                    class="pick"
+                                    label="Character"
+                                    placeholder="Type a name"
+                                    [options]="memberOptions(team, member)"
+                                    [value]="member.key === '' ? null : member.key"
+                                    (valueChange)="pickMember(t, m, $event)"
+                                    [error]="error('teams[' + t + '].members[' + m + '].key')"
+                                    [attr.data-path]="'teams[' + t + '].members[' + m + '].key'" />
+                                @if (!known(member.key)) {
+                                    <anotoki-badge class="unknown" tone="warning">Not in the catalog</anotoki-badge>
+                                }
+                            }
                             <anotoki-select
                                 class="role"
                                 label="Role"
@@ -59,19 +72,8 @@
                                 (valueChange)="setRank(t, m, $event)"
                                 [error]="error('teams[' + t + '].members[' + m + '].min_rank')"
                                 [attr.data-path]="'teams[' + t + '].members[' + m + '].min_rank'" />
-                            <app-move-buttons
-                                class="buttons"
-                                [index]="m"
-                                [count]="team.members.length"
-                                [name]="memberName(member, m) + ' in ' + teamName(team, t)"
-                                [removable]="!isOwn(member)"
-                                (move)="moveMember(t, m, $event)"
-                                (remove)="removeMember(t, m)" />
                             @if (!isOwn(member)) {
                                 <div class="stand-ins">
-                                    @if (!known(member.key)) {
-                                        <anotoki-badge class="unknown" tone="warning">Not in the catalog</anotoki-badge>
-                                    }
                                     @if (member.alternatives.length > 0) {
                                         <!-- For the eye: the list's own name says it to a screen reader. -->
                                         <span class="stand-ins-label" aria-hidden="true">Stand-ins</span>
@@ -107,10 +109,12 @@
             @if (error("teams[" + t + "].members"); as message) {
                 <anotoki-alert class="team-problem" tone="danger" tabindex="-1" [attr.data-path]="'teams[' + t + '].members'">{{ message }}</anotoki-alert>
             }
-            <button anotokiButton size="sm" class="add-member" (click)="addMember(t)" [disabled]="team.members.length >= teamSize()">
-                <anotoki-icon name="plus" [size]="16" />
-                Add member
-            </button>
+            @if (team.members.length < teamSize()) {
+                <button anotokiButton size="sm" class="add-member" (click)="addMember(t)">
+                    <anotoki-icon name="plus" [size]="16" />
+                    Add member
+                </button>
+            }
             <app-note-fields
                 class="team-note"
                 label="Note on this team"

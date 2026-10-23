@@ -1,6 +1,6 @@
 ---
 name: deploy-builder
-description: Build the build analyzer for the FTP-only hosting and ship it to builder.anotoki.eu with anotoki-deploy - a release of frontend/ and backend/, swapped in whole, a rollback, the setup page on a first install, a new migration's Apply, the catalog's refresh and the builds file's import after it, version 0.5.0's one-time steps (genshin.anotoki.eu first, the names file, Apply 014-019), 0.6.0's (Apply 020-021, then a version 3 builds file - the teams - before the next builds refresh), 0.6.1's (no migration; the builds file without the sites' notes) and 0.7.0's (the builds editor: Apply 022-023 at once, nothing to import). Use when the user asks to deploy, release, upload or publish the build analyzer, roll a release back, or asks what a new version needs on the hosting.
+description: Build the build analyzer for the FTP-only hosting and ship it to builder.anotoki.eu with anotoki-deploy - a release of frontend/ and backend/, swapped in whole, a rollback, the setup page on a first install, a new migration's Apply, the catalog's refresh and the builds file's import after it, version 0.5.0's one-time steps (genshin.anotoki.eu first, the names file, Apply 014-019), 0.6.0's (Apply 020-021, then a version 3 builds file - the teams - before the next builds refresh), 0.6.1's (no migration; the builds file without the sites' notes) 0.7.0's (the builds editor: Apply 022-023 at once, nothing to import) and 0.7.1's (no migration: the release only). Use when the user asks to deploy, release, upload or publish the build analyzer, roll a release back, or asks what a new version needs on the hosting.
 ---
 
 # Deploy the build analyzer
@@ -151,3 +151,9 @@ no build changes) and 023 (Edit builds on a character's builds page; the Privacy
 where it reads as before), one Apply after a backup. Nothing to import. Check: the Builds page's Edit builds card
 opens a character's editor; a note saved there shows on the character's builds page (Slovak with `?lang=sk`) -
 every member sees it at once: a real one, or deleted again once seen -; the audit log has `builds.edited`. Make a backup by hand once applied (the earlier ones restore offline only).
+
+## 9. Deploying 0.7.1
+
+No migration, so nothing waits after the swap: the release (section 2) and the site stays open (docs/operations.md,
+"Deploying 0.7.1"). The owner's look at 0.7.0: Edit builds a table of every character, a build's name changeable
+(a file build renamed becomes the editor's own), a team's members side by side.

@@ -182,34 +182,58 @@
               @if (charactersProblem()[game]; as problem) {
                 <anotoki-alert class="editor-problem" tone="warning">The characters could not be read: {{ problem }}</anotoki-alert>
               } @else {
-                <anotoki-combobox
-                  class="editor-pick"
-                  label="Character"
-                  placeholder="Type a name"
-                  hint="Every character of the catalog: one without builds gets its first one there."
-                  [options]="characterOptions()[game] ?? []"
-                  [value]="null"
-                  (valueChange)="openEditor(game, $event)"
-                />
-              }
-              @let edited = editedCharacters(data);
-              @if (edited.length > 0) {
-                <h4 class="edited-heading">Changed here ({{ edited.length }})</h4>
-                <div class="edited-list">
-                  @for (character of edited; track character.key) {
-                    <a anotokiLinkCard class="edited-character" [routerLink]="['/admin/builds', game, character.key]">
-                      <app-avatar aria-hidden="true" [src]="character.icon_url" [alt]="character.name" size="sm" />
-                      <span class="edited-text">
-                        <span class="edited-name">{{ character.name }}</span>
-                        <!-- Heard between the two, which are drawn one under the other: the card's name is all it holds. -->
-                        <span class="visually-hidden">: </span>
-                        <span class="muted small">{{ editingLine(character) }}</span>
-                      </span>
-                    </a>
-                  }
+                @let table = characterRows()[game];
+                <div class="editor-filters">
+                  <anotoki-text-field
+                    class="editor-find"
+                    type="search"
+                    label="Find a character"
+                    placeholder="A name, an element or a weapon"
+                    [value]="find()[game] ?? ''"
+                    (valueChange)="setFind(game, $event)"
+                  />
+                  <anotoki-checkbox class="editor-changed" [checked]="changedOnly()[game] ?? false" (checkedChange)="setChangedOnly(game, $event)">
+                    Only those changed here
+                  </anotoki-checkbox>
                 </div>
-              } @else {
-                <p class="muted small no-edits">No character's builds were changed here yet.</p>
+                <p class="muted small editor-count" aria-live="polite">{{ table?.shown?.length ?? 0 }} of {{ table?.all ?? 0 }} characters</p>
+                @if ((table?.shown?.length ?? 0) > 0) {
+                  <!-- Every character, its picture and name a link to its builds editor; one without builds gets its first one there. -->
+                  <div class="table-scroll editor-table">
+                    <table class="table table-middle table-stack">
+                      <caption class="visually-hidden">
+                        Every character of {{ gameLabels[game] }}: open one to change its builds
+                      </caption>
+                      <thead>
+                        <tr>
+                          <th scope="col">Character</th>
+                          <th scope="col">Element</th>
+                          <th scope="col">Weapon</th>
+                          <th scope="col" class="cell-num">Builds</th>
+                          <th scope="col">Changed here</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        @for (row of table?.shown ?? []; track row.key) {
+                          <tr>
+                            <td data-label="Character">
+                              <a class="editor-character" [routerLink]="['/admin/builds', game, row.key]">
+                                <app-avatar aria-hidden="true" [src]="row.icon" [alt]="row.name" size="sm" />
+                                <span class="editor-name">{{ row.name }}</span>
+                              </a>
+                            </td>
+                            <td data-label="Element">{{ row.element }}</td>
+                            <td data-label="Weapon">{{ row.weapon }}</td>
+                            <td data-label="Builds" class="cell-num">{{ row.builds }}</td>
+                            <td data-label="Changed here" [class.muted]="row.done === ''">{{ row.done || "Nothing yet" }}</td>
+                          </tr>
+                        }
+                      </tbody>
+                    </table>
+                  </div>
+                } @else {
+                  <p class="muted small editor-none">No character matches.</p>
+                }
               }
             </div>
           </anotoki-card>

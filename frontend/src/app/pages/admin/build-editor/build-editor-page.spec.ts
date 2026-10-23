@@ -231,9 +231,9 @@ describe("the builds editor: a character's builds changed by hand, saved in one 
     expect(text(host.querySelector('.order'))).toBe("The builds file's order, builds made here after the file's.");
     expect(text(host.querySelector('.build-origin'))).toContain('From the builds file');
 
-    // A build of the file's keeps its name there: its role, qualifier and constellation stay.
+    // A build of the file's: its role, qualifier and constellation its name there - changed, it becomes the editor's own (said so).
     expect(control<HTMLSelectElement>('role').value).toBe('main_dps');
-    expect([control<HTMLSelectElement>('role').disabled, control<HTMLInputElement>('qualifier').disabled, control<HTMLSelectElement>('min_rank').disabled]).toEqual([true, true, true]);
+    expect([control<HTMLSelectElement>('role').disabled, control<HTMLInputElement>('qualifier').disabled, control<HTMLSelectElement>('min_rank').disabled]).toEqual([false, false, false]);
     expect(control<HTMLInputElement>('game_version').disabled).toBe(false);
     expect(host.querySelector('.fixed-name')).not.toBeNull();
     expect(control<HTMLTextAreaElement>('notes.build.en').value).toBe('Keep her HP low.');
@@ -541,6 +541,55 @@ describe("the builds editor: a character's builds changed by hand, saved in one 
     const sent = api.saveCharacterEditing.mock.calls[0][2].builds[0];
     expect(sent.build.teams.map((team) => team.name)).toEqual(['Vaporize']);
     expect(sent.notes.teams).toEqual([{ en: 'Swirl first.' }]);
+  });
+
+  it("makes a build of the file's renamed one of the editor's own - the file's removed at the save, said so - and the file's again when named so", async () => {
+    await setup();
+    // Typed in the field, which keeps the focus as the build becomes another.
+    control<HTMLInputElement>('qualifier').focus();
+    await type('qualifier', 'Melt');
+    // The tab: renamed; the card says what it means, with the way back.
+    expect(tabs('[role="tab"][aria-selected="true"]')).toEqual(['Main DPS · Melt Renamed']);
+    expect(text(host.querySelector('.renamed'))).toContain('the builds file\'s "Main DPS" is removed when you save');
+    expect(text(host.querySelector('.build-origin'))).toContain('Renamed from the builds file');
+    expect(document.activeElement).toBe(control('qualifier'));
+    await type('qualifier', 'Melt ');
+    expect(tabs('[role="tab"][aria-selected="true"]')).toEqual(['Main DPS · Melt Renamed']);
+
+    api.saveCharacterEditing.mockReturnValue(of(editing()));
+    button('save').click();
+    await update();
+    const sent = api.saveCharacterEditing.mock.calls[0][2].builds;
+    // The file's build no longer sent (removed, remembered); one of the editor's own in its place, its notes with it.
+    expect(sent.map((one) => [one.id, one.removal, one.build.role, one.build.qualifier])).toEqual([
+      [null, null, 'main_dps', 'Melt '],
+      [2, null, 'support', ''],
+      [3, null, 'main_dps', 'Mine'],
+    ]);
+    expect(sent[0].notes.build).toEqual({ en: 'Keep her HP low.' });
+  });
+
+  it("puts a renamed build of the file's back as the file's - by its name, or the way back - with what it holds now", async () => {
+    await setup();
+    await type('qualifier', 'Melt');
+    host.querySelector<HTMLButtonElement>('button.undo-rename')!.click();
+    await update();
+    expect(tabs('[role="tab"][aria-selected="true"]')).toEqual(['Main DPS']);
+    expect(host.querySelector('.renamed')).toBeNull();
+    expect(host.querySelector('.save-bar')).toBeNull();
+
+    // Renamed by its constellation and back by it: the file's build, its edits kept.
+    await type('game_version', '5.6');
+    const rank = control<HTMLSelectElement>('min_rank');
+    rank.value = '2';
+    rank.dispatchEvent(new Event('change'));
+    await update();
+    expect(tabs('[role="tab"][aria-selected="true"]')).toEqual(['Main DPS · C2+ Renamed']);
+    control<HTMLSelectElement>('min_rank').value = '0';
+    control<HTMLSelectElement>('min_rank').dispatchEvent(new Event('change'));
+    await update();
+    expect(tabs('[role="tab"][aria-selected="true"]')).toEqual(['Main DPS Unsaved']);
+    expect(control<HTMLInputElement>('game_version').value).toBe('5.6');
   });
 
   it('holds the save back while a bound typed is no number - a change in itself -, saying it at its field', async () => {

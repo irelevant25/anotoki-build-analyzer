@@ -76,6 +76,16 @@
   margin: 0.75rem 0 0;
 }
 
+// A renamed build: what it means, and the way back - its button under the words.
+.renamed {
+  display: block;
+  margin-top: 0.75rem;
+}
+
+.undo-rename {
+  margin-top: 0.5rem;
+}
+
 // A card of several lists - the main stats, a slot each - one under another.
 .slots {
   display: flex;

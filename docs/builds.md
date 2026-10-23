@@ -323,9 +323,10 @@ The admin panel's builds editor (`BuildEditor`, the editors' routes below) loads
 in one go.
 
 **The page** (`/admin/builds/:game/:key`, `frontend/src/app/pages/admin/build-editor/`; English, as the admin panel)
-is reached from the Builds page's **Edit builds** card - every character of the catalog to pick by typing (the kit's
-combobox, with portraits, each saying its builds and what was done to them here), and the characters changed here as
-link cards - and from a character's builds page, where an editor or an admin finds **Edit builds** (`buildDetail.edit`,
+is reached from the Builds page's **Edit builds** card - every character of the catalog in a table (the kit's: its
+picture and name a link to its editor, its element, weapon, builds and what was done to them here; narrowed by the
+words typed - a name, an element, a weapon - or to the characters changed here; on a phone each row a small card of
+its own) - and from a character's builds page, where an editor or an admin finds **Edit builds** (`buildDetail.edit`,
 migration 023). It holds the character's builds while an editor changes them (`editor-draft.ts`: plain functions
 over the loaded answer; a part nobody touched goes back as the very object that came, so the server sees no edit
 there):
@@ -341,8 +342,13 @@ there):
   order back (and says so in the save where the stored order was an editor's); deleting a build asks first - one of
   the file's is remembered once saved, and Bring back restores it;
 - the open build's cards (`part-card`: "Edited" against the file, "Unsaved" against what was loaded, **Use the
-  file's**, which asks first): its **Variation** - role, qualifier, constellation (fixed for a build of the file's or
-  one brought back, with a line saying why: a copy of it can be renamed) and game version -, its **Notes** (the
+  file's**, which asks first): its **Variation** - role, qualifier, constellation and game version; a build of the
+  file's (or one brought back) has its role, qualifier and constellation as its name in the file, so one changed makes
+  it a build of the editor's own in its place - its parts and notes with it; keeping the place makes the order the
+  editor's, which Give the order back to the file undoes -, the file's set aside to be removed at
+  the save (remembered: no import brings it back unasked), the tab saying "Renamed" and the card what it means, with
+  **Back to the file's name**; named as the file's again (without regard to case) it is the file's build again, with
+  what it holds now (`renameBuild()`; the file's spelling stays) -, its **Notes** (the
   site's own: English, and Slovak in a block of `lang="sk"` beside it - `note-fields`) and its parts, each in its form:
   - **Weapons** (`weapons-form`): best first, each picked by typing its name (the kit's combobox with pictures: the
     catalog's weapons of the character's type - every type where "Offer every weapon type" is ticked -, none another
@@ -371,8 +377,9 @@ there):
     page's: Save is offered, and says it) -, moved and removed; a target needs a minimum or a maximum, the minimum no
     higher than the maximum, one target a stat from each constellation; a target keeps its numbers alone;
   - **Teams** (`teams-form`, the card across the page's width): best first, each a box of its name (one line, 60
-    characters at most, required - as members read it), its members and the site's note on it (English, Slovak
-    optional - `note-fields`); a member is its character (picked by typing its name, the kit's combobox with portraits,
+    characters at most, required - as members read it), its members side by side - a column each, four to a row where
+    there is room (two on a narrower screen, one on a phone), moved left and right - and, under them, the site's note on
+    it (English, Slovak optional - `note-fields`); a member's column is its portrait, its character (picked by typing its name, the kit's combobox with portraits,
     none the team has twice; one the catalog lacks keeps its stored name, marked), the role it plays ("Not said" or a
     role), the constellation the team asks of it ("Any", C1-C6) and up to five stand-ins (the kit's chips and a picker,
     none of the team's members); the build's own character is in every team - no picker, no stand-in, no remove, only

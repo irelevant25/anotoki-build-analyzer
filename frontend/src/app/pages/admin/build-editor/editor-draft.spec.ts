@@ -26,6 +26,8 @@ import {
   partText,
   problems,
   putBack,
+  renameBuild,
+  renamedOriginal,
   replaced,
   rowId,
   saveBody,
@@ -623,6 +625,43 @@ describe("the builds editor's state: from what the server loaded to a save, and 
       expect(moved(edited, 1, 1)).toEqual(edited);
       expect(rowId(carried(list[1], { ...list[1] }))).toBe(names[1]);
       expect(rowId({ stat: 'critRate_', priority: 1 })).not.toBe(names[0]);
+    });
+  });
+
+  describe("a build's name changed on the page", () => {
+    it("makes a build of the file's renamed one of the editor's own in its place - the file's set aside, its notes with it", () => {
+      const draft = fromServer(loaded());
+      const renamed = renameBuild(draft, 'b1', { qualifier: 'Melt' });
+      const copy = renamed.draft.builds[0];
+      expect(renamed.uid).toBe(copy.uid);
+      expect([copy.id, copy.file, copy.build.qualifier, copy.renamedFrom]).toEqual([null, null, 'Melt', 'b1']);
+      expect(copy.notes).toBe(draft.builds[0].notes);
+      expect(copy.build.weapons).toBe(draft.builds[0].build.weapons);
+      expect(renamed.draft.deleted.map((entry) => entry.build.uid)).toEqual(['b1']);
+      expect(renamedOriginal(renamed.draft, copy)?.uid).toBe('b1');
+      expect(saveBody(renamed.draft).builds.map((one) => one.id)).toEqual([null, 2, 3]);
+    });
+
+    it("is the file's build again, named so - without regard to case, its spelling the file's -, with what it holds now", () => {
+      const draft = fromServer(loaded());
+      const renamed = renameBuild(draft, 'b1', { qualifier: 'Melt' });
+      const edited = updateBuild(renamed.draft, renamed.uid, (one) => withField(one, 'game_version', '5.6'));
+      const back = renameBuild(edited, renamed.uid, { qualifier: '' });
+      expect(back.uid).toBe('b1');
+      expect(back.draft.builds[0].build.game_version).toBe('5.6');
+      expect(back.draft.deleted).toEqual([]);
+      // A copy of the file's support build, renamed back as "SUPPORT" names it: the file's own spelling.
+      const support = renameBuild(draft, 'b2', { role: 'sub_dps' });
+      expect(renameBuild(support.draft, support.uid, { role: 'support' }).draft.builds[1].uid).toBe('b2');
+    });
+
+    it("changes a build of the editor's own in place, and a file build's case not at all", () => {
+      const draft = fromServer(loaded());
+      const mine = renameBuild(draft, 'b3', { qualifier: 'Ours' });
+      expect([mine.uid, mine.draft.builds[2].build.qualifier, mine.draft.deleted]).toEqual(['b3', 'Ours', []]);
+      // The file's spelling stays: the same name in another case is no other name.
+      const melt = updateBuild(draft, 'b1', (one) => ({ ...one, build: { ...one.build, qualifier: 'Melt' }, file: { ...one.file!, qualifier: 'Melt' } }));
+      expect(renameBuild(melt, 'b1', { qualifier: 'MELT' }).draft).toBe(melt);
     });
   });
 

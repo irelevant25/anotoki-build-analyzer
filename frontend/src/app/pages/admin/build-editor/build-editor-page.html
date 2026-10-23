@@ -136,14 +136,7 @@
                                     [canUseFile]="parts().game_version.edited"
                                     (useFile)="useFile(b, 'game_version')">
                                     <div class="fields">
-                                        <anotoki-select
-                                            label="Role"
-                                            data-path="role"
-                                            [options]="roleOptions()"
-                                            [value]="b.build.role"
-                                            (valueChange)="setRole(b, $event)"
-                                            [disabled]="nameFixed(b)"
-                                            [error]="error(b, 'role')" />
+                                        <anotoki-select label="Role" data-path="role" [options]="roleOptions()" [value]="b.build.role" (valueChange)="setRole(b, $event)" [error]="error(b, 'role')" />
                                         <anotoki-text-field
                                             label="Qualifier"
                                             data-path="qualifier"
@@ -152,7 +145,6 @@
                                             [value]="b.build.qualifier"
                                             (valueChange)="setQualifier(b, $event)"
                                             [maxlength]="limits?.qualifier ?? null"
-                                            [disabled]="nameFixed(b)"
                                             [error]="error(b, 'qualifier')" />
                                         <anotoki-select
                                             label="Constellation needed"
@@ -160,7 +152,6 @@
                                             [options]="rankOptions()"
                                             [value]="'' + b.build.min_rank"
                                             (valueChange)="setRank(b, $event)"
-                                            [disabled]="nameFixed(b)"
                                             [error]="error(b, 'min_rank')" />
                                         <anotoki-text-field
                                             label="Game version"
@@ -173,10 +164,18 @@
                                             [maxlength]="limits?.game_version ?? null"
                                             [error]="error(b, 'game_version')" />
                                     </div>
-                                    @if (nameFixed(b)) {
+                                    @if (renamedName(b); as original) {
+                                        <anotoki-alert class="renamed" tone="info">
+                                            Renamed: this is now a build of your own, and the builds file's "{{ original }}" is removed when you save - no import brings it back unasked.
+                                            <button anotokiButton size="sm" variant="secondary" class="undo-rename" (click)="undoRename(b)">
+                                                <anotoki-icon name="undo" [size]="16" />
+                                                Back to the file's name
+                                            </button>
+                                        </anotoki-alert>
+                                    } @else if (nameFixed(b)) {
                                         <p class="muted small fixed-name">
-                                            From the builds file: its role, qualifier and constellation are its name there, so they stay. To change them, add a copy of it (Add build, then Copy of this
-                                            build) and delete this one.
+                                            From the builds file, where its role, qualifier and constellation are its name. Change one, and it becomes a build of your own: the file's is set aside -
+                                            removed when you save, so no import brings it back unasked - and yours keeps everything else, its notes too.
                                         </p>
                                     }
                                 </app-part-card>

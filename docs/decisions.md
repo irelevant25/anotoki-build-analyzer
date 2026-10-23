@@ -76,6 +76,24 @@ to, so no edit and no note is ever lost unasked:
   part as the file has it (a build brought back, Use the file's) counts as unchanged too, and a build a file brought
   empty holds no save of its character back (only one changed on the page is asked to be filled).
 
+**2026-10-23 — Version 0.7.1: the owner's look at 0.7.0.** Each point the owner's word:
+
+- **Edit builds a table**, not a dropdown: every character of the catalog in the kit's table - picture and name a
+  link to its editor, element, weapon, builds, what was done to them here -, narrowed by words typed or to the
+  characters changed here; the link cards of the characters changed here went (the table's filter shows them).
+- **A build's role, qualifier and constellation changeable**: they were locked on a build of the file's - its name
+  there - with one line saying why, which the owner did not see. Now a change makes the build one of the editor's own
+  in its place and sets the file's aside to be removed at the save (`renameBuild()`), said on its tab ("Renamed") and
+  in its card, with the way back; named as the file's again it is the file's build again, its edits kept. It keeps its
+  place, which makes the order the editor's (said, as any order of the editor's). Chosen over
+  a true rename, which would have the import match a build by the name the file gave it (`file_build`) and make the
+  name a part an import can ask about - a change of the import's rules for one field: the renamed build no longer
+  takes the file's updates (an import that changes the file's build asks whether to bring it back).
+- **A team's members side by side**: a column each - portrait, character, role, constellation, stand-ins, one under
+  another - four to a row where there is room (two on a narrower screen, one on a phone: the pickers need the width),
+  moved left and right (`move-buttons`' `axis`), the team's note under them; Add member under the columns, as a cell
+  among them would break the members' list for a screen reader.
+
 **2026-10-22 — Version 0.6.1: the owner's look at 0.6.0 (no notes from the sites, every team, a check for "Owned").**
 The owner's round on what 0.6.0 put live, each point the owner's word:
 - **The sites' notes are not shown - not even sent.** A build's notes, a weapon's, a set option's and a team's note,

@@ -1,14 +1,13 @@
 import { HttpErrorResponse } from '@angular/common/http';
 import { Component, computed, inject, signal } from '@angular/core';
-import { Router, RouterLink } from '@angular/router';
+import { RouterLink } from '@angular/router';
 import { AlertComponent } from '@anotoki/lib/ui/alert';
 import { BadgeComponent, BadgeTone } from '@anotoki/lib/ui/badge';
 import { ButtonComponent } from '@anotoki/lib/ui/button';
 import { CardComponent } from '@anotoki/lib/ui/card';
-import { ComboboxComponent, ComboboxOption } from '@anotoki/lib/ui/combobox';
 import { DisclosureComponent, DisclosurePanelDirective } from '@anotoki/lib/ui/disclosure';
 import { IconComponent } from '@anotoki/lib/ui/icon';
-import { LinkCardComponent } from '@anotoki/lib/ui/link-card';
+import { CheckboxComponent, TextFieldComponent } from '@anotoki/lib/ui/forms';
 import { PageHeaderComponent } from '@anotoki/lib/ui/page-header';
 import { ProgressBarComponent } from '@anotoki/lib/ui/progress';
 import { SegmentedComponent } from '@anotoki/lib/ui/segmented';
@@ -96,6 +95,28 @@ export function editingFacts(character: EditingOverview | null, doneOnly: boolea
   return doneOnly ? done : [count(character.builds, 'build'), ...done];
 }
 
+/** A character in the Edit builds table: what the catalog says of it, and of its builds here. */
+export interface CharacterRow {
+  key: string;
+  name: string;
+  icon: string | null;
+  element: string;
+  weapon: string;
+  builds: number;
+  /** What was done to its builds here ("1 edited · notes on 1"); '' for nothing. */
+  done: string;
+}
+
+/** A word of the game's as the admin panel writes it: "pyro" is "Pyro"; none is "—". */
+function gameWord(value: string | null): string {
+  return value ? `${value.charAt(0).toUpperCase()}${value.slice(1)}` : '—';
+}
+
+/** Text as the table's search compares it: without its case and its accents ("Fúrina" finds "furina"). */
+function folded(text: string): string {
+  return text.normalize('NFD').replace(/\p{M}/gu, '').toLowerCase();
+}
+
 /** The badge after a change's line: its colour repeats the word. */
 const CHANGE_TONES: Record<BuildChange['change'], BadgeTone> = {
   created: 'success',
@@ -153,15 +174,15 @@ function idle(): GameState {
  *   what does not fit; 409: another import writes) is said in the card, the preview kept when the import itself
  *   fails; when the questions changed meanwhile (409 plan_changed: an edit saved, another import), the file is checked
  *   again and said so;
- * - **Edit builds**: the way into the builds editor (/admin/builds/:game/:key) - every character of the catalog to
- *   pick by typing (the kit's combobox, with portraits, each with its builds and what was done to them here), and the
- *   characters whose builds were changed here as link cards;
+ * - **Edit builds**: the way into the builds editor (/admin/builds/:game/:key) - every character of the catalog in a
+ *   table (the kit's: its picture and name a link to its editor, its element and weapon, its builds and what was done
+ *   to them here), narrowed by the words typed - a name, an element, a weapon - or to the characters changed here;
  * - the recent imports: when, the file's date, what each did, who imported it;
  * - the catalog's lists (characters, weapons, sets) and when each was refreshed; Refresh catalog refreshes the three
  *   one after another, with the kit's progress bar, and stops at the first error.
  *
  * Drawn with the anotoki family's kit: its page header, cards, stat tiles, buttons, alerts, badges, disclosure,
- * combobox, link cards, progress bar, spinner and messages. A time is relative ("3 days ago"), or a moment in the account's date order and
+ * text field, checkbox, table, progress bar, spinner and messages. A time is relative ("3 days ago"), or a moment in the account's date order and
  * clock where the person has chosen them (build-file.ts: momentText). The server checks the role (403 editor_only);
  * while a database update waits the site gate shows its own page instead of this one.
  */
@@ -182,8 +203,8 @@ function idle(): GameState {
     StatTileComponent,
     StatTilesComponent,
     TooltipDirective,
-    ComboboxComponent,
-    LinkCardComponent,
+    CheckboxComponent,
+    TextFieldComponent,
     RouterLink,
     Avatar,
     TimeAgoPipe,
@@ -196,7 +217,6 @@ export class AdminBuildsPage {
   private readonly toasts = inject(ToastService);
   private readonly auth = inject(AuthService);
   private readonly meta = inject(MetaStore);
-  private readonly router = inject(Router);
   private readonly catalogs = inject(EditorCatalogs);
 
   protected readonly games = GAMES;
@@ -215,19 +235,38 @@ export class AdminBuildsPage {
   protected readonly characters = signal<Partial<Record<GameKey, EditorCharacter[]>>>({});
   protected readonly charactersProblem = signal<Partial<Record<GameKey, string>>>({});
 
-  /** Each game's characters as the editor's picker offers them: every one of the catalog, with its builds and what was done to them here. */
-  protected readonly characterOptions = computed(() => {
-    const options: Partial<Record<GameKey, ComboboxOption[]>> = {};
+  /** What each game's Edit builds table is narrowed to: the words typed; the characters changed here alone. */
+  protected readonly find = signal<Partial<Record<GameKey, string>>>({});
+  protected readonly changedOnly = signal<Partial<Record<GameKey, boolean>>>({});
+
+  /**
+   * Each game's Edit builds table: every character of the catalog, in its order, with its builds and what was done to
+   * them here - those the words typed find (each word in its name, element or weapon), or those changed here.
+   */
+  protected readonly characterRows = computed(() => {
+    const tables: Partial<Record<GameKey, { all: number; shown: CharacterRow[] }>> = {};
     for (const game of GAMES) {
       const overview = new Map((this.byGame()[game]?.editing ?? []).map((character) => [character.key, character]));
-      options[game] = (this.characters()[game] ?? []).map((character) => ({
-        value: character.key,
-        label: [character.name, ...editingFacts(overview.get(character.key) ?? null, false)].join(' · '),
-        picture: character.icon_url,
-        keywords: [character.element, character.weapon_type].filter((word) => word !== null).join(' '),
-      }));
+      const words = folded(this.find()[game] ?? '')
+        .split(/\s+/)
+        .filter((word) => word !== '');
+      const changedOnly = this.changedOnly()[game] ?? false;
+      const all = (this.characters()[game] ?? []).map((character): CharacterRow => {
+        const editing = overview.get(character.key) ?? null;
+        return {
+          key: character.key,
+          name: character.name,
+          icon: character.icon_url,
+          element: gameWord(character.element),
+          weapon: gameWord(character.weapon_type),
+          builds: editing?.builds ?? 0,
+          done: editingFacts(editing, true).join(' · '),
+        };
+      });
+      const shown = all.filter((row) => (!changedOnly || row.done !== '') && words.every((word) => folded(`${row.name} ${row.element} ${row.weapon}`).includes(word)));
+      tables[game] = { all: all.length, shown };
     }
-    return options;
+    return tables;
   });
 
   /** Each game's answer, by its key; a game the server did not answer for is not drawn. */
@@ -257,21 +296,12 @@ export class AdminBuildsPage {
     );
   }
 
-  /** A character picked: its builds editor. */
-  protected openEditor(game: GameKey, key: string | null): void {
-    if (key) {
-      void this.router.navigate(['/admin/builds', game, key]);
-    }
+  protected setFind(game: GameKey, text: string): void {
+    this.find.update((all) => ({ ...all, [game]: text }));
   }
 
-  /** The characters whose builds were changed here - edited, made, removed, noted or ordered by an editor. */
-  protected editedCharacters(data: AdminBuildsGame): EditingOverview[] {
-    return data.editing.filter((character) => editingFacts(character, true).length > 0);
-  }
-
-  /** What was done to a character's builds here: "2 builds · 1 edited · notes on 1". */
-  protected editingLine(character: EditingOverview): string {
-    return editingFacts(character, false).join(' · ');
+  protected setChangedOnly(game: GameKey, on: boolean): void {
+    this.changedOnly.update((all) => ({ ...all, [game]: on }));
   }
 
   /** The builds, the imports and the catalog of every game; `showSpinner` false after an import, the page kept. */

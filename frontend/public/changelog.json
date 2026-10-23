@@ -1,5 +1,12 @@
 [
   {
+    "version": "0.7.1",
+    "date": "2026-10-23",
+    "changes": {
+      "updated": ["For the site's editors: every character in one table to choose from, a build's role, short name and constellation they can change, and a team's members side by side"]
+    }
+  },
+  {
     "version": "0.7.0",
     "date": "2026-10-23",
     "changes": {

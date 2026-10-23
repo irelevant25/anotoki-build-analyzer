@@ -669,6 +669,14 @@ Check after an install: `https://builder.anotoki.eu/config/database.local.php`, 
 `/src/Config.php` must not download (403); `https://builder.anotoki.eu/api/meta` answers JSON with the IAM's
 `issuer`, `client_id` and `login_required` under `auth`; `/api/accounts` answers 401 without a token.
 
+### Deploying 0.7.1
+
+No migration: the release goes up (`bun run anotoki-deploy deploy --backups <folder> --go`) and the site stays open.
+It is the owner's look at 0.7.0 (2026-10-23): the Builds page's Edit builds card is a table of every character, a
+build's role, qualifier and constellation can be changed in the editor (a build of the file's renamed becomes one of
+the editor's own, the file's removed at the save), and a team's members stand side by side. Check: the table lists
+every character and opens one's editor; a renamed build's tab says "Renamed" until **Back to the file's name**.
+
 ### Deploying 0.7.0
 
 Version 0.7.0 is the builds editor (task 9, the owner's round of 2026-10-22, [decisions.md](decisions.md)): editors

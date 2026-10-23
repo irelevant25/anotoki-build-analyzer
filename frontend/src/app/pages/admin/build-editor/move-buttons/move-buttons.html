@@ -1,6 +1,15 @@
 <span class="move-buttons">
-    <button anotokiButton class="move-up" variant="ghost" size="sm" iconOnly [disabled]="index() === 0" [attr.aria-label]="'Move ' + name() + ' up'" anotokiTooltip="Move up" (click)="step(-1)">
-        <anotoki-icon name="arrowUp" [size]="18" />
+    <button
+        anotokiButton
+        class="move-up"
+        variant="ghost"
+        size="sm"
+        iconOnly
+        [disabled]="index() === 0"
+        [attr.aria-label]="'Move ' + name() + ' ' + ways()[0]"
+        [anotokiTooltip]="'Move ' + ways()[0]"
+        (click)="step(-1)">
+        <anotoki-icon [name]="icons()[0]" [size]="18" />
     </button>
     <button
         anotokiButton
@@ -9,10 +18,10 @@
         size="sm"
         iconOnly
         [disabled]="index() >= count() - 1"
-        [attr.aria-label]="'Move ' + name() + ' down'"
-        anotokiTooltip="Move down"
+        [attr.aria-label]="'Move ' + name() + ' ' + ways()[1]"
+        [anotokiTooltip]="'Move ' + ways()[1]"
         (click)="step(1)">
-        <anotoki-icon name="arrowDown" [size]="18" />
+        <anotoki-icon [name]="icons()[1]" [size]="18" />
     </button>
     @if (removable()) {
         <button anotokiButton class="remove" variant="danger-ghost" size="sm" iconOnly [attr.aria-label]="removeLabel() + ' ' + name()" [anotokiTooltip]="removeLabel()" (click)="remove.emit()">

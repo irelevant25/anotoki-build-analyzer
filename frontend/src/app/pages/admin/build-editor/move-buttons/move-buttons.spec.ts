@@ -67,6 +67,17 @@ describe('the move buttons: up, down and remove for an entry of an ordered list'
     expect(moves).toEqual([1, 1]);
   });
 
+  it('moves an entry of a list whose entries stand side by side left and right', async () => {
+    await setup(1, 3);
+    fixture.componentRef.setInput('axis', 'horizontal');
+    await fixture.whenStable();
+    expect([button('move-up'), button('move-down')].map((one) => one.getAttribute('aria-label'))).toEqual(['Move weapon Staff of Homa left', 'Move weapon Staff of Homa right']);
+    const announcer = TestBed.inject(EditorAnnouncer);
+    button('move-down').click();
+    await fixture.whenStable();
+    await vi.waitFor(() => expect(announcer.message()).toBe('Weapon Staff of Homa moved right: 3 of 3.'));
+  });
+
   it('asks its owner to remove the entry, and has no remove where the entry cannot be removed', async () => {
     await setup(1, 3);
     button('remove').click();
