@@ -107,7 +107,8 @@ final class BuildEvaluator
             'sets' => $setPart,
             'main_stats' => $mainPart,
             'items' => $itemResults,
-            'targets' => Neutral::deep($targetPart['rows'] ?? []),
+            // Without a target's text, which the builds file carries and the site no longer shows (BuildPresenter).
+            'targets' => Neutral::deep(array_map(fn(array $row) => array_diff_key($row, ['text' => true]), $targetPart['rows'] ?? [])),
             'substat_weights' => $scorer->weights(),
             'recommendations' => $this->sortedRecommendations(),
         ];

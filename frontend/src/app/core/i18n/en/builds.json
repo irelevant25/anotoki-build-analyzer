@@ -97,6 +97,7 @@
   "buildDetail.notes": "Notes",
   "buildDetail.version": "Version {version}",
   "buildDetail.checked": "Checked {when}",
+  "buildDetail.edit": "Edit builds",
 
   "item.percentOfIdealForBuild": "{percent}% of an ideal piece for this build",
   "item.wrongMainStat": "This build wants a different main stat",

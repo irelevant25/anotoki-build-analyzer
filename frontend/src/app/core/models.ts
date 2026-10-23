@@ -251,6 +251,15 @@ export interface ImportRun {
 
 // ------------------------------------------------------------------ builds
 
+/**
+ * A note of the site's own (builds.site_notes): written by its editors in the builds editor - in English, and in Slovak
+ * where they wrote it. Shown in the reader's language where it is there, else in English (core/i18n/site-note.ts).
+ */
+export interface SiteNote {
+  en: string;
+  sk?: string;
+}
+
 export interface StatPriority {
   stat: string;
   priority: number;
@@ -265,7 +274,6 @@ export interface StatTarget {
   stat: string;
   min: number | null;
   max: number | null;
-  text: string;
   /** The constellation the target holds from (0: from the start). */
   from_rank?: number;
   current?: number | null;
@@ -277,7 +285,6 @@ export interface BuildWeapon {
   name: string;
   rank: number;
   refinement: number | null;
-  note: string | null;
   known: boolean;
   icon_url?: string | null;
   rarity?: number | null;
@@ -296,7 +303,6 @@ export interface SetOption {
   kind: 'artifact';
   choose: number | null;
   pieces: SetPiece[];
-  note: string | null;
 }
 
 /** What a build is for (the server's Game::roles()); a newer server may add one, which a page words as "Build". */
@@ -322,9 +328,10 @@ export interface Build {
   stat_targets: StatTarget[] | null;
   /** The teams the build is played in, best first; [] for none. */
   teams: BuildTeam[];
-  notes: string | null;
+  /** The site's own note on the build; null for none. */
+  notes: SiteNote | null;
   game_version: string | null;
-  /** When the file that last carried the build was made. */
+  /** When the file that last carried the build was made; null for one no file has carried since it was made or brought back here. */
   checked_at: string | null;
   changed_at: string | null;
 }
@@ -352,11 +359,11 @@ export interface TeamMember extends Teammate {
   alternatives: Teammate[];
 }
 
-/** A team a build is played in: its name and note as the builds file has them (stored English), its members in order. */
+/** A team a build is played in: its name as the builds file has it (stored English), its members in order, the site's own note on it. */
 export interface BuildTeam {
   name: string;
   members: TeamMember[];
-  note: string | null;
+  note: SiteNote | null;
 }
 
 export interface BuildCharacter {
@@ -593,11 +600,27 @@ export interface BuildImportEntry {
   id: number;
   created_at: string | null;
   file_exported_at: string | null;
-  summary: { characters: number; builds: number; created: number; updated: number; unchanged: number; removed: number; skipped: number };
+  /** What it did; the hand edits' counts since 0.7 (an import recorded before has none). */
+  summary: {
+    characters: number;
+    builds: number;
+    created: number;
+    updated: number;
+    unchanged: number;
+    removed: number;
+    skipped: number;
+    edits_kept?: number;
+    made_here?: number;
+    kept_removed?: number;
+    file_taken?: number;
+  };
   imported_by: { id: number; name: string } | null;
 }
 
-/** GET /api/admin/builds: a game's builds, its latest imports and its catalog's lists (editors). */
+/**
+ * GET /api/admin/builds: a game's builds, its latest imports, its catalog's lists, and the characters with builds with
+ * what the editors did to them (editors).
+ */
 export interface AdminBuildsGame {
   game: GameKey;
   characters: number;
@@ -606,15 +629,73 @@ export interface AdminBuildsGame {
   changed_at: string | null;
   imports: BuildImportEntry[];
   catalog: CatalogListStatus[];
+  editing: EditingOverview[];
 }
 
-/** One build an import creates, updates or removes, by its character and variation. */
-export interface BuildChange {
-  change: 'created' | 'updated' | 'removed';
+/**
+ * A character with builds - or with builds an editor removed - on the Builds page (BuildEditor::overview()): how many
+ * builds, how many of the file's carry an edit, how many were made here, removed, have notes, and whether their order
+ * is an editor's.
+ */
+export interface EditingOverview {
+  key: string;
+  name: string;
+  icon_url: string | null;
+  builds: number;
+  edited: number;
+  made_here: number;
+  removed: number;
+  notes: number;
+  ordered: boolean;
+}
+
+/** A build as an import's answer names it: its character and variation. */
+export interface BuildVariationRef {
   character: { key: string; name: string };
   role: string;
   qualifier: string;
   min_rank: number;
+}
+
+/** One build an import creates, updates or removes, by its character and variation. */
+export interface BuildChange extends BuildVariationRef {
+  change: 'created' | 'updated' | 'removed';
+}
+
+/** A part of a build an import compares by itself with the file's (backend: BuildParts::PARTS). */
+export type BuildPart = 'weapons' | 'sets' | 'main_stats' | 'substats' | 'talent_priority' | 'stat_targets' | 'teams' | 'game_version';
+
+/**
+ * A choice an import needs, for one build (docs/builds.md, "Hand edits"). Unanswered, the editors' work stands.
+ * - edited: the file and an editor both changed `parts` of a build - the file's version of `taken`, which only the
+ *   file changed, is taken all the same;
+ * - made_here: the file brings a build an editor made here, unlike it in `parts`;
+ * - removed_here: the file brings a build an editor removed, changed in `parts`;
+ * - removed_by_file: the file lacks a build an editor edited (`parts`) or wrote notes on (`notes`).
+ */
+export interface BuildQuestion extends BuildVariationRef {
+  id: string;
+  kind: 'edited' | 'made_here' | 'removed_here' | 'removed_by_file';
+  parts: BuildPart[];
+  taken: BuildPart[];
+  notes: boolean;
+}
+
+/** A build an import makes of an editor's edit and the file's changes without asking: the parts it keeps and takes. */
+export interface BuildMerged extends BuildVariationRef {
+  kept: BuildPart[];
+  taken: BuildPart[];
+}
+
+/** A build whose team notes an import leaves without their team: they wait for a team of those members. */
+export interface BuildNotesWaiting extends BuildVariationRef {
+  notes: number;
+}
+
+/** The questions of an import's preview answered with the file - their ids, or all -, with the preview's plan. */
+export interface BuildImportChoices {
+  file: readonly string[] | 'all';
+  plan: string;
 }
 
 /** POST /api/admin/builds/{game}/import[?dry_run=1]: what importing a builds file does (dry run) or did. */
@@ -632,12 +713,30 @@ export interface BuildImportPlan {
   updated: number;
   unchanged: number;
   removed: number;
+  /** Builds of the file's that keep an editor's edit afterwards. */
+  edits_kept: number;
+  /** Builds the editors' own afterwards, which no file carries: made here, or kept when the file dropped them. */
+  made_here: number;
+  /** Builds an editor removed that the file brings: they stay removed. */
+  kept_removed: number;
+  /** Questions answered with the file (none in a dry run). */
+  file_taken: number;
   /** Characters of the file this installation's catalog lacks: skipped until the catalog is refreshed. */
   skipped: { key: string; name: string; builds: number }[];
   /** Teammates of the builds imported that the catalog lacks, the first 50: shown by their names; no build is skipped for one. */
   teammates_unknown: { key: string; name: string }[];
   /** How many teammates the catalog lacks, all told. */
   teammates_unknown_total: number;
+  /** What the file and the editors' work disagree on: a choice each. */
+  questions: BuildQuestion[];
+  /** The questions' plan: sent back with the choices, so the import is refused (409 plan_changed) when they changed. */
+  plan: string;
+  /** Builds made of an editor's edit and the file's changes without asking. */
+  merged: BuildMerged[];
+  /** Characters whose builds an editor ordered: their order stays where the file's differs. */
+  order_kept: { key: string; name: string }[];
+  /** Builds whose team notes lose their team. */
+  notes_dormant: BuildNotesWaiting[];
   /** The changes, the first MAX of them; changes_listed says how many. */
   changes: BuildChange[];
   changes_listed: number;
@@ -651,6 +750,229 @@ export interface BuildImportPlan {
 export interface CatalogRefreshResult extends CatalogListStatus {
   outcome: 'changed' | 'unchanged';
   written: number;
+}
+
+// ------------------------------------------------------------------ the admin panel's builds editor
+
+/** A weapon of a build as the editor edits it: the builds file's, without its note. */
+export interface EditorWeapon {
+  key: string;
+  name: string;
+  refinement: number | null;
+}
+
+/** A piece of a set option: how many pieces (2 or 4) of any of its sets, by key and name; its label as shown. */
+export interface EditorSetPiece {
+  label: string;
+  count: number;
+  keys: string[];
+  names: string[];
+}
+
+/** A set option of a build: its kind, how many of its pieces must be met (null: all), its pieces. */
+export interface EditorSetOption {
+  kind: string;
+  choose: number | null;
+  pieces: EditorSetPiece[];
+}
+
+/** A stat target as the editor edits it: its numbers alone, from a constellation on. */
+export interface EditorTarget {
+  stat: string;
+  min: number | null;
+  max: number | null;
+  from_rank: number;
+}
+
+/** A character a team names, by key and name. */
+export interface EditorTeammate {
+  key: string;
+  name: string;
+}
+
+/** A team's member: the role it plays (null: none said), the constellation the team asks of it, who can stand in. */
+export interface EditorMember extends EditorTeammate {
+  role: string | null;
+  min_rank: number;
+  alternatives: EditorTeammate[];
+}
+
+export interface EditorTeam {
+  name: string;
+  members: EditorMember[];
+}
+
+/**
+ * A build in the editor's shape (backend: BuildEditor::shape()): the builds file's - every text neutral, each list in
+ * its order -, without its character and the texts the site no longer shows. A save sends it back so.
+ */
+export interface EditorBuild {
+  role: string;
+  qualifier: string;
+  min_rank: number;
+  weapons: EditorWeapon[];
+  sets: EditorSetOption[];
+  main_stats: Record<string, StatPriority[]>;
+  substats: StatPriority[];
+  talent_priority: TalentPriority[] | null;
+  stat_targets: EditorTarget[] | null;
+  teams: EditorTeam[];
+  game_version: string | null;
+}
+
+/** A team's note whose team is gone: it waits for a team of these members (their keys, sorted, one space apart). */
+export interface WaitingNote {
+  key: string;
+  members: EditorTeammate[];
+  note: SiteNote;
+}
+
+/** A build's notes as the editor edits them: the build's, each team's in the teams' order (null: none), the waiting ones. */
+export interface EditorNotes {
+  build: SiteNote | null;
+  teams: (SiteNote | null)[];
+  waiting: WaitingNote[];
+}
+
+/** A stored build as the editor gets it (BuildEditor::load()). */
+export interface EditorEntry {
+  id: number;
+  /** From a builds file, or made here (no file has it). */
+  origin: 'file' | 'made_here';
+  build: EditorBuild;
+  /** What the last builds file said of it, for "Use the file's"; null for one made here. */
+  file: EditorBuild | null;
+  /** Where the file puts it among the character's builds; null for one made here. */
+  file_position: number | null;
+  /** The parts that differ from what the file said of it. */
+  edited: BuildPart[];
+  notes: EditorNotes;
+  checked_at: string | null;
+  changed_at: string | null;
+  edited_at: string | null;
+}
+
+/** A build of the file's an editor removed: remembered with what the file said of it and its notes, to be brought back. */
+export interface RemovedBuild {
+  id: number;
+  build: EditorBuild;
+  file_position: number;
+  notes: EditorNotes;
+  removed_at: string | null;
+}
+
+/** A character as the editor names it. */
+export interface EditorCharacter {
+  key: string;
+  name: string;
+  element: string | null;
+  weapon_type: string | null;
+  rarity: number | null;
+  icon_url: string | null;
+}
+
+/** GET (and PUT's answer) /api/admin/builds/{game}/characters/{key}: a character's builds as the editor edits them. */
+export interface CharacterEditing {
+  game: GameKey;
+  character: EditorCharacter;
+  /** What a save is checked against: the builds as they were loaded. */
+  version: string;
+  /** Whose order the builds are in: the file's, or an editor's (said, never guessed). */
+  order: 'file' | 'editors';
+  builds: EditorEntry[];
+  removed: RemovedBuild[];
+}
+
+/** A build of a save: the stored one it is (null: new), the removed one it brings back (or null), its notes. */
+export interface EditorSaveBuild {
+  id: number | null;
+  removal: number | null;
+  build: EditorBuild;
+  notes: { build: SiteNote | null; teams: (SiteNote | null)[]; waiting: { key: string; note: SiteNote }[] };
+}
+
+/** PUT /api/admin/builds/{game}/characters/{key}: the character's builds as the editor leaves them, in their order. */
+export interface EditorSave {
+  version: string;
+  builds: EditorSaveBuild[];
+  /** "file": the order given back to the file. */
+  order?: 'file';
+}
+
+/** Why a save was refused (422, 409): the server's sentence, its code, the build of the save and the path in it. */
+export interface EditorRefusal {
+  message: string;
+  /** invalid_body, invalid_build, invalid_note, names_another_site (422); busy, changed (409). */
+  code?: string;
+  build?: number | null;
+  path?: string | null;
+}
+
+/** The caps a build is held to: the builds file's (BuildFile::limits()) and the editor's. */
+export interface EditorLimits {
+  qualifier: number;
+  weapons: number;
+  refinement: number;
+  sets: number;
+  pieces: number;
+  set_keys: number;
+  stats: number;
+  talents: number;
+  priority: number;
+  targets: number;
+  bound: number;
+  teams: number;
+  team_name: number;
+  alternatives: number;
+  name: number;
+  game_version: number;
+  note_build: number;
+  note_team: number;
+  builds: number;
+}
+
+/** The game's facts the editor holds a build to (BuildEditor::facts()), with their English names. */
+export interface EditorFacts {
+  roles: string[];
+  max_rank: number;
+  rank_prefix: string;
+  refinement_prefix: string;
+  /** Each slot whose main stat varies, with the main stats a build may give it. */
+  slots: Record<string, string[]>;
+  substats: string[];
+  stats: string[];
+  talents: string[];
+  /** Each kind of set, with the piece counts it has. */
+  set_kinds: Record<string, number[]>;
+  team_size: number;
+  labels: { stats: Record<string, string>; talents: Record<string, string>; slots: Record<string, string>; set_kinds: Record<string, string> };
+  limits: EditorLimits;
+}
+
+/** A weapon of the catalog, to pick. */
+export interface EditorCatalogWeapon {
+  key: string;
+  name: string;
+  weapon_type: string | null;
+  rarity: number | null;
+  icon_url: string | null;
+}
+
+/** A set of the catalog, to pick. */
+export interface EditorCatalogSet {
+  key: string;
+  name: string;
+  kind: string;
+  icon_url: string | null;
+}
+
+/** GET /api/admin/builds/{game}/catalog: what the editor picks from and holds a build to, the catalog's by name. */
+export interface EditorCatalog {
+  game: GameKey;
+  facts: EditorFacts;
+  characters: EditorCharacter[];
+  weapons: EditorCatalogWeapon[];
+  sets: EditorCatalogSet[];
 }
 
 // ------------------------------------------------------------------ visitors and a person's own data

@@ -1,0 +1,10 @@
+:host {
+  display: inline-flex;
+}
+
+// The three side by side, close together: one control of the row they move.
+.move-buttons {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.125rem;
+}

@@ -854,13 +854,46 @@ try {
       const lines = await ed.locator('section.game .imports .import-list li').allInnerTexts();
       check(lines.length === 2 && lines[0].includes('by eddie'), `the recent imports, the newest first (${lines.map((line) => line.replace(/\s+/g, ' ')).join(' | ')})`);
 
+      // A hand edit - an editor's save, made in the database here - of Kazuha's game version, and a file that changes the
+      // same part: a question, the edit standing unless the file is chosen; what the file says kept beside it, so the
+      // same file asks nothing again.
+      const kazuhaBuild = "(SELECT id FROM game_characters WHERE key = 'kaedeharakazuha')";
+      sql(`UPDATE builds SET game_version = '9.9', edited_at = now() WHERE game_character_id = ${kazuhaBuild} RETURNING id`);
+      const changed = JSON.parse(readFileSync(saved, 'utf8'));
+      changed.builds.find((build) => build.character === 'kaedeharakazuha').game_version = '9.8';
+      const changedFile = join(WORK, 'builds-genshin-changed.json');
+      writeFileSync(changedFile, JSON.stringify(changed));
+      await ed.setInputFiles('section.game .builds input[type=file]', changedFile);
+      await ed.waitForSelector('section.game .preview .questions', { timeout: 15000 });
+      const questions = (await ed.locator('section.game .preview .question').allInnerTexts()).map((question) => question.replace(/\s+/g, ' ').trim());
+      check(
+        questions.length === 1 && questions[0].startsWith('Kaedehara Kazuha · Support') && questions[0].includes('You edited its game version, and the file changes it too.'),
+        `one question, about Kazuha's build: ${questions.join(' | ')}`,
+      );
+      const standing = (await ed.locator('section.game .preview .question [role=radio][aria-checked=true]').innerText()).trim();
+      check(standing === 'Keep your edit', `the edit stands unless the file is chosen (${standing})`);
+      await shot(ed, '25-admin-builds-question-1280-light', { fullPage: true });
+      await ed.click('section.game .preview button.confirm');
+      await ed.waitForSelector('section.game .preview', { state: 'detached', timeout: 15000 });
+      const kazuha = sql(`SELECT game_version, file_build::jsonb->>'game_version' AS file FROM builds WHERE game_character_id = ${kazuhaBuild}`)[0];
+      check(kazuha?.game_version === '9.9' && kazuha?.file === '9.8', `the edit kept, what the file says beside it (${JSON.stringify(kazuha)})`);
+      await ed.setInputFiles('section.game .builds input[type=file]', changedFile);
+      await ed.waitForSelector('section.game .preview', { timeout: 15000 });
+      const hand = (await ed.locator('section.game .preview .hand').innerText()).trim();
+      check((await ed.locator('section.game .preview .questions').count()) === 0 && hand === 'Kept by hand: 1 build with an edit.', `the same file again asks nothing (${hand})`);
+      await ed.click('section.game .preview button.cancel');
+      await ed.waitForSelector('section.game .preview', { state: 'detached', timeout: 10000 });
+
+      // The first export, older than the edit and the changed file: it changes Kazuha's game version back - a question
+      // again, on a phone too.
       for (const scheme of ['light', 'dark']) {
         await ed.setViewportSize({ width: 390, height: 860 });
         await ed.emulateMedia({ colorScheme: scheme });
         await open(ed, '/admin/builds');
         await ed.waitForSelector('section.game .builds button.export', { timeout: 15000 });
         await ed.setInputFiles('section.game .builds input[type=file]', saved);
-        await ed.waitForSelector('section.game .preview', { timeout: 15000 });
+        await ed.waitForSelector('section.game .preview .questions', { timeout: 15000 });
+        check((await ed.locator('section.game .preview .question').count()) === 1, `390 px, ${scheme}: the question about Kazuha's game version`);
         const scroll = await ed.evaluate(() => document.documentElement.scrollWidth);
         check(scroll <= 390, `390 px, ${scheme}, with the preview: no sideways scroll (${scroll})`);
         await shot(ed, `25-admin-builds-390-${scheme}`, { fullPage: true });
@@ -869,6 +902,282 @@ try {
       }
       await ed.setViewportSize({ width: 1280, height: 900 });
       await ed.emulateMedia({ colorScheme: 'light' });
+    }
+
+    // ── The builds editor: a character's builds changed by hand, the site's note in English and Slovak ─────────
+    step('The builds editor: opened from the Builds page, a note written in English and Slovak, saved - and on the member page in both languages at 390 px');
+    {
+      const english = 'Keep her HP below half before her skill.';
+      const slovak = 'Pred jej skillom drž HP pod polovicou.';
+      await open(ed, '/admin/builds');
+      await ed.waitForSelector('section.game .editor .editor-pick input', { timeout: 15000 });
+      // Kazuha's game version was edited above: the one character changed here.
+      // Each card's name and line by themselves: its picture, where there is none, draws the initials.
+      const changedHere = await ed
+        .locator('section.game .edited-character')
+        .evaluateAll((cards) => cards.map((card) => `${card.querySelector('.edited-name')?.textContent?.trim()}: ${card.querySelector('.edited-text .muted')?.textContent?.trim()}`));
+      check(changedHere.join(' | ') === 'Kaedehara Kazuha: 1 build · 1 edited', `the characters changed here: ${changedHere.join(' | ')}`);
+
+      // Hu Tao, picked by typing - the kit's combobox, every character of the catalog.
+      await ed.fill('section.game .editor-pick input', 'hu');
+      const option = ed.locator('[role=option]', { hasText: 'Hu Tao' });
+      await option.first().waitFor({ timeout: 10000 });
+      check((await option.first().innerText()).replace(/\s+/g, ' ').trim().startsWith('Hu Tao · 2 builds'), `the picker says what she has: ${(await option.first().innerText()).trim()}`);
+      // Taken with Enter, the first match being the active one: a click can land where the list stood a frame before.
+      await ed.press('section.game .editor-pick input', 'Enter');
+      await ed.waitForURL('**/admin/builds/genshin/hutao', { timeout: 15000 });
+      await ed.waitForSelector('.build-panel [data-path="notes.build.en"] textarea', { timeout: 15000 });
+      check((await ed.locator('h1').innerText()).trim() === 'Builds of Hu Tao', 'the editor: Builds of Hu Tao');
+      check((await ed.locator(`${BAR_LINK}.anotoki-top-bar__link--active`).innerText()).trim() === 'Builds', "the bar's Builds marked as the section the page is in: the editor is the Builds page's");
+      const tabs = await ed.locator('.build-tabs .anotoki-tabs__label').allInnerTexts();
+      check(tabs.join('|') === 'Main DPS|Sub DPS · C2+', `a tab a build, by its variation (${tabs.join(', ')})`);
+      const fixed = await ed.locator('.build-panel [data-path="role"] select').isDisabled();
+      check(fixed && (await ed.locator('.build-panel .fixed-name').count()) === 1, "a build of the file's keeps its role, qualifier and constellation, and says why");
+
+      // The note: the English, and the Slovak in its block of Slovak.
+      await ed.fill('.build-panel [data-path="notes.build.en"] textarea', english);
+      await ed.fill('.build-panel [data-path="notes.build.sk"] textarea', slovak);
+      check((await ed.locator('.build-panel [data-path="notes.build.sk"]').getAttribute('lang')) === 'sk', 'the Slovak box in a block of Slovak');
+      const unsaved = (await ed.locator('.build-tabs [role=tab][aria-selected=true] .anotoki-tabs__badge').innerText()).trim();
+      check(unsaved === 'Unsaved' && (await ed.locator('.save-bar button.save').isEnabled()), `the tab says Unsaved, Save is there (${unsaved})`);
+      await shot(ed, '26-build-editor-1280-light', { fullPage: true });
+      await ed.click('.save-bar button.save');
+      await ed.waitForSelector('.save-bar', { state: 'detached', timeout: 15000 });
+      const stored = sql("SELECT site_notes, edited_at FROM builds WHERE role = 'main_dps' AND game_character_id = (SELECT id FROM game_characters WHERE key = 'hutao')")[0];
+      check(
+        JSON.stringify(JSON.parse(stored.site_notes)) === JSON.stringify({ build: { en: english, sk: slovak } }) && stored.edited_at !== null,
+        `saved: the note in both languages, the build edited (${stored.site_notes})`,
+      );
+      const audited = sql("SELECT actor_id, target_id FROM anotoki_audit_log WHERE action = 'builds.edited' ORDER BY id DESC LIMIT 1")[0];
+      check(audited?.actor_id == EDDIE.id && audited?.target_id === 'hutao', `in the audit log, by the editor (${JSON.stringify(audited)})`);
+
+      for (const scheme of ['light', 'dark']) {
+        await ed.setViewportSize({ width: 390, height: 860 });
+        await ed.emulateMedia({ colorScheme: scheme });
+        await open(ed, '/admin/builds/genshin/hutao');
+        await ed.waitForSelector('.build-panel [data-path="notes.build.en"] textarea', { timeout: 15000 });
+        const scroll = await ed.evaluate(() => document.documentElement.scrollWidth);
+        check(scroll <= 390, `the editor, 390 px, ${scheme}: no sideways scroll (${scroll})`);
+        await shot(ed, `26-build-editor-390-${scheme}`, { fullPage: true });
+      }
+      await ed.emulateMedia({ colorScheme: 'light' });
+
+      // On the member page: the Slovak to whom reads Slovak, the English to the rest - and for an editor the way back.
+      for (const [language, note, link] of [
+        ['en', english, 'Edit builds'],
+        ['sk', slovak, 'Uprav buildy'],
+      ]) {
+        await open(ed, `/builds/genshin/hutao?lang=${language}`);
+        await ed.waitForSelector('.notes .anotoki-disclosure__button', { timeout: 15000 });
+        await ed.click('.notes .anotoki-disclosure__button');
+        const shown = (await ed.locator('.notes-text').innerText()).trim();
+        const lang = await ed.locator('.notes-text').getAttribute('lang');
+        check(shown === note && lang === null, `the member page, ${language}, 390 px: the note in the page's language (${shown})`);
+        check(
+          (await ed.locator('a.edit-builds').innerText()).trim() === link && (await ed.locator('a.edit-builds').getAttribute('href')) === '/admin/builds/genshin/hutao',
+          `the member page, ${language}: an editor's way to the editor (${link})`,
+        );
+        const scroll = await ed.evaluate(() => document.documentElement.scrollWidth);
+        const keys = await keysShown(ed);
+        check(scroll <= 390 && keys.length === 0, `the member page, ${language}, 390 px: no sideways scroll (${scroll}), no key where a word should be${keys.length ? ` (${keys.join(', ')})` : ''}`);
+        await shot(ed, `27-build-note-390-${language}`, { fullPage: true });
+      }
+      await open(ed, '/builds/genshin/hutao?lang=en');
+      await ed.setViewportSize({ width: 1280, height: 900 });
+      // Somebody with no role has no such way.
+      await open(tab, '/builds/genshin/hutao');
+      await tab.waitForSelector('.notes .anotoki-disclosure__button', { timeout: 15000 });
+      check((await tab.locator('a.edit-builds').count()) === 0, 'mona (no role): no way to the editor');
+
+      // The parts' forms, on Kazuha's build (Hu Tao's main build is what the account pages measure further on): a
+      // weapon added - a polearm, offered once every type is asked for, Kazuha wielding a sword - and refined, his set
+      // made two pieces of it and two of another, a substat's priority lowered, a target added.
+      await ed.setViewportSize({ width: 1280, height: 900 });
+      await open(ed, '/admin/builds/genshin/kaedeharakazuha');
+      await ed.waitForSelector('[data-part="weapons"] button.add-weapon', { timeout: 15000 });
+      check((await ed.locator('[data-part="weapons"] .none').innerText()).trim() === 'None listed.', 'his build lists no weapon yet');
+      // Each pick by the keyboard - the name typed, the match the kit's combobox makes active taken with Enter - and
+      // checked taken: a click can land where the list stood a frame before (seen: a weapon row left empty at Save).
+      // The kit makes the first match active as the text is typed - among the options it has then: typed again once the
+      // list shows the one wanted (the flow can type before a switch it pressed, such as "every weapon type", is drawn),
+      // and Enter only once it is the active one.
+      const pickByName = async (field, typed, name, taken) => {
+        const state = () =>
+          ed.evaluate((selector) => {
+            const root = document.querySelector(selector);
+            return JSON.stringify({
+              text: root?.querySelector('input')?.value,
+              shown: [...document.querySelectorAll('[role=option]')].map((option) => option.textContent?.trim()),
+              active: document.querySelector('.anotoki-combobox__option--active')?.textContent?.trim() ?? null,
+              everyType: document.querySelector('[data-part="weapons"] .every-type input')?.checked ?? null,
+            });
+          }, field);
+        await ed.fill(`${field} input`, typed);
+        await ed.locator('[role=option]', { hasText: name }).first().waitFor({ timeout: 10000 });
+        await ed.fill(`${field} input`, typed);
+        await ed
+          .locator('.anotoki-combobox__option--active', { hasText: name })
+          .first()
+          .waitFor({ timeout: 5000 })
+          .catch(async () => {
+            throw new Error(`${name}, typed "${typed}" in ${field}: never the active option - ${await state()}`);
+          });
+        await ed.press(`${field} input`, 'Enter');
+        await ed.waitForFunction(taken, name, { timeout: 5000 }).catch(async () => {
+          throw new Error(`${name}, typed "${typed}" in ${field} and taken with Enter: not taken - ${await state()}`);
+        });
+      };
+      await ed.click('[data-part="weapons"] button.add-weapon');
+      await ed.click('[data-part="weapons"] .every-type input');
+      await pickByName('[data-path="weapons[0].key"]', 'homa', 'Staff of Homa', (name) => document.querySelector('[data-path="weapons[0].key"] input')?.value === name);
+      await ed.selectOption('[data-path="weapons[0].refinement"] select', '1');
+      await ed.locator('[data-path="sets[0].pieces[0].count"] [role=radio]').first().click();
+      await ed.click('[data-part="sets"] button.add-piece');
+      await pickByName('[data-path="sets[0].pieces[1].keys"]', 'shimenawa', "Shimenawa's Reminiscence", (name) =>
+        [...(document.querySelectorAll('[data-part="sets"] .piece')[1]?.querySelectorAll('.anotoki-chip-list__label') ?? [])].some((chip) => chip.textContent?.trim() === name),
+      );
+      await ed.selectOption('[data-path="substats[2].priority"] select', '3');
+      await ed.click('[data-part="stat_targets"] button.add-target');
+      await ed.selectOption('[data-path="stat_targets[2].stat"] select', 'eleMas');
+      await ed.fill('[data-path="stat_targets[2].min"] input', '800');
+      const unsavedParts = (await ed.locator('[data-part] .unsaved').count()) + (await ed.locator('app-part-card.variation .unsaved').count());
+      check(unsavedParts === 4, `the four parts changed say so, each on its card (${unsavedParts})`);
+      await shot(ed, '26-build-editor-forms-1280-light', { fullPage: true });
+      await ed.click('.save-bar button.save');
+      await ed.waitForSelector('.save-bar', { state: 'detached', timeout: 15000 }).catch(async (error) => {
+        // Not saved: what the page says instead - its bar, the problems at fields and above the cards, its messages.
+        const said = await ed.evaluate(() =>
+          [...document.querySelectorAll('.save-bar .save-text, .save-error, .problems, .anotoki-field__error, anotoki-toast-host .anotoki-toast-host__message')].map(
+            (element) => `${element.closest('[data-path]')?.getAttribute('data-path') ?? element.className}: ${element.textContent?.replace(/\s+/g, ' ').trim()}`,
+          ),
+        );
+        throw new Error(`his forms' save: still not saved after 15 s - ${said.join(' | ')} (${error.message.split('\n')[0]})`);
+      });
+      const kazuhaRow = sql("SELECT weapons, sets, substats, stat_targets FROM builds WHERE game_character_id = (SELECT id FROM game_characters WHERE key = 'kaedeharakazuha')")[0];
+      const weapons = JSON.parse(kazuhaRow.weapons).map((weapon) => `${weapon.key} R${weapon.refinement}`);
+      const pieces = JSON.parse(kazuhaRow.sets)[0].pieces.map((piece) => `${piece.count}pc ${piece.keys.join('+')}`);
+      const priorities = JSON.parse(kazuhaRow.substats).map((stat) => `${stat.stat} ${stat.priority}`);
+      const targets = JSON.parse(kazuhaRow.stat_targets).map((target) => `${target.stat} ${target.min} C${target.from_rank}`);
+      check(
+        weapons.join('|') === 'staffofhoma R1' &&
+          pieces.join('|') === '2pc crimsonwitchofflames|2pc shimenawasreminiscence' &&
+          priorities.join('|') === 'critRate_ 1|critDMG_ 1|hp_ 3' &&
+          targets.join('|') === 'enerRech_ 120 C0|enerRech_ 110 C1|eleMas 800 C0',
+        `saved as the forms left it (${[weapons, pieces, priorities, targets].map((list) => list.join(', ')).join(' / ')})`,
+      );
+      // A change undone is none: the refinement to R2 and back, a target's minimum to 130% and back (its "%" typed
+      // too) - and no Save bar left standing.
+      await ed.selectOption('[data-path="weapons[0].refinement"] select', '2');
+      await ed.waitForSelector('.save-bar', { timeout: 5000 });
+      await ed.selectOption('[data-path="weapons[0].refinement"] select', '1');
+      await ed.fill('[data-path="stat_targets[0].min"] input', '130%');
+      await ed.fill('[data-path="stat_targets[0].min"] input', '120%');
+      await ed.waitForSelector('.save-bar', { state: 'detached', timeout: 5000 });
+      check((await ed.locator('[data-part] .unsaved').count()) === 0, 'a refinement and a minimum changed and changed back ("%" typed): nothing to save');
+      // A bound typed that is no number: offered to save at once, said at its field once it is left.
+      await ed.fill('[data-path="stat_targets[2].max"] input', '9x');
+      await ed.waitForSelector('.save-bar', { timeout: 5000 });
+      const errorBefore = await ed.locator('[data-path="stat_targets[2].max"] .anotoki-field__error').count();
+      await ed.press('[data-path="stat_targets[2].max"] input', 'Tab');
+      const boundError = (await ed.locator('[data-path="stat_targets[2].max"] .anotoki-field__error').innerText()).trim();
+      check(errorBefore === 0 && boundError.startsWith('Write a number'), `a bound that is no number: said once its field is left, never while typing (${boundError})`);
+      await ed.fill('[data-path="stat_targets[2].max"] input', '');
+      await ed.waitForSelector('.save-bar', { state: 'detached', timeout: 5000 });
+
+      // A team for his build: Hu Tao beside him at C1 as the main DPS - Traveler (Anemo) to stand in for her -, and the
+      // site's note on it in English and Slovak; saved, the note filed under the team's members.
+      const teamNote = { en: 'Swirl her Pyro: the damage bonus is the team.', sk: 'Rozvír jej Pyro: bonus k poškodeniu je celý tím.' };
+      await ed.click('[data-part="teams"] button.add-team');
+      await ed.fill('[data-path="teams[0].name"] input', 'Pyro Swirl');
+      await pickByName('[data-path="teams[0].members[1].key"]', 'hu', 'Hu Tao', (name) => document.querySelector('[data-path="teams[0].members[1].key"] input')?.value === name);
+      await ed.selectOption('[data-path="teams[0].members[1].role"] select', 'main_dps');
+      await ed.selectOption('[data-path="teams[0].members[1].min_rank"] select', '1');
+      await pickByName('[data-path="teams[0].members[1].alternatives"]', 'travel', 'Traveler (Anemo)', (name) =>
+        [...(document.querySelectorAll('[data-part="teams"] .member')[1]?.querySelectorAll('.anotoki-chip-list__label') ?? [])].some((chip) => chip.textContent?.trim() === name),
+      );
+      await ed.fill('[data-path="notes.teams[0].en"] textarea', teamNote.en);
+      await ed.fill('[data-path="notes.teams[0].sk"] textarea', teamNote.sk);
+      check(
+        (await ed.locator('[data-part="teams"] .unsaved').count()) === 1 && (await ed.locator('app-part-card.notes .unsaved').count()) === 0,
+        "a team and its note: the teams' card says unsaved, the build's notes not",
+      );
+      await shot(ed, '28-build-teams-1280-light', { fullPage: true });
+      await ed.click('.save-bar button.save');
+      await ed.waitForSelector('.save-bar', { state: 'detached', timeout: 15000 });
+      const teamRow = sql("SELECT teams, site_notes FROM builds WHERE game_character_id = (SELECT id FROM game_characters WHERE key = 'kaedeharakazuha')")[0];
+      const savedTeams = JSON.parse(teamRow.teams ?? '[]');
+      check(
+        savedTeams.length === 1 &&
+          savedTeams[0].name === 'Pyro Swirl' &&
+          savedTeams[0].members.map((member) => `${member.key} ${member.role} C${member.min_rank} ${member.alternatives.map((one) => one.key).join('+')}`).join('|') ===
+            'kaedeharakazuha support C0 |hutao main_dps C1 traveleranemo' &&
+          JSON.stringify(JSON.parse(teamRow.site_notes ?? 'null')?.teams?.['hutao kaedeharakazuha']) === JSON.stringify(teamNote),
+        `the team saved as its form left it, its note under its members (${teamRow.teams}; ${teamRow.site_notes})`,
+      );
+      // The team taken away again - asked first, in the kit's dialog -: its note waits below for a team of the same
+      // members, named by them; Discard puts it all back.
+      await ed.click('[data-part="teams"] .team-head button.remove');
+      await ed.click(`${DIALOG} [data-answer="yes"]`);
+      await ed.waitForSelector('[data-part="teams"] .waiting-group', { timeout: 5000 });
+      const waitingShown = await ed.evaluate(() => ({
+        name: document.querySelector('[data-part="teams"] .waiting-group')?.getAttribute('aria-label') ?? null,
+        note: [...document.querySelectorAll('[data-part="teams"] .waiting-note')].map((note) => note.textContent.trim()),
+        teams: document.querySelectorAll('[data-part="teams"] .team').length,
+      }));
+      check(
+        waitingShown.teams === 0 && waitingShown.name === 'Note waiting for Kaedehara Kazuha, Hu Tao' && waitingShown.note.join('|') === `${teamNote.en}|${teamNote.sk}`,
+        `the team removed, asked first: its note waits below, named by its members (${JSON.stringify(waitingShown)})`,
+      );
+      await shot(ed, '28-build-teams-waiting-1280-light', { fullPage: true });
+      await ed.click('.save-bar button.discard');
+      await ed.click(`${DIALOG} [data-answer="yes"]`);
+      await ed.waitForSelector('.save-bar', { state: 'detached', timeout: 5000 });
+      check((await ed.locator('[data-part="teams"] .team').count()) === 1 && (await ed.locator('[data-part="teams"] .waiting').count()) === 0, 'Discard: the team back as saved, nothing waiting');
+      for (const scheme of ['light', 'dark']) {
+        await ed.setViewportSize({ width: 390, height: 860 });
+        await ed.emulateMedia({ colorScheme: scheme });
+        await open(ed, '/admin/builds/genshin/kaedeharakazuha');
+        await ed.waitForSelector('[data-path="weapons[0].key"] input', { timeout: 15000 });
+        const scroll = await ed.evaluate(() => document.documentElement.scrollWidth);
+        check(scroll <= 390, `his parts' forms, 390 px, ${scheme}: no sideways scroll (${scroll})`);
+        await shot(ed, `26-build-editor-forms-390-${scheme}`, { fullPage: true });
+      }
+      await ed.emulateMedia({ colorScheme: 'light' });
+      await open(ed, '/builds/genshin/kaedeharakazuha?lang=en');
+      await ed.waitForSelector('app-build-detail .weapons li', { timeout: 15000 });
+      const shownWeapon = (await ed.locator('app-build-detail .weapons .w-name').first().innerText()).replace(/\s+/g, ' ').trim();
+      const shownSets = (await ed.locator('app-build-detail .sets .w-text > div:first-child').first().innerText()).replace(/\s+/g, ' ').trim();
+      const shownTargets = (await ed.locator('app-build-detail .target .t-stat').allInnerTexts()).map((stat) => stat.replace(/\s+/g, ' ').trim());
+      check(
+        shownWeapon === 'Staff of Homa R1' && shownSets === "2pc Crimson Witch of Flames + 2pc Shimenawa's Reminiscence" && shownTargets.includes('Elemental Mastery'),
+        `the member page: what was saved (${shownWeapon}; ${shownSets}; ${shownTargets.join(', ')})`,
+      );
+      await shot(ed, '27-build-parts-390-en', { fullPage: true });
+
+      // His team on his builds page, in both languages: its members, and its note in the page's language.
+      for (const [language, words] of [
+        ['en', teamNote.en],
+        ['sk', teamNote.sk],
+      ]) {
+        await open(ed, `/builds/genshin/kaedeharakazuha?lang=${language}`);
+        await ed.waitForSelector('app-build-teams .team-note .anotoki-disclosure__button', { timeout: 15000 });
+        await ed.click('app-build-teams .team-note .anotoki-disclosure__button');
+        const shownTeam = await ed.evaluate(() => ({
+          names: [...document.querySelectorAll('app-build-teams .team-name')].map((name) => name.textContent.trim()),
+          members: [...document.querySelectorAll('app-build-teams .member .member-name')].map((name) => name.textContent.trim()),
+          note: document.querySelector('app-build-teams .team-note-text')?.textContent?.trim() ?? null,
+          lang: document.querySelector('app-build-teams .team-note-text')?.getAttribute('lang') ?? null,
+        }));
+        check(
+          shownTeam.names.join('|') === 'Pyro Swirl' && shownTeam.members.join('|') === 'Kaedehara Kazuha|Hu Tao' && shownTeam.note === words && shownTeam.lang === null,
+          `his builds page, ${language}, 390 px: the team, and its note in the page's language (${JSON.stringify(shownTeam)})`,
+        );
+        const scroll = await ed.evaluate(() => document.documentElement.scrollWidth);
+        const keys = await keysShown(ed);
+        check(scroll <= 390 && keys.length === 0, `his builds page, ${language}, 390 px: no sideways scroll (${scroll}), no key where a word should be${keys.length ? ` (${keys.join(', ')})` : ''}`);
+        await shot(ed, `28-build-team-390-${language}`, { fullPage: true });
+      }
+      await ed.setViewportSize({ width: 1280, height: 900 });
     }
 
     const admin = await newContext();
@@ -1859,6 +2168,23 @@ try {
         );
         await fits("the builds' page");
         await shot(page, `24-kit-build-page-${language}-${width}-${scheme}`, { fullPage: true });
+
+        // Kazuha's own team (made in the builds editor): Hu Tao, whom the account has at the C1 it asks - a check, a
+        // link to its analysis of her -, and Traveler (Anemo), its stand-in for her, checked too.
+        await open(page, `/accounts/${monaAccount}/characters/kaedeharakazuha?lang=${language}`);
+        await page.waitForSelector('app-build-teams .member', { timeout: 15000 });
+        const hisTeam = await teamShown(page);
+        check(
+          hisTeam.names.join('|') === 'Pyro Swirl' &&
+            hisTeam.members.map((member) => member.name).join('|') === 'Kaedehara Kazuha|Hu Tao' &&
+            hisTeam.members.map((member) => member.href ?? '-').join('|') === `-|/accounts/${monaAccount}/characters/hutao` &&
+            hisTeam.members[1].marks.join('|') === 'C1+' &&
+            hisTeam.members[1].below === null &&
+            hisTeam.members.map((member) => member.checked).join('|') === 'false|true' &&
+            hisTeam.members[1].standInChecks === 1,
+          `his character page, ${label}: the team made in the editor, Hu Tao checked at the C1 it asks, Traveler (Anemo) her stand-in, checked (${JSON.stringify(hisTeam)})`,
+        );
+        await fits('his character page');
 
         // The import guide: the kit's stepper, the way in done and a way back to it; the trouble list in the kit's
         // disclosure; in English on to the file's step and its paste box, in the kit's disclosure too.

@@ -78,8 +78,14 @@ const VERSION_05_KEYS = -56 - 23 + 18 + 14;
 /** Version 0.6's files of this site's, after 0.5's: the teams a build is played in (020), with their words (021). */
 const VERSION_06_FILES = ['020_build_teams.sql', '021_build_teams_words.sql'];
 
-/** What version 0.6's files do to the count of the site's own keys: 021 adds 2. */
+/** What version 0.6's files do to the count of the site's own keys: 021 adds 3. */
 const VERSION_06_KEYS = 3;
+
+/** Version 0.7's files of this site's, after 0.6's: builds edited by hand beside what the file said (022), the builds editor's words (023). */
+const VERSION_07_FILES = ['022_build_hand_edits.sql', '023_builds_editor_words.sql'];
+
+/** What version 0.7's files do to the count of the site's own keys: 022 adds none, 023 adds 1. */
+const VERSION_07_KEYS = 1;
 
 /** Every column, constraint and index of the app's tables, as comparable lines. */
 function schemaOf(PDO $pdo): array
@@ -674,7 +680,7 @@ test('006 moves the two words of the library\'s under its keys with every reword
     // two; 011 added the legal pages' words; 012 the kit's pieces'; 013 moved the footer's three; version 0.5's files
     // change them as VERSION_05_KEYS says. The library's keys are every key of its words file (261 with 0.6.3).
     same(
-        ['the site\'s' => $keys - 2 - 8 + 5 - 14 + LEGAL_PAGES_KEYS + KIT_PIECES_KEYS - FOOTER_KEYS + VERSION_05_KEYS + VERSION_06_KEYS, 'the library\'s' => libraryKeyCount()],
+        ['the site\'s' => $keys - 2 - 8 + 5 - 14 + LEGAL_PAGES_KEYS + KIT_PIECES_KEYS - FOOTER_KEYS + VERSION_05_KEYS + VERSION_06_KEYS + VERSION_07_KEYS, 'the library\'s' => libraryKeyCount()],
         [
             'the site\'s' => (int) $pdo->query("SELECT count(*) FROM translation_keys WHERE name NOT LIKE 'anotoki.%'")->fetchColumn(),
             'the library\'s' => (int) $pdo->query("SELECT count(*) FROM translation_keys WHERE name LIKE 'anotoki.%'")->fetchColumn(),
@@ -709,6 +715,7 @@ test('006\'s gate refuses a database whose keys are not the ones it expects - an
             FOOTER_FILE,
             ...VERSION_05_FILES,
             ...VERSION_06_FILES,
+            ...VERSION_07_FILES,
             ...array_column(libraryFiles(), 'name'),
             ...array_column(peopleFiles(), 'name'),
         ],
@@ -868,7 +875,7 @@ test(
         $result = Migrations::migrator($pdo)->apply();
         same(null, $result['error'], 'no error');
         same(
-            [...adminFiles(), ...array_map('siteFile', [...VERSION_04_FILES, ...VERSION_05_FILES, ...VERSION_06_FILES]), ...array_slice(libraryFiles(), 2), ...peopleFiles()],
+            [...adminFiles(), ...array_map('siteFile', [...VERSION_04_FILES, ...VERSION_05_FILES, ...VERSION_06_FILES, ...VERSION_07_FILES]), ...array_slice(libraryFiles(), 2), ...peopleFiles()],
             $result['applied'],
             'in the README\'s order',
         );
@@ -902,7 +909,7 @@ test(
         // The feedback button's words 009 added - under the library's key since 013, the footer the family's.
         same([['en', 'Feedback'], ['sk', 'Spätná väzba']], array_map(fn($row) => [$row['language_code'], $row['value']], stringsOf($pdo, 'anotoki.footer.feedback')), 'the feedback button\'s words');
         same(
-            $keys - 8 + 5 - 14 + LEGAL_PAGES_KEYS + KIT_PIECES_KEYS - FOOTER_KEYS + VERSION_05_KEYS + VERSION_06_KEYS,
+            $keys - 8 + 5 - 14 + LEGAL_PAGES_KEYS + KIT_PIECES_KEYS - FOOTER_KEYS + VERSION_05_KEYS + VERSION_06_KEYS + VERSION_07_KEYS,
             (int) $pdo->query("SELECT count(*) FROM translation_keys WHERE name NOT LIKE 'anotoki.%'")->fetchColumn(),
             'the site\'s keys: eight gone and five new (009), fourteen gone (010), the legal pages\' words (011), the stepper\'s and tabs\' (012), the footer\'s three gone (013), and version 0.5\'s',
         );
@@ -920,7 +927,7 @@ test('009 where the library\'s sign-in words went in first: the site\'s words ta
     $result = Migrations::migrator($pdo)->apply();
     same(null, $result['error'], 'no error');
     same(
-        [...adminFiles(), ...array_map('siteFile', [...VERSION_04_FILES, ...VERSION_05_FILES, ...VERSION_06_FILES]), ...array_slice(libraryFiles(), 4), ...peopleFiles()],
+        [...adminFiles(), ...array_map('siteFile', [...VERSION_04_FILES, ...VERSION_05_FILES, ...VERSION_06_FILES, ...VERSION_07_FILES]), ...array_slice(libraryFiles(), 4), ...peopleFiles()],
         $result['applied'],
         'the rest - and the library\'s later words',
     );
@@ -955,6 +962,7 @@ test('009\'s gate refuses a database whose keys are not the ones it expects - no
             FOOTER_FILE,
             ...VERSION_05_FILES,
             ...VERSION_06_FILES,
+            ...VERSION_07_FILES,
             ...array_column(array_slice(libraryFiles(), 2), 'name'),
             ...array_column(peopleFiles(), 'name'),
         ],
@@ -1004,7 +1012,7 @@ test(
         $result = Migrations::migrator($pdo)->apply();
         same(null, $result['error'], 'no error');
         same(
-            [...adminFiles(), ...array_map('siteFile', [...VERSION_04_FILES, ...VERSION_05_FILES, ...VERSION_06_FILES]), ...array_slice(libraryFiles(), 2), ...peopleFiles()],
+            [...adminFiles(), ...array_map('siteFile', [...VERSION_04_FILES, ...VERSION_05_FILES, ...VERSION_06_FILES, ...VERSION_07_FILES]), ...array_slice(libraryFiles(), 2), ...peopleFiles()],
             $result['applied'],
             'version 0.4 and on in one Apply',
         );
@@ -1061,7 +1069,7 @@ test('010\'s gate refuses a database whose keys are not the ones it expects - no
         'the keys stay',
     );
     same(
-        ['010_top_bar_words_through_the_library.sql', LEGAL_PAGES_FILE, KIT_PIECES_FILE, FOOTER_FILE, ...VERSION_05_FILES, ...VERSION_06_FILES],
+        ['010_top_bar_words_through_the_library.sql', LEGAL_PAGES_FILE, KIT_PIECES_FILE, FOOTER_FILE, ...VERSION_05_FILES, ...VERSION_06_FILES, ...VERSION_07_FILES],
         array_column(Migrations::migrator($pdo)->status()['pending'], 'name'),
         'it still waits, and the files after it',
     );
@@ -1116,7 +1124,7 @@ test(
         $result = Migrations::migrator($pdo)->apply();
         same(null, $result['error'], 'no error');
         same(
-            [siteFile(FOOTER_FILE), ...array_map('siteFile', [...VERSION_05_FILES, ...VERSION_06_FILES]), ...array_slice(libraryFiles(), 11)],
+            [siteFile(FOOTER_FILE), ...array_map('siteFile', [...VERSION_05_FILES, ...VERSION_06_FILES, ...VERSION_07_FILES]), ...array_slice(libraryFiles(), 11)],
             $result['applied'],
             '013 and the site\'s files after it, then the library\'s 012 - one Apply',
         );
@@ -1143,7 +1151,7 @@ test(
             'whatsNew.title\'s description names the footer\'s word',
         );
         same(
-            $keys - FOOTER_KEYS + VERSION_05_KEYS + VERSION_06_KEYS,
+            $keys - FOOTER_KEYS + VERSION_05_KEYS + VERSION_06_KEYS + VERSION_07_KEYS,
             (int) $pdo->query("SELECT count(*) FROM translation_keys WHERE name NOT LIKE 'anotoki.%'")->fetchColumn(),
             'the site\'s keys less the three, and version 0.5\'s',
         );
@@ -1162,7 +1170,7 @@ test('013 where the library\'s footer words went in first: the site\'s take thei
 
     $result = Migrations::migrator($pdo)->apply();
     same(null, $result['error'], 'no error');
-    same([siteFile(FOOTER_FILE), ...array_map('siteFile', [...VERSION_05_FILES, ...VERSION_06_FILES])], $result['applied'], '013 and the site\'s files after it');
+    same([siteFile(FOOTER_FILE), ...array_map('siteFile', [...VERSION_05_FILES, ...VERSION_06_FILES, ...VERSION_07_FILES])], $result['applied'], '013 and the site\'s files after it');
 
     same($feedback[0], stringsOf($pdo, 'anotoki.footer.feedback')[0], 'the editor\'s English, by whom and when, in place of the library\'s');
     same('Spätná väzba', wordsOf($pdo, 'anotoki.footer.feedback')['sk'], 'the Slovak, the same words');
@@ -1185,7 +1193,7 @@ test('013\'s gate refuses a database whose keys are not the ones it expects - no
     same(0, (int) $pdo->query("SELECT count(*) FROM translation_keys WHERE name LIKE 'anotoki.footer.%'")->fetchColumn(), 'nothing of 013, nor the library\'s 012');
     // The library's 012 and every file of its set after it (anotoki-lib 0.8.0's 013, the About and Support pages' words).
     same(
-        [FOOTER_FILE, ...VERSION_05_FILES, ...VERSION_06_FILES, ...array_column(array_slice(libraryFiles(), 11), 'name')],
+        [FOOTER_FILE, ...VERSION_05_FILES, ...VERSION_06_FILES, ...VERSION_07_FILES, ...array_column(array_slice(libraryFiles(), 11), 'name')],
         array_column(Migrations::migrator($pdo)->status()['pending'], 'name'),
         'they all still wait',
     );
@@ -1585,9 +1593,12 @@ test('016 on a database as the owner left it before 0.5: the sources go with the
             'created_at',
             'updated_at',
             'teams',
+            'file_build',
+            'site_notes',
+            'edited_at',
         ],
         $pdo->query("SELECT column_name FROM information_schema.columns WHERE table_name = 'builds' ORDER BY ordinal_position")->fetchAll(PDO::FETCH_COLUMN),
-        'a build is a variation',
+        'a build is a variation (its teams since 020, what the file said of it and the site\'s notes since 022)',
     );
 
     // A build's identity: its character, role, qualifier without regard to case, and constellation - once.
@@ -1718,5 +1729,98 @@ test('021 where an editor deleted the Slovak of a word the teams reuse (a blank 
         'the deleted Slovak not brought back: the editor\'s word stands',
     );
 });
+
+test('022 on a database with builds: each build\'s columns its file\'s version, no notes, no edit; the removals\' table - each build, its place and its content hash as they were', function () use (
+    $server,
+) {
+    $pdo = upTo013($server, 'to013edits');
+    siteFilesBefore($pdo, 'to013edits', '022')->apply();
+    $pdo->exec("INSERT INTO game_characters (game, key, name, created_at, updated_at) VALUES ('genshin', 'hutao', 'Hu Tao', now(), now())");
+    $hutao = (int) $pdo->query("SELECT id FROM game_characters WHERE key = 'hutao'")->fetchColumn();
+    $teams =
+        '[{"name":"Vaporize","members":[{"key":"hutao","name":"Hu Tao","role":"main_dps","min_rank":0,"alternatives":[]},{"key":"xingqiu","name":"Xingqiu","role":null,"min_rank":6,"alternatives":[]}],"note":null}]';
+    $pdo->exec(
+        "INSERT INTO builds (game_character_id, role, qualifier, min_rank, \"position\", weapons, sets, main_stats, substats, talent_priority, stat_targets, teams, notes, game_version, content_hash, checked_at, changed_at, created_at, updated_at) VALUES
+            ({$hutao}, 'main_dps', '', 0, 0, '[{\"key\":\"staffofhoma\",\"name\":\"Staff of Homa\",\"rank\":1,\"refinement\":1,\"note\":null,\"known\":true}]', '[]', '{\"sands\":[{\"stat\":\"hp_\",\"priority\":1}]}', '[]', NULL, NULL, '{$teams}', NULL, '5.4', 'a1', now(), now(), now(), now()),
+            ({$hutao}, 'support', 'Melt', 2, 1, '[]', '[]', '{}', '[{\"stat\":\"critRate_\",\"priority\":1}]', '[{\"talent\":\"skill\",\"priority\":1}]', NULL, NULL, 'Old words', NULL, 'b2', now(), now(), now(), now())",
+    );
+    $before = $pdo->query('SELECT id, role, "position", content_hash FROM builds ORDER BY id')->fetchAll(PDO::FETCH_NUM);
+
+    $result = Migrations::migrator($pdo)->apply();
+    same(null, $result['error'], 'no error');
+    same(siteFile('022_build_hand_edits.sql'), $result['applied'][0] ?? null, '022 first');
+    same(
+        [['checked_at', 'timestamp with time zone', 'YES'], ['edited_at', 'timestamp with time zone', 'YES'], ['file_build', 'json', 'YES'], ['site_notes', 'json', 'YES']],
+        $pdo
+            ->query(
+                "SELECT column_name, data_type, is_nullable FROM information_schema.columns WHERE table_name = 'builds' AND column_name IN ('file_build', 'site_notes', 'edited_at', 'checked_at') ORDER BY column_name",
+            )
+            ->fetchAll(PDO::FETCH_NUM),
+        'two JSONs and a time that may be NULL; checked_at may be NULL now',
+    );
+    same($before, $pdo->query('SELECT id, role, "position", content_hash FROM builds ORDER BY id')->fetchAll(PDO::FETCH_NUM), 'the builds, each in its place with its content hash, as they were');
+    same([[null, null], [null, null]], $pdo->query('SELECT site_notes, edited_at FROM builds ORDER BY id')->fetchAll(PDO::FETCH_NUM), 'no notes, no edit');
+    foreach ($pdo->query('SELECT * FROM builds ORDER BY id')->fetchAll(PDO::FETCH_ASSOC) as $row) {
+        $file = json_decode($row['file_build'], true);
+        same(
+            ['role', 'qualifier', 'min_rank', 'position', 'weapons', 'sets', 'main_stats', 'substats', 'talent_priority', 'stat_targets', 'teams', 'notes', 'game_version'],
+            array_keys($file),
+            "{$row['role']}: the file's version, every field of it",
+        );
+        foreach (['weapons', 'sets', 'main_stats', 'substats', 'talent_priority', 'stat_targets', 'teams'] as $column) {
+            same(json_decode((string) $row[$column], true), $file[$column], "{$row['role']}: its {$column} as stored");
+        }
+        same(
+            [$row['role'], $row['qualifier'], (int) $row['min_rank'], (int) $row['position'], $row['notes'], $row['game_version']],
+            [$file['role'], $file['qualifier'], $file['min_rank'], $file['position'], $file['notes'], $file['game_version']],
+            "{$row['role']}: its variation, place and texts",
+        );
+    }
+
+    // The builds an editor removed: each identity once - its qualifier's case aside -, gone with its character.
+    $remove = fn(string $role, string $qualifier) => $pdo->exec(
+        "INSERT INTO build_removals (game_character_id, role, qualifier, file_build, removed_at) VALUES ({$hutao}, '{$role}', '{$qualifier}', '{}', now())",
+    );
+    $remove('sub_dps', 'Melt');
+    foreach (
+        [
+            'the same identity, its case aside' => fn() => $remove('sub_dps', 'MELT'),
+            'a role the game does not have' => fn() => $remove('healer', ''),
+            'a qualifier with a space around it' => fn() => $remove('support', 'Melt '),
+        ]
+        as $case => $refused
+    ) {
+        throws(PDOException::class, $refused, $case);
+    }
+    // The characters whose builds an editor ordered: once each, gone with the character.
+    $pdo->exec("INSERT INTO build_orders (game_character_id, ordered_at) VALUES ({$hutao}, now())");
+    throws(PDOException::class, fn() => $pdo->exec("INSERT INTO build_orders (game_character_id, ordered_at) VALUES ({$hutao}, now())"), 'a character\'s order said twice');
+    $pdo->exec('DELETE FROM builds');
+    $pdo->exec('DELETE FROM game_characters');
+    same([0, 0], [(int) $pdo->query('SELECT count(*) FROM build_removals')->fetchColumn(), (int) $pdo->query('SELECT count(*) FROM build_orders')->fetchColumn()], 'gone with their character');
+});
+
+test(
+    '023 where an editor reworded the Privacy page\'s audit log in Slovak and deleted a notes panel\'s Slovak: the English reworded, the editor\'s Slovak kept; the new link in both languages',
+    function () use ($server) {
+        $pdo = upTo013($server, 'to013editor');
+        siteFilesBefore($pdo, 'to013editor', '023')->apply();
+        $pdo->exec("UPDATE translations SET value = 'Moje vlastné slová o zázname úprav.' WHERE key_name = 'legal.auditLog.what' AND language_code = 'sk'");
+        $pdo->exec("DELETE FROM translations WHERE key_name = 'buildDetail.teamNotes' AND language_code = 'sk'");
+
+        $result = Migrations::migrator($pdo)->apply();
+        same(null, $result['error'], 'no error');
+        same(siteFile('023_builds_editor_words.sql'), $result['applied'][0] ?? null, '023 applied');
+        $value = fn(string $key, string $language) => $pdo->query("SELECT value FROM translations WHERE key_name = '{$key}' AND language_code = '{$language}'")->fetchColumn();
+        same(['Edit builds', 'Uprav buildy'], [$value('buildDetail.edit', 'en'), $value('buildDetail.edit', 'sk')], 'the new link in both languages');
+        check(str_contains((string) $value('legal.auditLog.what', 'en'), 'builds imported from a file or edited by hand, the game catalog refreshed'), 'the English, as 017 left it, reworded');
+        same('Moje vlastné slová o zázname úprav.', $value('legal.auditLog.what', 'sk'), 'the editor\'s Slovak kept');
+        same(false, $value('buildDetail.teamNotes', 'sk'), 'the deleted Slovak not brought back: the editor\'s word stands');
+        check(
+            !str_contains((string) $pdo->query("SELECT description FROM translation_keys WHERE name = 'buildDetail.notes'")->fetchColumn(), 'as written, in English'),
+            'the notes\' panel described as the site\'s own notes',
+        );
+    },
+);
 
 finishTests();

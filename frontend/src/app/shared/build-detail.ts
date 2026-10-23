@@ -5,12 +5,13 @@ import { IconComponent } from '@anotoki/lib/ui/icon';
 import { TooltipDirective } from '@anotoki/lib/ui/tooltip';
 import { GAME_TERMS, SET_KIND_TERMS, pieces } from '../core/game-terms';
 import { LocalDatePipe } from '../core/i18n/local-date';
+import { siteNoteText } from '../core/i18n/site-note';
 import { TranslatePipe } from '../core/i18n/translate';
 import { TranslatePluralPipe } from '../core/i18n/translate-plural';
-import { TranslationService } from '../core/i18n/translation';
+import { TranslationService, Worded } from '../core/i18n/translation';
 import { rankMark } from '../core/i18n/variation-words';
 import { MetaStore } from '../core/meta-store';
-import { Build, Evaluation, GameKey, SetOption, SetPiece, StatPriority, TalentPriority } from '../core/models';
+import { Build, Evaluation, GameKey, SetOption, SetPiece, SiteNote, StatPriority, TalentPriority } from '../core/models';
 import { BUILD_TERMS } from './build-terms';
 import { BuildTeams } from './build-teams';
 import { Avatar } from './char-avatar';
@@ -27,13 +28,14 @@ interface SetGroup {
  * Renders a recommended build. With an evaluation it also marks what the player already has.
  *
  * The site's own words are keys; the game's words - the headings of weapons and sets, "4pc", stat and
- * talent names, a target's constellation ("C1+") - are terms and stay as they are. What the build's text says
- * (a weapon's or a set's note, a target's text, the build's notes) is stored English: shown as it is, marked
- * `lang="en"` while the page is in another language.
+ * talent names, a target's constellation ("C1+") - are terms and stay as they are. The build's note is the site's
+ * own, written in the builds editor: in the reader's language where an editor wrote it, else in English - marked
+ * `lang="en"` while the page is in another language (core/i18n/site-note.ts). The texts the builds file carries but
+ * the site no longer shows (a weapon's or a set option's note, a target's text) never reach the page.
  *
  * The build sheet is the site's own; its parts are the kit's: badges for the stats and what the player has, its
- * icons, tooltips for the notes cut to a line, and the kit's disclosure (`@anotoki/lib/ui/disclosure`) for the
- * build's notes. The teams it is played in are BuildTeams'.
+ * icons, tooltips, and the kit's disclosure (`@anotoki/lib/ui/disclosure`) for the build's note. The teams it is
+ * played in are BuildTeams'.
  */
 @Component({
   selector: 'app-build-detail',
@@ -58,9 +60,6 @@ export class BuildDetail {
   /** The game's own words for this game: "Weapons", "Talents". */
   protected readonly terms = computed(() => GAME_TERMS[this.game()]);
   protected readonly buildTerms = BUILD_TERMS;
-  /** `en` on what the build's text says while the page is in another language; nothing while it is English. */
-  protected readonly storedLang = this.i18n.storedEnglishLang;
-
   protected readonly equippedWeaponKey = computed(() => this.evaluation()?.weapon?.equipped?.key ?? null);
 
   protected readonly ownedWeaponKeys = computed(() => new Set((this.evaluation()?.weapon?.owned_better ?? []).map((weapon) => weapon.key)));
@@ -107,6 +106,11 @@ export class BuildDetail {
     const evaluated = this.evaluation()?.targets;
     return evaluated && evaluated.length > 0 ? evaluated : (this.build().stat_targets ?? []);
   });
+
+  /** The build's note in the language on the page where it is written, else in English; null for none. */
+  protected note(note: SiteNote | null): Worded | null {
+    return siteNoteText(note, this.i18n.effectiveLanguage());
+  }
 
   /** "C1+" on a target that holds from a constellation; none on one from the start. */
   protected targetRank(fromRank: number | undefined): string | null {

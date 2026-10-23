@@ -1,0 +1,61 @@
+@if (targets().length === 0) {
+    <p class="muted small none">None listed.</p>
+} @else {
+    <p class="muted small hint">A minimum, a maximum or both; a target can hold from a constellation on.</p>
+}
+<ol class="rows">
+    @for (target of targets(); track rowId(target); let i = $index) {
+        <li class="target">
+            <!-- A group of its own inside the list's item: the item stays the list's. -->
+            <div class="target-row" role="group" [attr.aria-label]="targetName(target, i)">
+                <anotoki-select
+                    class="stat"
+                    label="Stat"
+                    [options]="stats()"
+                    [value]="target.stat"
+                    (valueChange)="setStat(i, $event)"
+                    [error]="error(i, 'stat')"
+                    [attr.data-path]="'stat_targets[' + i + '].stat'" />
+                <anotoki-select
+                    class="from"
+                    label="From"
+                    [options]="fromOptions()"
+                    [value]="'' + target.from_rank"
+                    (valueChange)="setFrom(i, $event)"
+                    [error]="error(i, 'from_rank')"
+                    [attr.data-path]="'stat_targets[' + i + '].from_rank'" />
+                <anotoki-text-field
+                    class="bound bound-min"
+                    inputmode="decimal"
+                    [label]="boundName(target, 'min')"
+                    [value]="textOf(target, 'min')"
+                    (valueChange)="type(i, 'min', $event)"
+                    (blurred)="leave(target, 'min')"
+                    [error]="boundError(target, i, 'min')"
+                    [attr.data-path]="'stat_targets[' + i + '].min'">
+                    @if (percent(target.stat)) {
+                        <span fieldSuffix>%</span>
+                    }
+                </anotoki-text-field>
+                <anotoki-text-field
+                    class="bound bound-max"
+                    inputmode="decimal"
+                    [label]="boundName(target, 'max')"
+                    [value]="textOf(target, 'max')"
+                    (valueChange)="type(i, 'max', $event)"
+                    (blurred)="leave(target, 'max')"
+                    [error]="boundError(target, i, 'max')"
+                    [attr.data-path]="'stat_targets[' + i + '].max'">
+                    @if (percent(target.stat)) {
+                        <span fieldSuffix>%</span>
+                    }
+                </anotoki-text-field>
+                <app-move-buttons class="buttons" [index]="i" [count]="targets().length" [name]="buttonName(target, i)" (move)="move(i, $event)" (remove)="remove(i)" />
+            </div>
+        </li>
+    }
+</ol>
+<button anotokiButton size="sm" class="add-target" (click)="add()" [disabled]="targets().length >= maxTargets()">
+    <anotoki-icon name="plus" [size]="16" />
+    Add target
+</button>

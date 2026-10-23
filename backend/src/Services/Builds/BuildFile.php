@@ -16,7 +16,7 @@ use DateTimeInterface;
 /**
  * The file a game's builds are imported from and exported to: format "build-analyzer.builds", version 3
  * (docs/builds.md). The builds are put together elsewhere and brought in as one file per game on the admin
- * panel's Builds page (BuildImport); the export writes the same, as a backup and as the start of a hand edit.
+ * panel's Builds page (BuildImport); the export writes the same, as a backup.
  *
  * A build is a variation of a character's: its role (Game::roles()), a short qualifier telling two builds of one
  * role apart, and the constellation it needs (min_rank). (character, role, qualifier without regard to case,
@@ -80,6 +80,12 @@ final class BuildFile
     /** A weapon's refinement, as the games count it. */
     private const MAX_REFINEMENT = 5;
 
+    /** A stat's or a talent's priority: 1 the most important. */
+    private const MAX_PRIORITY = 99;
+
+    /** A stat target's bound, either way. */
+    private const MAX_BOUND = 1_000_000;
+
     /** Text that has a column: its length there. */
     private const MAX_CHARACTER = 120;
 
@@ -128,7 +134,11 @@ final class BuildFile
     /** The build a problem is in ('builds[3] (hutao, main_dps C2+)'), or null while the header is read. */
     private ?string $build = null;
 
-    private function __construct(private readonly Game $game) {}
+    /** The index of the build being read, or null while the header is read. */
+    private ?int $index = null;
+
+    /** @param  bool  $editor  one build of an editor's save (readEntry()): its problems said without the file's words */
+    private function __construct(private readonly Game $game, private readonly bool $editor = false) {}
 
     /**
      * A build's identity within its game: its character, role, qualifier (without regard to case) and the
@@ -324,6 +334,63 @@ final class BuildFile
         return (new self($game))->check($file);
     }
 
+    /**
+     * One build of an editor's save, checked as a file's build is (every field, shape and cap the same) and given back
+     * as read() gives one - but for its position, which is its place in the save. A problem names the build's index,
+     * the path in it and the problem (BuildFileException), its message the path and the problem alone.
+     *
+     * @return array<string, mixed>
+     *
+     * @throws BuildFileException
+     */
+    public static function readEntry(mixed $entry, Game $game, int $index): array
+    {
+        return (new self($game, editor: true))->readBuild($entry, $index);
+    }
+
+    /**
+     * The caps on a build, as the reader holds a file's builds to them: what an editor's page holds its fields to.
+     *
+     * @return array<string, int>
+     */
+    public static function limits(): array
+    {
+        return [
+            'qualifier' => self::MAX_QUALIFIER,
+            'weapons' => self::MAX_WEAPONS,
+            'refinement' => self::MAX_REFINEMENT,
+            'sets' => self::MAX_SETS,
+            'pieces' => self::MAX_PIECES,
+            'set_keys' => self::MAX_SET_KEYS,
+            'stats' => self::MAX_STATS,
+            'talents' => self::MAX_TALENTS,
+            'priority' => self::MAX_PRIORITY,
+            'targets' => self::MAX_TARGETS,
+            'bound' => self::MAX_BOUND,
+            'teams' => self::MAX_TEAMS,
+            'team_name' => self::MAX_TEAM_NAME,
+            'alternatives' => self::MAX_ALTERNATIVES,
+            'name' => self::MAX_NAME,
+            'game_version' => self::MAX_GAME_VERSION,
+        ];
+    }
+
+    /**
+     * The main stats a build may give each slot whose main stat varies, as the reader takes them: the game's options,
+     * and "Elemental DMG" (the character's own element's) where the slot has an element's DMG among them.
+     *
+     * @return array<string, list<string>>  slot => stat keys
+     */
+    public static function mainStatChoices(Game $game): array
+    {
+        $choices = [];
+        foreach ($game->variableSlots() as $slot) {
+            $choices[$slot] = self::slotStats($game, $slot);
+        }
+
+        return $choices;
+    }
+
     private function check(mixed $file): array
     {
         if (!is_array($file) || array_is_list($file) || ($file['format'] ?? null) !== self::FORMAT) {
@@ -380,7 +447,8 @@ final class BuildFile
     private function readBuild(mixed $entry, int $index): array
     {
         $this->build = null;
-        $entry = $this->object($entry, "builds[{$index}]");
+        $this->index = $index;
+        $entry = $this->object($entry, $this->editor ? 'the build' : "builds[{$index}]");
 
         // What makes the build first, so every later problem can name it.
         $this->build = "builds[{$index}]";
@@ -508,8 +576,14 @@ final class BuildFile
     /** @return list<string> */
     private function mainStatsOf(string $slot): array
     {
-        $stats = $this->game->mainStatOptions()[$slot] ?? [];
-        foreach ($this->game->elements() as $element) {
+        return self::slotStats($this->game, $slot);
+    }
+
+    /** @return list<string> */
+    private static function slotStats(Game $game, string $slot): array
+    {
+        $stats = $game->mainStatOptions()[$slot] ?? [];
+        foreach ($game->elements() as $element) {
             if (in_array(Stats::elementDmg($element), $stats, true)) {
                 $stats[] = Stats::ELEMENTAL_DMG;
                 break;
@@ -539,7 +613,7 @@ final class BuildFile
             $this->fields($entry, $at, [$name, 'priority']);
             $result[] = [
                 $name => $this->unique($this->oneOf($entry[$name], "{$at}.{$name}", $allowed), array_column($result, $name), "{$at}.{$name}"),
-                'priority' => $this->integer($entry['priority'], "{$at}.priority", 1, 99),
+                'priority' => $this->integer($entry['priority'], "{$at}.priority", 1, self::MAX_PRIORITY),
             ];
         }
 
@@ -668,14 +742,19 @@ final class BuildFile
 
     /**
      * Refuses the file: "The file's exported_at must be ...", or "The file's builds[3] (hutao, main_dps) is not
-     * valid: weapons[0].refinement must be ...". What the file said is only quoted through Neutral, like
-     * everything the API sends.
+     * valid: weapons[0].refinement must be ..." - an editor's build: "weapons[0].refinement must be ...". What the
+     * file said is only quoted through Neutral, like everything the API sends.
      */
     private function fail(string $where, string $problem): never
     {
         $where = Text::limit($where, 80);
+        $message = match (true) {
+            $this->editor => "{$where} {$problem}.",
+            $this->build === null => "The file's {$where} {$problem}.",
+            default => "The file's {$this->build} is not valid: {$where} {$problem}.",
+        };
 
-        throw new BuildFileException((string) Neutral::text($this->build === null ? "The file's {$where} {$problem}." : "The file's {$this->build} is not valid: {$where} {$problem}."));
+        throw new BuildFileException((string) Neutral::text($message), $this->index, (string) Neutral::text($where), (string) Neutral::text($problem));
     }
 
     /**
@@ -807,8 +886,8 @@ final class BuildFile
     /** A stat target's bound. JSON can spell numbers too large for a float (1E400), which arrive as INF. */
     private function number(mixed $value, string $where): int|float|null
     {
-        if ($value !== null && (!(is_int($value) || is_float($value)) || !is_finite((float) $value) || abs($value) > 1_000_000)) {
-            $this->fail($where, 'must be a number from -1000000 to 1000000, or null');
+        if ($value !== null && (!(is_int($value) || is_float($value)) || !is_finite((float) $value) || abs($value) > self::MAX_BOUND)) {
+            $this->fail($where, 'must be a number from -' . self::MAX_BOUND . ' to ' . self::MAX_BOUND . ', or null');
         }
 
         return $value;

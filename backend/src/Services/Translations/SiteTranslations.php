@@ -86,11 +86,14 @@ final class SiteTranslations
      */
     public static function otherSites(string $text): array
     {
-        if (!Neutral::mentionsAny($text)) {
-            return [];
+        // Names, then an address - never "whatever Neutral::text() would change": it also capitalises a "the source"
+        // that opens a sentence, which names nobody.
+        $names = Neutral::namesIn($text);
+        if ($names !== []) {
+            return $names;
         }
 
-        return Neutral::namesIn($text) ?: ['a web address'];
+        return Neutral::holdsAddress($text) ? ['a web address'] : [];
     }
 
     /** The frontend's sources, from backend/src/Services/Translations. */

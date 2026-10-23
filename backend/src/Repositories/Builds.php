@@ -12,6 +12,9 @@ use App\Models\Build;
  */
 final class Builds
 {
+    // Every column (b.*): a database before migration 016, which the site gate keeps closed, still reads its builds
+    // through it (tests/before_apply.test.php: the second line) - what the file said of a build (file_build, 022) comes
+    // along, unread here.
     private const SELECT = 'SELECT b.*,
             c.id AS c_id, c.game AS c_game, c.key AS c_key, c.name AS c_name, c.element AS c_element,
             c.rarity AS c_rarity, c.weapon_type AS c_weapon_type, c.external_id AS c_external_id,

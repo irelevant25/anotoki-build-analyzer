@@ -30,8 +30,8 @@ Setting it up, running, testing, building and deploying: **[DEV.md](DEV.md)**.
   artifact sets with the game's own IDs, refreshed on the Builds page, from the command line, and by the site
   itself every few days; while that site is closed, this one keeps its catalog and the Builds page says why.
 - **Sign-in through the anotoki IAM** (iam.anotoki.eu): anybody with an anotoki account imports accounts and
-  sees their analysis; editors also import the builds, refresh the catalog and reword the site's strings; admins
-  do everything. Everyone's game accounts are their own.
+  sees their analysis; editors also import the builds, change them by hand and write the site's notes on them,
+  refresh the catalog and reword the site's strings; admins do everything. Everyone's game accounts are their own.
 - **Analysis per character and per build**: a 0–100 score and grade, prioritized recommendations, your pieces
   graded against the build, stat targets checked against your in-game totals, and (with a full inventory) the
   best replacement you already own for each slot. Your best build follows your constellation: a build that needs
@@ -99,14 +99,20 @@ behind them are described in [docs/import-formats.md](docs/import-formats.md).
   character has two builds of one role, and the constellation it needs (C0-C6); then its weapons in order, artifact
   sets, main stats per slot, substats by priority, talent priority, stat targets (one may start from a
   constellation: "C2+"), the teams it is played in (since 0.6.0: each teammate's role, the constellation the team
-  asks of it, who can stand in) and notes. A character's builds are in its order of preference: the first is its
-  main one.
+  asks of it, who can stand in) and the site's own notes on it and its teams (since 0.7.0: written in the admin
+  panel's builds editor, in English and - where an editor wants - Slovak, which a reader of Slovak sees). A
+  character's builds are in its order of preference: the first is its main one.
 - **They come in as one file per game** (`builds-genshin-<date>.json`), imported by an editor on the admin panel's
   **Builds** page: the file is checked, a dry run shows what it would change (new, updated, unchanged, removed, the
-  characters skipped, each change), and **Import** makes the game's builds exactly the file's - but for characters
-  this installation's catalog lacks, which are skipped and named. A build the file has again keeps its id; every
-  import is recorded, with who made it. **Export** saves a game's builds as such a file: a backup, the start of a
-  hand edit, or the builds for another installation.
+  characters skipped, each change, and a question per build where the file and an editor's hand edits disagree), and
+  **Import** makes the game's builds the file's - but for what editors did by hand (kept: an import asks only where the
+  file changes the same part) and for characters this installation's catalog lacks, which are skipped and named. A build the file has again keeps its id; every
+  import is recorded, with who made it. **Export** saves a game's builds as such a file: a copy of them (without the
+  site's own notes, which never travel in a builds file), or the builds for another installation.
+- **Editors change builds by hand** (since 0.7.0): the admin panel's builds editor, one character's builds at a
+  time - its tabs, a build made, copied, moved, removed or brought back, its variation, the site's notes, and a form
+  for its weapons, artifact sets, main stats, substats, talents, stat targets and teams (each team's note with it) -,
+  saved in one go and kept by every import after it.
 - **The site never fetches a build page.** The file is put together on the owner's computer by the owner's own
   tools, which are not in this repository (the git-ignored `local/` folder): they read the community build sites
   politely (their robots.txt, each site's own wait between pages), keep the pages on disk, sort each site's builds
@@ -149,8 +155,8 @@ switch from the IAM and refuses visitors and the signed-out builds browser, and 
 in first; the visitor key a browser holds is kept meanwhile, and what that visitor imported still moves into their
 account when they sign in. A signed-in person can also save their game accounts as a file and import such a file here or on
 another copy: an account the file has newer data for is replaced, one only the file has is added, and an
-import never deletes an account. **EDITOR** also imports and exports the builds files, refreshes the catalog
-and rewords the site's strings; **ADMIN** does all of that and also applies database updates, adds, renames,
+import never deletes an account. **EDITOR** also imports and exports the builds files, changes builds by hand and
+writes the site's notes on them, refreshes the catalog and rewords the site's strings; **ADMIN** does all of that and also applies database updates, adds, renames,
 switches and deletes languages, deletes a person's data (the People page) and has the admin tools - the error
 log, the audit log, the visitors' feedback and the database's backups. Roles are granted in the IAM's admin panel.
 Somebody already signed in to their anotoki account (on another anotoki site) is signed in here without a click.
@@ -158,18 +164,18 @@ The backend checks every access token itself (signature against the IAM's publis
 expiry), and checks the roles on every route. Signing in, the People page and the admin tools are the anotoki
 family's, from its shared library. See [docs/operations.md](docs/operations.md).
 
-**Current state** (version 0.5.0): backend and frontend are as described here - Genshin Impact alone (the code
-keeps its shape for more than one game), the builds imported as one file per game, the catalog from
-genshin.anotoki.eu, sign-in through the IAM only, visitors (somebody not signed in imports and uses their
+**Current state** (version 0.7.0): backend and frontend are as described here - Genshin Impact alone (the code
+keeps its shape for more than one game), the builds imported as one file per game - each build with the teams it is
+played in (0.6.0) -, the builds editor (0.7.0: hand edits and the site's own notes, kept by every import), the catalog
+from genshin.anotoki.eu, sign-in through the IAM only, visitors (somebody not signed in imports and uses their
 accounts; the dashboard shows nobody the ways in, a visitor their accounts under a notice of how long they are
 kept; at sign-in they move into the account - unless the IAM says this site requires a sign-in: then every page
 asks for one first), the admin panel under `/admin/` (editors: Builds and Translations; admins also Languages,
 People, Migrations - the database's updates seen and applied, as on the IAM - and the error log, the audit log,
 feedback and backups), the "Your data" card for every signed-in person (export, import with a preview), and
-Feedback at the foot of every page, under the anotoki top bar with the version in the footer. Version 0.5.0 goes
-up after genshin.anotoki.eu's own update (its migrations 030 and 031); its migrations 014-019 are applied on the
-host by an ADMIN at once after the upload, then the catalog is refreshed and the builds file imported
-(docs/operations.md, "Deploying 0.5.0"). The browser check (`node .claude/skills/verify-ui/scripts/run.mjs`) goes
+Feedback at the foot of every page, under the anotoki top bar with the version in the footer. Version 0.7.0's
+migrations 022-023 are applied on the host by an ADMIN at once after the upload, and nothing is imported again
+(docs/operations.md, "Deploying 0.7.0"; each earlier version's order is there too). The browser check (`node .claude/skills/verify-ui/scripts/run.mjs`) goes
 through all of it on a throwaway database.
 
 **While the site is not ready** it behaves as every anotoki site does (the family's shared library,

@@ -254,9 +254,12 @@ function db(): Db
 function resetDatabase(): void
 {
     // The tables that come and go with a file where they are there - the library's, the builds' imports (016), the
-    // build sources' and syncs' (gone with 016): a test's world of its own may be a database before or after a file.
+    // builds an editor removed and the editors' orders (022), the build sources' and syncs' (gone with 016): a test's
+    // world of its own may be a database before or after a file.
     $there = static fn(string $table): bool => (bool) db()->value('SELECT to_regclass(?) IS NOT NULL', [$table]);
-    $some = array_values(array_filter(['anotoki_audit_log', 'anotoki_feedback', 'anotoki_people_anonymized', 'build_imports', 'build_sources', 'sync_runs', 'cache_locks'], $there));
+    $some = array_values(
+        array_filter(['anotoki_audit_log', 'anotoki_feedback', 'anotoki_people_anonymized', 'build_imports', 'build_removals', 'build_orders', 'build_sources', 'sync_runs', 'cache_locks'], $there),
+    );
     db()->run(
         'TRUNCATE users, game_characters, game_weapons, game_sets, accounts, import_runs, account_characters,
         account_weapons, account_items, builds, cache' .

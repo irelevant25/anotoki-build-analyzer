@@ -9,7 +9,7 @@
   grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
   gap: 16px;
 
-  // Grid items default to min-width: auto, which lets the one-line notes stretch the columns.
+  // Grid items default to min-width: auto, which lets a long name stretch the columns.
   > * {
     min-width: 0;
   }
@@ -33,7 +33,7 @@ ol {
   margin: 0;
   padding: 0;
   display: grid;
-  // minmax(0, …) keeps one-line notes from widening the track beyond the column.
+  // minmax(0, …) keeps a long name from widening the track beyond the column.
   grid-template-columns: minmax(0, 1fr);
   gap: 6px;
 }
@@ -65,12 +65,6 @@ ol li.matched {
 .w-text {
   flex: 1;
   min-width: 0;
-}
-
-.note {
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
 }
 
 // Two pictures wide whatever an option holds, so every option's words start in the same place.
@@ -164,13 +158,6 @@ ol li.matched {
 .t-current {
   grid-column: 1 / -1;
   font-size: 0.85rem;
-}
-
-.t-text {
-  grid-column: 1 / -1;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
 }
 
 .notes-text {

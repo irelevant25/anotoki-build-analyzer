@@ -67,7 +67,7 @@ function vaporize(fields: Partial<BuildTeam> = {}): BuildTeam {
       }),
       member('xingqiu', 'Xingqiu', { role: 'sub_dps', known: false, rarity: null, element: null }),
     ],
-    note: 'Swirl the Pyro onto the rain.',
+    note: { en: 'Swirl the Pyro onto the rain.', sk: 'Rozvír Pyro do dažďa.' },
     ...fields,
   };
 }
@@ -196,17 +196,26 @@ describe('BuildTeams: the teams a build is played in - its teammates linked, wha
     expect(text('.member.own .member-rank')).toEqual([]);
   });
 
-  it("reads in Slovak - the heading, the roles, the stand-ins' line and the marks -, the team's name and note marked as stored English", async () => {
+  it("reads in Slovak - the heading, the roles, the stand-ins' line and the marks -, the team's name marked as stored English, its note the Slovak an editor wrote", async () => {
     await show('sk', [vaporize()], { owned: { kaedeharakazuha: 1 }, accountId: 3 });
 
     expect(text('h3')).toEqual(['Tímy']);
     expect(text('.team:first-child .member-role')).toEqual(['Hlavný DPS', 'Podpora', 'Vedľajší DPS']);
     expect(text('.alternatives')).toEqual(['alebo Traveler (Anemo) / Sucrose']);
     expect(text('.team-note .anotoki-disclosure__button')).toEqual(['Poznámky k tímu Vaporize']);
+    expect(text('.team-note-text')).toEqual(['Rozvír Pyro do dažďa.']);
+    expect(host.querySelector('.team-note-text')?.getAttribute('lang')).toBeNull();
     expect(text('.member-head .visually-hidden')).toEqual(['Máš']);
     expect(text('.member-below')).toEqual(['potrebuje C2']);
     expect(host.querySelector('.team-name')?.getAttribute('lang')).toBe('en');
     expect(warn).not.toHaveBeenCalled();
+  });
+
+  it('shows a team note written in English alone in English, marked as such on a Slovak page', async () => {
+    await show('sk', [vaporize({ note: { en: 'Swirl the Pyro onto the rain.' } })]);
+
+    expect(text('.team-note-text')).toEqual(['Swirl the Pyro onto the rain.']);
+    expect(host.querySelector('.team-note-text')?.getAttribute('lang')).toBe('en');
   });
 
   it("keeps a reworded stand-ins' line as it is written: the template adds no blank beside its words", async () => {

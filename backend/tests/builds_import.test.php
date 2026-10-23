@@ -2,7 +2,8 @@
 
 /**
  * A game's builds brought in from a file and written out to one (App\Services\Builds\BuildImport, BuildFile,
- * api/routes/admin_builds.php): the file is the whole truth for its game, a build found again by its identity
+ * api/routes/admin_builds.php): the file is the truth for its game but for what editors did by hand (the tests of
+ * "Hand edits" below, edits made by SQL as the editor makes them), a build found again by its identity
  * keeps its id, characters the catalog lacks are skipped - once their list was refreshed -, a dry run writes
  * nothing, one import at a time, every text neutral, every import recorded, and the public builds routes that show
  * what was imported. The catalog's own refresh: catalog_refresh.test.php.
@@ -232,7 +233,7 @@ test('a build without teams keeps the content hash it had before teams came: the
     }
 });
 
-test('the file is the whole truth for its game: a build it lacks goes, a character it lacks loses its builds, the order is its', function () {
+test('the file is the truth for its game where nobody edited: a build it lacks goes, a character it lacks loses its builds, the order is its', function () {
     import(buildsFile([fileBuild(), fileBuild(['role' => 'support', 'qualifier' => 'Melt']), kazuhaBuild()]))->status(200);
     $before = stored();
 
@@ -475,7 +476,23 @@ test('every import is recorded: a row of build_imports, the audit log\'s builds.
         ->json('0');
     same(['genshin', 2, 2], [$page['game'], $page['characters'], $page['builds']], 'the counts');
     same(['id' => EDITOR, 'name' => 'eddie'], $page['imports'][0]['imported_by'], 'who imported it');
-    same(['characters' => 2, 'builds' => 2, 'created' => 2, 'updated' => 0, 'unchanged' => 0, 'removed' => 0, 'skipped' => 0], $page['imports'][0]['summary'], 'what it did - and nobody\'s name');
+    same(
+        [
+            'characters' => 2,
+            'builds' => 2,
+            'created' => 2,
+            'updated' => 0,
+            'unchanged' => 0,
+            'removed' => 0,
+            'skipped' => 0,
+            'edits_kept' => 0,
+            'made_here' => 0,
+            'kept_removed' => 0,
+            'file_taken' => 0,
+        ],
+        $page['imports'][0]['summary'],
+        'what it did - and nobody\'s name',
+    );
     same('2026-10-01T10:00:00+00:00', $page['imports'][0]['file_exported_at'], 'when its file was made');
     same(['characters', 'weapons', 'sets'], array_column($page['catalog'], 'list'), 'the catalog\'s lists beside them');
 
@@ -490,7 +507,7 @@ test('one import at a time: while another holds the lock an import is refused, b
     $other->query('SELECT pg_advisory_lock(' . BuildImport::LOCK . ')');
 
     try {
-        same('Another import of builds is being written. Try again in a moment.', import(buildsFile([fileBuild()]))->status(409)->json('message'), 'busy');
+        same('Another import of builds, or a save in the builds editor, is being written. Try again in a moment.', import(buildsFile([fileBuild()]))->status(409)->json('message'), 'busy');
         same([], stored(), 'nothing written');
         // A dry run takes no lock.
         same([1, 0, 0, 0], counts(import(buildsFile([fileBuild()]), dryRun: true)->status(200)->json()), 'a dry run goes through');
@@ -613,6 +630,422 @@ test('the teammates the catalog lacks: the first 50 named, and how many there ar
     }
     $answer = import(buildsFile([withTeams($teams)]), dryRun: true)->status(200)->json();
     same([BuildImport::MAX_UNKNOWN_TEAMMATES, 60], [count($answer['teammates_unknown']), $answer['teammates_unknown_total']], 'the first 50 of the 60');
+});
+
+test('whether the catalog knows a weapon is asked when the build is shown: one the catalog learns shows as known with no import', function () {
+    import(buildsFile([kazuhaBuild(['weapons' => [['key' => 'deathmatch', 'name' => 'Deathmatch', 'refinement' => null, 'note' => null]]])]))->status(200);
+    same(false, (new Client())->get('/api/builds/genshin/kaedeharakazuha')->status(200)->json('builds.0.weapons.0.known'), 'not in the catalog');
+    db()->run("INSERT INTO game_weapons (game, key, name, created_at, updated_at) VALUES ('genshin', 'deathmatch', 'Deathmatch', now(), now())");
+    same(true, (new Client())->get('/api/builds/genshin/kaedeharakazuha')->status(200)->json('builds.0.weapons.0.known'), 'known as soon as the catalog has it');
+});
+
+// ── Hand edits (docs/builds.md, "Hand edits"): what editors did, kept by every import ─────────────────────────────
+
+/**
+ * The stored build of this identity, its columns as stored; null where there is none.
+ *
+ * @return array<string, mixed>|null
+ */
+function buildOf(string $key = 'hutao', string $role = 'main_dps', string $qualifier = '', int $minRank = 0): ?array
+{
+    return db()->one('SELECT b.* FROM builds b JOIN game_characters c ON c.id = b.game_character_id WHERE c.key = ? AND b.role = ? AND lower(b.qualifier) = lower(?) AND b.min_rank = ?', [
+        $key,
+        $role,
+        $qualifier,
+        $minRank,
+    ]);
+}
+
+/**
+ * An editor's save as the editor makes one: these columns of the build changed, what the file said of it beside them
+ * as it was.
+ *
+ * @param  array<string, mixed>  $build  buildOf()
+ * @param  array<string, mixed>  $columns
+ */
+function editBuild(array $build, array $columns): void
+{
+    $set = [];
+    foreach ($columns as $column => $value) {
+        $set[$column] = in_array($column, ['qualifier', 'position', 'notes', 'game_version'], true) ? $value : Json::column($value);
+    }
+    db()->update('builds', $set + ['edited_at' => Clock::now()], ['id' => (int) $build['id']]);
+}
+
+/** A character whose builds an editor put in an order of their own - as the editor's save says it. */
+function orderedByEditor(string $key): void
+{
+    db()->run('INSERT INTO build_orders (game_character_id, ordered_at) SELECT id, now() FROM game_characters WHERE key = ?', [$key]);
+}
+
+/** A build made here: what no file carries - an imported one with its file's version taken away. */
+function madeHere(array $build): void
+{
+    db()->run('UPDATE builds SET file_build = NULL, checked_at = NULL WHERE id = ?', [(int) $build['id']]);
+}
+
+/** A build an editor removed: among the removals with what the file said of it and its notes, gone from the builds. */
+function removedByHand(array $build): void
+{
+    db()->run(
+        'INSERT INTO build_removals (game_character_id, role, qualifier, min_rank, file_build, site_notes, removed_at)
+         SELECT game_character_id, role, qualifier, min_rank, file_build, site_notes, now() FROM builds WHERE id = ?',
+        [(int) $build['id']],
+    );
+    db()->run('DELETE FROM builds WHERE id = ?', [(int) $build['id']]);
+}
+
+/** A stored build's weapons the other way round: an editor's order. */
+function swapped(array $build): array
+{
+    return array_reverse(Json::decode($build['weapons']));
+}
+
+/** A stored build's weapons, by name. */
+function names(?array $build): array
+{
+    return array_column(Json::decode($build['weapons'] ?? null) ?? [], 'name');
+}
+
+/** An answer's questions as [id, kind, parts]. */
+function questions(array $answer): array
+{
+    return array_map(fn(array $question) => [$question['id'], $question['kind'], $question['parts']], $answer['questions']);
+}
+
+/** The import of $file, its questions named in $file answered with the file, under the plan of its dry run. */
+function importChoosing(array $file, string $choices): Answer
+{
+    $plan = import($file, dryRun: true)->status(200)->json('plan');
+
+    return editor()->post("/api/admin/builds/genshin/import?file={$choices}&plan={$plan}", $file);
+}
+
+/** A file whose Hu Tao builds have one weapon: Deathmatch at R5. */
+function deathmatch(array $fields = []): array
+{
+    return fileBuild($fields + ['weapons' => [['key' => 'deathmatch', 'name' => 'Deathmatch', 'refinement' => 5, 'note' => null]]]);
+}
+
+test('a part an editor changed stays theirs: the file\'s change of another part is taken, the answer says so, and nothing is asked', function () {
+    import(buildsFile([fileBuild()]))->status(200);
+    editBuild(buildOf(), ['weapons' => swapped(buildOf())]);
+
+    $file = buildsFile([fileBuild(['substats' => [['stat' => 'critRate_', 'priority' => 1], ['stat' => 'hp_', 'priority' => 2]]])], '2026-10-02T10:00:00Z');
+    $dry = import($file, dryRun: true)->status(200)->json();
+    same([], $dry['questions'], 'nothing to ask');
+    same(
+        [['character' => ['key' => 'hutao', 'name' => 'Hu Tao'], 'role' => 'main_dps', 'qualifier' => '', 'min_rank' => 0, 'kept' => ['weapons'], 'taken' => ['substats']]],
+        $dry['merged'],
+        'the editor\'s weapons kept, the file\'s substats taken',
+    );
+    same([[0, 1, 0, 0], 1], [counts($dry), $dry['edits_kept']], 'updated, an edit kept');
+
+    import($file)->status(200);
+    $build = buildOf();
+    same(["Dragon's Bane", 'Staff of Homa'], names($build), 'the editor\'s order of weapons');
+    same(['critRate_', 'hp_'], array_column(Json::decode($build['substats']), 'stat'), 'the file\'s substats');
+    same(['Staff of Homa', "Dragon's Bane"], array_column(Json::decode($build['file_build'])['weapons'], 'name'), 'what the file says of the weapons, beside them');
+
+    same([[0, 0, 1, 0], 1], [counts($answer = import($file)->status(200)->json()), $answer['edits_kept']], 'the same file again: unchanged, the edit kept');
+    same(["Dragon's Bane", 'Staff of Homa'], names(buildOf()), 'still the editor\'s');
+});
+
+test('a part both the file and an editor changed is a question: the edit stands unless the file is chosen - with the preview\'s plan', function () {
+    import(buildsFile([fileBuild(), kazuhaBuild()]))->status(200);
+    $build = buildOf();
+    editBuild($build, ['weapons' => swapped($build)]);
+    $file = buildsFile([deathmatch(['substats' => [['stat' => 'hp_', 'priority' => 1]]]), kazuhaBuild()], '2026-10-02T10:00:00Z');
+
+    $dry = import($file, dryRun: true)->status(200)->json();
+    same(
+        [
+            [
+                'id' => 'b' . $build['id'],
+                'kind' => 'edited',
+                'character' => ['key' => 'hutao', 'name' => 'Hu Tao'],
+                'role' => 'main_dps',
+                'qualifier' => '',
+                'min_rank' => 0,
+                'parts' => ['weapons'],
+                'taken' => ['substats'],
+                'notes' => false,
+            ],
+        ],
+        $dry['questions'],
+        'the weapons asked about - the substats, which only the file changed, taken all the same',
+    );
+    check(preg_match('/^[0-9a-f]{64}$/', $dry['plan']) === 1, 'with a plan');
+    same([], $dry['merged'], 'a build asked about is not among those merged without asking');
+
+    $url = '/api/admin/builds/genshin/import?file=b' . $build['id'];
+    editor()->post($url, $file)->status(422)->path('message', 'Choices come with the plan of the preview they answer: check the file again.');
+    editor()
+        ->post($url . '&plan=' . str_repeat('0', 64), $file)
+        ->status(409)
+        ->path('code', 'plan_changed');
+    editor()
+        ->post('/api/admin/builds/genshin/import?file=b999999&plan=' . $dry['plan'], $file)
+        ->status(422);
+    editor()->post('/api/admin/builds/genshin/import?file=x1', $file)->status(422)->path('message', 'The choices are not the ids of an import\'s questions.');
+    same(["Dragon's Bane", 'Staff of Homa'], names(buildOf()), 'nothing written by them');
+
+    $answer = editor()
+        ->post($url . '&plan=' . $dry['plan'], $file)
+        ->status(200)
+        ->json();
+    same([1, 0, [0, 1, 1, 0]], [$answer['file_taken'], $answer['edits_kept'], counts($answer)], 'answered with the file: no edit left');
+    same(['Deathmatch'], names(buildOf()), 'the file\'s weapons');
+    $audit = json_decode((string) db()->value("SELECT details FROM anotoki_audit_log WHERE action = 'builds.imported' ORDER BY id DESC LIMIT 1"), true);
+    same([1, 1, 0], [$audit['questions'], $audit['file_taken'], $audit['edits_kept']], 'the audit log says so');
+});
+
+test('a question answered with the edit: kept, what the file said beside it - so the same file asks nothing again', function () {
+    import(buildsFile([fileBuild()]))->status(200);
+    editBuild(buildOf(), ['weapons' => swapped(buildOf())]);
+    $file = buildsFile([deathmatch()]);
+
+    $answer = import($file)->status(200)->json();
+    same([1, 0, 1], [count($answer['questions']), $answer['file_taken'], $answer['edits_kept']], 'asked, the edit standing');
+    same(["Dragon's Bane", 'Staff of Homa'], names(buildOf()), 'the editor\'s weapons');
+    same(['Deathmatch'], array_column(Json::decode(buildOf()['file_build'])['weapons'], 'name'), 'the file\'s beside them');
+    same([], import($file, dryRun: true)->status(200)->json('questions'), 'the same file again: nothing to ask');
+});
+
+test('"all" answers every question with the file; an edit saved between the preview and the import makes another plan - refused, nothing written', function () {
+    import(buildsFile([fileBuild(), kazuhaBuild()]))->status(200);
+    editBuild(buildOf(), ['weapons' => swapped(buildOf())]);
+    editBuild(buildOf('kaedeharakazuha', 'support'), ['game_version' => '5.5']);
+    $file = buildsFile([deathmatch(), kazuhaBuild(['game_version' => '5.6'])]);
+
+    $dry = import($file, dryRun: true)->status(200)->json();
+    same([['weapons'], ['game_version']], array_column($dry['questions'], 'parts'), 'two questions');
+    // An editor saves meanwhile.
+    editBuild(buildOf('kaedeharakazuha', 'support'), ['game_version' => '5.7']);
+    editor()
+        ->post('/api/admin/builds/genshin/import?file=all&plan=' . $dry['plan'], $file)
+        ->status(409)
+        ->path('code', 'plan_changed');
+    same(['5.7', ["Dragon's Bane", 'Staff of Homa']], [buildOf('kaedeharakazuha', 'support')['game_version'], names(buildOf())], 'nothing written');
+
+    $answer = importChoosing($file, 'all')->status(200)->json();
+    same(2, $answer['file_taken'], 'both answered with the file');
+    same([['Deathmatch'], '5.6'], [names(buildOf()), buildOf('kaedeharakazuha', 'support')['game_version']], 'the file\'s everywhere');
+});
+
+test('an export of this site imported again changes nothing - an edit stays an edit, an editor\'s order theirs, a build made here made here, a removed build removed', function () {
+    $tools = buildsFile([fileBuild(), fileBuild(['role' => 'support']), fileBuild(['role' => 'sub_dps']), kazuhaBuild()]);
+    import($tools)->status(200);
+    editBuild(buildOf(), ['weapons' => swapped(buildOf())]);
+    madeHere(buildOf('kaedeharakazuha', 'support'));
+    removedByHand(buildOf('hutao', 'support'));
+    // Hu Tao's sub DPS build put first.
+    editBuild(buildOf('hutao', 'sub_dps'), ['position' => 0]);
+    editBuild(buildOf(), ['position' => 1]);
+    orderedByEditor('hutao');
+    $order = ["hutao sub_dps '' C0 #0", "hutao main_dps '' C0 #1", "kaedeharakazuha support '' C0 #0"];
+
+    $export = editor()->get('/api/admin/builds/genshin/export')->status(200)->json();
+    $answer = import($export)->status(200)->json();
+    same([[0, 0, 2, 0], 1, 1, []], [counts($answer), $answer['edits_kept'], $answer['made_here'], $answer['questions']], 'nothing changed, nothing asked');
+    same($order, array_keys(stored()), 'the editor\'s order');
+
+    // The tools' file again, which never had the edits: still nothing asked, nothing lost.
+    $again = import($tools)->status(200)->json();
+    same([[], 1, 1, [0, 0, 2, 0]], [$again['questions'], $again['edits_kept'], $again['kept_removed'], counts($again)], 'nothing asked, nothing changed');
+    same(["Dragon's Bane", 'Staff of Homa'], names(buildOf()), 'the edit stays');
+    same($order, array_keys(stored()), 'the editor\'s order stays');
+    same([['key' => 'hutao', 'name' => 'Hu Tao']], $again['order_kept'], 'said so');
+    same(null, buildOf('hutao', 'support'), 'the removed build stays removed');
+    same(null, buildOf('kaedeharakazuha', 'support')['file_build'], 'the build made here stays made here');
+});
+
+test('a build made here that the file brings too: the same, nothing changes; otherwise a question - kept, the file\'s version beside it, unless the file is chosen', function () {
+    import(buildsFile([fileBuild(), kazuhaBuild()]))->status(200);
+    madeHere(buildOf('kaedeharakazuha', 'support'));
+    same([], import(buildsFile([fileBuild(), kazuhaBuild()]), dryRun: true)->status(200)->json('questions'), 'the same: nothing to ask');
+    same(null, buildOf('kaedeharakazuha', 'support')['file_build'], 'still made here');
+
+    editBuild(buildOf('kaedeharakazuha', 'support'), ['game_version' => '5.5']);
+    $file = buildsFile([fileBuild(), kazuhaBuild()]);
+    $id = (int) buildOf('kaedeharakazuha', 'support')['id'];
+    same([["b{$id}", 'made_here', ['game_version']]], questions(import($file, dryRun: true)->status(200)->json()), 'asked about');
+
+    import($file)->status(200);
+    $build = buildOf('kaedeharakazuha', 'support');
+    same(['5.5', '5.4'], [$build['game_version'], Json::decode($build['file_build'])['game_version']], 'kept - a build of the file\'s with an edit from now on');
+    check($build['checked_at'] !== null, 'a file carries it');
+    same([], import($file, dryRun: true)->status(200)->json('questions'), 'the same file asks nothing again');
+
+    madeHere($build);
+    importChoosing($file, "b{$id}")->status(200);
+    same('5.4', buildOf('kaedeharakazuha', 'support')['game_version'], 'the file chosen: the file\'s');
+});
+
+test('a build an editor removed stays removed: the same file asks nothing, a changed one is asked about - and brought back with its notes only when chosen', function () {
+    import(buildsFile([fileBuild(), kazuhaBuild()]))->status(200);
+    $notes = ['build' => ['en' => 'Swirl first.'], 'teams' => ['kaedeharakazuha xingqiu' => ['en' => 'Hold the burst.']]];
+    editBuild(buildOf('kaedeharakazuha', 'support'), ['site_notes' => $notes]);
+    removedByHand(buildOf('kaedeharakazuha', 'support'));
+    $removal = 'r' . db()->value('SELECT id FROM build_removals');
+
+    $same = import(buildsFile([fileBuild(), kazuhaBuild()]))->status(200)->json();
+    same([[], 1, [0, 0, 1, 0]], [$same['questions'], $same['kept_removed'], counts($same)], 'nothing asked, kept removed');
+    same(null, buildOf('kaedeharakazuha', 'support'), 'still removed');
+
+    $changed = buildsFile([fileBuild(), kazuhaBuild(['game_version' => '5.5'])]);
+    same([[$removal, 'removed_here', ['game_version']]], questions(import($changed, dryRun: true)->status(200)->json()), 'a changed one asked about');
+    import($changed)->status(200);
+    same(null, buildOf('kaedeharakazuha', 'support'), 'still removed, the edit standing');
+    same([], import($changed, dryRun: true)->status(200)->json('questions'), 'the same file asks nothing again');
+
+    $newer = buildsFile([fileBuild(), kazuhaBuild(['game_version' => '5.6'])]);
+    $back = importChoosing($newer, $removal)->status(200)->json();
+    same(1, $back['created'], 'brought back, as chosen');
+    same(
+        [['character' => ['key' => 'kaedeharakazuha', 'name' => 'Kaedehara Kazuha'], 'role' => 'support', 'qualifier' => '', 'min_rank' => 0, 'notes' => 1]],
+        $back['notes_dormant'],
+        'its team\'s note, whose team the file does not have, named',
+    );
+    $back = buildOf('kaedeharakazuha', 'support');
+    same(['5.6', $notes], [$back['game_version'], Json::decode($back['site_notes'])], 'as the file has it now, with its notes');
+    same(0, (int) db()->value('SELECT count(*) FROM build_removals'), 'no longer among the removed');
+});
+
+test('a build the file lacks: removed - but one made here is kept, and one edited or with notes is asked about: kept, the editor\'s, unless removing it is chosen', function () {
+    import(buildsFile([fileBuild(), fileBuild(['role' => 'support']), fileBuild(['role' => 'sub_dps']), kazuhaBuild()]))->status(200);
+    madeHere(buildOf('kaedeharakazuha', 'support'));
+    editBuild(buildOf('hutao', 'support'), ['game_version' => '5.5']);
+    editBuild(buildOf('hutao', 'sub_dps'), ['site_notes' => ['teams' => ['hutao xingqiu' => ['en' => 'Hold the skill.']]]]);
+    [$support, $sub] = [(int) buildOf('hutao', 'support')['id'], (int) buildOf('hutao', 'sub_dps')['id']];
+    $file = buildsFile([fileBuild()]);
+
+    $dry = import($file, dryRun: true)->status(200)->json();
+    same(
+        [["b{$support}", 'removed_by_file', ['game_version'], false], ["b{$sub}", 'removed_by_file', [], true]],
+        array_map(fn(array $question) => [$question['id'], $question['kind'], $question['parts'], $question['notes']], $dry['questions']),
+        'the edited one and the one with notes asked about',
+    );
+    same([[0, 0, 1, 0], 3], [counts($dry), $dry['made_here']], 'none removed by default: three the editor\'s');
+
+    same(
+        [0, 0, 1, 1],
+        counts(
+            importChoosing($file, "b{$sub}")
+                ->status(200)
+                ->json(),
+        ),
+        'the one with notes removed, as chosen',
+    );
+    same(null, buildOf('hutao', 'sub_dps'), 'gone');
+    $kept = buildOf('hutao', 'support');
+    same(['5.5', null, null], [$kept['game_version'], $kept['file_build'], $kept['checked_at']], 'the edited one kept, the editor\'s: no file carries it');
+    check(buildOf('kaedeharakazuha', 'support') !== null, 'the one made here kept');
+    same([], import($file, dryRun: true)->status(200)->json('questions'), 'the file lacking them again asks nothing: they are the editor\'s');
+});
+
+test('a character\'s order: the file\'s, its builds made here after them - unless an editor ordered them: then theirs, the file\'s new builds after them', function () {
+    import(buildsFile([fileBuild(), fileBuild(['role' => 'support']), kazuhaBuild(), kazuhaBuild(['role' => 'sub_dps'])]))->status(200);
+    // Hu Tao's support build put first by an editor; Kazuha's sub DPS build made here.
+    editBuild(buildOf('hutao', 'support'), ['position' => 0]);
+    editBuild(buildOf('hutao', 'main_dps'), ['position' => 1]);
+    orderedByEditor('hutao');
+    madeHere(buildOf('kaedeharakazuha', 'sub_dps'));
+
+    $answer = import(buildsFile([fileBuild(), fileBuild(['role' => 'support']), fileBuild(['role' => 'sub_dps']), kazuhaBuild(['role' => 'main_dps']), kazuhaBuild()]))->status(200)->json();
+    same(
+        ["hutao support '' C0 #0", "hutao main_dps '' C0 #1", "hutao sub_dps '' C0 #2", "kaedeharakazuha main_dps '' C0 #0", "kaedeharakazuha support '' C0 #1", "kaedeharakazuha sub_dps '' C0 #2"],
+        array_keys(stored()),
+        'Hu Tao\'s in the editor\'s order, the new build after it; Kazuha\'s in the file\'s, the one made here after them',
+    );
+    same([['key' => 'hutao', 'name' => 'Hu Tao']], $answer['order_kept'], 'where the editor\'s order was kept, said so');
+});
+
+test('an editor\'s order stays theirs, said - whatever order the files give later, however often the editor reorders', function () {
+    import(buildsFile([fileBuild(), fileBuild(['role' => 'support'])]))->status(200);
+    editBuild(buildOf('hutao', 'support'), ['position' => 0]);
+    editBuild(buildOf(), ['position' => 1]);
+    orderedByEditor('hutao');
+
+    // Another file puts them the editor's way; the editor then puts them back; the same file again.
+    $theirWay = buildsFile([fileBuild(['role' => 'support']), fileBuild()]);
+    same([], import($theirWay)->status(200)->json('changes'), 'the file agrees: nothing moves');
+    editBuild(buildOf('hutao', 'support'), ['position' => 1]);
+    editBuild(buildOf(), ['position' => 0]);
+    $answer = import($theirWay)->status(200)->json();
+    same(["hutao main_dps '' C0 #0", "hutao support '' C0 #1"], array_keys(stored()), 'the editor\'s order, not the file\'s');
+    same([[], [['key' => 'hutao', 'name' => 'Hu Tao']]], [$answer['changes'], $answer['order_kept']], 'nothing moved, and said so');
+    same(
+        ['support', 'main_dps'],
+        array_column(db()->all('SELECT b.role FROM builds b ORDER BY (b.file_build::jsonb->>\'position\')::int'), 'role'),
+        'beside them, the places the latest file gave them',
+    );
+});
+
+test('a character whose builds were all the editor\'s: the file\'s first builds of it go after theirs, and the order is theirs from then on', function () {
+    import(buildsFile([kazuhaBuild()]))->status(200);
+    madeHere(buildOf('kaedeharakazuha', 'support'));
+
+    import(buildsFile([kazuhaBuild(['role' => 'main_dps']), kazuhaBuild(['role' => 'sub_dps', 'game_version' => '5.5'])]))->status(200);
+    same(["kaedeharakazuha support '' C0 #0", "kaedeharakazuha main_dps '' C0 #1", "kaedeharakazuha sub_dps '' C0 #2"], array_keys(stored()), 'the editor\'s first');
+    same(1, (int) db()->value('SELECT count(*) FROM build_orders'), 'and said to be the editor\'s order');
+    import(buildsFile([kazuhaBuild(['role' => 'sub_dps']), kazuhaBuild(['role' => 'main_dps'])]))->status(200);
+    same(["kaedeharakazuha support '' C0 #0", "kaedeharakazuha main_dps '' C0 #1", "kaedeharakazuha sub_dps '' C0 #2"], array_keys(stored()), 'the next file puts nothing first');
+});
+
+test('a build the file drops but the editor keeps goes after the file\'s builds - where the editor can move it up', function () {
+    import(buildsFile([fileBuild(['role' => 'support']), fileBuild()]))->status(200);
+    editBuild(buildOf('hutao', 'support'), ['site_notes' => ['build' => ['en' => 'Our main build.']]]);
+
+    $answer = import(buildsFile([fileBuild()]))->status(200)->json();
+    same(
+        [[0, 2, 0, 0], 1, ['removed_by_file']],
+        [counts($answer), $answer['made_here'], array_column($answer['questions'], 'kind')],
+        'asked about, kept by default - its place the editor\'s builds\'',
+    );
+    same(["hutao main_dps '' C0 #0", "hutao support '' C0 #1"], array_keys(stored()), 'after the file\'s');
+    same([], import(buildsFile([fileBuild()]))->status(200)->json('changes'), 'and the same file again moves nothing');
+});
+
+test('a note rewritten between the preview and an import that removes its build makes another plan - refused, nothing written', function () {
+    import(buildsFile([fileBuild(), fileBuild(['role' => 'support'])]))->status(200);
+    editBuild(buildOf('hutao', 'support'), ['site_notes' => ['build' => ['en' => 'First words.']]]);
+    $file = buildsFile([fileBuild()]);
+    $plan = import($file, dryRun: true)->status(200)->json('plan');
+
+    editBuild(buildOf('hutao', 'support'), ['site_notes' => ['build' => ['en' => 'Other words.', 'sk' => 'Iné slová.']]]);
+    $id = buildOf('hutao', 'support')['id'];
+    editor()
+        ->post("/api/admin/builds/genshin/import?file=b{$id}&plan={$plan}", $file)
+        ->status(409)
+        ->path('code', 'plan_changed');
+    same(['build' => ['en' => 'Other words.', 'sk' => 'Iné slová.']], Json::decode(buildOf('hutao', 'support')['site_notes']), 'the build and its new note there');
+});
+
+test('an import never touches the site\'s notes: a team\'s note whose team the file takes away waits for one, and the answer says so', function () {
+    import(buildsFile([withTeams([team()])]))->status(200);
+    $notes = ['build' => ['en' => 'Burst at low HP.', 'sk' => 'Ult pri nízkom HP.'], 'teams' => ['hutao kaedeharakazuha xingqiu' => ['en' => 'Swirl the rain.']]];
+    editBuild(buildOf(), ['site_notes' => $notes]);
+
+    $answer = import(buildsFile([withTeams([team('Melt', [member('hutao', 'Hu Tao'), member('kaedeharakazuha', 'Kaedehara Kazuha')])])]))->status(200)->json();
+    same([[0, 1, 0, 0], []], [counts($answer), $answer['questions']], 'the file\'s team taken - nobody edited the teams -, nothing asked');
+    same(
+        [['character' => ['key' => 'hutao', 'name' => 'Hu Tao'], 'role' => 'main_dps', 'qualifier' => '', 'min_rank' => 0, 'notes' => 1]],
+        $answer['notes_dormant'],
+        'the note of the team it took away, named',
+    );
+    same($notes, Json::decode(buildOf()['site_notes']), 'every note as it was');
+});
+
+test('a build\'s changed date never moves back: a file made before an edit changes the build without an earlier date', function () {
+    import(buildsFile([fileBuild(), kazuhaBuild()], '2026-10-01T10:00:00Z'))->status(200);
+    db()->run("UPDATE builds SET changed_at = '2026-10-05 12:00:00+00'");
+    import(buildsFile([fileBuild(['game_version' => '5.5']), kazuhaBuild()], '2026-10-03T10:00:00Z'))->status(200);
+    same(
+        ['2026-10-05T12:00:00+00:00', '2026-10-03T10:00:00+00:00'],
+        [Clock::iso(Db::time(buildOf()['changed_at'])), Clock::iso(Db::time(buildOf()['checked_at']))],
+        'the later date stays; checked when the file was made',
+    );
 });
 
 finishTests();

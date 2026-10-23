@@ -112,7 +112,8 @@ are the database's (`anotoki.siteStatus.*`, `anotoki.ui.*`: `TranslationService.
   owner's computer alike; this app is its client `build-analyzer`. Who may sign in here is the IAM's to decide
   (every account holds `MEMBER` in every application; the IAM's admin panel picks which roles may sign in to
   this one). Roles in the token's `roles` claim: `EDITOR` (the Builds page - a game's builds imported and
-  exported, the catalog refreshed - and the site's strings) and `ADMIN` (all of that, and migrations, adding /
+  exported, changed by hand in the builds editor with the site's notes on them, the catalog refreshed - and the site's
+  strings) and `ADMIN` (all of that, and migrations, adding /
   renaming / switching / deleting a language, People, the admin tools). ADMIN includes EDITOR; `MEMBER` - and
   any other role name - is an ordinary signed-in person: no check needs it and none refuses it
   (`User::withRoles()` keeps `Role::STAFF` only).
@@ -274,7 +275,8 @@ The anotoki family's people module and admin tools (anotoki-lib 0.5.0; the owner
   (`ErrorLogMiddleware::outer`), in `jsonErrors()` for an exception, and behind `POST /api/client-errors` for
   the errors the pages meet in the browser (`ErrorLogRoutes::client()`, `optionalSignIn()`'s; the app's
   `provideAnotokiErrorReport()`); the audit log is written where something is done (`AuditLog::record()` in the
-  routes of the Builds page - `builds.imported`, inside the import's own transaction, and `catalog.refreshed` -,
+  routes of the Builds page - `builds.imported`, inside the import's own transaction, `builds.edited`, inside the
+  editor's save's, and `catalog.refreshed` -,
   translations, people, migrations, and the tools' own - a person's or a message's delete inside its own
   transaction); feedback's public form is `optionalSignIn()`'s; backups are COPY on a
   connection of their own (`AdminTools::copyConnection()`: `Pdo\Pgsql` where PHP has it), made before every
@@ -359,7 +361,10 @@ name or address either:
   catalog still lacks stays, `known: false`) → compared with the game's stored builds by identity (character,
   role, qualifier without regard to case, `min_rank`): created; updated when its content hash, its place among
   the character's builds or its qualifier's spelling changed - it keeps its id, so a link `?build=ID` survives -;
-  unchanged; removed (every build of the game the file lacks). A dry run answers that and writes nothing. An
+  unchanged; removed (every build of the game the file lacks) - but for what editors did by hand, which an import
+  keeps part by part and asks about per build only where the file changed the same part ([builds.md](builds.md),
+  "Hand edits": `builds.file_build`, the questions and their plan, `build_removals`, `build_orders`). A dry run
+  answers that and writes nothing. An
   import does it in one transaction under an advisory lock (`pg_try_advisory_xact_lock`, `BuildImport::LOCK`: a
   second import meanwhile is 409, nothing written; `SET LOCAL` statement and idle timeouts of 60 s), comparing
   again inside the lock, removing first and creating last (no identity is there twice, even for a moment), and
@@ -367,6 +372,15 @@ name or address either:
   `checked_at` of every build the file has is when the file was made, `changed_at` of every build it created or
   changed too - a time later than now is now. One that has started finishes when the tab is closed
   (`ignore_user_abort`; at most `BuildImport::MAX_SECONDS`, 240).
+- **Builds editor** (the admin panel, an editor; [builds.md](builds.md), "The editor"): `GET
+  /api/admin/builds/{game}/characters/{key}` → `BuildEditor::load()`: a character's builds in the editor's shape
+  (the file's, without the character and the texts no page shows), what the file said of each, the parts edited, the
+  site's notes, the removed builds, a version; `PUT` the same → `BuildEditor::save()`: the whole character's builds
+  as the editor leaves them, each read by `BuildFile::readEntry()` (the file's own checks, the problem at its path),
+  its notes by `BuildNotes`, under the import's lock (409 `busy`) and against the version loaded (409 `changed`);
+  removed builds of the file's remembered, an order of the editor's said (`build_orders`); nothing changed, nothing
+  written; audited `builds.edited` in its transaction. The page is `/admin/builds/:game/:key`
+  (`pages/admin/build-editor/`), reached from the Builds page's Edit builds card and from a character's builds page.
 - **Builds export**: `GET /api/admin/builds/{game}/export` → `BuildImport::export()`: the game's builds by
   character key (compared as bytes) and then in each character's order, `BuildFile::entry()` per build - every
   text made neutral within the reader's caps, two qualifiers of a character's that neutral words make alike told
@@ -555,10 +569,13 @@ bar took the place of the site's own), each with every rewording.
 | `POST /api/me/import[?dry_run=1]` (the file as the body) | signed in (never a visitor) | `{dry_run, added, replaced, kept, skipped, accounts: [{game, uid, nickname, outcome, skipped}]}`; a dry run writes nothing (5 a minute per person, dry runs included) |
 | `GET /api/builds` | anyone (signed in only while sign-in is required) | per game `{game, characters, builds, checked_at, changed_at}`: how many characters have builds, how many builds there are, when the newest file carrying them was made and when one last changed - naming nobody (the dashboard) |
 | `GET /api/builds/{game}` | likewise | the builds browser: each character with builds, the newest release first (an unknown date before them; then by name) - `{key, name, element, rarity, weapon_type, icon_url, released_at, region, version, version_name, builds, roles, changed_at}`, `roles` in the game's order (what the page filters by: name, element, weapon type, rarity, region, version) |
-| `GET /api/builds/{game}/{key}` | likewise | `{character: {key, name, element, rarity, weapon_type, icon_url}, builds}`: a character's builds in their order, the first its main one (each `{id, role, qualifier, min_rank, position, weapons, sets, main_stats, substats, talent_priority, stat_targets, teams, notes, game_version, checked_at, changed_at}` - a team `{name, members, note}`, a member `{key, name, known, icon_url, rarity, element, has_builds, role, min_rank, own, alternatives}`, a stand-in `{key, name, known, icon_url, rarity, element, has_builds}`; 404 for a character the catalog lacks) |
-| `GET /api/admin/builds` | editor | the Builds page, per game: `{game, characters, builds, checked_at, changed_at, imports: [{id, created_at, file_exported_at, summary, imported_by: {id, name}\|null}], catalog: [{list, entries, refreshed_at, problem}]}` - the last 10 imports, newest first, with who made each (a deleted person's: nobody); the catalog's three lists, when the provider last confirmed each and its last problem |
+| `GET /api/builds/{game}/{key}` | likewise | `{character: {key, name, element, rarity, weapon_type, icon_url}, builds}`: a character's builds in their order, the first its main one (each `{id, role, qualifier, min_rank, position, weapons, sets, main_stats, substats, talent_priority, stat_targets, teams, notes, game_version, checked_at, changed_at}` - `notes` the site's own note on the build, `{en, sk?}` or null (no weapon's or set option's note, no target's text: the file's, which the site no longer shows) -, a team `{name, members, note}` (its `note` the site's own likewise), a member `{key, name, known, icon_url, rarity, element, has_builds, role, min_rank, own, alternatives}`, a stand-in `{key, name, known, icon_url, rarity, element, has_builds}`; 404 for a character the catalog lacks) |
+| `GET /api/admin/builds` | editor | the Builds page, per game: `{game, characters, builds, checked_at, changed_at, imports: [{id, created_at, file_exported_at, summary, imported_by: {id, name}\|null}], catalog: [{list, entries, refreshed_at, problem}], editing: [{key, name, icon_url, builds, edited, made_here, removed, notes, ordered}]}` - the last 10 imports, newest first, with who made each (a deleted person's: nobody); the catalog's three lists, when the provider last confirmed each and its last problem; the characters with builds (or removed ones), with what the editors did to them |
+| `GET /api/admin/builds/{game}/catalog` | editor | what the builds editor picks from: `{game, facts: {roles, max_rank, rank_prefix, refinement_prefix, slots: {slot: [stat]}, substats, stats, talents, set_kinds: {kind: [counts]}, team_size, labels: {stats, talents, slots, set_kinds}, limits}, characters: [{key, name, element, weapon_type, rarity, icon_url}], weapons: [{key, name, weapon_type, rarity, icon_url}], sets: [{key, name, kind, icon_url}]}` (English names: the admin panel's) |
+| `GET /api/admin/builds/{game}/characters/{key}` | editor | a character's builds as the editor edits them: `{game, character, version, order: file\|editors, builds: [{id, origin: file\|made_here, build, file, file_position, edited, notes: {build, teams, waiting: [{key, members, note}]}, checked_at, changed_at, edited_at}], removed: [{id, build, file_position, notes, removed_at}]}`; 404 for a character the catalog lacks |
+| `PUT /api/admin/builds/{game}/characters/{key}` (`{version, builds: [{id, removal, build, notes: {build, teams, waiting: [{key, note}]}}], order?: "file"}`, at most 1 MB) | editor | the character's builds saved as sent (builds.md, "The editor"), answered as the GET; 422 `invalid_body`, `invalid_build`, `invalid_note` or `names_another_site` with `build` (its index) and `path` ("weapons[0].refinement", "notes.teams[1].sk"), nothing written; 409 `busy` (an import or another save writing), 409 `changed` (the builds changed since the version loaded); 413 / 415 / 400 for a body too large, not JSON |
 | `GET /api/admin/builds/{game}/export` | editor | the game's builds as a file to save (`builds-{game}-{date}.json`, format version 3: data-model.md "Builds files") |
-| `POST /api/admin/builds/{game}/import[?dry_run=1]` (the file's JSON as the body, at most 8 MB) | editor | the game's builds become the file's (see "Main flows"): `{dry_run, game, exported_at, older_than_current, characters, builds, teams, created, updated, unchanged, removed, skipped: [{key, name, builds}], teammates_unknown: [{key, name}], teammates_unknown_total, changes: [{change: created\|updated\|removed, character: {key, name}, role, qualifier, min_rank}], changes_listed}` - every change counted, the first 500 listed; `older_than_current` when the file was made before the one the builds there came from; a dry run writes nothing. 422 for a file that does not fit (its first problem as the message, nothing written), 409 while another import writes |
+| `POST /api/admin/builds/{game}/import[?dry_run=1]` (the file's JSON as the body, at most 8 MB) | editor | the game's builds become the file's (see "Main flows"): `{dry_run, game, exported_at, older_than_current, characters, builds, teams, created, updated, unchanged, removed, skipped: [{key, name, builds}], teammates_unknown: [{key, name}], teammates_unknown_total, edits_kept, made_here, kept_removed, file_taken, questions: [{id, kind, character, role, qualifier, min_rank, parts, taken, notes}], plan, merged, order_kept, notes_dormant, changes: [{change: created\|updated\|removed, character: {key, name}, role, qualifier, min_rank}], changes_listed}` - every change counted, the first 500 listed; `older_than_current` when the file was made before the one the builds there came from; the questions where the file and an editor's work disagree (builds.md, "Hand edits"), answered by `?file=<ids>\|all&plan=<hash>`; a dry run writes nothing. 422 for a file that does not fit or choices that name no question (nothing written), 409 while another import writes, 409 `plan_changed` when the questions are not the preview's any more |
 | `POST /api/admin/catalog/{game}/{list}[?force=1]` (`characters`, `weapons`, `sets`) | editor | one list of the catalog refreshed from the game's provider, a conditional request unless forced: `{outcome: changed\|unchanged, written, list, entries, refreshed_at, problem}`; 409 while another refresh of the list runs, 502 when the provider is closed, has no such list or cannot be read (the reason as the message); 404 for another list |
 | `GET /api/site-status` | anyone, always (the gate lets it through) | `{state: ready\|not_set_up\|update_pending\|unavailable, installed}` - nothing else (anotoki-lib's `MigrationsRoutes::status`) |
 | `GET /api/admin/migrations` | admin (from the token alone; open while an update waits) | `{sets: ["build_analyzer"], applied: [{set, name, applied_at}], pending: [{set, name, ready, blocked}], missing: [{set, name, applied_at}]}` - the files applied, in order, with when (UTC, `…Z`); the files not applied yet, in the order they will run; files recorded but not on disk (anotoki-lib's `MigrationsRoutes::admin`) |
@@ -705,7 +722,10 @@ again). The Migrations page's API answers its own: 404 `not_found` (a file that 
   signed out", with a Sign in button; for somebody without a role "This part is for editors and admins"), under
   the top bar with the area's sections as its links and the footer. The frontend only hides: the server refuses
   (403 `editor_only` / `admin_only`); and the admin panel's requests are a person's alone, also those the
-  library's pages make themselves. `pages/admin/builds` is the site's own (below, `pages/`);
+  library's pages make themselves. `pages/admin/builds` and `pages/admin/build-editor` (a character's builds editor,
+  `/admin/builds/:game/:key`: its route's `anotokiUnsavedChangesGuard` asks the page, and `core/build-editor-changes.ts`
+  tells the bar's Sign out it holds changes - one question with the drafts below, in the panel's English) are the
+  site's own (below, `pages/`);
   `pages/admin/{translations,languages,migrations}` hold the anotoki family's pages in the panel's `.page` (each
   from its own lazy entry point); the People page and the admin tools are routed straight from theirs
   (`@anotoki/lib/people/page`, `@anotoki/lib/admin/errors`, `/audit`, `/feedback`, `/backups`, set up in

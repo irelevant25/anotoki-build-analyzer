@@ -44,6 +44,13 @@ final class Build
         public ?DateTimeImmutable $checked_at = null,
         public ?DateTimeImmutable $changed_at = null,
         public ?GameCharacter $character = null,
+        /**
+         * The site's own notes (migration 022, App\Services\Builds\BuildNotes): on the build and its teams, in English
+         * and maybe Slovak; [] for none.
+         *
+         * @var array<string, mixed>
+         */
+        public array $site_notes = [],
     ) {}
 
     /** @param array<string, mixed> $row */
@@ -69,6 +76,7 @@ final class Build
             content_hash: (string) ($row['content_hash'] ?? ''),
             checked_at: Db::time($row['checked_at'] ?? null),
             changed_at: Db::time($row['changed_at'] ?? null),
+            site_notes: Json::decode($row['site_notes'] ?? null) ?? [],
         );
 
         // The joined character (prefixed "c_") comes along when the query selected it.

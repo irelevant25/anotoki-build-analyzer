@@ -27,6 +27,7 @@ const SLOVAK: Record<string, string> = {
   'builds.empty': 'Zatiaľ tu nie sú žiadne buildy. Editor ich importuje na stránke {link}.',
   'builds.adminPage': 'Builds',
   'builds.allCharacters': 'Všetky postavy',
+  'buildDetail.edit': 'Uprav buildy',
   'builds.role.main_dps': 'Hlavný DPS',
   'builds.role.sub_dps': 'Vedľajší DPS',
   'builds.role.support': 'Podpora',
@@ -123,7 +124,7 @@ describe('the builds pages: the list of characters and one character’s builds'
     language: 'en' | 'sk',
     api: Partial<Record<keyof Api, () => Observable<unknown>>>,
     inputs: Record<string, string>,
-    options: { meta?: typeof GENSHIN_META; address?: string } = {},
+    options: { meta?: typeof GENSHIN_META; address?: string; staff?: boolean } = {},
   ): Promise<ComponentFixture<T>> {
     TestBed.configureTestingModule({
       providers: [
@@ -135,7 +136,7 @@ describe('the builds pages: the list of characters and one character’s builds'
         { provide: Api, useValue: api },
         ...(options.meta ? [{ provide: MetaStore, useValue: options.meta }] : []),
         // An editor: the admin panel's Builds page is a link for them.
-        { provide: AuthService, useValue: { isStaff: signal(true), user: signal(null), preferences: signal(null) } },
+        { provide: AuthService, useValue: { isStaff: signal(options.staff ?? true), user: signal(null), preferences: signal(null) } },
       ],
     });
     if (options.address) {
@@ -306,6 +307,14 @@ describe('the builds pages: the list of characters and one character’s builds'
     expect(text('a.back')).toEqual(['All characters']);
     expect(host.querySelector('a.back')?.getAttribute('href')).toBe('/builds/genshin');
     expect(text('.hero .muted')).toEqual(['Pyro · Polearm · 1 build']);
+    // An editor's way to the character's builds editor in the admin panel.
+    expect(text('a.edit-builds')).toEqual(['Edit builds']);
+    expect(host.querySelector('a.edit-builds')?.getAttribute('href')).toBe('/admin/builds/genshin/hutao');
+  });
+
+  it('has no way to the builds editor for anybody but an editor or an admin', async () => {
+    await open(BuildCharacterPage, 'en', { characterBuilds: () => of(builds(1)) }, { game: 'genshin', key: 'hutao' }, { staff: false });
+    expect(host.querySelector('a.edit-builds')).toBeNull();
   });
 
   it('shows them in Slovak', async () => {
@@ -313,6 +322,7 @@ describe('the builds pages: the list of characters and one character’s builds'
 
     expect(text('a.back')).toEqual(['Všetky postavy']);
     expect(text('.hero .muted')).toEqual(['Pyro · Polearm · 2 buildy']);
+    expect(text('a.edit-builds')).toEqual(['Uprav buildy']);
     // The kit's tabs carry the builds' variations - the role in Slovak, the constellation in the game's notation -,
     // the first chosen; its panel is the build in hand.
     expect(text('[role="tab"]')).toEqual(['Hlavný DPS', 'Podpora · C2+']);

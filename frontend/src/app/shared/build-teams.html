@@ -72,9 +72,9 @@
                         </li>
                     }
                 </ul>
-                @if (team.note) {
+                @if (note(team.note); as notes) {
                     <anotoki-disclosure class="team-note" [heading]="'buildDetail.teamNotes' | translate: { team: team.name }">
-                        <p class="team-note-text" [attr.lang]="storedLang()">{{ team.note }}</p>
+                        <p class="team-note-text" [attr.lang]="notes.lang">{{ notes.text }}</p>
                     </anotoki-disclosure>
                 }
             </li>

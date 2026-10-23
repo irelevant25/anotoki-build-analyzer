@@ -1,7 +1,7 @@
 <div class="page">
   <anotoki-page-header
     heading="Builds"
-    lead="Builds are put together elsewhere and imported here, one file per game. The file is the whole truth for its game: once it is imported, the game's builds are exactly the file's - but for characters this installation's catalog lacks, which are skipped. Export saves a game's builds as such a file: a backup, and the start of a hand edit."
+    lead="Builds are put together elsewhere and imported here, one file per game. Once a file is imported, the game's builds are the file's - but for characters this installation's catalog lacks, which are skipped, and for what editors changed by hand: an import keeps every edit, and asks where the file changes the same part of a build. Export saves a game's builds as such a file: a backup."
   >
     <button anotokiButton class="reload" (click)="load()" anotokiTooltip="Read this page's data again">
       <anotoki-icon name="refresh" [size]="18" />Reload
@@ -32,7 +32,7 @@
                 (click)="exportBuilds(game)"
                 [loading]="state.busy === 'export'"
                 [disabled]="state.busy !== null"
-                anotokiTooltip="Save this game's builds as a file: a backup, or the start of a hand edit"
+                anotokiTooltip="Save this game's builds as a file: a backup"
               >
                 <anotoki-icon name="download" [size]="18" />Export
               </button>
@@ -42,7 +42,7 @@
                 (click)="fileInput.click()"
                 [loading]="state.busy === 'check'"
                 [disabled]="state.busy !== null"
-                anotokiTooltip="The game's builds become the file's - after a preview of what changes"
+                anotokiTooltip="The game's builds become the file's, hand edits kept - after a preview of what changes"
               >
                 <anotoki-icon name="upload" [size]="18" />Import a file
               </button>
@@ -65,6 +65,9 @@
                 <div class="preview" aria-live="polite">
                   <h4>What importing {{ preview.name }} does</h4>
                   <p class="summary">{{ planSummary(preview.plan) }}</p>
+                  @if (handSummary(preview.plan); as hand) {
+                    <p class="muted small hand">{{ hand }}</p>
+                  }
 
                   @if (preview.plan.older_than_current) {
                     <anotoki-alert class="older" tone="warning">This file is older than the one the builds now come from.</anotoki-alert>
@@ -85,6 +88,61 @@
                     <p class="muted small teammates-unknown">{{ teammates }}</p>
                   }
 
+                  @if (preview.plan.questions.length > 0) {
+                    <section class="questions" [attr.aria-labelledby]="'questions-' + game">
+                      <h5 [id]="'questions-' + game">Your edits and the file ({{ preview.plan.questions.length }})</h5>
+                      <p class="muted small">
+                        Where the file and an editor's work disagree, choose for each build which stands. Unless you choose the file, the editor's work stays - and
+                        what the file says is kept beside it, so this file asks nothing again.
+                      </p>
+                      <div class="cluster">
+                        <button anotokiButton size="sm" class="keep-all" (click)="answerAll(game, 'edit')" [disabled]="state.busy !== null">Keep every edit</button>
+                        <button anotokiButton size="sm" class="take-all" (click)="answerAll(game, 'file')" [disabled]="state.busy !== null">Take the file's everywhere</button>
+                      </div>
+                      <ul class="question-list">
+                        @for (question of preview.plan.questions; track question.id) {
+                          <li class="question">
+                            <div class="question-text">
+                              <span class="question-name">{{ changeName(question, game) }}</span>
+                              <span class="muted small">{{ questionText(question) }}</span>
+                            </div>
+                            <anotoki-segmented
+                              class="choice"
+                              size="sm"
+                              [label]="'What stands for ' + changeName(question, game)"
+                              [options]="choiceOptions(question)"
+                              [value]="choiceOf(preview, question)"
+                              (valueChange)="answer(game, question.id, $event)"
+                              [busy]="state.busy !== null" />
+                          </li>
+                        }
+                      </ul>
+                    </section>
+                  }
+
+                  @if (preview.plan.merged.length > 0) {
+                    <anotoki-disclosure class="merged" [heading]="'Combined without asking (' + preview.plan.merged.length + ')'">
+                      <ng-template anotokiDisclosurePanel>
+                        <ul class="change-list merged-list">
+                          @for (merged of preview.plan.merged; track $index) {
+                            <li>
+                              <span class="change-name">{{ changeName(merged, game) }}</span>: {{ mergedText(merged) }}
+                            </li>
+                          }
+                        </ul>
+                      </ng-template>
+                    </anotoki-disclosure>
+                  }
+
+                  @if (preview.plan.order_kept.length > 0) {
+                    <p class="muted small order-kept">Your order of builds stays for {{ characterNames(preview.plan.order_kept) }}; the file's new builds come after it.</p>
+                  }
+                  @if (preview.plan.notes_dormant.length > 0) {
+                    <p class="muted small notes-waiting">
+                      Team notes left without their team - kept, until a team of those members comes back: {{ waitingNotes(preview.plan, game) }}.
+                    </p>
+                  }
+
                   @let changes = changeCount(preview.plan);
                   @if (changes > 0) {
                     <anotoki-disclosure class="changes" [heading]="'Changes (' + changes + ')'">
@@ -103,7 +161,7 @@
                       </ng-template>
                     </anotoki-disclosure>
                   } @else {
-                    <p class="muted no-changes">Nothing changes: the builds here are the file's already.</p>
+                    <p class="muted no-changes">{{ noChangesText(preview.plan) }}</p>
                   }
 
                   <div class="cluster">
@@ -111,6 +169,47 @@
                     <button anotokiButton variant="ghost" class="cancel" (click)="cancel(game)" [disabled]="state.busy === 'import'">Cancel</button>
                   </div>
                 </div>
+              }
+            </div>
+          </anotoki-card>
+
+          <anotoki-card class="editor" heading="Edit builds" [headingLevel]="3">
+            <div class="card-body">
+              <p class="muted small">
+                Change a character's builds by hand, write the site's notes on them, make builds of your own. An import keeps what you did, and asks only
+                where the builds file changes the same part of a build.
+              </p>
+              @if (charactersProblem()[game]; as problem) {
+                <anotoki-alert class="editor-problem" tone="warning">The characters could not be read: {{ problem }}</anotoki-alert>
+              } @else {
+                <anotoki-combobox
+                  class="editor-pick"
+                  label="Character"
+                  placeholder="Type a name"
+                  hint="Every character of the catalog: one without builds gets its first one there."
+                  [options]="characterOptions()[game] ?? []"
+                  [value]="null"
+                  (valueChange)="openEditor(game, $event)"
+                />
+              }
+              @let edited = editedCharacters(data);
+              @if (edited.length > 0) {
+                <h4 class="edited-heading">Changed here ({{ edited.length }})</h4>
+                <div class="edited-list">
+                  @for (character of edited; track character.key) {
+                    <a anotokiLinkCard class="edited-character" [routerLink]="['/admin/builds', game, character.key]">
+                      <app-avatar aria-hidden="true" [src]="character.icon_url" [alt]="character.name" size="sm" />
+                      <span class="edited-text">
+                        <span class="edited-name">{{ character.name }}</span>
+                        <!-- Heard between the two, which are drawn one under the other: the card's name is all it holds. -->
+                        <span class="visually-hidden">: </span>
+                        <span class="muted small">{{ editingLine(character) }}</span>
+                      </span>
+                    </a>
+                  }
+                </div>
+              } @else {
+                <p class="muted small no-edits">No character's builds were changed here yet.</p>
               }
             </div>
           </anotoki-card>

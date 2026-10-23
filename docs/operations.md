@@ -349,10 +349,14 @@ format and what the tools must deliver: [builds.md](builds.md).
   8 MB), then sends it as a dry run, which writes nothing and is the preview: how many builds are new, updated,
   unchanged and removed (and how many teams the file holds), a warning when the file is older than the one the
   builds now come from, the characters skipped, the teammates the catalog lacks (kept, shown by their names until a
-  refresh brings them - they skip nothing), and the changes one by one. **Import** sends the same file for real;
-  **Cancel** forgets it.
-- **The file is the whole truth for its game**: once imported, the game's builds are exactly the file's - a
-  character the file does not have loses its builds -, but for characters this installation's catalog lacks,
+  refresh brings them - they skip nothing), the changes one by one, and - where the file and an editor's hand edits
+  disagree - a question per build ("Keep your edit" unless "Take the file's" is chosen; "Keep every edit" and "Take
+  the file's everywhere" answer them all). **Import** sends the same file for real, with the answers; **Cancel**
+  forgets it. When an edit was saved or another import came meanwhile, the page checks the file again and says so.
+- **The file is the truth for its game, but for what editors did by hand**: once imported, the game's builds are the
+  file's - a character the file does not have loses its builds -, but for the editors' work (an edit stays until the
+  file changes the same part and the file is chosen; a build made here stays; a removed build stays removed; notes
+  are never touched - [builds.md](builds.md), "Hand edits") and for characters this installation's catalog lacks,
   which are skipped and named ("Not in this installation's catalog": their list was refreshed first, at most
   hourly - Refresh catalog later, then import the same file again). A build found again by its identity keeps its
   id, so what names it by its id (a character's analysis asked `?build=ID`) stays valid. One import at a time: one
@@ -365,8 +369,8 @@ format and what the tools must deliver: [builds.md](builds.md).
   than 5000 builds or over 8 MB; and a file none of whose characters
   the catalog knows ("Refresh the catalog on the Builds page, then import again" - importing it would only
   remove every build).
-- **Export** saves the game's builds as such a file - a backup, the start of a hand edit, or the builds for another
-  installation (what it writes always imports). Each installation holds its own builds: import the same file on
+- **Export** saves the game's builds as such a file - a backup, or the builds for another installation (what it
+  writes always imports; it holds the hand edits as builds of the file's, without the site's notes). Each installation holds its own builds: import the same file on
   this computer and on the host.
 
 ## A person's own accounts as a file
@@ -449,7 +453,7 @@ whole admin panel. No file explorer here (the owner's choice for this site).
   bucket - and 500 a day from the visitors, 500 from the people signed in (429 `too_many`), counted by keyed
   hashes in `storage/logs/client-errors.json`.
 - **Audit log** (the table `anotoki_audit_log`): what was done in the admin panel and by whom - a game's builds
-  imported, the catalog refreshed, strings saved and languages changed, a person's data
+  imported, a character's builds edited by hand (`builds.edited`), the catalog refreshed, strings saved and languages changed, a person's data
   deleted, the IAM's deleted accounts checked, migrations applied, the error log cleared, feedback marked and
   deleted, backups made, downloaded, deleted and restored. No address is kept. A restore keeps it as it is.
 - **Feedback** (the table `anotoki_feedback`): what visitors send from **Feedback** at the foot of every page - a
@@ -629,6 +633,8 @@ upload map, are in [DEV.md](../DEV.md) ("Deploying"); in short:
    - **Version 0.5.0: builds from a file, Genshin Impact alone, the catalog from genshin.anotoki.eu (migrations
      014-019)**: genshin.anotoki.eu first, then the names file, the release, Apply, Refresh catalog and the builds
      file's import, in one sitting - the order is its own section, "Deploying 0.5.0" (below).
+   - **Version 0.7.0: the builds editor (migrations 022-023)**: the release, then Apply at once; nothing to import -
+     its own section, "Deploying 0.7.0" (below).
    - **Version 0.3: visitors and the family's bar (migration 004, IAM migration 007)**, in this
      order: (1) before uploading, make sure an account that can sign in holds **ADMIN on `build-analyzer` now**
      (the IAM's admin panel; IAM 007 is what later gives every IAM administrator ADMIN here); (2) upload;
@@ -663,6 +669,38 @@ Check after an install: `https://builder.anotoki.eu/config/database.local.php`, 
 `/src/Config.php` must not download (403); `https://builder.anotoki.eu/api/meta` answers JSON with the IAM's
 `issuer`, `client_id` and `login_required` under `auth`; `/api/accounts` answers 401 without a token.
 
+### Deploying 0.7.0
+
+Version 0.7.0 is the builds editor (task 9, the owner's round of 2026-10-22, [decisions.md](decisions.md)): editors
+change builds by hand on the admin panel's Builds page (Edit builds), write the site's own notes on a build and its
+teams - English, and Slovak where they want -, make builds of their own and remove others, and every import of a
+builds file keeps what they did ([builds.md](builds.md), "Hand edits"). No build changes: 022 adds the hand edits'
+storage - and fills every build's `file_build`, what the file said of it, with its own columns as they are, so the
+next import compares as the last one did -, 023 adds the editor's one word on the member pages and rewords the
+Privacy page's sentence on the audit log. Nothing is imported again.
+
+1. Before uploading, **Export** each language on the Translations page (a copy of every rewording).
+2. **The release**: `bun run anotoki-deploy deploy --backups <folder> --go`. From then on the site is closed until
+   the Apply.
+3. **Apply pending at once** (signed in as the ADMIN, on the Migrations page): one Apply runs 022 and 023, after a
+   backup of the database as it was ("before-migration"):
+   - 022 adds `builds.file_build` (every build's columns as they are), `site_notes` and `edited_at`, lets
+     `checked_at` be empty (a build made here was in no file), and adds `build_removals` and `build_orders`; its
+     gate refuses (rolled back whole) unless every `file_build` says what its build's columns say and no build or
+     content hash changed;
+   - 023 adds "Edit builds" (a character's builds page, for editors and admins) in English and Slovak, describes
+     the notes' two panels anew, and rewords the Privacy page's sentence on what the audit log keeps - "builds
+     imported from a file or edited by hand" - only where it still reads as before (a rewording made in the browser
+     stays). (The release itself dates the legal pages 2026-10-23: `SITE_LEGAL_UPDATED`.)
+
+Then check: the Builds page has the **Edit builds** card; picking a character there opens its editor
+(`/admin/builds/genshin/<key>`) with a tab a build; a note written and saved shows on the character's builds page -
+in Slovak with `?lang=sk` where it was written in Slovak; every member sees it at once, so write a real one, or delete
+it again once seen -, and the audit log has `builds.edited` by its editor; the
+next builds file's dry run asks only where the file changed what an edit changed too. **The backups made before this
+Apply are restored offline only** (`409 schema_differs`, as after every Apply): make a backup by hand once it is
+applied.
+
 ### Deploying 0.6.1
 
 No migration: the release goes up (`bun run anotoki-deploy deploy --backups <folder> --go`) and the site stays open.
@@ -686,7 +724,8 @@ reads no other, so the release goes up before the next builds file is imported:
 3. **Apply pending at once** (signed in as the ADMIN, on the Migrations page): one Apply runs 020 and 021, after a
    backup of the database as it was ("before-migration"):
    - 020 adds `builds.teams`, NULL for every build until the import: no build changes;
-   - 021 adds the teams' two words (the section's heading, the line of a member's stand-ins) in English and Slovak,
+   - 021 adds the teams' three words (the section's heading, the line of a member's stand-ins, the panel of a team's
+     notes) in English and Slovak,
      and widens the descriptions of the three words the teams reuse.
 4. **Import the builds file** on the Builds page: the dry run's preview says the file's teams in its first line
    ("…, with 809 teams, made …") and updates only the builds that gained teams - the 2026-10-22 file: 147 updated,

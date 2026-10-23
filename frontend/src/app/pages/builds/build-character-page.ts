@@ -7,6 +7,7 @@ import { IconComponent } from '@anotoki/lib/ui/icon';
 import { SpinnerComponent } from '@anotoki/lib/ui/spinner';
 import { TabItem, TabsComponent } from '@anotoki/lib/ui/tabs';
 import { Api } from '../../core/api';
+import { AuthService } from '../../core/auth';
 import { GAMES, titleCase } from '../../core/format';
 import { GAME_TERMS } from '../../core/game-terms';
 import { ErrorTextPipe } from '../../core/i18n/error-text';
@@ -22,7 +23,8 @@ import { Avatar } from '../../shared/char-avatar';
 /**
  * One character's recommended builds, for everybody (no account needed): a tab a build, named by its variation -
  * its role, its qualifier, the constellation it needs - in the character's order, the main build first (the anotoki
- * family's tabs), each the site's own build sheet (shared/build-detail).
+ * family's tabs), each the site's own build sheet (shared/build-detail). An editor or an admin also finds the way to
+ * the character's builds editor in the admin panel (Edit builds); the server checks the role there again.
  */
 @Component({
   selector: 'app-build-character-page',
@@ -34,6 +36,7 @@ export class BuildCharacterPage {
   private readonly api = inject(Api);
   private readonly i18n = inject(TranslationService);
   private readonly meta = inject(MetaStore);
+  protected readonly auth = inject(AuthService);
 
   readonly game = input.required<string>();
   readonly key = input.required<string>();

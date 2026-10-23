@@ -1,0 +1,22 @@
+<span class="move-buttons">
+    <button anotokiButton class="move-up" variant="ghost" size="sm" iconOnly [disabled]="index() === 0" [attr.aria-label]="'Move ' + name() + ' up'" anotokiTooltip="Move up" (click)="step(-1)">
+        <anotoki-icon name="arrowUp" [size]="18" />
+    </button>
+    <button
+        anotokiButton
+        class="move-down"
+        variant="ghost"
+        size="sm"
+        iconOnly
+        [disabled]="index() >= count() - 1"
+        [attr.aria-label]="'Move ' + name() + ' down'"
+        anotokiTooltip="Move down"
+        (click)="step(1)">
+        <anotoki-icon name="arrowDown" [size]="18" />
+    </button>
+    @if (removable()) {
+        <button anotokiButton class="remove" variant="danger-ghost" size="sm" iconOnly [attr.aria-label]="removeLabel() + ' ' + name()" [anotokiTooltip]="removeLabel()" (click)="remove.emit()">
+            <anotoki-icon name="trash" [size]="18" />
+        </button>
+    }
+</span>

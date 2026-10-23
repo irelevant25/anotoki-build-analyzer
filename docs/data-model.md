@@ -198,6 +198,29 @@ the site is closed to everybody but its ADMIN on the Migrations page (the site g
   asks). Gated: the three new keys in both languages, the two reused ones there with their English - not their
   Slovak, which an editor may have deleted (a gate that asked for it would keep the site closed, with no way to put
   it back while the update waits) -, and the site's own keys (436 + 3 = 439).
+- `022_build_hand_edits.sql` keeps what editors do by hand beside what the files say ([builds.md](builds.md), "Hand
+  edits"): `builds.file_build` (JSON: what the last builds file said of the build - its variation, place and content
+  as the columns store them; NULL for a build made here, which no file carries), `builds.site_notes` (JSON: the site's
+  own notes, `{build: {en, sk}, teams: {"<members' keys, sorted>": {en, sk}}}`, English required, Slovak optional;
+  NULL for none), `builds.edited_at` (TIMESTAMPTZ: the last save in the editor that changed the build), `checked_at`
+  nullable from then on (a build made here was in no file), and the table `build_removals` (the builds of a file an
+  editor removed: their identity - unique as the builds', `build_removals_identity_unique` -, `file_build`,
+  `site_notes`, `removed_at`; deleted with the character), and the table `build_orders` (the characters whose builds an
+  editor put in an order of their own, said by the editor's save - never guessed: `game_character_id` the key,
+  `ordered_at`; deleted with the character). Every build there was came from a file: its `file_build`
+  is its columns as they are (`json_build_object`), so the first import after it compares as the last one did.
+  Gated: the columns' types, nullability and defaults (`pg_attribute`), the index, every build's `file_build` equal
+  to its columns (as text: the same expression writes the same text) with no notes and no edit, every build there
+  before still there in its place with its content hash (a temporary copy taken first), no removal and no order yet,
+  and `builds_identity_unique` still there; the columns read in this schema alone.
+- `023_builds_editor_words.sql` adds the link from a character's builds page to its builds editor, for an editor or an
+  admin (`buildDetail.edit`, "Edit builds" / "Uprav buildy"), rewords the Privacy page's sentence on what the audit
+  log keeps - builds "imported from a file or edited by hand" (`legal.auditLog.what`) - where it still reads as 017
+  left it, and describes the panels of a build's and a team's notes anew (`buildDetail.notes`,
+  `buildDetail.teamNotes`: the site's own notes, in the reader's language where written, no longer the file's English).
+  Gated: the new key in both languages, the reworded and described ones there with their English (not their Slovak:
+  an editor may have deleted it), no description calling the notes the file's English any more, and the site's own
+  keys (439 + 1 = 440).
 
 Rules: never edit a migration that has run somewhere; add `NNN_what.sql`. A migration runs in one transaction
 (PostgreSQL DDL is transactional), so a failing one leaves nothing behind. A migration that changes data ends
@@ -306,8 +329,10 @@ Import semantics (`AccountImporter`):
 
 | Table | Notes |
 | --- | --- |
-| `builds` | A variation of a character's (migration 016): `game_character_id` → `game_characters` (cascade), `role` (VARCHAR(16): `main_dps` \| `sub_dps` \| `support`, `builds_role_check` - `Game::roles()`), `qualifier` (VARCHAR(40) NOT NULL DEFAULT '': a word or two telling two builds of one role apart, "Melt", '' for most; trimmed - `builds_qualifier_check`), `min_rank` (SMALLINT NOT NULL DEFAULT 0, 0-6 - `builds_min_rank_check`: the constellation the build needs; a character below it sees the build, marked, and it is never their best), `position` (SMALLINT, ≥ 0 - `builds_position_check`: the build's place among the character's, the file's order; the first is the main one), the JSON columns below (`weapons`, `sets`, `main_stats`, `substats` NOT NULL; `talent_priority`, `stat_targets` and - migration 020 - `teams` NULL for none), `notes`, `game_version` (VARCHAR(20)), `content_hash` (VARCHAR(64): the SHA-256 of the build's content as JSON - weapons, sets, main stats, substats, talent priority, stat targets, notes and game version, in that order, then its teams only when it has some, so a build without teams hashes as it did before 020 - which tells a changed build from an unchanged one), `checked_at` (when the file that last carried the build was made), `changed_at` (when a file first carried it as it is now), `created_at`, `updated_at` - every time NOT NULL. Its identity is the unique index `builds_identity_unique` on (`game_character_id`, `role`, `lower(qualifier)`, `min_rank`): the qualifier compared without regard to case, and an empty one '' rather than NULL, as the host's PostgreSQL 14 has no `NULLS NOT DISTINCT`. No source, no page address: nothing in a row says where a build came from |
-| `build_imports` | Every import of a builds file (migration 016): `game` (`build_imports_game_check`), `file_exported_at` (when its file was made, never later than the import), `summary` (JSON `{characters, builds, created, updated, unchanged, removed, skipped}`: what it did, in counts - nobody's name), `imported_by` → `users` (ON DELETE SET NULL: nobody's once their data is deleted; `build_imports_imported_by_check`: above 0 - a person, never a visitor), `created_at`; index `build_imports_game_created_at_index` on (`game`, `created_at`). The Builds page lists a game's last ten with who made each; an import's answer says whether its file was made before the one the builds there came from (`older_than_current`) |
+| `builds` | A variation of a character's (migration 016): `game_character_id` → `game_characters` (cascade), `role` (VARCHAR(16): `main_dps` \| `sub_dps` \| `support`, `builds_role_check` - `Game::roles()`), `qualifier` (VARCHAR(40) NOT NULL DEFAULT '': a word or two telling two builds of one role apart, "Melt", '' for most; trimmed - `builds_qualifier_check`), `min_rank` (SMALLINT NOT NULL DEFAULT 0, 0-6 - `builds_min_rank_check`: the constellation the build needs; a character below it sees the build, marked, and it is never their best), `position` (SMALLINT, ≥ 0 - `builds_position_check`: the build's place among the character's, the file's order; the first is the main one), the JSON columns below (`weapons`, `sets`, `main_stats`, `substats` NOT NULL; `talent_priority`, `stat_targets` and - migration 020 - `teams` NULL for none), `notes`, `game_version` (VARCHAR(20)), `content_hash` (VARCHAR(64): the SHA-256 of what the file said of the build's content as JSON - weapons, sets, main stats, substats, talent priority, stat targets, notes and game version, in that order, then its teams only when it has some, so a build without teams hashes as it did before 020; of its content for a build made here), `checked_at` (when the file that last carried the build was made; NULL for a build no file carries - migration 022), `changed_at` (when it last changed as members see it: a file's change or an edit), `created_at`, `updated_at` - every time but `checked_at` NOT NULL; since migration 022 `file_build` (JSON: what the last file said of the build - its variation, place and content as these columns store them; NULL for a build made here), `site_notes` (JSON: the site's notes, `BuildNotes`; NULL for none) and `edited_at` (the last save in the editor that changed it). Its identity is the unique index `builds_identity_unique` on (`game_character_id`, `role`, `lower(qualifier)`, `min_rank`): the qualifier compared without regard to case, and an empty one '' rather than NULL, as the host's PostgreSQL 14 has no `NULLS NOT DISTINCT`. No source, no page address: nothing in a row says where a build came from |
+| `build_removals` | The builds of a file an editor removed (migration 022): `game_character_id` → `game_characters` (cascade), `role`, `qualifier`, `min_rank` (the identity, with the builds' CHECKs; unique as theirs - `build_removals_identity_unique`), `file_build` (JSON NOT NULL: what the file said of it - the same as the file's again: it stays removed unasked), `site_notes` (its notes, back with it when it is brought back), `removed_at`. No removal shares its identity with a build |
+| `build_orders` | The characters whose builds an editor put in an order of their own (migration 022): `game_character_id` → `game_characters` (the key; cascade), `ordered_at`. An import keeps such a character's order, the file's new builds after them, until an editor gives it back to the file; the editor's save writes it, and an import only where every build of the character was the editor's |
+| `build_imports` | Every import of a builds file (migration 016): `game` (`build_imports_game_check`), `file_exported_at` (when its file was made, never later than the import), `summary` (JSON `{characters, builds, created, updated, unchanged, removed, skipped}` and since 0.7.0 `edits_kept, made_here, kept_removed, file_taken`: what it did, in counts - nobody's name), `imported_by` → `users` (ON DELETE SET NULL: nobody's once their data is deleted; `build_imports_imported_by_check`: above 0 - a person, never a visitor), `created_at`; index `build_imports_game_created_at_index` on (`game`, `created_at`). The Builds page lists a game's last ten with who made each; an import's answer says whether its file was made before the one the builds there came from (`older_than_current`) |
 
 Gone with migration 016, none of it carried over: the builds of the sources (one per source, character and
 variant, with a page address), `build_sources` (one row per scraper), `sync_runs` (the builds' and the
@@ -330,8 +355,11 @@ catalog's runs, worked through in steps) and `cache_locks` (the sync step lock).
 ```
 
 - A weapon's and a set option's `rank` is its place in its list, from 1 (the file's order); `known` says whether
-  the catalog had the weapon when the build was imported - `known: false` weapons and set keys without a catalog
-  row still compare by key.
+  the catalog had the weapon when the build was written - nothing reads it since 0.7.0 (`BuildPresenter` asks the
+  catalog) -; weapons and set keys without a catalog row still compare by key.
+- The texts the format carries beside a build's parts - `notes`, a weapon's, a set option's and a team's `note`, a
+  target's `text` - are stored as the file brings them and shown nowhere since 0.7.0: the site's own notes are
+  `site_notes`, written in the editor (the local tools write the file's empty).
 - A set piece accepts any of its `keys` (stat groups like "any +80 EM set" list several); `choose` = how many
   pieces must be satisfied ("any 2 of these 2pc bonuses"; null: all). Semantics in `Analysis/SetMatcher`.
 - Equal `priority` values are ties (`=`).
@@ -343,11 +371,14 @@ catalog's runs, worked through in steps) and `cache_locks` (the sync step lock).
   five stand-ins, none a member; no two teams of a build have the same members. What the catalog says of a
   teammate - whether it has it, its picture, rarity and element - and whether it has builds are looked up when a
   build is shown (`BuildPresenter`), never stored.
-- Import rules (`BuildImport`; [architecture.md](architecture.md), "Main flows"): the file is the whole truth for
-  its game. A build the file has again by its identity keeps its id - a link `?build=ID` stays - and is updated
-  when its content hash, its position or its qualifier's spelling changed (`changed_at` and `checked_at` the
-  file's time), kept otherwise (`checked_at` alone); a build of the game the file lacks is removed - every build
-  of a character it does not have -, a new one created; removed first and created last, so no identity is ever
+- Import rules (`BuildImport`; [architecture.md](architecture.md), "Main flows"; [builds.md](builds.md), "Hand
+  edits"): the file is the truth for its game, but for what editors did by hand. A build the file has again by its
+  identity keeps its id - a link `?build=ID` stays - and is compared part by part with what the file said of it
+  (`file_build`) and with what is stored: a part nobody edited takes the file's version, an edited one stays, and a
+  part both changed is a question for that build; it is updated when what members see changed (`changed_at` the
+  later of the file's time and its own, `checked_at` the file's time), kept otherwise (`checked_at` alone); a build
+  of the game the file lacks is removed - but one made here, edited or with notes -, a new one created - but one an
+  editor removed; removed first and created last, so no identity is ever
   there twice, even for a moment. A character the catalog lacks is skipped: an import never adds to the catalog.
   One import at a time, in one transaction, recorded in it (`build_imports`, the audit log's `builds.imported`).
 
@@ -358,7 +389,7 @@ JSON as the body; `?dry_run=1` only says what would happen) and exported there
 (`GET /api/admin/builds/{game}/export`, `builds-{game}-{date}.json`): `Services/Builds/BuildFile` is the format,
 `BuildImport` the import and export. The site never puts a builds file together itself: the owner's untracked
 local tools read the build sites and write one per game ([builds.md](builds.md)), and the export serves as a
-backup and as the start of a hand edit. The file is the whole truth for its game. Format version 3 (2 until 0.6.0,
+backup. The file is the truth for its game, but for what editors did by hand ([builds.md](builds.md), "Hand edits"). Format version 3 (2 until 0.6.0,
 which gave builds their teams):
 
 ```jsonc
@@ -420,8 +451,8 @@ which gave builds their teams):
   "… #2"); a team's members or stand-ins that neutral words make alike are listed once, and a team left with fewer
   than two members or with another's members is left out (`BuildFile::teamsEntry()`). Whatever an export writes,
   an import reads.
-- **An import** makes the game's builds exactly the file's (see "Builds" above for how each build is matched and
-  written) - but for characters the catalog lacks: the characters' list is refreshed first, at most once per game
+- **An import** makes the game's builds the file's (see "Builds" above for how each build is matched and
+  written) - but for what editors did by hand, and for characters the catalog lacks: the characters' list is refreshed first, at most once per game
   and list per `catalog.import_refresh_minutes` (60, `config/app.php`, shared with the account imports), and
   what is still missing is skipped and named in the answer (`skipped: [{key, name, builds}]`); a weapon the
   catalog lacks likewise refreshes its list once and is kept, `known: false`; a teammate the catalog lacks shares

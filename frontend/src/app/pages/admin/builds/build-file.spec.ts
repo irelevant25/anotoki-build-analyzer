@@ -1,5 +1,5 @@
 import { downloadName } from '../../../core/download';
-import { BuildChange, BuildImportEntry, BuildImportPlan } from '../../../core/models';
+import { BuildChange, BuildImportEntry, BuildImportPlan, BuildQuestion } from '../../../core/models';
 import {
   BUILD_FILE_FORMAT,
   BUILD_FILE_MAX_BYTES,
@@ -7,11 +7,17 @@ import {
   changeCount,
   changeName,
   checkBuildFile,
+  choiceOptions,
   count,
+  handSummary,
   importLine,
   importSummary,
+  mergedText,
   momentText,
+  noChangesText,
+  partList,
   planSummary,
+  questionText,
   roleName,
   skippedHeading,
   unknownTeammates,
@@ -50,10 +56,24 @@ function plan(overrides: Partial<BuildImportPlan> = {}): BuildImportPlan {
     skipped: [],
     teammates_unknown: [],
     teammates_unknown_total: 0,
+    edits_kept: 0,
+    made_here: 0,
+    kept_removed: 0,
+    file_taken: 0,
+    questions: [],
+    plan: 'a'.repeat(64),
+    merged: [],
+    order_kept: [],
+    notes_dormant: [],
     changes: [],
     changes_listed: 6,
     ...overrides,
   };
+}
+
+/** A question of an import about Hu Tao's main DPS build. */
+function question(overrides: Partial<BuildQuestion> = {}): BuildQuestion {
+  return { id: 'b1', kind: 'edited', character: { key: 'hutao', name: 'Hu Tao' }, role: 'main_dps', qualifier: '', min_rank: 0, parts: ['weapons'], taken: [], notes: false, ...overrides };
 }
 
 /** In the browser's time zone; around noon UTC it is the 20th nearly everywhere. */
@@ -192,6 +212,62 @@ describe('the words around an import', () => {
     };
     expect(importLine(entry)).toMatch(/^file made 20 October 2026(,| at) \d\d:\d\d · 3 new, 1 updated, 0 removed, 2 skipped · by Mona$/);
     expect(importLine({ ...entry, file_exported_at: null, imported_by: null })).toBe('file of an unknown date · 3 new, 1 updated, 0 removed, 2 skipped · by a deleted person');
+    // Since 0.7 what the editors' work came to: said only where an edit was kept.
+    expect(importLine({ ...entry, file_exported_at: null, summary: { ...entry.summary, edits_kept: 4 } })).toBe(
+      'file of an unknown date · 3 new, 1 updated, 0 removed, 2 skipped, 4 kept an edit · by Mona',
+    );
+    expect(importLine({ ...entry, file_exported_at: null, summary: { ...entry.summary, edits_kept: 0 } })).toBe('file of an unknown date · 3 new, 1 updated, 0 removed, 2 skipped · by Mona');
+  });
+
+  it("names a build's parts in a sentence", () => {
+    expect([partList([]), partList(['weapons']), partList(['weapons', 'teams']), partList(['sets', 'main_stats', 'talent_priority', 'game_version'])]).toEqual([
+      '',
+      'weapons',
+      'weapons and teams',
+      'artifact sets, main stats, talents and game version',
+    ]);
+  });
+
+  it("says what each kind of question is about, and offers its two answers - the editors' work first", () => {
+    expect(questionText(question())).toBe('You edited its weapons, and the file changes them too.');
+    expect(questionText(question({ parts: ['weapons', 'teams'], taken: ['substats'] }))).toBe(
+      "You edited its weapons and teams, and the file changes them too. Its substats, which only the file changes, are the file's either way.",
+    );
+    expect(questionText(question({ parts: ['game_version'], taken: ['weapons'] }))).toBe(
+      "You edited its game version, and the file changes it too. Its weapons, which only the file changes, are the file's either way.",
+    );
+    expect(questionText(question({ parts: ['teams'], taken: ['game_version'] }))).toBe(
+      "You edited its teams, and the file changes them too. Its game version, which only the file changes, is the file's either way.",
+    );
+    expect(questionText(question({ kind: 'made_here', parts: ['stat_targets'] }))).toBe('Made here; the file brings it too, with other stat targets.');
+    expect(questionText(question({ kind: 'removed_here', parts: ['game_version'] }))).toBe('You removed it; the file changes its game version.');
+    expect(questionText(question({ kind: 'removed_by_file', parts: ['substats'] }))).toBe('The file no longer has it; you edited its substats.');
+    expect(questionText(question({ kind: 'removed_by_file', parts: [], notes: true }))).toBe('The file no longer has it; you wrote notes on it.');
+    expect(questionText(question({ kind: 'removed_by_file', parts: ['teams'], notes: true }))).toBe('The file no longer has it; you edited its teams and wrote notes on it.');
+
+    expect((['edited', 'made_here', 'removed_here', 'removed_by_file'] as const).map((kind) => choiceOptions(question({ kind })).map((option) => `${option.value}: ${option.label}`))).toEqual([
+      ['edit: Keep your edit', "file: Take the file's"],
+      ['edit: Keep yours', "file: Take the file's"],
+      ['edit: Keep it removed', 'file: Bring it back'],
+      ['edit: Keep it', 'file: Remove it'],
+    ]);
+  });
+
+  it('says a file that changes nothing changes nothing - unless the file is taken where it asks', () => {
+    expect(noChangesText(plan())).toBe("Nothing changes: the builds here are the file's already.");
+    expect(noChangesText(plan({ made_here: 1 }))).toBe("Nothing changes: the builds here are the file's already, but for what is kept by hand.");
+    expect(noChangesText(plan({ edits_kept: 1, questions: [question()] }))).toBe("Nothing changes unless you take the file's above.");
+  });
+
+  it("says what an import keeps by hand and makes of an edit and the file's changes without asking", () => {
+    expect(handSummary(plan())).toBeNull();
+    expect(handSummary(plan({ edits_kept: 1 }))).toBe('Kept by hand: 1 build with an edit.');
+    expect(handSummary(plan({ edits_kept: 3, made_here: 2, kept_removed: 1 }))).toBe('Kept by hand: 3 builds with an edit, 2 made here, 1 removed.');
+    expect(handSummary(plan({ made_here: 2 }))).toBe('Kept by hand: 2 made here.');
+    expect(importSummary(plan({ dry_run: false, kept_removed: 1 }))).toBe('Imported: 2 new, 1 updated, 247 unchanged, 3 removed. Kept by hand: 1 removed.');
+    expect(mergedText({ character: { key: 'hutao', name: 'Hu Tao' }, role: 'main_dps', qualifier: '', min_rank: 0, kept: ['weapons', 'teams'], taken: ['substats'] })).toBe(
+      "your weapons and teams kept, the file's substats taken",
+    );
   });
 
   it('counts in words', () => {

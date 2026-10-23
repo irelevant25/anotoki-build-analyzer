@@ -1,0 +1,81 @@
+:host {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.75rem;
+  min-width: 0;
+}
+
+.none {
+  margin: 0;
+}
+
+.options,
+.pieces {
+  display: flex;
+  flex-direction: column;
+  align-self: stretch;
+  gap: 0.75rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+// An option: a box of its own, drawn as the kit draws a quieter surface - its pieces in it, one under another.
+.option {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  min-width: 0;
+  padding: 0.75rem;
+  border: 1px solid var(--anotoki-border);
+  border-radius: 12px;
+  background: var(--anotoki-surface-2);
+}
+
+.option-head,
+.option-foot {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem 1rem;
+}
+
+.option-title {
+  flex: 1 1 auto;
+  margin: 0;
+  font-size: 0.9375rem;
+}
+
+// A piece: its count, its sets and its buttons on a line - wrapping on a phone -, its picker and its label under them.
+.piece {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  min-width: 0;
+  padding-top: 0.75rem;
+  border-top: 1px solid var(--anotoki-border);
+
+  &:first-child {
+    padding-top: 0;
+    border-top: 0;
+  }
+}
+
+.piece-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+  min-width: 0;
+}
+
+.chosen {
+  flex: 1 1 12rem;
+  min-width: 0;
+}
+
+.add-set,
+.label {
+  max-width: 32rem;
+}

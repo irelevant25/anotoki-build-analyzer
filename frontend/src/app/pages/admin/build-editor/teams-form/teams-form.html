@@ -1,0 +1,180 @@
+@if (teams().length === 0) {
+    <p class="muted small none">None listed.</p>
+}
+<ol class="teams">
+    @for (team of teams(); track rowId(team); let t = $index) {
+        <li class="team">
+            <div class="team-head">
+                <h4 class="team-title">Team {{ t + 1 }}</h4>
+                <app-move-buttons [index]="t" [count]="teams().length" [name]="teamName(team, t)" (move)="moveTeam(t, $event)" (remove)="removeTeam(t)" />
+            </div>
+            <anotoki-text-field
+                class="team-name"
+                label="Name"
+                hint="As members read it: Vaporize, Freeze, Hypercarry…"
+                [value]="team.name"
+                (valueChange)="setName(t, $event)"
+                [maxlength]="maxName()"
+                [error]="error('teams[' + t + '].name')"
+                [attr.data-path]="'teams[' + t + '].name'" />
+            <ol class="members">
+                @for (member of team.members; track rowId(member); let m = $index) {
+                    <li class="member">
+                        <!-- A group of its own inside the list's item: the item stays the list's. -->
+                        <div class="member-row" role="group" [attr.aria-label]="memberLabel(member, m)">
+                            <div class="who">
+                                <!-- The name beside it says it: the picture is hidden from a screen reader. -->
+                                <app-avatar class="picture" aria-hidden="true" [src]="icon(member.key)" [alt]="member.name || '?'" size="sm" />
+                                @if (isOwn(member)) {
+                                    <div class="own">
+                                        <span class="own-label">Character</span>
+                                        <span class="own-name">{{ memberName(member, m) }}</span>
+                                        <span class="muted small">This build's: in every team, with no stand-in.</span>
+                                    </div>
+                                } @else {
+                                    <anotoki-combobox
+                                        class="pick"
+                                        label="Character"
+                                        placeholder="Type a character's name"
+                                        [options]="memberOptions(team, member)"
+                                        [value]="member.key === '' ? null : member.key"
+                                        (valueChange)="pickMember(t, m, $event)"
+                                        [error]="error('teams[' + t + '].members[' + m + '].key')"
+                                        [attr.data-path]="'teams[' + t + '].members[' + m + '].key'" />
+                                }
+                            </div>
+                            <anotoki-select
+                                class="role"
+                                label="Role"
+                                [options]="roleOptions()"
+                                [value]="member.role ?? ''"
+                                (valueChange)="setRole(t, m, $event)"
+                                [error]="error('teams[' + t + '].members[' + m + '].role')"
+                                [attr.data-path]="'teams[' + t + '].members[' + m + '].role'" />
+                            <anotoki-select
+                                class="rank"
+                                label="Constellation"
+                                [options]="rankOptions()"
+                                [value]="'' + member.min_rank"
+                                (valueChange)="setRank(t, m, $event)"
+                                [error]="error('teams[' + t + '].members[' + m + '].min_rank')"
+                                [attr.data-path]="'teams[' + t + '].members[' + m + '].min_rank'" />
+                            <app-move-buttons
+                                class="buttons"
+                                [index]="m"
+                                [count]="team.members.length"
+                                [name]="memberName(member, m) + ' in ' + teamName(team, t)"
+                                [removable]="!isOwn(member)"
+                                (move)="moveMember(t, m, $event)"
+                                (remove)="removeMember(t, m)" />
+                            @if (!isOwn(member)) {
+                                <div class="stand-ins">
+                                    @if (!known(member.key)) {
+                                        <anotoki-badge class="unknown" tone="warning">Not in the catalog</anotoki-badge>
+                                    }
+                                    @if (member.alternatives.length > 0) {
+                                        <!-- For the eye: the list's own name says it to a screen reader. -->
+                                        <span class="stand-ins-label" aria-hidden="true">Stand-ins</span>
+                                        <anotoki-chip-list class="chosen" [label]="'Stand-ins for ' + memberName(member, m)" [items]="standInChips(member)" (remove)="removeStandIn(t, m, $event)" />
+                                    }
+                                    @if (member.alternatives.length < maxStandIns()) {
+                                        <!-- Drawn anew with each stand-in added: empty for the next one. -->
+                                        @for (turn of [addedTo(member)]; track turn) {
+                                            <anotoki-combobox
+                                                class="add-stand-in"
+                                                label="Add a stand-in"
+                                                placeholder="Who can take this place"
+                                                [options]="standInOptions(team, member)"
+                                                [value]="null"
+                                                (valueChange)="addStandIn(t, m, $event)"
+                                                [error]="error('teams[' + t + '].members[' + m + '].alternatives')"
+                                                [attr.data-path]="'teams[' + t + '].members[' + m + '].alternatives'" />
+                                        }
+                                    } @else {
+                                        <p class="muted small full" [attr.data-path]="'teams[' + t + '].members[' + m + '].alternatives'" tabindex="-1">
+                                            {{ maxStandIns() }} stand-ins, the most a member has.
+                                            @if (error("teams[" + t + "].members[" + m + "].alternatives"); as message) {
+                                                <span class="stand-in-error">{{ message }}</span>
+                                            }
+                                        </p>
+                                    }
+                                </div>
+                            }
+                        </div>
+                    </li>
+                }
+            </ol>
+            @if (error("teams[" + t + "].members"); as message) {
+                <anotoki-alert class="team-problem" tone="danger" tabindex="-1" [attr.data-path]="'teams[' + t + '].members'">{{ message }}</anotoki-alert>
+            }
+            <button anotokiButton size="sm" class="add-member" (click)="addMember(t)" [disabled]="team.members.length >= teamSize()">
+                <anotoki-icon name="plus" [size]="16" />
+                Add member
+            </button>
+            <app-note-fields
+                class="team-note"
+                label="Note on this team"
+                hint="Shown with the team: in Slovak to those who read Slovak, where you write it - else in English."
+                [path]="'notes.teams[' + t + ']'"
+                [value]="noteAt(t)"
+                (valueChange)="setNote(t, $event)"
+                [maxlength]="maxNote()"
+                [rows]="3"
+                [errors]="noteErrors(t)" />
+        </li>
+    }
+</ol>
+<button anotokiButton size="sm" class="add-team" (click)="addTeam()" [disabled]="teams().length >= maxTeams()">
+    <anotoki-icon name="plus" [size]="16" />
+    Add team
+</button>
+
+@if (waiting().length > 0) {
+    <section class="waiting" [attr.aria-labelledby]="waitingTitleId">
+        <h4 class="waiting-title" [id]="waitingTitleId">Notes waiting for their team</h4>
+        <p class="muted small waiting-hint">A note stays with its team's members: a team of exactly those members with no note of its own takes it when saved. Move one to a team now, or delete it.</p>
+        <ul class="waiting-list">
+            @for (entry of waiting(); track entry.key; let w = $index) {
+                <li class="waiting-entry">
+                    <!-- A group named by its members: its buttons are said with them; a problem of it is focused here. -->
+                    <div class="waiting-group" role="group" tabindex="-1" [attr.aria-label]="'Note waiting for ' + waitingMembers(entry)" [attr.data-path]="'notes.waiting[' + w + ']'">
+                        <p class="waiting-members">{{ waitingMembers(entry) }}</p>
+                        <p class="waiting-note">{{ entry.note.en }}</p>
+                        @if (entry.note.sk) {
+                            <p class="waiting-note" lang="sk">{{ entry.note.sk }}</p>
+                        }
+                        @if (takerName(entry); as taker) {
+                            <p class="muted small taker">{{ taker }} has exactly these members and no note: saving gives it this one.</p>
+                        }
+                        @if (error("notes.waiting[" + w + "]"); as message) {
+                            <anotoki-alert tone="danger" [announce]="true">{{ message }}</anotoki-alert>
+                        }
+                        <div class="waiting-actions">
+                            <anotoki-select
+                                class="move-to"
+                                label="Move to"
+                                placeholder="Choose a team"
+                                [options]="moveTargets()"
+                                [value]="chosenTarget(entry)"
+                                (valueChange)="chooseTarget(entry, $event)"
+                                [disabled]="moveTargets().length === 0" />
+                            <button
+                                anotokiButton
+                                size="sm"
+                                class="move-note"
+                                [attr.aria-label]="'Move the note for ' + waitingMembers(entry)"
+                                (click)="moveWaiting(w)"
+                                [disabled]="chosenTarget(entry) === ''">
+                                Move
+                            </button>
+                            <button anotokiButton size="sm" variant="danger-ghost" class="delete-note" [attr.aria-label]="'Delete the note for ' + waitingMembers(entry)" (click)="deleteWaiting(w)">
+                                <anotoki-icon name="trash" [size]="16" />
+                                Delete
+                            </button>
+                        </div>
+                    </div>
+                </li>
+            }
+        </ul>
+    </section>
+}

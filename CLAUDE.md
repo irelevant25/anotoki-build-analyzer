@@ -11,7 +11,8 @@ the builds' dates are public - unless the IAM's "Sign-in required" switch for th
 the server reads from the IAM (the anotoki library's `SignInRule`) and relays in `/api/meta`
 (`auth.login_required`): then nobody and no visitor key gets anything but meta, the strings, the icons and the site's status (`/api/site-status`, which reads no credentials). Somebody
 signed in at the IAM is signed in here without a click (the IAM's sign-in hint). Roles here:
-EDITOR imports the builds, refreshes the catalog and rewords the site's strings; ADMIN does that and also applies
+EDITOR imports the builds, changes them by hand and writes the site's notes on them (0.7.0), refreshes the catalog and
+rewords the site's strings; ADMIN does that and also applies
 database updates, adds and deletes languages, deletes a person's data, and has the admin tools (the error log,
 the audit log, feedback, backups). Deployable on FTP-only shared
 hosting: no shell, cron, queue worker or long-running process. The member pages read in English or Slovak:
@@ -77,7 +78,7 @@ under the library's keys - and **Feedback only where a message can be sent** (th
 reads a build site** - an editor imports one builds file per game on the admin panel's **Builds page**
 (`/admin/builds`: Export, Import with a dry run first, the recent imports, the catalog), put together by the owner's
 untracked local tools (`local/`, git-ignored; docs/builds.md says what they deliver); the file is the whole truth for
-its game, and a build found again by its identity keeps its id (`App\Services\Builds\BuildImport`, `BuildFile` -
+its game (since 0.7.0 but for what editors did by hand), and a build found again by its identity keeps its id (`App\Services\Builds\BuildImport`, `BuildFile` -
 format version 2). **A build is a variation** of a character: a role (`main_dps`, `sub_dps`, `support`), a
 `qualifier` where a character has two of one role, and the constellation it needs (`min_rank`); a stat target can
 start from a constellation (`from_rank`), and the analysis follows the player's. **Star Rail is gone**, the
@@ -109,6 +110,26 @@ builds refresh: the local tools write version 3 only (docs/operations.md, "Deplo
 look at it, 2026-10-22): a team side by side on a phone too, 64 px portraits (and in the builds list - the avatar's
 `lg`; its 88 px heroes `xl`), a check for "Owned", the Traveler in every element, a set option's pictures in a column
 of one width; and the local tools write no notes of the sites' (`export.notes`) and keep every team.
+
+**Version 0.7.0 (unreleased) - the builds editor, task 9** (the owner's round of 2026-10-22, docs/decisions.md; the
+plan in seven steps, a pause after each for the owner's word): editors change builds by hand in the admin panel - a
+form for every part, drawn with the kit -, make builds of their own, remove others and write **the site's own notes**
+(English, Slovak optional) on a build and its teams; **every import keeps what they did** (docs/builds.md, "Hand
+edits"): what the file said of a build stays beside it (`builds.file_build`), an import compares part by part
+(`BuildParts`) and asks per build only where the file and an edit changed the same part (the edit standing unless the
+file is chosen; the answers sent with the preview's plan, 409 `plan_changed` when the questions changed), builds made
+here are kept, removed ones never come back unasked (`build_removals`), an editor's order stays (said, `build_orders` - never
+guessed), notes are never
+touched (`builds.site_notes`, `BuildNotes`), and an export imported again changes nothing. Members read the notes in
+Slovak where an editor wrote it, else in English (`core/i18n/site-note.ts`); the file's own texts (a weapon's, a set
+option's, a team's note, a target's text, the build's notes) are sent by no answer. Migrations **022** (the storage;
+every build's `file_build` its columns as they were) and **023** (the staff's Edit builds on a character's builds page,
+the Privacy page's audit-log sentence with hand edits; the legal pages' date moved). All seven steps done
+(2026-10-23): the storage and the import (step 1), the editor's API (step 2: `BuildEditor`, docs/builds.md "The
+editor"), the editor's page with its Variation and Notes cards and the notes on the member pages (step 3:
+`/admin/builds/:game/:key`), the forms of the weapons and the artifact sets (step 4), of the main stats, substats,
+talents and stat targets (step 5) and of the teams with their notes (step 6), and the release - the version, What's
+new, docs/operations.md "Deploying 0.7.0" (step 7); deployed only at the owner's word.
 
 **The shared library, anotoki-lib** (`irelevant25/anotoki-lib` on GitHub: Composer `anotoki/lib` ^0.9.0 through a
 `vcs` repository - 0.9.2 now -, npm `@anotoki/lib` 0.9.2 from its release tarball - never a local path, never 0.4.0; DEV.md "The
@@ -194,7 +215,7 @@ ADMIN applies it** - apply at once.
 ## Commands
 
 ```bash
-cd backend && php tests/run.php                      # backend tests (throwaway databases, 23 files, ~329 tests)
+cd backend && php tests/run.php                      # backend tests (throwaway databases, 24 files, ~364 tests)
 (cd frontend && npx ng build && npx ng test --watch=false)   # Vitest: every spec beside its code in src/app
 bun run format:check                                 # Prettier on every file of both halves, at the root (bun install there first)
 node .claude/skills/verify-ui/scripts/run.mjs [--no-build] [--keep]   # the browser check (8590 + 8597, a throwaway database; PHP=<8.4+> where php is older)
@@ -222,7 +243,7 @@ cd frontend && bun run anotoki-deploy build   # ../dist/frontend + ../dist/backe
 - A person's own accounts as a file (signed in only; never a visitor's): `api/routes/me.php` (`GET /api/me/export`, `POST /api/me/import[?dry_run=1]`), `src/Services/Transfer/AccountsFile.php` (format, strict reading, writing only what it reads), `AccountsTransfer.php` (export; import: match by game + UID or game + `created_at` in UTC to the second, the newer `last_import_at` wins, never deletes, unknown catalog keys skipped and counted, the person's `users` row `FOR UPDATE` via `Users::lockForWrite()`, which `AccountImporter` takes too), limits `config/app.php` `me`, `tests/data_transfer.test.php`; frontend `shared/data-card/` (export, import: the dry run's preview, then Confirm), `core/download.ts`
 - Catalog / names: `src/Services/Catalog/Catalog.php` (lookups only - an import never adds a row; players' nicknames in `config/app.php`'s aliases), `CatalogSync.php` (`refresh()`: one list from its game's provider by a conditional request, written in one transaction - a row found again by its in-game ID, then its key, none deleted -, where each list stands kept in the cache table, one refresh of a list at a time), `CatalogProvider` / `CatalogAnswer` / `CatalogProviders` (`config/app.php` `catalog.{game}.provider`), `Providers/GenshinCatalog.php` (genshin.anotoki.eu's `/api/catalog/{characters,weapons,artifacts}`: the mapping, the Travelers one entry per element, icons on its host alone), `CatalogUpkeep.php` (a stale list refreshed after an answer; `upkeep.catalog`), `src/Presenters/Icons.php` (AVIF too), migration 018, `sync-catalog.php`; tests `tests/catalog_refresh.test.php`
 - Imports: `src/Services/Import/ImportService.php` → parsers → `ParsedAccount` → `AccountImporter.php` (always for one user)
-- Builds (variations imported from a file; docs/builds.md): `src/Services/Builds/BuildFile.php` (format version 3, strict reading, a build's identity, its teams - `teamsEntry()` writes them), `BuildImport.php` (the plan, the apply under an advisory lock - `BuildImportBusy` -, a dry run, the lists refreshed for what the catalog lacks, the teammates it lacks named), `src/Models/Build.php`, `src/Repositories/Builds.php` (`keysWithBuilds()`), `src/Presenters/BuildPresenter.php` (a team's members with what the catalog says of them, looked up as shown), `api/routes/admin_builds.php` (STAFF: `/api/admin/builds`, `…/{game}/export`, `…/{game}/import[?dry_run=1]`, `/api/admin/catalog/{game}/{list}`), `api/routes/builds.php` (public: `/api/builds`, `/api/builds/{game}`, `/api/builds/{game}/{key}`), `api/routes/accounts.php` (a character's `owned_teammates`, `Accounts::characterRanks()`), migrations 016-017 and 020-021 (the teams), `src/Cache/Prune.php` (the day's tidying up after an answer; `upkeep.prune`); tests `tests/builds_import.test.php`; frontend `pages/admin/builds/` (+ `build-file.ts`), `core/i18n/variation-words.ts`, `pages/builds/` (the browser and its filters, `core/query-filters.ts`), `pages/character/` (a tab per variation), `shared/build-teams` (a build's teams, the teammates the account has marked)
+- Builds (variations imported from a file; docs/builds.md): `src/Services/Builds/BuildFile.php` (format version 3, strict reading, a build's identity, its teams - `teamsEntry()` writes them), `BuildImport.php` (the plan, the apply under an advisory lock - `BuildImportBusy` -, a dry run, the lists refreshed for what the catalog lacks, the teammates it lacks named; since 0.7 what editors did kept: a build's parts compared one by one with what the file said of it - `builds.file_build` - and with what is stored, a question per build only where both changed a part, the answers with the preview's plan - `?file=<ids>|all&plan=`, `BuildImportPlanChanged` 409 `plan_changed` -, builds made here kept, removed ones - `build_removals` - never back unasked, an editor's order kept, the site's notes never touched), `BuildParts.php` (a build's parts as an import compares them), `BuildNotes.php` (the site's notes, a team's by its members: read, shown, checked - English required, Slovak optional, no other site named), `BuildRows.php` (a build as the table stores it, what the file said beside it: the import's and the editor's writes), `BuildEditor.php` (the editor: `catalog()` - the facts and the catalog to pick from -, `overview()` - the Builds page's list -, `load()` and `save()` - a character's builds whole, each read by `BuildFile::readEntry()` with its problem at its path, under the import's lock, against the version loaded: `BuildEditException` 422, `BuildEditConflict` 409 `changed`), `src/Models/Build.php`, `src/Repositories/Builds.php` (`keysWithBuilds()`), `src/Presenters/BuildPresenter.php` (a team's members with what the catalog says of them, looked up as shown; the site's notes `{en, sk?}` on the build and each team, the file's unseen texts never sent), `api/routes/admin_builds.php` (STAFF: `/api/admin/builds`, `…/{game}/export`, `…/{game}/import[?dry_run=1]`, `…/{game}/catalog`, `…/{game}/characters/{key}` GET / PUT, `/api/admin/catalog/{game}/{list}`), `api/routes/builds.php` (public: `/api/builds`, `/api/builds/{game}`, `/api/builds/{game}/{key}`), `api/routes/accounts.php` (a character's `owned_teammates`, `Accounts::characterRanks()`), migrations 016-017, 020-021 (the teams), 022 (hand edits: `file_build`, `site_notes`, `edited_at`, `build_removals`, `build_orders`) and 023 (the editor's words), `src/Cache/Prune.php` (the day's tidying up after an answer; `upkeep.prune`); tests `tests/builds_import.test.php`, `tests/builds_editor.test.php`; frontend `pages/admin/builds/` (+ `build-file.ts`; the Edit builds card), `pages/admin/build-editor/` (the builds editor on `/admin/builds/:game/:key`: `build-editor-page`, `editor-draft.ts` - the page's state, the save, the checks -, `editor-catalogs.ts`, `editor-announcer.ts`, and its pieces `move-buttons/`, `note-fields/`, `part-card/` and the parts' forms `weapons-form/`, `sets-form/`, `ranked-list/` - main stats, substats, talents -, `targets-form/`, `teams-form/` - each team's note with it, the notes waiting for a team), `core/build-editor-changes.ts` (its unsaved changes, for the bar's Sign out), `core/i18n/site-note.ts` (a note in the reader's language), `core/i18n/variation-words.ts`, `pages/builds/` (the browser and its filters, `core/query-filters.ts`), `pages/character/` (a tab per variation), `shared/build-teams` (a build's teams, the teammates the account has marked)
 - Fetching: `src/Http/Fetcher.php` (each host's wait kept in the cache table; in a web request one retry at most) - the catalog's provider and the showcase service
 - Analysis: `src/Services/Analysis/BuildEvaluator.php` (a build applies from its `min_rank`; `targetsFor()` by `from_rank`), `ItemScorer.php`, `SetMatcher.php`, `CharacterAnalyzer.php` (`best()`: among the builds that apply)
 - Output: `src/Presenters/*` (mirrored in `frontend/src/app/core/models.ts`), `src/Support/Neutral.php`

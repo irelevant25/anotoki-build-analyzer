@@ -1,0 +1,45 @@
+<div class="ranked" role="group" [attr.aria-labelledby]="showLabel() ? labelId : null" [attr.aria-label]="showLabel() ? null : label()">
+    @if (showLabel()) {
+        <p class="ranked-label" [id]="labelId">{{ label() }}</p>
+    }
+    @if (rows().length === 0) {
+        <p class="muted small none">{{ emptyText() }}</p>
+    } @else {
+        <!-- The columns' names for the eye: each field's own name says it to a screen reader. -->
+        <div class="row-head muted small" aria-hidden="true">
+            <span class="head-choice">{{ headChoice() }}</span>
+            <span class="head-priority">Priority</span>
+        </div>
+    }
+    <ol class="rows">
+        @for (row of rows(); track rowId(row); let i = $index) {
+            <li class="ranked-row" [attr.data-row]="rowId(row)">
+                <anotoki-select
+                    class="choice"
+                    hideLabel
+                    [label]="rowLabel(i)"
+                    [options]="choicesFor(i)"
+                    [value]="keyOf(row)"
+                    (valueChange)="choose(i, $event)"
+                    [error]="error(i, field())"
+                    [attr.data-path]="path() + '[' + i + '].' + field()" />
+                <anotoki-select
+                    class="priority"
+                    hideLabel
+                    [label]="'Priority of ' + nameOf(row)"
+                    [options]="priorities()"
+                    [value]="'' + row.priority"
+                    (valueChange)="prioritize(i, $event)"
+                    [error]="error(i, 'priority')"
+                    [attr.data-path]="path() + '[' + i + '].priority'" />
+                <button anotokiButton class="remove" variant="danger-ghost" size="sm" iconOnly [attr.aria-label]="'Remove ' + nameOf(row)" anotokiTooltip="Remove" (click)="remove(i)">
+                    <anotoki-icon name="trash" [size]="18" />
+                </button>
+            </li>
+        }
+    </ol>
+    <button anotokiButton size="sm" class="add" (click)="add()" [disabled]="!canAdd()">
+        <anotoki-icon name="plus" [size]="16" />
+        Add {{ noun() }}
+    </button>
+</div>

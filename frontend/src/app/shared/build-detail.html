@@ -20,11 +20,6 @@
                 <span class="muted small">{{ prefix }}{{ weapon.refinement }}</span>
               }
             </div>
-            @if (weapon.note) {
-              <div class="note muted small" [attr.lang]="storedLang()" [anotokiTooltip]="weapon.note">
-                {{ weapon.note }}
-              </div>
-            }
           </div>
           @if (weapon.key === equippedWeaponKey()) {
             <anotoki-badge tone="success">{{ 'buildDetail.equipped' | translate }}</anotoki-badge>
@@ -69,11 +64,6 @@
                     }}
                   </div>
                 }
-              }
-              @if (option.note) {
-                <div class="note muted small" [attr.lang]="storedLang()" [anotokiTooltip]="option.note">
-                  {{ option.note }}
-                </div>
               }
             </div>
             @if (group.matchedRank === $index + 1) {
@@ -192,9 +182,6 @@
                 | translate: { value: (target.current | statValue: game() : target.stat) }
             }}</span>
           }
-          <span class="t-text muted small" [attr.lang]="storedLang()" [anotokiTooltip]="target.text">{{
-            target.text
-          }}</span>
         </div>
       }
     </div>
@@ -212,9 +199,9 @@
   />
 }
 
-@if (b.notes) {
+@if (note(b.notes); as notes) {
   <anotoki-disclosure class="notes" [heading]="'buildDetail.notes' | translate">
-    <p class="notes-text" [attr.lang]="storedLang()">{{ b.notes }}</p>
+    <p class="notes-text" [attr.lang]="notes.lang">{{ notes.text }}</p>
   </anotoki-disclosure>
 }
 

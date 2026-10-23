@@ -16,8 +16,11 @@ use RuntimeException;
  * person's own accounts file (App\Services\Transfer\AccountsFileException, 422): no_file, file_too_big,
  * not_a_data_file, newer_version, bad_entry, too_many_accounts, export_too_big. An import of nobody's sent as
  * anything but JSON is 415 unsupported_media_type (the site's pages never send one). The errors of the admin
- * area's routes carry their sentence alone -
- * but for the routes of the site's own strings (anotoki/lib's, api/routes/translations.php), which answer in
+ * area's routes carry their sentence alone - but a builds import whose questions changed since its preview, 409
+ * plan_changed (the Builds page checks the file again), a save of the builds editor's (422 invalid_body,
+ * invalid_build, invalid_note or names_another_site with the "build" and the "path" a problem is at - the page shows
+ * it at its field -, 409 busy or changed), and the routes of the site's own strings (anotoki/lib's,
+ * api/routes/translations.php), which answer in
  * the same shape without an HttpError: their refusals say which key and language they are about beside a code
  * (the library's checks, and this site's names_another_site), and they answer translations_unavailable (503)
  * while the strings are not in the database.

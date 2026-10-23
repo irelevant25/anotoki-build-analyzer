@@ -4,16 +4,18 @@ import { BadgeComponent } from '@anotoki/lib/ui/badge';
 import { DisclosureComponent } from '@anotoki/lib/ui/disclosure';
 import { IconComponent } from '@anotoki/lib/ui/icon';
 import { GAME_TERMS } from '../core/game-terms';
+import { siteNoteText } from '../core/i18n/site-note';
 import { TranslatePipe } from '../core/i18n/translate';
-import { TranslationService } from '../core/i18n/translation';
+import { TranslationService, Worded } from '../core/i18n/translation';
 import { rankMark, roleLabel } from '../core/i18n/variation-words';
 import { MetaStore } from '../core/meta-store';
-import { BuildTeam, GameKey, Teammate, TeamMember } from '../core/models';
+import { BuildTeam, GameKey, SiteNote, Teammate, TeamMember } from '../core/models';
 import { Avatar } from './char-avatar';
 
 /**
- * The teams a build is played in (the builds file's format version 3). A team's name and note are as the file has
- * them - stored English, `lang="en"` while the page is in another language; its members come in the team's order,
+ * The teams a build is played in (the builds file's format version 3). A team's name is as the file has it - stored
+ * English, `lang="en"` while the page is in another language -, its note the site's own, written in the builds editor:
+ * in the reader's language where an editor wrote it, else in English (core/i18n/site-note.ts); its members come in the team's order,
  * the build's own character among them (never a link: the page is its own), each with the role it plays, the
  * constellation the team asks of it ("C6+") and who can take its place ("or Yelan / Mona"). A teammate links to its
  * builds where it has some.
@@ -43,11 +45,16 @@ export class BuildTeams {
   readonly owned = input<Record<string, number | null> | null>(null);
   readonly accountId = input<number | null>(null);
 
-  /** `en` on what a team's text says while the page is in another language; nothing while it is English. */
+  /** `en` on a team's name while the page is in another language; nothing while it is English. */
   protected readonly storedLang = this.i18n.storedEnglishLang;
   private readonly rankPrefix = computed(() => this.meta.game(this.game())?.rank_prefix ?? GAME_TERMS[this.game()].rankPrefix);
   /** What stands before and after the stand-ins' names ("or ", ""), in the reader's language. */
   protected readonly alternatives = computed(() => this.i18n.around('buildDetail.teamAlternatives', 'names'));
+
+  /** A team's note in the language on the page where it is written, else in English; null for none. */
+  protected note(note: SiteNote | null): Worded | null {
+    return siteNoteText(note, this.i18n.effectiveLanguage());
+  }
 
   protected teamId(index: number): string {
     return `team-${this.buildId()}-${index}`;

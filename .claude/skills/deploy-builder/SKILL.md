@@ -1,6 +1,6 @@
 ---
 name: deploy-builder
-description: Build the build analyzer for the FTP-only hosting and ship it to builder.anotoki.eu with anotoki-deploy - a release of frontend/ and backend/, swapped in whole, a rollback, the setup page on a first install, a new migration's Apply, the catalog's refresh and the builds file's import after it, version 0.5.0's one-time steps (genshin.anotoki.eu first, the names file, Apply 014-019), 0.6.0's (Apply 020-021, then a version 3 builds file - the teams - before the next builds refresh) and 0.6.1's (no migration; the builds file without the sites' notes). Use when the user asks to deploy, release, upload or publish the build analyzer, roll a release back, or asks what a new version needs on the hosting.
+description: Build the build analyzer for the FTP-only hosting and ship it to builder.anotoki.eu with anotoki-deploy - a release of frontend/ and backend/, swapped in whole, a rollback, the setup page on a first install, a new migration's Apply, the catalog's refresh and the builds file's import after it, version 0.5.0's one-time steps (genshin.anotoki.eu first, the names file, Apply 014-019), 0.6.0's (Apply 020-021, then a version 3 builds file - the teams - before the next builds refresh), 0.6.1's (no migration; the builds file without the sites' notes) and 0.7.0's (the builds editor: Apply 022-023 at once, nothing to import). Use when the user asks to deploy, release, upload or publish the build analyzer, roll a release back, or asks what a new version needs on the hosting.
 ---
 
 # Deploy the build analyzer
@@ -122,7 +122,7 @@ version reads no other, so it goes up before the next builds file:
    the local tools; the version 2 files are refused from now on.
 2. **The release** (section 2).
 3. **Apply 020-021 at once**: `builds.teams` (NULL for every build: none
-   changes) and the teams' two words, after the Apply's backup.
+   changes) and the teams' three words, after the Apply's backup.
 4. **Import the builds file** on `/admin/builds`: the dry run's preview says
    "with N teams" and updates only the builds that gained teams (the
    2026-10-22 file: 147 updated, 43 unchanged, none new or removed), with no
@@ -140,3 +140,14 @@ the builds file the local tools wrote without the sites' notes and with every
 team (the second export of 2026-10-22) imported on `/admin/builds` - its dry
 run 183 updated, 7 unchanged, none new or removed (docs/operations.md,
 "Deploying 0.6.1").
+
+## 8. Deploying 0.7.0
+
+Version 0.7.0 - the builds editor (docs/decisions.md, 2026-10-22; docs/operations.md, "Deploying 0.7.0"): editors
+change builds by hand and write the site's own notes; every import keeps what they did. Before uploading, Export
+each language on the Translations page. Then the release (`deploy --backups <folder> --go`) and **Apply pending at
+once** on `/admin/migrations`: 022 (the hand edits' storage; every build's `file_build` its columns as they are -
+no build changes) and 023 (Edit builds on a character's builds page; the Privacy page's audit-log sentence, only
+where it reads as before), one Apply after a backup. Nothing to import. Check: the Builds page's Edit builds card
+opens a character's editor; a note saved there shows on the character's builds page (Slovak with `?lang=sk`) -
+every member sees it at once: a real one, or deleted again once seen -; the audit log has `builds.edited`. Make a backup by hand once applied (the earlier ones restore offline only).

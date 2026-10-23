@@ -1,0 +1,41 @@
+:host {
+  display: block;
+}
+
+// The note's name over its two boxes, as the kit's fields set theirs; the hint under it, before the boxes.
+.note-label {
+  margin: 0;
+  font-weight: 600;
+}
+
+.note-hint {
+  margin: 0.25rem 0 0.75rem;
+}
+
+.note-label + .pair {
+  margin-top: 0.5rem;
+}
+
+// English and Slovak side by side where both fit, one over the other on a phone.
+.pair {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 18rem), 1fr));
+  gap: 0.75rem 1rem;
+  align-items: start;
+}
+
+.note-sk {
+  min-width: 0;
+}
+
+// The Slovak box's error, under the two in the danger ink of the kit's fields' errors; no room taken while there is
+// none (never hidden: a live region that appears with its words is one many screen readers never announce).
+.sk-error {
+  margin: 0;
+  color: var(--anotoki-danger-text);
+  font-size: 0.875rem;
+
+  &:not(:empty) {
+    margin-top: 0.25rem;
+  }
+}

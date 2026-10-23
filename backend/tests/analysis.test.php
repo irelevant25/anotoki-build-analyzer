@@ -359,6 +359,8 @@ test('the account overview and the character API: the build as a variation, and 
         ->path('characters.0.best.top_issue_kind', 'main_stat_wrong')
         ->path('characters.0.best.top_issue_params', $goblet);
 
+    // The site's own note on the build, as no editor's save would let it be written: straight into the table.
+    db()->run('UPDATE builds SET site_notes = ? WHERE id = ?', [Json::encode(['build' => ['en' => 'Enka lists none of these.', 'sk' => 'Enka nič z toho neuvádza.']]), $state->build]);
     $answer = $client
         ->get("/api/accounts/{$state->account}/characters/hutao")
         ->status(200)
@@ -371,8 +373,8 @@ test('the account overview and the character API: the build as a variation, and 
         ->path('evaluations.0.build.role', 'main_dps')
         ->path('evaluations.0.build.applies', true)
         ->path('evaluations.0.build.position', 0)
-        // A note that names a site is shown without the name.
-        ->path('builds.0.notes', 'The source has no curated build for this character yet.')
+        // The site's own note, a site's name in it made neutral; the file's notes and texts are sent nowhere.
+        ->path('builds.0.notes', ['en' => 'The source lists none of these.', 'sk' => 'The source nič z toho neuvádza.'])
         // A recommendation as it is sent: the kind and its params beside the sentence, the slot's key apart.
         ->path('evaluations.0.recommendations.0', [
             'severity' => 'high',
@@ -401,7 +403,7 @@ test('a build\'s teams on the account\'s character page: each teammate as the ca
             ['key' => 'kaedeharakazuha', 'name' => 'Kazuha', 'role' => 'support', 'min_rank' => 2, 'alternatives' => [['key' => 'traveleranemo', 'name' => 'Traveler (Anemo)']]],
             ['key' => 'xingqiu', 'name' => 'Xingqiu', 'role' => 'sub_dps', 'min_rank' => 6, 'alternatives' => []],
         ],
-        'note' => 'Swirl the Pyro onto the rain.',
+        'note' => 'A note of the file\'s, which the site shows nowhere.',
     ];
     // A second team with Traveler (Geo): the account's Traveler is Anemo, and the Traveler is one character in every
     // element - Geo too is the account's, its constellation unknown.
@@ -414,6 +416,11 @@ test('a build\'s teams on the account\'s character page: each teammate as the ca
         'note' => null,
     ];
     db()->run('UPDATE builds SET teams = ? WHERE id = ?', [Json::encode([$team, $geo]), $state->build]);
+    // The site's own note on the team, by its members whatever their order.
+    db()->run('UPDATE builds SET site_notes = ? WHERE id = ?', [
+        Json::encode(['teams' => ['hutao kaedeharakazuha xingqiu' => ['en' => 'Swirl the Pyro onto the rain.', 'sk' => 'Rozvír Pyro do dažďa.']]]),
+        $state->build,
+    ]);
     // Kazuha has builds of his own; the account has him at C1 and the Traveler (Anemo) who can take his place.
     $kazuha = idOf('game_characters', 'kaedeharakazuha');
     seedBuild($kazuha, ['role' => 'support', 'content_hash' => 'y']);
@@ -429,7 +436,11 @@ test('a build\'s teams on the account\'s character page: each teammate as the ca
     );
 
     [$own, $kazuhaMember, $xingqiu] = $answer->json('builds.0.teams.0.members');
-    same(['Vaporize', 'Swirl the Pyro onto the rain.'], [$answer->json('builds.0.teams.0.name'), $answer->json('builds.0.teams.0.note')], 'the team\'s name and note');
+    same(
+        ['Vaporize', ['en' => 'Swirl the Pyro onto the rain.', 'sk' => 'Rozvír Pyro do dažďa.'], null],
+        [$answer->json('builds.0.teams.0.name'), $answer->json('builds.0.teams.0.note'), $answer->json('builds.0.teams.1.note')],
+        'the team\'s name, and the site\'s note on it - the file\'s nowhere; none on the other',
+    );
     same(['hutao', true, true, true], [$own['key'], $own['own'], $own['known'], $own['has_builds']], 'the build\'s own member');
     same(
         ['Kaedehara Kazuha', false, true, true, 'support', 2],

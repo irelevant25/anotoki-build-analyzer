@@ -102,6 +102,12 @@ final class Neutral
         return self::text($text) !== $text;
     }
 
+    /** Whether a text holds a web address (with a scheme, or starting www.). */
+    public static function holdsAddress(string $text): bool
+    {
+        return preg_match(self::URL, $text) === 1;
+    }
+
     /**
      * The names of other sites, services and tools found in a text, lowercased (tools/check-release.php runs it over
      * the built frontend, whose framework code carries web addresses of its own).

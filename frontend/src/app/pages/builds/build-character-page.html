@@ -26,6 +26,11 @@
             {{ 'builds.count' | translatePlural: d.builds.length }}
           </div>
         </div>
+        @if (auth.isStaff()) {
+          <a anotokiButton size="sm" class="edit-builds" [routerLink]="['/admin/builds', gameKey(), d.character.key]"
+            ><anotoki-icon name="pencil" [size]="16" />{{ 'buildDetail.edit' | translate }}</a
+          >
+        }
       </div>
     </anotoki-card>
 

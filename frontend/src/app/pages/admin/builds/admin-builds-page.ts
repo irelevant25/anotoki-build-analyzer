@@ -1,12 +1,17 @@
+import { HttpErrorResponse } from '@angular/common/http';
 import { Component, computed, inject, signal } from '@angular/core';
+import { Router, RouterLink } from '@angular/router';
 import { AlertComponent } from '@anotoki/lib/ui/alert';
 import { BadgeComponent, BadgeTone } from '@anotoki/lib/ui/badge';
 import { ButtonComponent } from '@anotoki/lib/ui/button';
 import { CardComponent } from '@anotoki/lib/ui/card';
+import { ComboboxComponent, ComboboxOption } from '@anotoki/lib/ui/combobox';
 import { DisclosureComponent, DisclosurePanelDirective } from '@anotoki/lib/ui/disclosure';
 import { IconComponent } from '@anotoki/lib/ui/icon';
+import { LinkCardComponent } from '@anotoki/lib/ui/link-card';
 import { PageHeaderComponent } from '@anotoki/lib/ui/page-header';
 import { ProgressBarComponent } from '@anotoki/lib/ui/progress';
+import { SegmentedComponent } from '@anotoki/lib/ui/segmented';
 import { SpinnerComponent } from '@anotoki/lib/ui/spinner';
 import { StatTileComponent, StatTilesComponent } from '@anotoki/lib/ui/stat-tiles';
 import { ToastService } from '@anotoki/lib/ui/toast';
@@ -17,20 +22,41 @@ import { AuthService } from '../../../core/auth';
 import { downloadName, saveFile } from '../../../core/download';
 import { GAME_LABELS, GAMES } from '../../../core/format';
 import { MetaStore } from '../../../core/meta-store';
-import { AdminBuildsGame, BuildChange, BuildImportEntry, BuildImportPlan, CatalogList, CatalogListStatus, CatalogRefreshResult, GameKey } from '../../../core/models';
+import {
+  AdminBuildsGame,
+  BuildChange,
+  BuildImportEntry,
+  BuildImportPlan,
+  BuildQuestion,
+  BuildVariationRef,
+  CatalogList,
+  CatalogListStatus,
+  CatalogRefreshResult,
+  EditingOverview,
+  EditorCharacter,
+  GameKey,
+} from '../../../core/models';
+import { Avatar } from '../../../shared/char-avatar';
 import { TimeAgoPipe } from '../../../shared/stat-pipes';
+import { EditorCatalogs } from '../build-editor/editor-catalogs';
 import {
   BUILD_FILE_MAX_BYTES,
   BUILD_FILE_TOO_LARGE,
+  BuildChoice,
   CHANGE_WORDS,
   changeCount,
   changeName,
   checkBuildFile,
+  choiceOptions,
   count,
+  handSummary,
   importLine,
   importSummary,
+  mergedText,
   momentText,
+  noChangesText,
   planSummary,
+  questionText,
   skippedHeading,
   unknownTeammates,
 } from './build-file';
@@ -52,6 +78,24 @@ const LIST_NOUNS: Record<CatalogList, string> = {
   sets: 'set',
 };
 
+/**
+ * What was done to a character's builds here, a few words each: its builds (but where only what was done is asked
+ * for), how many carry an edit, were made here, were removed, have notes, and whether their order is an editor's.
+ */
+export function editingFacts(character: EditingOverview | null, doneOnly: boolean): string[] {
+  if (!character) {
+    return doneOnly ? [] : ['no builds'];
+  }
+  const done = [
+    character.edited > 0 ? `${character.edited} edited` : '',
+    character.made_here > 0 ? `${character.made_here} made here` : '',
+    character.removed > 0 ? `${character.removed} removed` : '',
+    character.notes > 0 ? `notes on ${character.notes}` : '',
+    character.ordered ? 'your order' : '',
+  ].filter((fact) => fact !== '');
+  return doneOnly ? done : [count(character.builds, 'build'), ...done];
+}
+
 /** The badge after a change's line: its colour repeats the word. */
 const CHANGE_TONES: Record<BuildChange['change'], BadgeTone> = {
   created: 'success',
@@ -59,11 +103,15 @@ const CHANGE_TONES: Record<BuildChange['change'], BadgeTone> = {
   removed: 'danger',
 };
 
-/** A file chosen for an import, and what the server's dry run said importing it does. */
+/**
+ * A file chosen for an import, what the server's dry run said importing it does, and the answers to its questions so
+ * far - by question id; one not answered keeps the editors' work, as the server does unless told otherwise.
+ */
 interface Preview {
   name: string;
   text: string;
   plan: BuildImportPlan;
+  choices: Record<string, BuildChoice>;
 }
 
 /** What a game's part of the page is doing. */
@@ -86,26 +134,34 @@ function idle(): GameState {
 /**
  * /admin/builds (editors and admins; English, as the whole admin panel): the builds and the game catalog. The site
  * never fetches builds itself: they are put together elsewhere and imported here as one file per game, which is the
- * whole truth for its game - after an import the game's builds are exactly the file's, but for characters this
+ * truth for its game - after an import the game's builds are the file's, but for what editors did by hand (kept: an
+ * import asks only where the file changes the same part of a build), and for characters this
  * installation's catalog lacks, which are skipped (an import never adds to the catalog).
  *
  * Per game:
  * - the counts - characters with builds, builds -, when the newest file carrying them was made and when one last
  *   changed;
  * - **Export**: the game's builds as a file (GET /api/admin/builds/{game}/export), saved under the server's name - a
- *   backup, and the start of a hand edit;
+ *   backup;
  * - **Import a file**: a file is chosen and checked here (build-file.ts: JSON, the format, its version, the game, at
  *   most 8 MB), then sent as a dry run, whose answer is the preview - what is new, updated, unchanged and removed,
- *   whether the file is older than the one the builds now come from, the characters skipped, and the changes one by
- *   one (the kit's disclosure); Import sends the same text for real, Cancel forgets it. The server's refusal (422:
+ *   what is kept of the editors' hand edits, whether the file is older than the one the builds now come from, the
+ *   characters skipped, the changes one by one (the kit's disclosure) - and the questions: each build where the file
+ *   and an editor's work disagree (docs/builds.md, "Hand edits"), answered with the kit's segmented control, the
+ *   editor's work standing unless the file is chosen, with the builds made of both without asking listed after. Import
+ *   sends the same text for real with the answers and the preview's plan, Cancel forgets it. The server's refusal (422:
  *   what does not fit; 409: another import writes) is said in the card, the preview kept when the import itself
- *   fails;
+ *   fails; when the questions changed meanwhile (409 plan_changed: an edit saved, another import), the file is checked
+ *   again and said so;
+ * - **Edit builds**: the way into the builds editor (/admin/builds/:game/:key) - every character of the catalog to
+ *   pick by typing (the kit's combobox, with portraits, each with its builds and what was done to them here), and the
+ *   characters whose builds were changed here as link cards;
  * - the recent imports: when, the file's date, what each did, who imported it;
  * - the catalog's lists (characters, weapons, sets) and when each was refreshed; Refresh catalog refreshes the three
  *   one after another, with the kit's progress bar, and stops at the first error.
  *
  * Drawn with the anotoki family's kit: its page header, cards, stat tiles, buttons, alerts, badges, disclosure,
- * progress bar, spinner and messages. A time is relative ("3 days ago"), or a moment in the account's date order and
+ * combobox, link cards, progress bar, spinner and messages. A time is relative ("3 days ago"), or a moment in the account's date order and
  * clock where the person has chosen them (build-file.ts: momentText). The server checks the role (403 editor_only);
  * while a database update waits the site gate shows its own page instead of this one.
  */
@@ -121,10 +177,15 @@ function idle(): GameState {
     IconComponent,
     PageHeaderComponent,
     ProgressBarComponent,
+    SegmentedComponent,
     SpinnerComponent,
     StatTileComponent,
     StatTilesComponent,
     TooltipDirective,
+    ComboboxComponent,
+    LinkCardComponent,
+    RouterLink,
+    Avatar,
     TimeAgoPipe,
   ],
   templateUrl: './admin-builds-page.html',
@@ -135,6 +196,8 @@ export class AdminBuildsPage {
   private readonly toasts = inject(ToastService);
   private readonly auth = inject(AuthService);
   private readonly meta = inject(MetaStore);
+  private readonly router = inject(Router);
+  private readonly catalogs = inject(EditorCatalogs);
 
   protected readonly games = GAMES;
   protected readonly gameLabels = GAME_LABELS;
@@ -148,6 +211,25 @@ export class AdminBuildsPage {
   protected readonly error = signal<string | null>(null);
   protected readonly states = signal<Record<GameKey, GameState>>(Object.fromEntries(GAMES.map((game) => [game, idle()])) as Record<GameKey, GameState>);
 
+  /** Each game's catalog characters, to pick one to edit; why they could not be read, where they could not. */
+  protected readonly characters = signal<Partial<Record<GameKey, EditorCharacter[]>>>({});
+  protected readonly charactersProblem = signal<Partial<Record<GameKey, string>>>({});
+
+  /** Each game's characters as the editor's picker offers them: every one of the catalog, with its builds and what was done to them here. */
+  protected readonly characterOptions = computed(() => {
+    const options: Partial<Record<GameKey, ComboboxOption[]>> = {};
+    for (const game of GAMES) {
+      const overview = new Map((this.byGame()[game]?.editing ?? []).map((character) => [character.key, character]));
+      options[game] = (this.characters()[game] ?? []).map((character) => ({
+        value: character.key,
+        label: [character.name, ...editingFacts(overview.get(character.key) ?? null, false)].join(' · '),
+        picture: character.icon_url,
+        keywords: [character.element, character.weapon_type].filter((word) => word !== null).join(' '),
+      }));
+    }
+    return options;
+  });
+
   /** Each game's answer, by its key; a game the server did not answer for is not drawn. */
   protected readonly byGame = computed(() => {
     const games: Partial<Record<GameKey, AdminBuildsGame>> = {};
@@ -159,6 +241,37 @@ export class AdminBuildsPage {
 
   constructor() {
     this.load();
+    for (const game of GAMES) {
+      this.loadCharacters(game);
+    }
+  }
+
+  /** The game's catalog characters, for the editor's picker (the editor's page asks for the same, once). */
+  private loadCharacters(game: GameKey): void {
+    this.catalogs.get(game).then(
+      (catalog) => {
+        this.characters.update((all) => ({ ...all, [game]: catalog.characters }));
+        this.charactersProblem.update((all) => ({ ...all, [game]: undefined }));
+      },
+      (err: unknown) => this.charactersProblem.update((all) => ({ ...all, [game]: errorMessage(err) })),
+    );
+  }
+
+  /** A character picked: its builds editor. */
+  protected openEditor(game: GameKey, key: string | null): void {
+    if (key) {
+      void this.router.navigate(['/admin/builds', game, key]);
+    }
+  }
+
+  /** The characters whose builds were changed here - edited, made, removed, noted or ordered by an editor. */
+  protected editedCharacters(data: AdminBuildsGame): EditingOverview[] {
+    return data.editing.filter((character) => editingFacts(character, true).length > 0);
+  }
+
+  /** What was done to a character's builds here: "2 builds · 1 edited · notes on 1". */
+  protected editingLine(character: EditingOverview): string {
+    return editingFacts(character, false).join(' · ');
   }
 
   /** The builds, the imports and the catalog of every game; `showSpinner` false after an import, the page kept. */
@@ -222,20 +335,28 @@ export class AdminBuildsPage {
       this.patch(game, { busy: null, problem: check.message });
       return;
     }
+    this.preview(game, file.name, text);
+  }
+
+  /** The dry run of a file's text: its answer is the preview, every question unanswered - `note` said above it. */
+  private preview(game: GameKey, name: string, text: string, note: string | null = null): void {
+    this.patch(game, { busy: 'check' });
     this.api.importBuilds(game, text, true).subscribe({
-      next: (plan) => this.patch(game, { busy: null, preview: { name: file.name, text, plan } }),
+      next: (plan) => this.patch(game, { busy: null, problem: note, preview: { name, text, plan, choices: {} } }),
       error: (err: unknown) => this.patch(game, { busy: null, problem: errorMessage(err) }),
     });
   }
 
-  /** The previewed file imported for real: what it did said, and the page's data read again. */
+  /** The previewed file imported for real, with the answers to its questions: what it did said, and the page's data read again. */
   protected confirmImport(game: GameKey): void {
     const { preview, busy } = this.states()[game];
     if (!preview || busy !== null) {
       return;
     }
+    const questions = preview.plan.questions;
+    const file = questions.filter((question) => preview.choices[question.id] === 'file').map((question) => question.id);
     this.patch(game, { busy: 'import', problem: null });
-    this.api.importBuilds(game, preview.text, false).subscribe({
+    this.api.importBuilds(game, preview.text, false, { file: file.length > 0 && file.length === questions.length ? 'all' : file, plan: preview.plan.plan }).subscribe({
       next: (result) => {
         this.patch(game, { busy: null, preview: null });
         // Skipped characters ask for something to be done: that message stays until it is closed.
@@ -243,9 +364,37 @@ export class AdminBuildsPage {
         this.toasts.show(importSummary(result), skipped ? 'warning' : 'success', skipped ? 0 : 8000);
         this.load(false);
       },
-      // The preview stays, so Import can be pressed again (after another import has finished, say).
-      error: (err: unknown) => this.patch(game, { busy: null, problem: errorMessage(err) }),
+      error: (err: unknown) => {
+        if (err instanceof HttpErrorResponse && err.status === 409 && err.error?.code === 'plan_changed') {
+          // The questions are not the ones answered: the file checked again, and said why.
+          this.preview(
+            game,
+            preview.name,
+            preview.text,
+            'The builds changed since this preview - a build was edited, or another import came. The file was checked again: look at its questions before importing.',
+          );
+          return;
+        }
+        // The preview stays, so Import can be pressed again (after another import has finished, say).
+        this.patch(game, { busy: null, problem: errorMessage(err) });
+      },
     });
+  }
+
+  /** A question answered: the editors' work, or the file's. */
+  protected answer(game: GameKey, id: string, choice: string): void {
+    const preview = this.states()[game].preview;
+    if (preview && (choice === 'edit' || choice === 'file')) {
+      this.patch(game, { preview: { ...preview, choices: { ...preview.choices, [id]: choice } } });
+    }
+  }
+
+  /** Every question answered alike. */
+  protected answerAll(game: GameKey, choice: BuildChoice): void {
+    const preview = this.states()[game].preview;
+    if (preview) {
+      this.patch(game, { preview: { ...preview, choices: Object.fromEntries(preview.plan.questions.map((question) => [question.id, choice])) } });
+    }
   }
 
   protected cancel(game: GameKey): void {
@@ -270,6 +419,9 @@ export class AdminBuildsPage {
       this.patch(game, { refreshing: done.length });
     }
     this.patch(game, { refreshing: null });
+    // The editor's catalog is read again: a character or a weapon may have come.
+    this.catalogs.forget(game);
+    this.loadCharacters(game);
     this.toasts.success(`Catalog refreshed: ${done.map((result) => count(result.entries, LIST_NOUNS[result.list]) + (result.outcome === 'unchanged' ? ' (as they were)' : '')).join(', ')}.`);
   }
 
@@ -296,8 +448,39 @@ export class AdminBuildsPage {
     return importLine(entry, this.auth.preferences());
   }
 
-  protected changeName(change: BuildChange, game: GameKey): string {
+  protected changeName(change: BuildVariationRef, game: GameKey): string {
     return changeName(change, this.rankPrefix(game));
+  }
+
+  protected questionText(question: BuildQuestion): string {
+    return questionText(question);
+  }
+
+  protected choiceOptions(question: BuildQuestion): { value: BuildChoice; label: string }[] {
+    return choiceOptions(question);
+  }
+
+  /** How a question is answered so far: the editors' work unless the file was chosen. */
+  protected choiceOf(preview: Preview, question: BuildQuestion): BuildChoice {
+    return preview.choices[question.id] ?? 'edit';
+  }
+
+  protected mergedText = mergedText;
+
+  protected noChangesText = noChangesText;
+
+  protected handSummary(plan: BuildImportPlan): string | null {
+    return handSummary(plan);
+  }
+
+  /** The characters named in a list of them: "Hu Tao, Furina". */
+  protected characterNames(characters: readonly { name: string }[]): string {
+    return characters.map((character) => character.name).join(', ');
+  }
+
+  /** The builds whose team notes lose their team: "Hu Tao · Main DPS (1)". */
+  protected waitingNotes(plan: BuildImportPlan, game: GameKey): string {
+    return plan.notes_dormant.map((build) => `${changeName(build, this.rankPrefix(game))} (${build.notes})`).join(', ');
   }
 
   protected changeCount(plan: BuildImportPlan): number {

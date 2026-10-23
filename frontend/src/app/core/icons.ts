@@ -1,6 +1,8 @@
 import type { IconSet } from '@anotoki/lib/ui/config';
 import type { GameKey } from './models';
 import {
+  iconArrowDown,
+  iconArrowUp,
   iconBan,
   iconChart,
   iconClock,
@@ -18,6 +20,7 @@ import {
   iconPlay,
   iconSave,
   iconTrash,
+  iconUndo,
   iconUpload,
   iconUsers,
   iconWrench,
@@ -29,7 +32,8 @@ import {
  * refresh, chevrons, ...) without being told; these are the family's other icons the site uses - data from
  * @anotoki/lib/ui/icons, one constant each, so nothing else of that set lands in the build. Since anotoki-lib 0.6.0
  * the ones this site drew itself are the family's too: upload (the imports), lightbulb (a tip), minus (what an import method lacks, beside the kit's check), wrench
- * ("Fixed" in What's new), gamepad (the game itself, in the wizard's guides) and save (saving the export). A game's
+ * ("Fixed" in What's new), gamepad (the game itself, in the wizard's guides) and save (saving the export). The builds
+ * editor's: arrowUp and arrowDown (moving a build or a row of one), undo (a part back as the file has it). A game's
  * mark is the kit's own (Genshin Impact's sparkle).
  */
 
@@ -55,6 +59,9 @@ export const SITE_ICONS: IconSet = {
   wrench: iconWrench,
   gamepad: iconGamepad,
   save: iconSave,
+  arrowUp: iconArrowUp,
+  arrowDown: iconArrowDown,
+  undo: iconUndo,
 };
 
 /** A game's mark, by game: Genshin Impact's sparkle (the kit's). */

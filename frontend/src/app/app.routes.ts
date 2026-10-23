@@ -7,9 +7,10 @@ import { AppLayout } from './layouts/app-layout/app-layout';
 
 /**
  * A `title` here is a translation key on the pages members read: the title strategy words it in the
- * language on the page and adds the brand (core/i18n/title-strategy.ts). The admin panel - /admin/builds,
- * /admin/translations, /admin/languages, /admin/people, /admin/migrations, /admin/errors, /admin/audit,
- * /admin/feedback, /admin/backups - keeps a plain English title ("Migrations · Admin panel · Build Analyzer").
+ * language on the page and adds the brand (core/i18n/title-strategy.ts). The admin panel - /admin/builds (and a
+ * character's builds editor, /admin/builds/:game/:key), /admin/translations, /admin/languages, /admin/people,
+ * /admin/migrations, /admin/errors, /admin/audit, /admin/feedback, /admin/backups - keeps a plain English title
+ * ("Migrations · Admin panel · Build Analyzer").
  * A route without one (the dashboard) is the brand alone.
  *
  * Every page outside /admin is open to everybody: somebody not signed in uses the site as a visitor
@@ -160,6 +161,14 @@ export const routes: Routes = [
         path: 'builds',
         title: 'Builds',
         loadComponent: () => import('./pages/admin/builds/admin-builds-page').then((m) => m.AdminBuildsPage),
+      },
+      {
+        // A character's builds changed by hand (the builds editor, editors and admins): leaving it with changes not
+        // saved asks first - the route's guard asks the page.
+        path: 'builds/:game/:key',
+        title: 'Edit builds',
+        canDeactivate: [anotokiUnsavedChangesGuard],
+        loadComponent: () => import('./pages/admin/build-editor/build-editor-page').then((m) => m.BuildEditorPage),
       },
       // The Sources page's address, before the builds came in files: an old bookmark lands on the Builds page.
       { path: 'sources', pathMatch: 'full', redirectTo: 'builds' },

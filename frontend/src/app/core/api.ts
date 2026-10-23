@@ -7,6 +7,8 @@ import {
   AccountSummary,
   AdminBuildsGame,
   BuildCharacter,
+  CharacterEditing,
+  BuildImportChoices,
   BuildImportPlan,
   BuildsOverview,
   CatalogList,
@@ -14,6 +16,8 @@ import {
   CharacterAnalysis,
   CharacterBuilds,
   DataImportResult,
+  EditorCatalog,
+  EditorSave,
   GameKey,
   ImportRun,
   Meta,
@@ -118,13 +122,42 @@ export class Api {
 
   /**
    * A builds file's text, sent as it is: as a dry run, what importing it would do (nothing written); else the game's
-   * builds become the file's.
+   * builds become the file's, but for what editors did by hand - the questions named in `choices` answered with the
+   * file, every other with the editors' work.
    */
-  importBuilds(game: GameKey, file: string, dryRun: boolean): Observable<BuildImportPlan> {
-    return this.http.post<BuildImportPlan>(`${this.base}/admin/builds/${game}/import${dryRun ? '?dry_run=1' : ''}`, file, {
+  importBuilds(game: GameKey, file: string, dryRun: boolean, choices: BuildImportChoices | null = null): Observable<BuildImportPlan> {
+    const query = new URLSearchParams();
+    if (dryRun) {
+      query.set('dry_run', '1');
+    }
+    if (choices && (choices.file === 'all' || choices.file.length > 0)) {
+      query.set('file', choices.file === 'all' ? 'all' : choices.file.join(','));
+      query.set('plan', choices.plan);
+    }
+    const search = query.toString();
+    return this.http.post<BuildImportPlan>(`${this.base}/admin/builds/${game}/import${search ? `?${search}` : ''}`, file, {
       context: this.asPerson(),
       headers: { 'Content-Type': 'application/json' },
     });
+  }
+
+  /** What the builds editor picks from and holds a build to: the game's facts, and the catalog's characters, weapons and sets. */
+  editorCatalog(game: GameKey): Observable<EditorCatalog> {
+    return this.http.get<EditorCatalog>(`${this.base}/admin/builds/${game}/catalog`, { context: this.asPerson() });
+  }
+
+  /** A character's builds as the builds editor edits them, the builds an editor removed, and the version a save is checked against. */
+  characterEditing(game: GameKey, key: string): Observable<CharacterEditing> {
+    return this.http.get<CharacterEditing>(`${this.base}/admin/builds/${game}/characters/${encodeURIComponent(key)}`, { context: this.asPerson() });
+  }
+
+  /**
+   * A character's builds as the editor leaves them, saved whole and answered as loaded: refused (nothing written) with
+   * the build and the path a problem is at (422), while an import or another save is written (409 busy), or when the
+   * builds changed since they were loaded (409 changed).
+   */
+  saveCharacterEditing(game: GameKey, key: string, save: EditorSave): Observable<CharacterEditing> {
+    return this.http.put<CharacterEditing>(`${this.base}/admin/builds/${game}/characters/${encodeURIComponent(key)}`, save, { context: this.asPerson() });
   }
 
   /** One list of the game catalog, refreshed from the game data provider. */

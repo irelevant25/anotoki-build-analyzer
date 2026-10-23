@@ -1,0 +1,44 @@
+@if (weaponType(); as type) {
+    <anotoki-checkbox class="every-type" [checked]="everyType()" (checkedChange)="everyType.set($event)" [hint]="'The pickers offer this character\'s weapon type: ' + type + '.'">
+        Offer every weapon type
+    </anotoki-checkbox>
+}
+@if (weapons().length === 0) {
+    <p class="muted small none">None listed.</p>
+}
+<ol class="rows">
+    @for (weapon of weapons(); track rowId(weapon); let i = $index) {
+        <li class="weapon-row">
+            <span class="rank" aria-hidden="true">{{ i + 1 }}</span>
+            <!-- The name beside it says it: the picture is hidden from a screen reader. -->
+            <app-avatar class="picture" aria-hidden="true" [src]="icon(weapon.key)" [alt]="weapon.name || '?'" size="xs" />
+            <anotoki-combobox
+                class="pick"
+                hideLabel
+                placeholder="Type a weapon's name"
+                [label]="'Weapon ' + (i + 1)"
+                [options]="rowOptions()[i]"
+                [value]="weapon.key === '' ? null : weapon.key"
+                (valueChange)="pick(i, $event)"
+                [error]="error(i, 'key')"
+                [attr.data-path]="'weapons[' + i + '].key'" />
+            <anotoki-select
+                class="refinement"
+                hideLabel
+                [label]="'Refinement of ' + nameOf(weapon, i)"
+                [options]="refinements()"
+                [value]="weapon.refinement === null ? '' : '' + weapon.refinement"
+                (valueChange)="refine(i, $event)"
+                [error]="error(i, 'refinement')"
+                [attr.data-path]="'weapons[' + i + '].refinement'" />
+            @if (!known(weapon.key)) {
+                <anotoki-badge class="unknown" tone="warning">Not in the catalog</anotoki-badge>
+            }
+            <app-move-buttons [index]="i" [count]="weapons().length" [name]="'weapon ' + nameOf(weapon, i)" (move)="move(i, $event)" (remove)="remove(i)" />
+        </li>
+    }
+</ol>
+<button anotokiButton size="sm" class="add-weapon" (click)="add()" [disabled]="weapons().length >= maxWeapons()">
+    <anotoki-icon name="plus" [size]="16" />
+    Add weapon
+</button>

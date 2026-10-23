@@ -1,0 +1,22 @@
+<div class="note-fields" role="group" [attr.aria-labelledby]="labelId" [attr.aria-describedby]="hint() ? hintId : null">
+    <p class="note-label" [id]="labelId">{{ label() }}</p>
+    @if (hint(); as words) {
+        <p class="note-hint muted small" [id]="hintId">{{ words }}</p>
+    }
+    <div class="pair">
+        <anotoki-textarea
+            class="note-en"
+            label="English"
+            [value]="value().en"
+            (valueChange)="set('en', $event)"
+            [rows]="rows()"
+            [maxlength]="maxlength()"
+            [error]="errors().en"
+            [attr.data-path]="path() + '.en'" />
+        <div class="note-sk" lang="sk" [attr.data-path]="path() + '.sk'">
+            <anotoki-textarea label="Slovenčina" [value]="value().sk" (valueChange)="set('sk', $event)" [rows]="rows()" [maxlength]="maxlength()" [invalid]="errors().sk !== null" />
+        </div>
+    </div>
+    <!-- Always in the page, so its words are announced as they come; in the page's language, outside the Slovak block. -->
+    <p class="sk-error" role="alert">{{ errors().sk ?? "" }}</p>
+</div>

@@ -27,11 +27,14 @@ bootTests();
 $users = fn() => (int) db()->value('SELECT count(*) FROM users');
 $userName = fn(int $id) => db()->value('SELECT name FROM users WHERE id = ?', [$id]);
 
-/** The editors' routes: a game's builds as a file and their imports, the catalog refreshed, the site's strings. */
+/** The editors' routes: a game's builds as a file and their imports, the builds editor, the catalog refreshed, the site's strings. */
 const STAFF_ROUTES = [
     ['GET', '/api/admin/builds', null],
     ['GET', '/api/admin/builds/genshin/export', null],
     ['POST', '/api/admin/builds/genshin/import', []],
+    ['GET', '/api/admin/builds/genshin/catalog', null],
+    ['GET', '/api/admin/builds/genshin/characters/hutao', null],
+    ['PUT', '/api/admin/builds/genshin/characters/hutao', []],
     ['POST', '/api/admin/catalog/genshin/characters', []],
     ['GET', '/api/admin/languages', null],
     ['GET', '/api/admin/translations', null],

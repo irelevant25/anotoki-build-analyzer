@@ -1,0 +1,17 @@
+<anotoki-card [heading]="heading()" [headingLevel]="3">
+    <div cardActions class="part-actions">
+        @if (edited()) {
+            <anotoki-badge class="edited" tone="info">Edited</anotoki-badge>
+        }
+        @if (unsaved()) {
+            <anotoki-badge class="unsaved" tone="warning">Unsaved</anotoki-badge>
+        }
+        @if (canUseFile()) {
+            <button anotokiButton class="use-file" size="sm" variant="ghost" (click)="askUseFile()" anotokiTooltip="Back to what the builds file says">
+                <anotoki-icon name="undo" [size]="16" />
+                Use the file's
+            </button>
+        }
+    </div>
+    <ng-content />
+</anotoki-card>

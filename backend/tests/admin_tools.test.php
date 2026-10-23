@@ -349,7 +349,10 @@ test('the audit log: what was done in the admin panel, by whom and when - builds
         'newest first, each by whom',
     );
     same(
-        [[EDITOR, ['characters' => 1, 'created' => 1, 'removed' => 0, 'skipped' => 0, 'updated' => 0]], [ADMIN, ['characters' => 1, 'created' => 0, 'removed' => 0, 'skipped' => 1, 'updated' => 1]]],
+        [
+            [EDITOR, ['characters' => 1, 'created' => 1, 'edits_kept' => 0, 'file_taken' => 0, 'questions' => 0, 'removed' => 0, 'skipped' => 0, 'updated' => 0]],
+            [ADMIN, ['characters' => 1, 'created' => 0, 'edits_kept' => 0, 'file_taken' => 0, 'questions' => 0, 'removed' => 0, 'skipped' => 1, 'updated' => 1]],
+        ],
         array_map(function (array $row): array {
             $details = json_decode((string) $row['details'], true);
             ksort($details); // JSONB keeps its own order of keys

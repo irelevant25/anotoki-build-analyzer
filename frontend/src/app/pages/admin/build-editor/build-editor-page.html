@@ -1,0 +1,334 @@
+<div class="page">
+    <anotoki-page-header
+        [heading]="heading()"
+        lead="Change this character's builds by hand, write the site's notes on them, make builds of your own. Nothing is written until you save; an import afterwards keeps what you did, and asks only where the builds file changes the same part of a build.">
+        <a pageEyebrow anotokiButton variant="link" size="sm" class="back" routerLink="/admin/builds">
+            <anotoki-icon name="arrowLeft" [size]="16" />
+            Builds
+        </a>
+        @if (gameKey(); as game) {
+            <a anotokiButton class="member-page" [routerLink]="['/builds', game, key()]" anotokiTooltip="This character's builds as members see them: what is saved">
+                <anotoki-icon name="eye" [size]="18" />
+                As members see them
+            </a>
+        }
+        <button anotokiButton class="reload" (click)="reload()" [disabled]="saving()" anotokiTooltip="Read the builds again as they are saved">
+            <anotoki-icon name="refresh" [size]="18" />
+            Reload
+        </button>
+    </anotoki-page-header>
+
+    <!-- What the editor tells a screen reader that the eye sees for itself: a build or a row moved, added, deleted. -->
+    <p class="visually-hidden" role="status">{{ announcer.message() }}</p>
+
+    @if (loading() && !draft()) {
+        <anotoki-spinner class="loading" label [delay]="200" />
+    }
+    @if (loadError(); as message) {
+        <anotoki-error-state class="load-error" heading="The builds could not be loaded" [message]="message" (retry)="reload()" />
+    }
+
+    @if (draft(); as d) {
+        @let limits = facts()?.limits;
+        @if (conflict(); as message) {
+            <anotoki-alert class="conflict" tone="warning" heading="These builds changed meanwhile" [announce]="true">
+                {{ message }}
+                <div alertActions>
+                    <button anotokiButton size="sm" class="conflict-reload" (click)="reload()">
+                        <anotoki-icon name="refresh" [size]="16" />
+                        Reload
+                    </button>
+                </div>
+            </anotoki-alert>
+        }
+        @if (othersOf("").length > 0) {
+            <anotoki-alert class="problems of-all" tone="danger" heading="Not saved" tabindex="-1" [announce]="true">
+                @for (message of othersOf(""); track $index) {
+                    <span class="problem">{{ message }}</span>
+                }
+            </anotoki-alert>
+        }
+
+        <!-- Nothing here takes a change while a save is on its way: its answer is the page's next state. -->
+        <div class="editing" [attr.inert]="saving() ? '' : null">
+            <div class="toolbar">
+                <button anotokiButton class="add" [anotokiMenuTrigger]="addMenu" [disabled]="saving()">
+                    <anotoki-icon name="plus" [size]="18" />
+                    Add build
+                    <anotoki-icon name="chevronDown" [size]="16" />
+                </button>
+                <anotoki-menu #addMenu label="Add build">
+                    <button anotokiMenuItem class="add-new" (click)="addNew()">New build</button>
+                    <button anotokiMenuItem class="add-copy" (click)="addCopy()" [disabled]="!activeBuild()">Copy of this build</button>
+                    @if (bringable().length > 0 || deleted().length > 0) {
+                        <anotoki-menu-separator />
+                        @for (removal of bringable(); track removal.id) {
+                            <button anotokiMenuItem class="bring-back" (click)="bringBack(removal.id)">Bring back: {{ variation(removal.build) }}</button>
+                        }
+                        @for (entry of deleted(); track entry.build.uid) {
+                            <button anotokiMenuItem class="put-back" (click)="putBack(entry.build.uid)">Put back: {{ variation(entry.build.build) }}</button>
+                        }
+                    }
+                </anotoki-menu>
+                <p class="order muted small">
+                    @if (orderToFile()) {
+                        The builds file's order again, once you save.
+                    } @else if (owner() === "editors") {
+                        Your order: every import keeps it, the file's new builds after it.
+                    } @else {
+                        The builds file's order, builds made here after the file's.
+                    }
+                </p>
+                @if (canGiveOrderBack()) {
+                    <button anotokiButton variant="ghost" size="sm" class="order-back" (click)="giveOrderBack()" [disabled]="saving()">
+                        <anotoki-icon name="undo" [size]="16" />
+                        Give the order back to the file
+                    </button>
+                }
+            </div>
+
+            @if (d.builds.length === 0) {
+                <anotoki-empty-state class="no-builds" icon="layers" heading="No builds" text="This character has no builds. Add one: a new build, or one brought back." />
+            } @else {
+                <anotoki-tabs #buildTabs="anotokiTabs" class="build-tabs" label="Builds" [tabs]="tabItems()" [active]="activeBuild()?.uid ?? ''" (activeChange)="choose($event)" />
+                @if (activeBuild(); as b) {
+                    <div class="build-panel" role="tabpanel" [id]="buildTabs.panelId(b.uid)" [attr.aria-labelledby]="buildTabs.tabId(b.uid)">
+                        <!-- The build's heading, for a screen reader's list of them: its cards' headings are under it. -->
+                        <h2 class="visually-hidden">Build {{ activeIndex() + 1 }}: {{ variation(b.build) }}</h2>
+                        <div class="build-head">
+                            <p class="build-origin muted small">
+                                {{ origin(b) }}
+                                @if (b.checkedAt) {
+                                    · carried by a file {{ b.checkedAt | timeAgo }}
+                                }
+                                @if (b.editedAt) {
+                                    · last saved here {{ b.editedAt | timeAgo }}
+                                }
+                            </p>
+                            <div class="build-actions">
+                                <span class="muted small">Build {{ activeIndex() + 1 }} of {{ d.builds.length }}</span>
+                                <app-move-buttons
+                                    [index]="activeIndex()"
+                                    [count]="d.builds.length"
+                                    [name]="'build ' + variation(b.build)"
+                                    removeLabel="Delete"
+                                    (move)="moveActive($event)"
+                                    (remove)="deleteActive()" />
+                            </div>
+                        </div>
+
+                        @if (othersOf(b.uid).length > 0) {
+                            <anotoki-alert class="problems" tone="danger" heading="Not saved" tabindex="-1" [announce]="true">
+                                @for (message of othersOf(b.uid); track $index) {
+                                    <span class="problem">{{ message }}</span>
+                                }
+                            </anotoki-alert>
+                        }
+
+                        @for (generation of [formGeneration()]; track generation) {
+                            <div class="cards">
+                                <app-part-card
+                                    class="variation"
+                                    heading="Variation"
+                                    part="game version"
+                                    [edited]="parts().game_version.edited"
+                                    [unsaved]="variationUnsaved()"
+                                    [canUseFile]="parts().game_version.edited"
+                                    (useFile)="useFile(b, 'game_version')">
+                                    <div class="fields">
+                                        <anotoki-select
+                                            label="Role"
+                                            data-path="role"
+                                            [options]="roleOptions()"
+                                            [value]="b.build.role"
+                                            (valueChange)="setRole(b, $event)"
+                                            [disabled]="nameFixed(b)"
+                                            [error]="error(b, 'role')" />
+                                        <anotoki-text-field
+                                            label="Qualifier"
+                                            data-path="qualifier"
+                                            optional
+                                            hint="A word or two telling two builds of one role apart: a reaction, a weapon (Melt)."
+                                            [value]="b.build.qualifier"
+                                            (valueChange)="setQualifier(b, $event)"
+                                            [maxlength]="limits?.qualifier ?? null"
+                                            [disabled]="nameFixed(b)"
+                                            [error]="error(b, 'qualifier')" />
+                                        <anotoki-select
+                                            label="Constellation needed"
+                                            data-path="min_rank"
+                                            [options]="rankOptions()"
+                                            [value]="'' + b.build.min_rank"
+                                            (valueChange)="setRank(b, $event)"
+                                            [disabled]="nameFixed(b)"
+                                            [error]="error(b, 'min_rank')" />
+                                        <anotoki-text-field
+                                            label="Game version"
+                                            data-path="game_version"
+                                            optional
+                                            hint="The version the build was made for, as the game numbers it (6.1)."
+                                            [value]="b.build.game_version ?? ''"
+                                            (valueChange)="setVersion(b, $event)"
+                                            (blurred)="tidyVersion(b)"
+                                            [maxlength]="limits?.game_version ?? null"
+                                            [error]="error(b, 'game_version')" />
+                                    </div>
+                                    @if (nameFixed(b)) {
+                                        <p class="muted small fixed-name">
+                                            From the builds file: its role, qualifier and constellation are its name there, so they stay. To change them, add a copy of it (Add build, then Copy of this
+                                            build) and delete this one.
+                                        </p>
+                                    }
+                                </app-part-card>
+
+                                <app-part-card class="notes" heading="Notes" part="notes" [unsaved]="notesUnsaved()">
+                                    <app-note-fields
+                                        label="Note on this build"
+                                        hint="Shown to members with the build: in Slovak to those who read Slovak, where you write it - else in English. A web address or another site's name is refused."
+                                        path="notes.build"
+                                        [value]="b.notes.build"
+                                        (valueChange)="setBuildNote(b, $event)"
+                                        [maxlength]="limits?.note_build ?? 20000"
+                                        [errors]="noteErrors(b, 'notes.build')" />
+                                </app-part-card>
+
+                                @for (part of partCards; track part) {
+                                    <app-part-card
+                                        class="part"
+                                        [attr.data-part]="part"
+                                        [heading]="partNames[part].heading"
+                                        [part]="partNames[part].name"
+                                        [edited]="parts()[part].edited"
+                                        [unsaved]="parts()[part].unsaved"
+                                        [canUseFile]="parts()[part].edited"
+                                        (useFile)="useFile(b, part)">
+                                        @switch (part) {
+                                            @case ("weapons") {
+                                                <app-weapons-form
+                                                    [weapons]="b.build.weapons"
+                                                    [catalog]="catalog()?.weapons ?? none"
+                                                    [weaponType]="who()?.weapon_type ?? null"
+                                                    [refinementPrefix]="refinementPrefix()"
+                                                    [maxRefinement]="limits?.refinement ?? 5"
+                                                    [maxWeapons]="limits?.weapons ?? 100"
+                                                    [errors]="buildErrors()"
+                                                    (weaponsChange)="setWeapons(b, $event)" />
+                                            }
+                                            @case ("sets") {
+                                                @if (limits) {
+                                                    <app-sets-form
+                                                        [sets]="b.build.sets"
+                                                        [catalog]="catalog()?.sets ?? none"
+                                                        [kinds]="facts()?.set_kinds ?? {}"
+                                                        [kindLabels]="facts()?.labels?.set_kinds ?? {}"
+                                                        [limits]="limits"
+                                                        [errors]="buildErrors()"
+                                                        (setsChange)="setSets(b, $event)" />
+                                                }
+                                            }
+                                            @case ("main_stats") {
+                                                <div class="slots">
+                                                    @for (slot of slotKeys(); track slot) {
+                                                        <app-ranked-list
+                                                            noun="main stat"
+                                                            emptyText="Not listed: any main stat does."
+                                                            [label]="slotName(slot)"
+                                                            [rows]="slotRows(b, slot)"
+                                                            [choices]="slotOptions(slot)"
+                                                            [path]="'main_stats.' + slot"
+                                                            [maxRows]="limits?.stats ?? 30"
+                                                            [maxPriority]="limits?.priority ?? 99"
+                                                            [errors]="buildErrors()"
+                                                            (rowsChange)="setMainStats(b, slot, $event)" />
+                                                    }
+                                                </div>
+                                            }
+                                            @case ("substats") {
+                                                <app-ranked-list
+                                                    label="Substats"
+                                                    noun="substat"
+                                                    path="substats"
+                                                    emptyText="None listed: the analysis goes by what the main stats ask for."
+                                                    [showLabel]="false"
+                                                    [rows]="b.build.substats"
+                                                    [choices]="substatChoices()"
+                                                    [maxRows]="limits?.stats ?? 30"
+                                                    [maxPriority]="limits?.priority ?? 99"
+                                                    [errors]="buildErrors()"
+                                                    (rowsChange)="setSubstats(b, $event)" />
+                                            }
+                                            @case ("talent_priority") {
+                                                <app-ranked-list
+                                                    label="Talents"
+                                                    noun="talent"
+                                                    field="talent"
+                                                    path="talent_priority"
+                                                    [showLabel]="false"
+                                                    [rows]="b.build.talent_priority ?? none"
+                                                    [choices]="talentChoices()"
+                                                    [maxRows]="limits?.talents ?? 10"
+                                                    [maxPriority]="limits?.priority ?? 99"
+                                                    [errors]="buildErrors()"
+                                                    (rowsChange)="setTalents(b, $event)" />
+                                            }
+                                            @case ("stat_targets") {
+                                                <app-targets-form
+                                                    [targets]="b.build.stat_targets ?? none"
+                                                    [stats]="statChoices()"
+                                                    [maxRank]="facts()?.max_rank ?? 6"
+                                                    [rankPrefix]="rankPrefix()"
+                                                    [maxTargets]="limits?.targets ?? 30"
+                                                    [errors]="buildErrors()"
+                                                    (targetsChange)="setTargets(b, $event)"
+                                                    (unreadableChange)="setUnreadable(b, $event)" />
+                                            }
+                                            @case ("teams") {
+                                                @if (who(); as own) {
+                                                    <app-teams-form
+                                                        [teams]="b.build.teams"
+                                                        [notes]="b.notes.teams"
+                                                        [waiting]="b.notes.waiting"
+                                                        [characters]="catalog()?.characters ?? none"
+                                                        [own]="own"
+                                                        [ownRole]="b.build.role"
+                                                        [roles]="facts()?.roles ?? none"
+                                                        [maxRank]="facts()?.max_rank ?? 6"
+                                                        [rankPrefix]="rankPrefix()"
+                                                        [teamSize]="facts()?.team_size ?? 4"
+                                                        [maxTeams]="limits?.teams ?? 20"
+                                                        [maxName]="limits?.team_name ?? 60"
+                                                        [maxStandIns]="limits?.alternatives ?? 5"
+                                                        [maxNote]="limits?.note_team ?? 5000"
+                                                        [errors]="buildErrors()"
+                                                        (teamsChange)="setTeams(b, $event)" />
+                                                }
+                                            }
+                                        }
+                                    </app-part-card>
+                                }
+                            </div>
+                        }
+                    </div>
+                }
+            }
+        </div>
+
+        @if (dirty() || saving() || saveError()) {
+            <div #saveBar class="save-bar" role="region" aria-label="Saving">
+                @if (saveError(); as message) {
+                    <anotoki-alert class="save-error" tone="danger" [announce]="true">{{ message }}</anotoki-alert>
+                }
+                <div class="save-row">
+                    <span class="save-text">{{ saving() ? "Saving…" : dirty() ? "Changes not saved yet." : "Nothing to save." }}</span>
+                    <div class="cluster">
+                        <button anotokiButton variant="ghost" class="discard" (click)="discard()" [disabled]="saving() || !dirty()">Discard</button>
+                        <button anotokiButton variant="primary" class="save" (click)="save()" [loading]="saving()" [disabled]="!dirty()">
+                            <anotoki-icon name="save" [size]="18" />
+                            Save
+                        </button>
+                    </div>
+                </div>
+            </div>
+        }
+    }
+</div>

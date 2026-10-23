@@ -7,19 +7,24 @@ use App\Models\GameCharacter;
 use App\Repositories\Builds;
 use App\Repositories\CatalogRows;
 use App\Services\Builds\BuildFile;
+use App\Services\Builds\BuildNotes;
 use App\Services\Catalog\Catalog;
 use App\Support\Clock;
 use App\Support\Neutral;
 
 /**
  * Builds as the API sends them, with weapon and set icons from the catalog, and their teams with each teammate as
- * the catalog knows it now - its icon, whether it is there at all, whether it has builds to link to - so a teammate
- * the catalog catches up with shows as soon as it does, with no import.
+ * the catalog knows it now - its icon, whether it is there at all, whether it has builds to link to - so a weapon or
+ * a teammate the catalog catches up with shows as soon as it does, with no import.
+ *
+ * A build's notes and its teams' are the site's own (builds.site_notes, BuildNotes): {en, sk?} as editors wrote them,
+ * or null. The texts the builds file still carries but the site no longer shows - the build's notes and its weapons',
+ * set options' and teams' notes, a stat target's text - are not sent at all (docs/builds.md, "Notes").
  *
  * A build is a variation of its character's - a role, a qualifier, the constellation it needs - and names nowhere
- * it came from: every text it was read with (notes, its qualifier, names, stat target texts, its teams' names and
- * notes) is passed through Neutral once more on the way out - the stored texts alone, before an icon's address is
- * added, which Neutral would take for another site's.
+ * it came from: every text it was read with (its qualifier, names, its teams' names, the notes) is passed through
+ * Neutral once more on the way out - the stored texts alone, before an icon's address is added, which Neutral would
+ * take for another site's.
  */
 final class BuildPresenter
 {
@@ -88,6 +93,10 @@ final class BuildPresenter
      */
     private function present(Build $build, array $weapons, array $sets, array $teammates, array $withBuilds): array
     {
+        $notes = BuildNotes::shown($build->site_notes, $build->teams);
+        // The texts the file carries that the site no longer shows (see the class comment).
+        $without = fn(array $entry, string $field) => array_diff_key($entry, [$field => true]);
+
         return [
             'id' => $build->id,
             'role' => $build->role,
@@ -95,14 +104,15 @@ final class BuildPresenter
             'min_rank' => $build->min_rank,
             'position' => $build->position,
             'weapons' => array_map(
-                fn($weapon) => Neutral::deep($weapon) + [
+                // Whether the catalog knows the weapon is its to say now, as for a teammate: never what was stored.
+                fn($weapon) => array_replace(Neutral::deep($without($weapon, 'note')), ['known' => isset($weapons[$weapon['key']])]) + [
                     'icon_url' => Icons::of($weapons[$weapon['key']] ?? null),
                     'rarity' => ($weapons[$weapon['key']] ?? null)?->rarity,
                 ],
                 $build->weapons,
             ),
             'sets' => array_map(
-                fn($option) => array_merge(Neutral::deep($option), [
+                fn($option) => array_merge(Neutral::deep($without($option, 'note')), [
                     'pieces' => array_map(
                         fn($piece) => Neutral::deep($piece) + [
                             'icon_url' => count($piece['keys']) === 1 ? Icons::of($sets[$piece['keys'][0]] ?? null) : null,
@@ -115,9 +125,9 @@ final class BuildPresenter
             'main_stats' => (object) $build->main_stats,
             'substats' => $build->substats,
             'talent_priority' => $build->talent_priority,
-            'stat_targets' => Neutral::deep($build->stat_targets),
+            'stat_targets' => $build->stat_targets === null ? null : Neutral::deep(array_map(fn(array $target) => $without($target, 'text'), $build->stat_targets)),
             'teams' => array_map(
-                fn(array $team) => [
+                fn(array $team, int $t) => [
                     'name' => (string) Neutral::text((string) ($team['name'] ?? '')),
                     'members' => array_map(
                         fn(array $member) => self::teammate($member, $teammates, $withBuilds) + [
@@ -129,11 +139,12 @@ final class BuildPresenter
                         ],
                         $team['members'] ?? [],
                     ),
-                    'note' => Neutral::text($team['note'] ?? null),
+                    'note' => $notes['teams'][$t],
                 ],
                 $build->teams,
+                array_keys($build->teams),
             ),
-            'notes' => Neutral::text($build->notes),
+            'notes' => $notes['build'],
             'game_version' => Neutral::text($build->game_version),
             'checked_at' => Clock::iso($build->checked_at),
             'changed_at' => Clock::iso($build->changed_at),

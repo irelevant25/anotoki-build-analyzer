@@ -1,13 +1,14 @@
 import { GAME_LABELS } from '../../../core/format';
 import { DateChoices, OwnDateParts, chosenMoment } from '../../../core/i18n/date-patterns';
-import { BuildChange, BuildImportEntry, BuildImportPlan, GameKey } from '../../../core/models';
+import { BuildChange, BuildImportEntry, BuildImportPlan, BuildMerged, BuildPart, BuildQuestion, BuildVariationRef, GameKey } from '../../../core/models';
 
 /**
  * A game's builds file (backend: Services/Builds/BuildFile): format "build-analyzer.builds", version 3 - the builds
  * of one game, each a variation of its character's (its role, a short qualifier telling two builds of one role
  * apart, the constellation it needs), with the teams it is played in. The server checks every build of it; the
  * Builds page checks only enough to say plainly what a chosen file is not before sending it, and words what the
- * server says importing it does. English, as the whole admin panel: its words are written here.
+ * server says importing it does - what it keeps of the editors' hand edits, and what it asks about them
+ * (docs/builds.md, "Hand edits"). English, as the whole admin panel: its words are written here.
  */
 
 export const BUILD_FILE_FORMAT = 'build-analyzer.builds';
@@ -94,9 +95,99 @@ export function variationName(variation: Pick<BuildChange, 'role' | 'qualifier' 
   return parts.filter((part) => part !== '').join(' · ');
 }
 
-/** A build an import changes: its character and its variation - "Hu Tao · Main DPS · Melt · C2+". */
-export function changeName(change: BuildChange, rankPrefix: string): string {
+/** A build an import names: its character and its variation - "Hu Tao · Main DPS · Melt · C2+". */
+export function changeName(change: BuildVariationRef, rankPrefix: string): string {
   return `${change.character.name} · ${variationName(change, rankPrefix)}`;
+}
+
+/** A part of a build, as a sentence names it (the server's BuildParts::PARTS). */
+const PART_NAMES: Record<BuildPart, string> = {
+  weapons: 'weapons',
+  sets: 'artifact sets',
+  main_stats: 'main stats',
+  substats: 'substats',
+  talent_priority: 'talents',
+  stat_targets: 'stat targets',
+  teams: 'teams',
+  game_version: 'game version',
+};
+
+/** Parts of a build in a sentence: "weapons", "weapons and teams", "weapons, substats and teams". */
+export function partList(parts: readonly BuildPart[]): string {
+  const names = parts.map((part) => PART_NAMES[part] ?? part);
+  return names.length < 2 ? (names[0] ?? '') : `${names.slice(0, -1).join(', ')} and ${names[names.length - 1]}`;
+}
+
+/** Whether parts of a build are said as more than one thing: all but the game version alone. */
+function plural(parts: readonly BuildPart[]): boolean {
+  return parts.length > 1 || parts[0] !== 'game_version';
+}
+
+/** What a question is about, in a sentence after the build's name. */
+export function questionText(question: BuildQuestion): string {
+  const parts = partList(question.parts);
+  switch (question.kind) {
+    case 'edited': {
+      const taken = question.taken.length === 0 ? '' : ` Its ${partList(question.taken)}, which only the file changes, ${plural(question.taken) ? 'are' : 'is'} the file's either way.`;
+      return `You edited its ${parts}, and the file changes ${plural(question.parts) ? 'them' : 'it'} too.${taken}`;
+    }
+    case 'made_here':
+      return `Made here; the file brings it too, with other ${parts}.`;
+    case 'removed_here':
+      return `You removed it; the file changes its ${parts}.`;
+    case 'removed_by_file': {
+      const work = [question.parts.length > 0 ? `edited its ${parts}` : '', question.notes ? 'wrote notes on it' : ''].filter((done) => done !== '').join(' and ');
+      return `The file no longer has it; you ${work}.`;
+    }
+  }
+}
+
+/** A question's two answers: the editors' work (the default: what an import does unless told) and the file's. */
+export type BuildChoice = 'edit' | 'file';
+
+const CHOICE_WORDS: Record<BuildQuestion['kind'], Record<BuildChoice, string>> = {
+  edited: { edit: 'Keep your edit', file: "Take the file's" },
+  made_here: { edit: 'Keep yours', file: "Take the file's" },
+  removed_here: { edit: 'Keep it removed', file: 'Bring it back' },
+  removed_by_file: { edit: 'Keep it', file: 'Remove it' },
+};
+
+/** A question's answers, the editors' work first, as the kit's segmented control takes them. */
+export function choiceOptions(question: BuildQuestion): { value: BuildChoice; label: string }[] {
+  const words = CHOICE_WORDS[question.kind];
+  return [
+    { value: 'edit', label: words.edit },
+    { value: 'file', label: words.file },
+  ];
+}
+
+/** A build an import made of an edit and the file's changes without asking: "your weapons kept, the file's substats taken". */
+export function mergedText(merged: BuildMerged): string {
+  return `your ${partList(merged.kept)} kept, the file's ${partList(merged.taken)} taken`;
+}
+
+/**
+ * What the preview says of a file that changes nothing, as the editors' work stands: while there are questions, that
+ * taking the file's would change something.
+ */
+export function noChangesText(plan: Pick<BuildImportPlan, 'questions' | 'edits_kept' | 'made_here' | 'kept_removed'>): string {
+  if (plan.questions.length > 0) {
+    return "Nothing changes unless you take the file's above.";
+  }
+  return `Nothing changes: the builds here are the file's already${handSummary(plan) ? ', but for what is kept by hand' : ''}.`;
+}
+
+/**
+ * What the editors' work comes to after an import, in a sentence - "Kept by hand: 3 builds with an edit, 2 made here,
+ * 1 removed." - or null when there is none of it.
+ */
+export function handSummary(plan: Pick<BuildImportPlan, 'edits_kept' | 'made_here' | 'kept_removed'>): string | null {
+  const kept = [
+    plan.edits_kept > 0 ? `${count(plan.edits_kept, 'build')} with an edit` : '',
+    plan.made_here > 0 ? `${plan.made_here} made here` : '',
+    plan.kept_removed > 0 ? `${plan.kept_removed} removed` : '',
+  ].filter((part) => part !== '');
+  return kept.length === 0 ? null : `Kept by hand: ${kept.join(', ')}.`;
 }
 
 /** What an import does to a build, said after it. */
@@ -143,9 +234,10 @@ export function skippedHeading(plan: Pick<BuildImportPlan, 'skipped'>): string {
   return `${count(plan.skipped.length, 'character')} skipped`;
 }
 
-/** What an import did: the counts, and the characters this installation's catalog lacks, named. */
+/** What an import did: the counts, what was kept by hand, and the characters this installation's catalog lacks, named. */
 export function importSummary(result: BuildImportPlan): string {
-  const message = `Imported: ${result.created} new, ${result.updated} updated, ${result.unchanged} unchanged, ${result.removed} removed.`;
+  const hand = handSummary(result);
+  const message = `Imported: ${result.created} new, ${result.updated} updated, ${result.unchanged} unchanged, ${result.removed} removed.${hand ? ` ${hand}` : ''}`;
   if (result.skipped.length === 0) {
     return message;
   }
@@ -161,8 +253,8 @@ export function importSummary(result: BuildImportPlan): string {
  */
 export function importLine(entry: BuildImportEntry, dates: DateChoices | null = null): string {
   const file = entry.file_exported_at ? `file made ${momentText(entry.file_exported_at, dates)}` : 'file of an unknown date';
-  const { created, updated, removed, skipped } = entry.summary;
-  const counts = `${created ?? 0} new, ${updated ?? 0} updated, ${removed ?? 0} removed, ${skipped ?? 0} skipped`;
+  const { created, updated, removed, skipped, edits_kept } = entry.summary;
+  const counts = `${created ?? 0} new, ${updated ?? 0} updated, ${removed ?? 0} removed, ${skipped ?? 0} skipped${edits_kept ? `, ${edits_kept} kept an edit` : ''}`;
   return `${file} · ${counts} · by ${entry.imported_by?.name ?? 'a deleted person'}`;
 }
 

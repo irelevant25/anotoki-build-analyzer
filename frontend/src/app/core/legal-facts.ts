@@ -17,7 +17,7 @@ import { VISITOR_STORAGE_KEY } from './visitor-key';
  * did. Move it with any change to what the site keeps or for how long - and the strings that say so (`legal.*`,
  * migration 011).
  */
-export const SITE_LEGAL_UPDATED = '2026-10-20';
+export const SITE_LEGAL_UPDATED = '2026-10-23';
 
 /**
  * The anotoki account's cookie for every anotoki site (the IAM's hint_cookie_name, set under the IAM's parent
@@ -87,8 +87,9 @@ export function legalPagesConfig(): AnotokiLegalConfig {
  *   and browser forgotten by the scrub and by the People delete;
  * - the error log: the library's words and its 30 days (AdminTools::errorLog() sets no `days`); never an address, a
  *   keyed hash of its bucket;
- * - the audit log: builds imported from a file, the catalog refreshed, the strings and languages, a person's data
- *   deleted, migrations applied, the tools' own - editors' too, so in this site's words;
+ * - the audit log: builds imported from a file or edited by hand (builds.imported, builds.edited - who saved which
+ *   character's builds; no name is kept with a build), the catalog refreshed, the strings and languages, a person's
+ *   data deleted, migrations applied, the tools' own - editors' too, so in this site's words;
  *   no address (AdminTools::auditLog() sets no recordAddress), never pruned;
  * - backups: the library's, plain (sealed, not encrypted), its keeping by count - 14 daily (made after an answer
  *   on a UTC day the site is used), 5 before an update, 5 before a restore, by hand until deleted

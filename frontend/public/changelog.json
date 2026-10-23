@@ -1,5 +1,13 @@
 [
   {
+    "version": "0.7.0",
+    "date": "2026-10-23",
+    "changes": {
+      "added": ["Builds and their teams can carry the site's own notes - how to play them and what to watch for -, shown in Slovak to Slovak readers where one is written"],
+      "updated": ["The site's editors can now correct a build or a team by hand between updates, so a mistake gets fixed sooner"]
+    }
+  },
+  {
     "version": "0.6.1",
     "date": "2026-10-22",
     "changes": {

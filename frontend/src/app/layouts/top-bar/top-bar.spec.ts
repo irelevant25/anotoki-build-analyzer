@@ -7,6 +7,7 @@ import { LocalizationDrafts } from '@anotoki/lib/translations/admin';
 import { provideTestTranslations } from '@anotoki/lib/translations/testing';
 import { ConfirmHostComponent, ConfirmService } from '@anotoki/lib/ui/dialog';
 import { AuthService } from '../../core/auth';
+import { BuildEditorChanges } from '../../core/build-editor-changes';
 import { en } from '../../core/i18n/en';
 import { TranslationService } from '../../core/i18n/translation';
 import { LANGUAGE_STORAGE } from '../../core/i18n/translations.config';
@@ -462,6 +463,33 @@ describe("the top bar: the family's bar, told what is this site's", () => {
       await vi.waitFor(() => expect(auth.logout).toHaveBeenCalledTimes(1));
       expect(draftsAtSignOut).toBe(0);
       expect(sessionStorage.getItem('build-analyzer-localization-drafts')).toBeNull();
+    });
+
+    it("asks first while the builds editor holds changes not saved - in the admin panel's English, one question for the strings too - and gives them up when the answer is to go", async () => {
+      const ask = vi.spyOn(TestBed.inject(ConfirmService), 'ask').mockResolvedValueOnce(false).mockResolvedValueOnce(true);
+      TestBed.inject(TranslationService).noteAddress('/admin/builds/genshin/hutao');
+      await draw('admin');
+      const changes = TestBed.inject(BuildEditorChanges);
+      changes.unsaved.set(true);
+      TestBed.inject(LocalizationDrafts).strings.set({ 'home.title': { sk: 'Každá postava' } });
+      await fixture.whenStable();
+
+      await chooseSignOut('Sign out');
+      expect(ask).toHaveBeenCalledWith({
+        title: 'Sign out without saving?',
+        message: 'The builds editor holds changes that are not saved, and so do the Translations or Languages pages. Signed out, they are lost.',
+        confirmLabel: 'Sign out anyway',
+        cancelLabel: 'Stay',
+        tone: 'danger',
+      });
+      expect(auth.logout).not.toHaveBeenCalled();
+      expect(changes.unsaved()).toBe(true);
+
+      await chooseSignOut('Sign out');
+      expect(ask).toHaveBeenCalledTimes(2);
+      expect(auth.logout).toHaveBeenCalledTimes(1);
+      // Given up: the editor's page lets the tab go without asking again, and the drafts went with them.
+      expect([changes.unsaved(), changes.givenUp(), TestBed.inject(LocalizationDrafts).count()]).toEqual([false, true, 0]);
     });
 
     it("does not ask over somebody else's drafts left in the tab: they are not this person's to give up", async () => {

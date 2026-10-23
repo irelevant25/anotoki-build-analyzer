@@ -1,0 +1,120 @@
+.loading {
+  align-self: center;
+}
+
+// What takes the changes - the builds' actions, their tabs, the open build -, laid out as the page lays its parts.
+.editing {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+  min-width: 0;
+}
+
+// The builds' own actions: adding one, and whose order they are in.
+.toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem 1rem;
+
+  .order {
+    flex: 1 1 16rem;
+    margin: 0;
+  }
+}
+
+// The open build: where it comes from and its place among the others, then its cards.
+.build-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  min-width: 0;
+}
+
+.build-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem 1rem;
+
+  .build-origin {
+    margin: 0;
+  }
+}
+
+.build-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+// The variation and the notes across the page; the parts two side by side where they fit - each form wants the room -,
+// one under another on a phone.
+.cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 32rem), 1fr));
+  gap: 1rem;
+  align-items: start;
+
+  // The teams too: a team's members want the room of the page's width.
+  .variation,
+  .notes,
+  [data-part="teams"] {
+    grid-column: 1 / -1;
+  }
+}
+
+.fields {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 14rem), 1fr));
+  gap: 0.75rem 1rem;
+  align-items: start;
+}
+
+.fixed-name {
+  margin: 0.75rem 0 0;
+}
+
+// A card of several lists - the main stats, a slot each - one under another.
+.slots {
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+}
+
+.none {
+  margin: 0;
+}
+
+.problem {
+  display: block;
+  overflow-wrap: anywhere;
+}
+
+// Save and Discard in sight while there is something to save: at the foot of the window as the page scrolls.
+.save-bar {
+  position: sticky;
+  bottom: 0;
+  z-index: 5;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  padding: 0.75rem 1rem;
+  border: 1px solid var(--anotoki-border);
+  border-radius: 12px;
+  background: var(--anotoki-surface);
+  box-shadow: var(--anotoki-shadow);
+}
+
+.save-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem 1rem;
+}
+
+.save-text {
+  font-weight: 600;
+}

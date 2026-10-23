@@ -1,7 +1,10 @@
 import { HttpErrorResponse, HttpHeaders, HttpResponse } from '@angular/common/http';
 import { signal } from '@angular/core';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
+import { By } from '@angular/platform-browser';
+import { Router, provideRouter } from '@angular/router';
 import { provideTestTranslations } from '@anotoki/lib/translations/testing';
+import { ComboboxComponent } from '@anotoki/lib/ui/combobox';
 import { ToastService } from '@anotoki/lib/ui/toast';
 import { Observable, Subject, of, throwError } from 'rxjs';
 import { Api } from '../../../core/api';
@@ -9,7 +12,7 @@ import { AuthService } from '../../../core/auth';
 import { timeAgo } from '../../../core/format';
 import { provideKit } from '../../../core/kit';
 import { MetaStore } from '../../../core/meta-store';
-import { AdminBuildsGame, BuildImportPlan, CatalogList, CatalogRefreshResult, GameKey } from '../../../core/models';
+import { AdminBuildsGame, BuildImportChoices, BuildImportPlan, BuildQuestion, CatalogList, CatalogRefreshResult, EditorCatalog, GameKey } from '../../../core/models';
 import { AdminBuildsPage, CATALOG_LISTS } from './admin-builds-page';
 import { BUILD_FILE_MAX_BYTES, BUILD_FILE_TOO_LARGE, momentText } from './build-file';
 
@@ -18,6 +21,9 @@ const settle = () => new Promise((resolve) => setTimeout(resolve, 0));
 
 const FILE_NAME = 'builds-genshin-2026-10-20.json';
 const FILE_TEXT = JSON.stringify({ format: 'build-analyzer.builds', format_version: 3, game: 'genshin', exported_at: '2026-10-20T10:00:00Z', builds: [] });
+
+/** The plan of a dry run's questions, which the import sends back with the answers. */
+const PLAN = 'a'.repeat(64);
 
 const CHECKED = '2026-10-19T10:00:00+00:00';
 const CHANGED = '2026-10-18T10:00:00+00:00';
@@ -53,9 +59,56 @@ function game(overrides: Partial<AdminBuildsGame> = {}): AdminBuildsGame {
       { list: 'weapons', entries: 230, refreshed_at: null, problem: null },
       { list: 'sets', entries: 60, refreshed_at: null, problem: null },
     ],
+    editing: [],
     ...overrides,
   };
 }
+
+/** What the builds editor picks from (GET /api/admin/builds/genshin/catalog): three characters here, by name. */
+const CATALOG: EditorCatalog = {
+  game: 'genshin',
+  facts: {
+    roles: ['main_dps', 'sub_dps', 'support'],
+    max_rank: 6,
+    rank_prefix: 'C',
+    refinement_prefix: 'R',
+    slots: { sands: ['atk_'] },
+    substats: ['critRate_'],
+    stats: ['critRate_'],
+    talents: ['auto', 'skill', 'burst'],
+    set_kinds: { artifact: [2, 4] },
+    team_size: 4,
+    labels: { stats: {}, talents: {}, slots: {}, set_kinds: {} },
+    limits: {
+      qualifier: 40,
+      weapons: 100,
+      refinement: 5,
+      sets: 50,
+      pieces: 30,
+      set_keys: 100,
+      stats: 30,
+      talents: 10,
+      priority: 99,
+      targets: 30,
+      bound: 1000000,
+      teams: 20,
+      team_name: 60,
+      alternatives: 5,
+      name: 1000,
+      game_version: 20,
+      note_build: 20000,
+      note_team: 5000,
+      builds: 30,
+    },
+  },
+  characters: [
+    { key: 'furina', name: 'Furina', element: 'hydro', weapon_type: 'sword', rarity: 5, icon_url: '/icons/furina.png' },
+    { key: 'hutao', name: 'Hu Tao', element: 'pyro', weapon_type: 'polearm', rarity: 5, icon_url: '/icons/hutao.png' },
+    { key: 'xiangling', name: 'Xiangling', element: 'pyro', weapon_type: 'polearm', rarity: 4, icon_url: null },
+  ],
+  weapons: [],
+  sets: [],
+};
 
 /** What importing the file does (a dry run) or did. */
 function plan(dryRun: boolean, overrides: Partial<BuildImportPlan> = {}): BuildImportPlan {
@@ -74,6 +127,15 @@ function plan(dryRun: boolean, overrides: Partial<BuildImportPlan> = {}): BuildI
     skipped: [],
     teammates_unknown: [],
     teammates_unknown_total: 0,
+    edits_kept: 0,
+    made_here: 0,
+    kept_removed: 0,
+    file_taken: 0,
+    questions: [],
+    plan: PLAN,
+    merged: [],
+    order_kept: [],
+    notes_dormant: [],
     changes: [
       { change: 'created', character: { key: 'hutao', name: 'Hu Tao' }, role: 'main_dps', qualifier: 'Melt', min_rank: 2 },
       { change: 'updated', character: { key: 'furina', name: 'Furina' }, role: 'support', qualifier: '', min_rank: 0 },
@@ -95,8 +157,9 @@ describe('the Builds page (admin panel): the builds files and the catalog', () =
   let api: {
     adminBuilds: ReturnType<typeof vi.fn<() => Observable<AdminBuildsGame[]>>>;
     exportBuilds: ReturnType<typeof vi.fn<(game: GameKey) => Observable<HttpResponse<Blob>>>>;
-    importBuilds: ReturnType<typeof vi.fn<(game: GameKey, file: string, dryRun: boolean) => Observable<BuildImportPlan>>>;
+    importBuilds: ReturnType<typeof vi.fn<(game: GameKey, file: string, dryRun: boolean, choices?: BuildImportChoices | null) => Observable<BuildImportPlan>>>;
     refreshCatalog: ReturnType<typeof vi.fn<(game: GameKey, list: CatalogList) => Observable<CatalogRefreshResult>>>;
+    editorCatalog: ReturnType<typeof vi.fn<(game: GameKey) => Observable<EditorCatalog>>>;
   };
   let toasts: { show: ReturnType<typeof vi.fn>; success: ReturnType<typeof vi.fn>; error: ReturnType<typeof vi.fn> };
 
@@ -105,18 +168,20 @@ describe('the Builds page (admin panel): the builds files and the catalog', () =
   const button = (selector: string) => host.querySelector<HTMLButtonElement>(`button.${selector}`)!;
   const problem = () => text(host.querySelector('.problem .anotoki-alert__text'));
 
-  async function setup(answer: AdminBuildsGame[] = [game()], meta?: { game: () => { rank_prefix: string } | null }): Promise<void> {
+  async function setup(answer: AdminBuildsGame[] = [game()], meta?: { game: () => { rank_prefix: string } | null }, catalog: () => Observable<EditorCatalog> = () => of(CATALOG)): Promise<void> {
     api = {
       adminBuilds: vi.fn(() => of(answer)),
       exportBuilds: vi.fn(),
       importBuilds: vi.fn((_game: GameKey, _file: string, dryRun: boolean) => of(plan(dryRun))),
       refreshCatalog: vi.fn(),
+      editorCatalog: vi.fn(catalog),
     };
     toasts = { show: vi.fn(), success: vi.fn(), error: vi.fn() };
     TestBed.configureTestingModule({
       providers: [
         provideTestTranslations({}),
         provideKit(),
+        provideRouter([]),
         { provide: Api, useValue: api },
         { provide: ToastService, useValue: toasts },
         { provide: AuthService, useValue: { preferences: signal(null) } },
@@ -156,12 +221,13 @@ describe('the Builds page (admin panel): the builds files and the catalog', () =
     expect(text(host.querySelector('h1'))).toBe('Builds');
     const lead = text(host.querySelector('.anotoki-page-header__lead'));
     expect(lead).toContain('imported here, one file per game');
-    expect(lead).toContain('the whole truth for its game');
+    expect(lead).toContain("Once a file is imported, the game's builds are the file's");
+    expect(lead).toContain('an import keeps every edit, and asks where the file changes the same part of a build');
     expect(lead).toContain("characters this installation's catalog lacks, which are skipped");
-    expect(lead).toContain('a backup, and the start of a hand edit');
+    expect(lead).toContain("Export saves a game's builds as such a file: a backup.");
 
     expect(texts('section.game h2')).toEqual(['Genshin Impact']);
-    expect(texts('.anotoki-card__title')).toEqual(['Builds', 'Recent imports', 'Catalog']);
+    expect(texts('.anotoki-card__title')).toEqual(['Builds', 'Edit builds', 'Recent imports', 'Catalog']);
     expect(texts('.builds anotoki-stat-tile')).toEqual([
       '110 Characters with builds',
       '250 Builds',
@@ -269,7 +335,7 @@ describe('the Builds page (admin panel): the builds files and the catalog', () =
 
     expect(api.importBuilds.mock.calls).toEqual([
       ['genshin', FILE_TEXT, true],
-      ['genshin', FILE_TEXT, false],
+      ['genshin', FILE_TEXT, false, { file: [], plan: PLAN }],
     ]);
     expect(host.querySelector('.preview')).toBeNull();
     // Skipped characters ask for something to be done: the message stays until it is closed.
@@ -381,6 +447,125 @@ describe('the Builds page (admin panel): the builds files and the catalog', () =
     expect(api.adminBuilds).toHaveBeenCalledTimes(1);
   });
 
+  describe("hand edits: what an import keeps of the editors' work, and what it asks", () => {
+    const variation = (key: string, name: string, role: string, qualifier = '', minRank = 0) => ({ character: { key, name }, role, qualifier, min_rank: minRank });
+    const QUESTIONS: BuildQuestion[] = [
+      { id: 'b1', kind: 'edited', ...variation('hutao', 'Hu Tao', 'main_dps'), parts: ['weapons'], taken: ['substats', 'teams'], notes: false },
+      { id: 'b2', kind: 'removed_by_file', ...variation('furina', 'Furina', 'support'), parts: ['stat_targets'], taken: [], notes: true },
+      { id: 'r3', kind: 'removed_here', ...variation('xiangling', 'Xiangling', 'sub_dps', '', 6), parts: ['game_version'], taken: [], notes: false },
+      { id: 'b4', kind: 'made_here', ...variation('nahida', 'Nahida', 'support', 'Spread'), parts: ['main_stats', 'sets'], taken: [], notes: false },
+    ];
+    const segment = (question: number, value: 'edit' | 'file') => host.querySelector<HTMLButtonElement>(`.question:nth-child(${question}) [role="radio"][data-value="${value}"]`)!;
+    const chosen = () => [...host.querySelectorAll('.question')].map((question) => question.querySelector('[role="radio"][aria-checked="true"]')?.getAttribute('data-value'));
+
+    async function click(element: HTMLElement): Promise<void> {
+      element.click();
+      await settle();
+      await fixture.whenStable();
+    }
+
+    it("asks per build where the file and an editor's work disagree - the editor's work standing unless the file is chosen - and Import sends the answers with the plan", async () => {
+      await setup();
+      api.importBuilds.mockImplementation((_game, _file, dryRun) => of(plan(dryRun, { questions: QUESTIONS })));
+      await choose();
+
+      expect(text(host.querySelector('.questions h5'))).toBe('Your edits and the file (4)');
+      expect(texts('.question .question-name')).toEqual(['Hu Tao · Main DPS', 'Furina · Support', 'Xiangling · Sub DPS · C6+', 'Nahida · Support · Spread']);
+      expect(texts('.question .question-text .muted')).toEqual([
+        "You edited its weapons, and the file changes them too. Its substats and teams, which only the file changes, are the file's either way.",
+        'The file no longer has it; you edited its stat targets and wrote notes on it.',
+        'You removed it; the file changes its game version.',
+        'Made here; the file brings it too, with other main stats and artifact sets.',
+      ]);
+      expect([...host.querySelectorAll('.question')].map((question) => [...question.querySelectorAll('[role="radio"]')].map(text))).toEqual([
+        ['Keep your edit', "Take the file's"],
+        ['Keep it', 'Remove it'],
+        ['Keep it removed', 'Bring it back'],
+        ['Keep yours', "Take the file's"],
+      ]);
+      expect(host.querySelector('.question [role="radiogroup"]')?.getAttribute('aria-label')).toBe('What stands for Hu Tao · Main DPS');
+      expect(chosen()).toEqual(['edit', 'edit', 'edit', 'edit']);
+
+      await click(segment(1, 'file'));
+      await click(segment(3, 'file'));
+      expect(chosen()).toEqual(['file', 'edit', 'file', 'edit']);
+
+      await press('confirm');
+      expect(api.importBuilds.mock.calls.at(-1)).toEqual(['genshin', FILE_TEXT, false, { file: ['b1', 'r3'], plan: PLAN }]);
+    });
+
+    it('answers every question alike: "all" when the file is taken everywhere, none when every edit is kept', async () => {
+      await setup();
+      api.importBuilds.mockImplementation((_game, _file, dryRun) => of(plan(dryRun, { questions: QUESTIONS })));
+      await choose();
+
+      await press('take-all');
+      expect(chosen()).toEqual(['file', 'file', 'file', 'file']);
+      await press('confirm');
+      expect(api.importBuilds.mock.calls.at(-1)).toEqual(['genshin', FILE_TEXT, false, { file: 'all', plan: PLAN }]);
+
+      await choose();
+      await press('take-all');
+      await press('keep-all');
+      expect(chosen()).toEqual(['edit', 'edit', 'edit', 'edit']);
+      await press('confirm');
+      expect(api.importBuilds.mock.calls.at(-1)).toEqual(['genshin', FILE_TEXT, false, { file: [], plan: PLAN }]);
+    });
+
+    it('checks the file again when its questions changed meanwhile - an edit saved, another import - and says so, every answer forgotten', async () => {
+      await setup();
+      api.importBuilds.mockImplementation((_game, _file, dryRun) => of(plan(dryRun, { questions: QUESTIONS })));
+      await choose();
+      await click(segment(1, 'file'));
+
+      api.importBuilds.mockReturnValueOnce(throwError(() => new HttpErrorResponse({ status: 409, error: { message: 'The builds changed since this file was checked.', code: 'plan_changed' } })));
+      await press('confirm');
+
+      expect(api.importBuilds.mock.calls.slice(-2).map((call) => call[2])).toEqual([false, true]);
+      expect(problem()).toBe('The builds changed since this preview - a build was edited, or another import came. The file was checked again: look at its questions before importing.');
+      expect(host.querySelector('.preview')).not.toBeNull();
+      expect(chosen()).toEqual(['edit', 'edit', 'edit', 'edit']);
+      expect(toasts.show).not.toHaveBeenCalled();
+    });
+
+    it('says what is kept by hand, what it combines without asking, whose order stays and which team notes are left waiting', async () => {
+      await setup();
+      const answer = (dryRun: boolean) =>
+        plan(dryRun, {
+          edits_kept: 3,
+          made_here: 2,
+          kept_removed: 1,
+          merged: [{ ...variation('hutao', 'Hu Tao', 'main_dps'), kept: ['weapons'], taken: ['substats', 'teams'] }],
+          order_kept: [
+            { key: 'hutao', name: 'Hu Tao' },
+            { key: 'furina', name: 'Furina' },
+          ],
+          notes_dormant: [{ ...variation('xiangling', 'Xiangling', 'sub_dps'), notes: 2 }],
+        });
+      api.importBuilds.mockImplementation((_game, _file, dryRun) => of(answer(dryRun)));
+      await choose();
+
+      expect(text(host.querySelector('.preview .hand'))).toBe('Kept by hand: 3 builds with an edit, 2 made here, 1 removed.');
+      expect(host.querySelector('.questions')).toBeNull();
+      expect(text(host.querySelector('.merged .anotoki-disclosure__button'))).toBe('Combined without asking (1)');
+      host.querySelector<HTMLButtonElement>('.merged .anotoki-disclosure__button')!.click();
+      await fixture.whenStable();
+      expect(texts('.merged-list li')).toEqual(["Hu Tao · Main DPS: your weapons kept, the file's substats and teams taken"]);
+      expect(text(host.querySelector('.order-kept'))).toBe("Your order of builds stays for Hu Tao, Furina; the file's new builds come after it.");
+      expect(text(host.querySelector('.notes-waiting'))).toBe('Team notes left without their team - kept, until a team of those members comes back: Xiangling · Sub DPS (2).');
+
+      await press('confirm');
+      expect(toasts.show).toHaveBeenCalledWith('Imported: 2 new, 1 updated, 247 unchanged, 3 removed. Kept by hand: 3 builds with an edit, 2 made here, 1 removed.', 'success', 8000);
+    });
+
+    it('says a file that changes nothing changes nothing but for what is kept by hand', async () => {
+      await setup();
+      api.importBuilds.mockReturnValueOnce(of(plan(true, { created: 0, updated: 0, removed: 0, unchanged: 250, changes: [], changes_listed: 0, edits_kept: 1 })));
+      await choose();
+      expect(text(host.querySelector('.no-changes'))).toBe("Nothing changes: the builds here are the file's already, but for what is kept by hand.");
+    });
+  });
+
   it("writes a constellation in the game's own prefix, from the game's metadata", async () => {
     await setup([game()], { game: () => ({ rank_prefix: 'E' }) });
     await choose();
@@ -456,6 +641,15 @@ describe('the Builds page (admin panel): the builds files and the catalog', () =
       expect(api.refreshCatalog).toHaveBeenCalledTimes(3);
     });
 
+    it("reads the builds editor's characters again once the catalog is refreshed: a character may have come", async () => {
+      await setup();
+      api.refreshCatalog.mockImplementation((_game, list) => of(result(list, 1)));
+      expect(api.editorCatalog).toHaveBeenCalledTimes(1);
+
+      await press('refresh-catalog');
+      await vi.waitFor(() => expect(api.editorCatalog).toHaveBeenCalledTimes(2));
+    });
+
     it('stops at the first error and says it - the lists refreshed before it keep their new state', async () => {
       await setup();
       api.refreshCatalog.mockImplementation((_game, list) =>
@@ -472,6 +666,64 @@ describe('the Builds page (admin panel): the builds files and the catalog', () =
       expect(texts('.lists anotoki-stat-tile')).toEqual([`125 Characters refreshed ${timeAgo('2026-10-20T11:59:00+00:00')}`, '230 Weapons never refreshed', '60 Sets never refreshed']);
       expect(button('refresh-catalog').disabled).toBe(false);
       expect(toasts.success).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('Edit builds: the way into the builds editor', () => {
+    const changedHere = game({
+      editing: [
+        { key: 'hutao', name: 'Hu Tao', icon_url: '/icons/hutao.png', builds: 2, edited: 1, made_here: 0, removed: 1, notes: 1, ordered: false },
+        { key: 'xiangling', name: 'Xiangling', icon_url: null, builds: 1, edited: 0, made_here: 0, removed: 0, notes: 0, ordered: false },
+      ],
+    });
+    const picker = () => fixture.debugElement.query(By.directive(ComboboxComponent)).componentInstance as ComboboxComponent;
+
+    it('offers every character of the catalog by name and picture - with its builds and what was done to them here - and links to those changed here', async () => {
+      await setup([changedHere]);
+
+      expect(text(host.querySelector('.editor .anotoki-card__title'))).toBe('Edit builds');
+      expect(picker().label()).toBe('Character');
+      expect(
+        picker()
+          .options()
+          .map((option) => [option.value, option.label, option.picture]),
+      ).toEqual([
+        ['furina', 'Furina · no builds', '/icons/furina.png'],
+        ['hutao', 'Hu Tao · 2 builds · 1 edited · 1 removed · notes on 1', '/icons/hutao.png'],
+        ['xiangling', 'Xiangling · 1 build', null],
+      ]);
+      // Found by element and weapon type too, which are never shown.
+      expect(picker().options()[1].keywords).toBe('pyro polearm');
+
+      // Only what an editor changed: Xiangling's builds are the file's as they are.
+      expect(text(host.querySelector('.edited-heading'))).toBe('Changed here (1)');
+      const cards = [...host.querySelectorAll<HTMLAnchorElement>('a.edited-character')];
+      expect(cards.map((card) => [text(card), card.getAttribute('href')])).toEqual([['Hu Tao: 2 builds · 1 edited · 1 removed · notes on 1', '/admin/builds/genshin/hutao']]);
+      expect(host.querySelector('.no-edits')).toBeNull();
+      expect(api.editorCatalog).toHaveBeenCalledWith('genshin');
+    });
+
+    it('opens the builds editor of the character picked', async () => {
+      await setup([changedHere]);
+      const navigate = vi.spyOn(TestBed.inject(Router), 'navigate').mockResolvedValue(true);
+
+      picker().value.set('furina');
+      await fixture.whenStable();
+      expect(navigate).toHaveBeenCalledWith(['/admin/builds', 'genshin', 'furina']);
+    });
+
+    it('says so where nothing was changed here yet', async () => {
+      await setup();
+      expect(text(host.querySelector('.no-edits'))).toBe("No character's builds were changed here yet.");
+      expect(host.querySelector('.edited-heading')).toBeNull();
+    });
+
+    it('says why the characters could not be read, in place of the picker', async () => {
+      await setup([game()], undefined, () => throwError(() => refused(500, 'Something broke.')));
+      await settle();
+      await fixture.whenStable();
+      expect(text(host.querySelector('.editor-problem .anotoki-alert__text'))).toBe('The characters could not be read: Something broke.');
+      expect(host.querySelector('anotoki-combobox')).toBeNull();
     });
   });
 });

@@ -42,7 +42,7 @@
   "legal.feedback.what": "What you send with the form at the foot of every page: your message (and its subject, if you give one), its kind and the part of the site it is about, the page's address without anything after ? or #, the page's language and your browser's name; your account's id, unless you send it without your name; and an address to answer you at, only if you leave one (signed in, the form writes your account's in - you may change it or clear it).",
   "legal.feedback.kept": "Until an administrator deletes it - a message marked as spam goes 30 days later, a resolved one a year later (with the first message sent after that day). When your anotoki account is deleted, or an administrator deletes your data here, the reply address and the browser go from your messages; the words stay.",
 
-  "legal.auditLog.what": "What the site's editors and administrators do in its admin panel - builds imported from a file and the game catalog refreshed, the words and languages saved, a person's data deleted, an update applied, the backups, the error log and feedback handled: who, what and when. Never an IP address.",
+  "legal.auditLog.what": "What the site's editors and administrators do in its admin panel - builds imported from a file or edited by hand, the game catalog refreshed, the words and languages saved, a person's data deleted, an update applied, the backups, the error log and feedback handled: who, what and when. Never an IP address.",
 
   "legal.backups.what": "A copy of the site's whole database: one on each day the site is used, one before every update and every restore, and one whenever an administrator makes it. Each copy holds what the site kept when it was made.",
 

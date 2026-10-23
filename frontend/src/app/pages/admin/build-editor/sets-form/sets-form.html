@@ -1,0 +1,85 @@
+@if (sets().length === 0) {
+    <p class="muted small none">None listed.</p>
+}
+<ol class="options">
+    @for (option of sets(); track rowId(option); let o = $index) {
+        <li class="option">
+            <div class="option-head">
+                <h4 class="option-title">Option {{ o + 1 }}</h4>
+                @if (manyKinds()) {
+                    <anotoki-select class="kind" label="Kind" inline [options]="kindOptions()" [value]="option.kind" (valueChange)="setKind(o, $event)" [attr.data-path]="'sets[' + o + '].kind'" />
+                }
+                <app-move-buttons [index]="o" [count]="sets().length" [name]="'option ' + optionName(option, o)" (move)="moveOption(o, $event)" (remove)="removeOption(o)" />
+            </div>
+            <ol class="pieces">
+                @for (piece of option.pieces; track rowId(piece); let p = $index) {
+                    <li class="piece">
+                        <div class="piece-head">
+                            <anotoki-segmented
+                                class="count"
+                                size="sm"
+                                [label]="'How many pieces of ' + pieceName(piece, p)"
+                                [options]="countOptions(option.kind)"
+                                [value]="'' + piece.count"
+                                (valueChange)="setCount(o, p, $event)"
+                                [attr.data-path]="'sets[' + o + '].pieces[' + p + '].count'" />
+                            <anotoki-chip-list class="chosen" [label]="'Sets of ' + pieceName(piece, p)" [items]="chips(piece)" (remove)="removeSet(o, p, $event)" />
+                            <app-move-buttons
+                                [index]="p"
+                                [count]="option.pieces.length"
+                                [name]="'piece ' + pieceName(piece, p)"
+                                [removable]="option.pieces.length > 1"
+                                (move)="movePiece(o, p, $event)"
+                                (remove)="removePiece(o, p)" />
+                        </div>
+                        <!-- Drawn anew with each set added: empty for the next one. -->
+                        @for (turn of [addedTo(piece)]; track turn) {
+                            <anotoki-combobox
+                                class="add-set"
+                                hideLabel
+                                placeholder="Add a set: type its name"
+                                [label]="'Add a set to ' + pieceName(piece, p)"
+                                [options]="setOptions(option.kind, piece)"
+                                [value]="null"
+                                (valueChange)="addSet(o, p, $event)"
+                                [error]="error('sets[' + o + '].pieces[' + p + '].keys')"
+                                [attr.data-path]="'sets[' + o + '].pieces[' + p + '].keys'" />
+                        }
+                        @if (piece.keys.length > 1) {
+                            <anotoki-text-field
+                                class="label"
+                                label="What the sets have in common"
+                                hint="As members read it: any 18% ATK set."
+                                [value]="piece.label"
+                                (valueChange)="setLabel(o, p, $event)"
+                                [maxlength]="limits().name"
+                                [error]="error('sets[' + o + '].pieces[' + p + '].label')"
+                                [attr.data-path]="'sets[' + o + '].pieces[' + p + '].label'" />
+                        }
+                    </li>
+                }
+            </ol>
+            <div class="option-foot">
+                <button anotokiButton size="sm" class="add-piece" (click)="addPiece(o)" [disabled]="option.pieces.length >= limits().pieces">
+                    <anotoki-icon name="plus" [size]="16" />
+                    Add piece
+                </button>
+                @if (option.pieces.length > 1) {
+                    <anotoki-select
+                        class="choose"
+                        label="Wear"
+                        inline
+                        [options]="chooseOptions(option)"
+                        [value]="option.choose === null ? '' : '' + option.choose"
+                        (valueChange)="setChoose(o, $event)"
+                        [error]="error('sets[' + o + '].choose')"
+                        [attr.data-path]="'sets[' + o + '].choose'" />
+                }
+            </div>
+        </li>
+    }
+</ol>
+<button anotokiButton size="sm" class="add-option" (click)="addOption()" [disabled]="sets().length >= limits().sets">
+    <anotoki-icon name="plus" [size]="16" />
+    Add option
+</button>

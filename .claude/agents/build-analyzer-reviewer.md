@@ -34,8 +34,14 @@ Correctness first:
   element, has_builds) looked up in `BuildPresenter` when shown, never stored - stored texts made neutral before
   icon addresses are added -; the teams in `content_hash` last and only when there are some (a build without teams
   keeps its hash); `owned_teammates` from the account the route found as its owner's alone. `BuildImport`: the file is
-  the whole truth for its game (a character the catalog lacks skipped and named, a teammate it lacks kept and named -
-  never a skip -, a file of none it knows refused),
+  the truth for its game but for the editors' hand edits (0.7: a part-by-part merge against `builds.file_build`, a
+  question per build only where both changed a part, the answers with the preview's plan - 409 `plan_changed` -,
+  builds made here kept, `build_removals` never back unasked, an editor's order kept, `site_notes` never touched, an
+  export imported again changing nothing; a character the catalog lacks skipped and named, a teammate it lacks kept
+  and named - never a skip -, a file of none it knows refused), `BuildEditor` (a character's builds saved whole: each
+  build through `BuildFile::readEntry()`, notes through `BuildNotes`, typed texts naming no site, a file build's name
+  kept, removed builds remembered, an order other than an import's said - `build_orders` -, under the import's lock and
+  against the version loaded, nothing written when nothing changed, audited `builds.edited`),
   a build found again by its identity keeps its id (`?build=ID` links), one transaction under its advisory lock
   (409 `busy`), a dry run writes nothing, every import in `build_imports` and the audit log, the catalog never
   written; its routes (`api/routes/admin_builds.php`) in the STAFF group.
@@ -230,6 +236,18 @@ Correctness first:
   library's (Tab / Shift+Tab from any item close the menu with the focus on its button) - never a copy here; a
   new piece or longer words mean measuring the row again (`run.mjs --measure`) and keeping `PHONE_BAR_MAX`,
   the admin panel's `ADMIN_PHONE_BAR_MAX` / `EDITOR_PHONE_BAR_MAX` in step.
+- The builds editor's page (`pages/admin/build-editor/`, docs/builds.md "The editor"; English, the admin panel):
+  `editor-draft.ts` stays plain functions over immutable data - a part nobody touched goes back as the very object the
+  server sent, a part changed back is the loaded one again (`withPart()`, `asLoadedTeams()`: the Save bar never
+  stands for a change nobody sees), each list's rows keep an identity through edits (`rowId()`, `carried()`; loaded
+  rows take the page rows' ids, never a duplicate); the page's checks mirror the server's (`BuildFile::readEntry()`,
+  `BuildNotes::fromEditor()`) - the file's rules always, the page's own only on parts changed on the page
+  (`changedParts()`: not as loaded, not as the file has it) -, so what the page lets through the server takes; a
+  team's note travels with its card, a waiting note waits until moved by hand (never taken while editing:
+  `takerOf()` only names the team a save gives it to), a note waits only with its English and two chosen members
+  (`waitingOf()`); the focus after a removal never lands on a control a second press of which removes more; a
+  kit combobox's options are the same objects across renders (its text follows its chosen option), and the browser
+  check picks from one by typing and Enter, checked (`pickByName()`).
 - The look is the family's kit (`@anotoki/lib/styles`, the `@anotoki/lib/ui/*` pieces each from its own entry
   point, never the `@anotoki/lib/ui` barrel): no Angular Material or CDK coming back; colours only from the
   `--anotoki-*` tokens (the site's palette set over them in `styles.scss`, light and dark - never a kit piece

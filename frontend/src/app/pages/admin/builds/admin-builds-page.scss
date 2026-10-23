@@ -19,8 +19,43 @@
   align-items: start;
 }
 
-.builds {
+.builds,
+.editor {
   grid-column: 1 / -1;
+}
+
+// A character's name to type: no wider than a name needs.
+.editor-pick {
+  max-width: 36rem;
+}
+
+// The characters whose builds were changed here: link cards side by side, one under another on a phone.
+.edited-heading {
+  margin: 0;
+  font-size: 0.9375rem;
+}
+
+.edited-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 16rem), 1fr));
+  gap: 0.5rem;
+}
+
+.edited-character {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.edited-text {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.edited-name {
+  font-weight: 650;
 }
 
 .card-body {
@@ -55,10 +90,50 @@
 
 .skipped-list,
 .change-list,
-.import-list {
+.import-list,
+.question-list {
   margin: 0;
   padding: 0;
   list-style: none;
+}
+
+// The questions an import asks: the build and what it is about, its answer beside it - under it on a phone.
+.questions {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+
+  h5 {
+    margin: 0;
+    font-size: 0.9375rem;
+  }
+}
+
+.question {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem 1rem;
+  padding: 0.6rem 0;
+  border-bottom: 1px solid var(--anotoki-border);
+
+  &:last-child {
+    border-bottom: 0;
+  }
+}
+
+.question-text {
+  display: flex;
+  flex: 1 1 18rem;
+  flex-direction: column;
+  gap: 0.15rem;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.question-name {
+  font-weight: 650;
 }
 
 .skipped-list {

@@ -74,9 +74,9 @@ function build(change: Partial<Build> = {}): Build {
     min_rank: 0,
     position: 0,
     weapons: [
-      { key: 'homa', name: 'Staff of Homa', rank: 1, refinement: 1, note: 'Best in slot.', known: true },
-      { key: 'bane', name: "Dragon's Bane", rank: 2, refinement: null, note: null, known: true },
-      { key: 'deathmatch', name: 'Deathmatch', rank: 3, refinement: null, note: null, known: true },
+      { key: 'homa', name: 'Staff of Homa', rank: 1, refinement: 1, known: true },
+      { key: 'bane', name: "Dragon's Bane", rank: 2, refinement: null, known: true },
+      { key: 'deathmatch', name: 'Deathmatch', rank: 3, refinement: null, known: true },
     ],
     sets: [
       {
@@ -84,7 +84,6 @@ function build(change: Partial<Build> = {}): Build {
         kind: 'artifact',
         choose: null,
         pieces: [{ label: 'Crimson Witch of Flames', count: 4, keys: ['cw'], names: ['Crimson Witch of Flames'] }],
-        note: 'The usual choice.',
       },
       {
         rank: 2,
@@ -95,7 +94,6 @@ function build(change: Partial<Build> = {}): Build {
           { label: 'Beta', count: 2, keys: ['b'], names: ['Beta'] },
           { label: 'ATK +18% set', count: 2, keys: ['c', 'd'], names: ['Gamma', 'Delta'] },
         ],
-        note: null,
       },
     ],
     main_stats: {
@@ -110,9 +108,9 @@ function build(change: Partial<Build> = {}): Build {
       { talent: 'skill', priority: 1 },
       { talent: 'burst', priority: 2 },
     ],
-    stat_targets: [{ stat: 'critRate_', min: 70, max: null, text: 'At least 70% CRIT Rate.', from_rank: 0 }],
+    stat_targets: [{ stat: 'critRate_', min: 70, max: null, from_rank: 0 }],
     teams: [],
-    notes: 'Keep her HP below half.',
+    notes: { en: 'Keep her HP below half.', sk: 'Drž jej HP pod polovicou.' },
     game_version: '5.2',
     checked_at: hoursAgo(2),
     changed_at: null,
@@ -139,7 +137,7 @@ const EVALUATION: Evaluation = {
     },
   },
   items: {},
-  targets: [{ stat: 'critRate_', min: 70, max: null, text: 'At least 70% CRIT Rate.', current: 62, ok: false }],
+  targets: [{ stat: 'critRate_', min: 70, max: null, current: 62, ok: false }],
   substat_weights: {},
   recommendations: [],
 };
@@ -187,14 +185,14 @@ describe('BuildDetail: a recommended build in the reader’s words, the game’s
     expect(text('.weapons anotoki-badge')).toEqual(['Owned', 'Equipped']);
     expect(text('.w-name .small')).toEqual(['R1']);
     expect(text('.sets .w-text > div:first-child')).toEqual(['4pc Crimson Witch of Flames', '2pc Alpha + 2pc Beta + 2pc ATK +18% set (any 2)']);
-    expect(text('.sets .w-text > .small:not(.note)')).toEqual(['ATK +18% set: 2 sets qualify']);
+    expect(text('.sets .w-text > .small')).toEqual(['ATK +18% set: 2 sets qualify']);
     // A picture a set: none for the piece any of several sets fills (no initials of its label), two at most.
     expect([...host.querySelectorAll('.sets li')].map((option) => option.querySelectorAll('.set-icons app-avatar').length)).toEqual([1, 2]);
     expect(text('.sets anotoki-badge')).toEqual(['In use']);
     expect(text('.stat-row anotoki-badge')).toEqual(['HP%', 'Pyro DMG Bonus']);
     expect(tooltips('.check')).toEqual(['Yours: ATK%', 'Your main stat matches']);
     expect(labels('.check svg')).toEqual(['Yours: ATK%', 'Your main stat matches']);
-    expect(text('.target > span')).toEqual(['CRIT Rate', '70.0%+', 'you: 62.0%', 'At least 70% CRIT Rate.']);
+    expect(text('.target > span')).toEqual(['CRIT Rate', '70.0%+', 'you: 62.0%']);
     expect(text('.notes .anotoki-disclosure__button')).toEqual(['Notes']);
     expect(text('footer')).toEqual(['Version 5.2 · Checked 2 hours ago']);
     expect(warn).not.toHaveBeenCalled();
@@ -206,30 +204,37 @@ describe('BuildDetail: a recommended build in the reader’s words, the game’s
     expect(text('h3')).toEqual(['Weapons', 'Artifact sets', 'Main stats', 'Substats: priorita', 'Talents: priorita', 'Cieľové hodnoty']);
     expect(text('.weapons anotoki-badge')).toEqual(['Máš', 'Nasadené']);
     expect(text('.sets .w-text > div:first-child')).toEqual(['4pc Crimson Witch of Flames', '2pc Alpha + 2pc Beta + 2pc ATK +18% set (ľubovoľné 2)']);
-    expect(text('.sets .w-text > .small:not(.note)')).toEqual(['ATK +18% set: vyhovujú 2 sety']);
+    expect(text('.sets .w-text > .small')).toEqual(['ATK +18% set: vyhovujú 2 sety']);
     expect(text('.sets anotoki-badge')).toEqual(['Používaš']);
     expect(tooltips('.check')).toEqual(['Máš: ATK%', 'Main stat sedí s odporúčaním']);
-    expect(text('.target > span')).toEqual(['CRIT Rate', '70.0%+', 'máš: 62.0%', 'At least 70% CRIT Rate.']);
+    expect(text('.target > span')).toEqual(['CRIT Rate', '70.0%+', 'máš: 62.0%']);
     expect(text('.notes .anotoki-disclosure__button')).toEqual(['Poznámky']);
     expect(text('footer')).toEqual(['Verzia 5.2 · Skontrolované pred 2 hodinami']);
     expect(warn).not.toHaveBeenCalled();
   });
 
-  it('shows what the build’s text says as it says it, marked as English while the page is in another language', async () => {
+  it('shows the site’s note in Slovak where an editor wrote it, and in English on an English page', async () => {
     await show('sk', 'genshin', build(), EVALUATION);
 
-    expect(text('.note')).toEqual(['Best in slot.', 'The usual choice.']);
-    expect(langs('.note')).toEqual(['en', 'en']);
-    expect(langs('.t-text')).toEqual(['en']);
-    expect(text('.notes-text')).toEqual(['Keep her HP below half.']);
-    expect(langs('.notes-text')).toEqual(['en']);
-    // Only those: the site's own words are in the page's language.
-    expect(host.querySelectorAll('[lang]')).toHaveLength(4);
+    expect(text('.notes-text')).toEqual(['Drž jej HP pod polovicou.']);
+    // Every word in the page's language: nothing is marked as another.
+    expect(host.querySelectorAll('[lang]')).toHaveLength(0);
 
     await TestBed.inject(TranslationService).setLanguage('en');
     await fixture.whenStable();
+    expect(text('.notes-text')).toEqual(['Keep her HP below half.']);
     expect(host.querySelectorAll('[lang]')).toHaveLength(0);
     expect(text('footer')).toEqual(['Version 5.2 · Checked 2 hours ago']);
+  });
+
+  it('shows a note written in English alone in English, marked as such on a Slovak page; no other text of the build is', async () => {
+    await show('sk', 'genshin', build({ notes: { en: 'Keep her HP below half.' } }), EVALUATION);
+
+    expect(text('.notes-text')).toEqual(['Keep her HP below half.']);
+    expect(langs('.notes-text')).toEqual(['en']);
+    expect(host.querySelectorAll('[lang]')).toHaveLength(1);
+    // The texts the builds file carries but the site no longer shows have no place on the page.
+    expect(host.querySelectorAll('.note, .t-text')).toHaveLength(0);
   });
 
   it('marks a stat target from a constellation with it, in the game’s notation; the builds’ list shows a stat’s every target', async () => {
@@ -238,8 +243,8 @@ describe('BuildDetail: a recommended build in the reader’s words, the game’s
       'genshin',
       build({
         stat_targets: [
-          { stat: 'critRate_', min: 70, max: null, text: '', from_rank: 0 },
-          { stat: 'critRate_', min: 60, max: null, text: '', from_rank: 2 },
+          { stat: 'critRate_', min: 70, max: null, from_rank: 0 },
+          { stat: 'critRate_', min: 60, max: null, from_rank: 2 },
         ],
       }),
     );
@@ -255,9 +260,9 @@ describe('BuildDetail: a recommended build in the reader’s words, the game’s
       'genshin',
       build({
         stat_targets: [
-          { stat: 'enerRech_', min: 260, max: 280, text: '', from_rank: 0 },
-          { stat: 'enerRech_', min: 200, max: 220, text: '', from_rank: 1 },
-          { stat: 'critRate_', min: 70, max: null, text: '', from_rank: 0 },
+          { stat: 'enerRech_', min: 260, max: 280, from_rank: 0 },
+          { stat: 'enerRech_', min: 200, max: 220, from_rank: 1 },
+          { stat: 'critRate_', min: 70, max: null, from_rank: 0 },
         ],
       }),
     );
@@ -273,11 +278,11 @@ describe('BuildDetail: a recommended build in the reader’s words, the game’s
       'genshin',
       build({
         sets: [
-          { rank: 1, kind: 'artifact', choose: 1, pieces: pieces(2), note: null },
-          { rank: 2, kind: 'artifact', choose: 3, pieces: pieces(4), note: null },
-          { rank: 3, kind: 'artifact', choose: 5, pieces: [...pieces(5), many], note: null },
+          { rank: 1, kind: 'artifact', choose: 1, pieces: pieces(2) },
+          { rank: 2, kind: 'artifact', choose: 3, pieces: pieces(4) },
+          { rank: 3, kind: 'artifact', choose: 5, pieces: [...pieces(5), many] },
           // Every piece is needed: nothing to choose.
-          { rank: 4, kind: 'artifact', choose: 2, pieces: pieces(2), note: null },
+          { rank: 4, kind: 'artifact', choose: 2, pieces: pieces(2) },
         ],
       }),
     );
@@ -292,7 +297,7 @@ describe('BuildDetail: a recommended build in the reader’s words, the game’s
       'genshin',
       build({
         weapons: [],
-        sets: [{ rank: 1, kind: 'artifact', choose: null, pieces: [{ label: 'Crimson Witch of Flames', count: 4, keys: ['c'], names: ['Crimson Witch of Flames'] }], note: null }],
+        sets: [{ rank: 1, kind: 'artifact', choose: null, pieces: [{ label: 'Crimson Witch of Flames', count: 4, keys: ['c'], names: ['Crimson Witch of Flames'] }] }],
         substats: [],
         stat_targets: null,
         notes: null,

@@ -190,7 +190,7 @@ function evaluation(id: number, variation: Variation, recommendations: Recommend
     sets: null,
     main_stats: null,
     items: { sands: item('sands') },
-    targets: [{ stat: 'critRate_', min: 70, max: null, text: 'At least 70% CRIT Rate.', current: 62, ok: false }],
+    targets: [{ stat: 'critRate_', min: 70, max: null, current: 62, ok: false }],
     substat_weights: {},
     recommendations,
   };

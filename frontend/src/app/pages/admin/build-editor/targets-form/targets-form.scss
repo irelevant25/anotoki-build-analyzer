@@ -1,0 +1,90 @@
+:host {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.75rem;
+  min-width: 0;
+}
+
+.none,
+.hint {
+  margin: 0;
+}
+
+// The rows are laid out by the room their card gives them, not by the window: the cards stand two to a line on a wide
+// screen.
+.rows {
+  display: flex;
+  flex-direction: column;
+  align-self: stretch;
+  gap: 0.75rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  container-type: inline-size;
+}
+
+// A line between targets.
+.target {
+  min-width: 0;
+  padding-top: 0.75rem;
+  border-top: 1px solid var(--anotoki-border);
+
+  &:first-child {
+    padding-top: 0;
+    border-top: 0;
+  }
+}
+
+// A target: its stat, where it holds from, its two bounds and its buttons - in a narrow card (a phone) the stat a line
+// of its own, then two fields to a line; with more room the stat and where it holds from over the bounds and the
+// buttons; with room enough, all on one line.
+.target-row {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-areas:
+    "stat stat"
+    "from min"
+    "max buttons";
+  align-items: end;
+  gap: 0.5rem 0.75rem;
+  min-width: 0;
+}
+
+.stat {
+  grid-area: stat;
+}
+
+.from {
+  grid-area: from;
+}
+
+.bound-min {
+  grid-area: min;
+}
+
+.bound-max {
+  grid-area: max;
+}
+
+.buttons {
+  grid-area: buttons;
+  justify-self: start;
+  padding-bottom: 0.25rem;
+}
+
+@container (min-width: 30rem) {
+  .target-row {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    grid-template-areas:
+      "stat stat from"
+      "min max buttons";
+  }
+}
+
+@container (min-width: 52rem) {
+  .target-row {
+    grid-template-columns: minmax(0, 2fr) minmax(0, 1.25fr) minmax(0, 1fr) minmax(0, 1fr) auto;
+    grid-template-areas: "stat from min max buttons";
+  }
+}

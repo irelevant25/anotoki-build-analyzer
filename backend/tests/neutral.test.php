@@ -138,6 +138,8 @@ test('what the builds browser, the Builds page and the account pages get names n
         'substats' => Json::encode([]),
         'stat_targets' => Json::encode([['stat' => 'critRate_', 'min' => 60, 'max' => null, 'text' => 'CRIT Rate 60% (Fictional Builds)', 'from_rank' => 0]]),
         'notes' => 'Copied from https://fictional-builds.example/genshin/hu-tao - thanks Fictional Builds!',
+        // The site's own notes, as no editor's save would let them be written: straight into the table.
+        'site_notes' => Json::encode(['build' => ['en' => 'As Fictional Builds says', 'sk' => 'Ako hovorí fictional-builds.example']]),
         'game_version' => '5.4',
         'content_hash' => 'x',
         'checked_at' => $now,
@@ -145,6 +147,11 @@ test('what the builds browser, the Builds page and the account pages get names n
         'created_at' => $now,
         'updated_at' => $now,
     ]);
+    // A file brought it: what the file said of it beside it, as migration 022 wrote it for every build there was.
+    db()->run(
+        "UPDATE builds SET file_build = json_build_object('role', role, 'qualifier', qualifier, 'min_rank', min_rank, 'position', \"position\", 'weapons', weapons, 'sets', sets,
+            'main_stats', main_stats, 'substats', substats, 'talent_priority', talent_priority, 'stat_targets', stat_targets, 'teams', teams, 'notes', notes, 'game_version', game_version)",
+    );
     $account = seedAccount(1, 'genshin', ['uid' => '700000001', 'nickname' => 'Main']);
     db()->insert('import_runs', [
         'user_id' => 1,
@@ -198,9 +205,15 @@ test('what the builds browser, the Builds page and the account pages get names n
     $builds = $admin->get('/api/builds/genshin/hutao');
     assertNeutral($builds, 'a character\'s builds');
     same(
-        ['The source pick', 'Staff of Homa (the source)', 'See the source page'],
-        [$builds->json('builds.0.qualifier'), $builds->json('builds.0.weapons.0.name'), $builds->json('builds.0.sets.0.note')],
+        ['The source pick', 'Staff of Homa (the source)', 'Crimson Witch of Flames (the source)', ['en' => 'As the source says', 'sk' => 'Ako hovorí the source']],
+        [$builds->json('builds.0.qualifier'), $builds->json('builds.0.weapons.0.name'), $builds->json('builds.0.sets.0.pieces.0.label'), $builds->json('builds.0.notes')],
         'its texts, in neutral words',
+    );
+    // The texts the file carries that the site no longer shows are not sent at all.
+    same(
+        [false, false, false],
+        [array_key_exists('note', $builds->json('builds.0.weapons.0')), array_key_exists('note', $builds->json('builds.0.sets.0')), array_key_exists('text', $builds->json('builds.0.stat_targets.0'))],
+        'no weapon\'s or set option\'s note, no target\'s text',
     );
     assertNeutral($admin->get('/api/admin/builds'), 'the Builds page');
     $export = $admin->get('/api/admin/builds/genshin/export');
@@ -223,6 +236,7 @@ test('what the builds browser, the Builds page and the account pages get names n
     assertNeutral($analysis, 'a character\'s analysis');
     $weapon = array_values(array_filter($analysis->json('evaluations.0.recommendations') ?? [], fn(array $r) => ($r['kind'] ?? null) === 'weapon_none'));
     same('Staff of Homa (the source)', $weapon[0]['params']['options'] ?? null, 'the weapon to aim for, neutral: ' . json_encode($analysis->json()));
+    same(['critRate_', false], [$analysis->json('evaluations.0.targets.0.stat'), array_key_exists('text', $analysis->json('evaluations.0.targets.0') ?? [])], 'its target, without the text');
     assertNeutral($admin->get("/api/accounts/{$account}"), 'the account, with its characters\' top issues');
 
     // A builds file that names the site wherever it has text, with a character this catalog lacks named after it:
@@ -280,9 +294,9 @@ test('what the builds browser, the Builds page and the account pages get names n
     $imported = $admin->post('/api/admin/builds/genshin/import', $file);
     assertNeutral($imported, 'an import\'s answer');
     same(
-        [1, 1, 1],
-        [$imported->json('created'), $imported->json('removed'), count($imported->json('skipped'))],
-        'the file\'s build created, the one above removed, the character the catalog lacks skipped',
+        [1, 0, 1, 1],
+        [$imported->json('created'), $imported->json('removed'), count($imported->json('questions')), count($imported->json('skipped'))],
+        'the file\'s build created, the one above kept - it has notes: the import asks, and keeps it unless told -, the character the catalog lacks skipped',
     );
     assertNeutral($admin->get('/api/admin/builds'), 'the Builds page, the import listed');
     assertNeutral($admin->get('/api/builds/genshin/kaedeharakazuha'), 'the build imported');

@@ -3,6 +3,79 @@
 Short records of choices that shape the code. Add a new entry (newest first) when you make a similar call.
 Older entries describe the Laravel version as it was; where a setting has since moved, the entry says so.
 
+**2026-10-22 — Version 0.7.0 (task 9): a builds editor, and imports that keep what editors did.**
+The owner's answers before the plan: a form for every part of a build, drawn with the family's kit; the site's own
+notes in English, Slovak optional, on a build and its teams only (the owner's choice of two: not on each weapon or set
+option); reordering with move up / down buttons, not dragging (the kit has no reorderable list; buttons work by
+keyboard and on a phone). The work goes in steps, each ending with a pause for the owner's word. What the design holds
+to, so no edit and no note is ever lost unasked:
+- **The editors' work is kept beside the file's** (`builds.file_build`, migration 022), and an import compares part by
+  part - not build by build, as the decision of 2026-10-20 first put it: a build whose notes an editor wrote, or whose
+  weapons an editor reordered, takes the file's new substats without a question. It asks once per build only where
+  the file and an edit changed the same part, the edit standing unless the file is chosen - and keeps what the file
+  says beside it either way, so the same file never asks again. The preview names the builds it combined without
+  asking.
+- **An export imported again changes nothing.** Where the file says what the edit says, what the file said before stays
+  beside it, so the edit stays one; a build made here that a file brings as it is stays made here; a removed build is
+  remembered (`build_removals`) and never forgotten by an import, so a later file of the local tools cannot bring it
+  back unasked. (Without these, an export imported again would make the edits the file's, and the next file would
+  take them away silently.)
+- **The plan.** The questions come with a hash of each and of what it is about; an import answering them sends it
+  back and is refused when the questions changed (an edit saved, another import), nothing written. One answering
+  nothing needs none: the defaults lose nothing.
+- **Notes are the site's** (`builds.site_notes`): never in a builds file, never touched by an import; a team's note goes
+  by the team's members, so it survives a reordering and waits, named, when its team goes. The format stays version 3:
+  its note fields and target texts are still read and stored, shown nowhere (the local tools write them empty) - a
+  version 4 would only refuse every older export.
+- **An editor's order is said, not guessed** (`build_orders`): inferred from the builds' places, it was lost unasked
+  in some sequences (a file agreeing with the editor, then the editor reordering again; an export imported again) -
+  the project reviewer's finding. The editor's save writes it; only an editor gives the order back to the file. A
+  build the file drops and the editor keeps goes after the file's builds, as the plan said - the editor can move it
+  up.
+- **A file build's role, qualifier and constellation stay** (its name in the file): to change them, copy the build and
+  delete the original. **Priorities stay numbers** as the file wrote them: the analysis weighs each by its number, so
+  the editor never renumbers them.
+- **A save is a character's builds whole**: the editor sends them all, in their order - one version to check, one
+  transaction under the import's lock, the order and the removals plain from what is sent and what is not. Each build is
+  read by the builds file's own reader (`BuildFile::readEntry()`), so an edit can hold nothing a file could not, and its
+  first problem comes back at its path for the page to say at its field. A text the editor types that names another site
+  is refused, never quietly made neutral as a file's is.
+- **Nobody's name with an edit**: the audit log records who edited what (`builds.edited`), as it records imports -
+  no new column of a person's, nothing new on the legal pages but the audit log's sentence (migration 023, the legal
+  pages' date moved).
+- **The notes in the reader's language, the file's texts nowhere** (step 3): a member reads a note in Slovak where an
+  editor wrote it, else in English marked `lang="en"` (one helper, `core/i18n/site-note.ts`). The texts the builds
+  file still carries - the build's own notes, a weapon's, a set option's and a team's note, a target's text - are sent
+  by no answer any more, the analysis's neither: 0.6.1 kept showing them "when a file has some", but a hand-made or
+  older file could bring a site's sentence back onto the page; the site's own notes took their place.
+- **The editor reads English, as the admin panel** - its words written in its code, as the Builds page's; the bar's
+  Sign out asks about its unsaved changes in English too (one question, the strings' drafts named with them). The one
+  new word a member reads, the staff's Edit builds on a character's builds page, is a key (`buildDetail.edit`).
+- **Unsaved changes live on the page alone** - nothing in the browser's storage (unlike the Translations page's
+  drafts), so nothing new on the legal pages for storage: leaving asks, closing the tab warns (the browser's own
+  question), Sign out asks; once given up, nothing asks again.
+- **The teams' form** (step 6): a team's note stays with its team's card while its members change - the save files it
+  under the members it has then -, rather than moving to "waiting" each time a member is swapped; a team removed with a
+  note asks first, and the note waits for a team of the same members (as a save keeps one whose team is gone). A waiting
+  note stays waiting while the teams are edited, its entry naming the team a save will give it to (exactly its members,
+  no note of its own): taking it the moment a team's members matched - the first way - let it follow that team through
+  later changes onto a team it was not written for (the project's review); it moves to a team only by hand. The build's own character is fixed in every team (no picker, no
+  stand-in, never removed - the builds file's rule), a new team starts with it in the build's role, and a team's name is
+  required (the file's rule too). The teams' card spans the page's width: a member's four controls want it.
+- **The parts' forms** (steps 4 and 5, which the owner let go together): a row whose priority changes moves to its
+  place among the others, ties as they stood - the list stays ordered by priority, as the member pages read it, and no
+  number is ever renumbered; a piece of one set is labelled with the set's name by itself, one of several asks the
+  editor for its words; a new option starts with a 4pc piece, a new piece within one with a 2pc piece (the game's usual
+  shapes); a sword user's weapons picker offers swords until "every type" is ticked; a bound typed that is no number
+  stays as typed and holds the save back rather than becoming something else; a list's rows are tracked by an identity
+  an edit keeps (`rowId()`), so a field keeps its focus while its row changes. After the project's review: the page's
+  own rules that a file's build may break and still be read (a weapon twice, several sets with no label, a target with
+  no bound) are asked only of a part changed on the page - an editor fixing a note is never held back by what the file
+  brought; a part changed back is what was loaded again (`withPart()`), so the Save bar never stands for a change
+  nobody can see (a main stat's slot emptied and listed again comes back last otherwise). After its second look: a
+  part as the file has it (a build brought back, Use the file's) counts as unchanged too, and a build a file brought
+  empty holds no save of its character back (only one changed on the page is asked to be filled).
+
 **2026-10-22 — Version 0.6.1: the owner's look at 0.6.0 (no notes from the sites, every team, a check for "Owned").**
 The owner's round on what 0.6.0 put live, each point the owner's word:
 - **The sites' notes are not shown - not even sent.** A build's notes, a weapon's, a set option's and a team's note,

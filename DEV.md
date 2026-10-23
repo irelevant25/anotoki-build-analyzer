@@ -98,7 +98,8 @@ ran on SQLite is not carried over: import the accounts again, and a builds file;
 | --- | --- |
 | Run everything | the two servers above |
 | Apply new migrations | `backend: php migration.php` (`--status`, `--dry-run`); or "Apply pending" on the Migrations page (`/admin/migrations`, ADMIN) |
-| Import the builds | the Builds page (`/admin/builds`, editors): **Import a file** - a dry run's preview first, then **Import**; the file is the whole truth for its game ([docs/operations.md](docs/operations.md), "Importing builds") |
+| Import the builds | the Builds page (`/admin/builds`, editors): **Import a file** - a dry run's preview first (its questions where the file and a hand edit disagree), then **Import**; the file is the truth for its game, but for what editors did by hand ([docs/operations.md](docs/operations.md), "Importing builds") |
+| Change a character's builds by hand, write the site's notes on them | the Builds page's **Edit builds** (or **Edit builds** on a character's builds page, for an editor): the builds editor, `/admin/builds/genshin/{key}` - **Save** writes the character's builds in one go ([docs/builds.md](docs/builds.md), "The editor") |
 | Save a game's builds as a file, or carry them to another installation | the Builds page: **Export** on one, **Import a file** on the other |
 | Refresh the catalog | the Builds page, **Refresh catalog**; or `backend: php sync-catalog.php [genshin] [--list=characters\|weapons\|sets] [--force]` |
 | Import from the command line | `backend: php import-account.php genshin 700123456 --user=1` or `… genshin path/to/good.json --user=1 --account=3` (`--user`: whose account, an IAM user id - required) |
@@ -207,8 +208,8 @@ never from a local copy. Then run the tests, the production build and the browse
 ## Testing
 
 ```bash
-cd backend && php tests/run.php            # every backend test file: 23 files, 329 tests (or one: php tests/auth.test.php)
-cd frontend && npx ng test --watch=false   # frontend unit tests (Vitest): 45 spec files, 389 tests
+cd backend && php tests/run.php            # every backend test file: 24 files, 364 tests (or one: php tests/auth.test.php)
+cd frontend && npx ng test --watch=false   # frontend unit tests (Vitest): 56 spec files, 497 tests
 cd frontend && npx ng build                # the production build must pass too
 bun run format:check                       # Prettier on every file of both halves, at the root (bun install there first)
 php backend/tools/check-names.php          # from the root: no tracked file names a build site
@@ -234,7 +235,8 @@ The browser check (the `verify-ui` skill) runs the site end to end in headless E
 stand-in IAM, on a throwaway database - nobody, a visitor's import and the move at sign-in, a member's own
 data, a character's variations (the build its constellation does not reach locked), the builds browser's
 filters, an editor and an admin (the Builds page: a game's builds exported and the same file imported again, its
-preview first), the top bar at 360-1280 px in light and dark with a real Tab press, Slovak at
+preview first, a hand edit kept and the question when a file changes the same part; the builds editor: a note in
+English and Slovak, every part's form, a team with its note, read back on the member pages), the top bar at 360-1280 px in light and dark with a real Tab press, Slovak at
 390 px with no key on the page, the account's theme, dates and language saved from the bar to the
 stand-in IAM, the automatic sign-in by the IAM's hint, the screen of a sign-in that failed, the feedback form,
 the People page and the admin tools (light and dark, 1280 and 390 px), Terms, Privacy and Contact from the
@@ -382,6 +384,12 @@ one (the Backups page, "before an update"). `config/*.local.php` and `storage/` 
   **Import a file** with the builds file (a dry run first). Between the Apply and the import the site has no builds,
   for a few minutes. The backups made before this Apply hold Star Rail's data and the old builds: they are read
   offline only, never restored in place. [docs/operations.md](docs/operations.md), "Deploying 0.5.0".
+- **Versions 0.6.0 and 0.6.1: a build's teams** (migrations 020-021; the builds file's format version 3): the release,
+  **Apply pending** at once, then the version 3 builds file imported before the next builds refresh (0.6.1: no
+  migration). [docs/operations.md](docs/operations.md), "Deploying 0.6.0" and "Deploying 0.6.1".
+- **Version 0.7.0: the builds editor** (migrations 022-023): Export each language, upload the release, **Apply
+  pending** at once - no build changes, and nothing is imported again; a note saved to check it is seen by every
+  member at once (a real one, or deleted again). [docs/operations.md](docs/operations.md), "Deploying 0.7.0".
 - **The IAM's sign-in switch** (now the library's `SignInRule`): upload only once the IAM answers
   `https://iam.anotoki.eu/api/public/applications/build-analyzer` with 200 - before that the site requires
   sign-in (fail closed) and turns visitors away. [docs/operations.md](docs/operations.md), "Deploying".

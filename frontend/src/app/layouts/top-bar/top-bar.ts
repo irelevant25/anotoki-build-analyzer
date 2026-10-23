@@ -4,6 +4,7 @@ import { FeedbackUnread } from '@anotoki/lib/admin';
 import { TopBarComponent as FamilyTopBar, TopBarBrand, TopBarLink, TopBarMenuItem, TopBarPerson, TopBarPhoneMark } from '@anotoki/lib/shell';
 import { ConfirmService } from '@anotoki/lib/ui/dialog';
 import { AuthService } from '../../core/auth';
+import { BuildEditorChanges } from '../../core/build-editor-changes';
 import { TranslationKey } from '../../core/i18n/en';
 import { TranslatePipe } from '../../core/i18n/translate';
 import { TranslationService } from '../../core/i18n/translation';
@@ -38,7 +39,7 @@ export const APP_LINKS: readonly BarLink[] = [
  * the error log, the audit log, feedback (with the count of new messages) and backups - are ADMIN's.
  */
 export const ADMIN_LINKS: readonly BarLink[] = [
-  { label: 'Builds', path: '/admin/builds', under: [] },
+  { label: 'Builds', path: '/admin/builds', under: ['/admin/builds/'] },
   { label: 'Translations', path: '/admin/translations', under: [] },
   { label: 'Languages', path: '/admin/languages', under: [], admin: true },
   { label: 'People', path: '/admin/people', under: [], admin: true },
@@ -89,7 +90,7 @@ export const ADMIN_SHORT_BRAND_MAX = 100000;
  *
  * On a phone the count of new feedback is a badge on the menu button in the admin panel. Signing out asks first, in
  * the language on the page (the kit's "Are you sure?"), when the Translations or Languages page holds what was typed
- * and not saved: signed out, it is lost.
+ * and not saved - or the builds editor holds changes not saved (in the admin panel's English): signed out, it is lost.
  *
  * Every member word is a key; under /admin the translation service answers in English (the library's English
  * areas), so the same keys read English there. The family's own words - the role, "Your anotoki account",
@@ -112,6 +113,7 @@ export class TopBar {
   private readonly unread = inject(FeedbackUnread);
   private readonly confirm = inject(ConfirmService);
   private readonly injector = inject(Injector);
+  private readonly editorChanges = inject(BuildEditorChanges);
 
   private readonly bar = viewChild(FamilyTopBar);
 
@@ -221,6 +223,27 @@ export class TopBar {
    */
   protected readonly signOut = async (): Promise<void> => {
     const drafts = await localizationDrafts(this.injector);
+    if (this.editorChanges.unsaved()) {
+      // The builds editor is the admin panel's, which reads English: so are its words. One question for both.
+      this.bar()?.closeMenu(false);
+      const strings = drafts !== null && drafts.count() > 0;
+      const sure = await this.confirm.ask({
+        title: 'Sign out without saving?',
+        message: strings
+          ? 'The builds editor holds changes that are not saved, and so do the Translations or Languages pages. Signed out, they are lost.'
+          : 'The builds editor holds changes that are not saved. Signed out, they are lost.',
+        confirmLabel: 'Sign out anyway',
+        cancelLabel: 'Stay',
+        tone: 'danger',
+      });
+      if (!sure) {
+        return;
+      }
+      this.editorChanges.giveUp();
+      drafts?.clear();
+      await this.auth.logout();
+      return;
+    }
     if (drafts && drafts.count() > 0) {
       // The question stands alone: the menu that asked goes first.
       this.bar()?.closeMenu(false);
