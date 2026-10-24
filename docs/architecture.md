@@ -52,7 +52,7 @@ other anotoki sites (the genshin site, the IAM).
 | Builds | `src/Services/Builds/{BuildFile,BuildImport,BuildImportBusy,BuildFileException}.php`, `src/Repositories/Builds.php`, `src/Models/Build.php`, `api/routes/admin_builds.php`, `api/routes/builds.php` | a game's builds - each a variation of a character's, with the teams it is played in - imported from a file (format version 3) and exported to one on the admin panel's Builds page; the builds browser. See "Main flows" below, [builds.md](builds.md) and [data-model.md](data-model.md) ("Builds", "Builds files") |
 | Analysis | `src/Services/Analysis/*` | by the character's constellation; recommendations are kinds with params (`BuildEvaluator::KINDS`); see "Main flows" below and [analysis.md](analysis.md) |
 | The site's words | anotoki-lib's translations (`Anotoki\Lib\Translations`: `Translations`, `TranslationsRoutes`, `TranslationsCommand`, `KeyScanner`; its migration set `anotoki_translations`) with this site's own in `src/Services/Translations/SiteTranslations.php` (the released languages, `names_another_site`, the key scan's configuration), `api/routes/translations.php`, migrations 003-006 | see "The site's words" below and [data-model.md](data-model.md) |
-| Output | `src/Presenters/*` (accounts, builds, icon addresses), `src/Support/Neutral.php` | what the API sends, in the shapes of `frontend/src/app/core/models.ts` |
+| Output | `src/Presenters/*` (accounts, builds, icon addresses), `src/Support/Neutral.php` | what the API sends, in the shapes of `frontend/src/app/api/models.ts` |
 | Command line | `migration.php`, `sync-catalog.php`, `import-account.php`, `translations.php`, `backup.php` (→ `src/Commands/*`; `translations.php` is anotoki-lib's `TranslationsCommand`, `backup.php` its `BackupsCommand`); `tools/check-names.php` (see "Neutral names") | the same work as the pages (`sync-catalog.php [game] [--list=characters\|weapons\|sets] [--force]`: the catalog, as the Builds page refreshes it); nothing is scheduled |
 | Setup | `setup.php` + `src/Setup/Installer.php` | writes `config/*.local.php`, builds the database; see [operations.md](operations.md) |
 | Deploy | anotoki-deploy (anotoki-lib's), `composer.json`'s `extra["anotoki-deploy"]`, `tools/check-release.mjs` | `dist/frontend/` and `dist/backend/`, a release replaced whole on the host; see DEV.md "Deploying" |
@@ -78,7 +78,7 @@ no default database or IAM to fall back on. The routes that need the newer table
 (`translations_unavailable`, `visitors_unavailable`) as a second line, for whatever reaches them with the
 tables missing.
 
-The frontend (`@anotoki/lib/migrations`, wired in `core/site-status.ts`): `SiteStatus.check()` at the start,
+The frontend (`@anotoki/lib/migrations`, wired in `shared/site-status.ts`): `SiteStatus.check()` at the start,
 beside `/api/meta` (`app.config.ts`); `siteStatusInterceptor` hears any 503 `not_set_up` / `update_pending`;
 `<anotoki-site-gate>` (`app.html`) shows the gate's page instead of the site:
 "The site is being updated" in the reader's language to everybody (a quiet Sign in while nobody is signed in;
@@ -230,7 +230,7 @@ reaches exactly what `requireOwner()` guards - its own accounts and imports, thr
   answers 503 `visitors_unavailable` (a second line) and the clean-up does nothing.
 - `/api/meta` sends `visitors.keep_days` for the page's notice; the People page counts visitors apart and never
   lists them.
-- **In the browser** (`frontend/src/app/core/visitor-key.ts`, see "Frontend"): the key is kept in
+- **In the browser** (`frontend/src/app/shared/visitor-key.ts`, see "Frontend"): the key is kept in
   localStorage `build-analyzer-visitor`, read again for every request, never replaced by a second one, sent only
   on a request issued as a visitor's while the site does not require a sign-in, forgotten on 401
   `visitor_unknown`, and handed to the move once somebody signs in. While the IAM requires sign-in
@@ -295,7 +295,7 @@ The anotoki family's people module and admin tools (anotoki-lib 0.5.0; the owner
 
 The UI names no other website, service or tool - not in labels, links, credits, errors, tooltips or the
 changelog. The one exception is the legal pages (`/terms`, `/privacy`, `/contact`), which name who else handles
-the data, as the law asks: the hosting company WebSupport s.r.o. (`HOSTING` in `core/legal-facts.ts`, its address
+the data, as the law asks: the hosting company WebSupport s.r.o. (`HOSTING` in `sites/main/legal/legal-facts.ts`, its address
 the code's), Cloudflare and Umami (the library's words) - never a build site, a data provider, a tool or the
 showcase service, which they describe without naming. The family's About and Support pages (`/about`, `/support`,
 anotoki-lib 0.8.0: the owner's words, the same on every anotoki site) name and link the anotoki sites and the
@@ -380,7 +380,7 @@ name or address either:
   its notes by `BuildNotes`, under the import's lock (409 `busy`) and against the version loaded (409 `changed`);
   removed builds of the file's remembered, an order of the editor's said (`build_orders`); nothing changed, nothing
   written; audited `builds.edited` in its transaction. The page is `/admin/builds/:game/:key`
-  (`pages/admin/build-editor/`), reached from the Builds page's Edit builds card and from a character's builds page.
+  (`sites/admin/build-editor/`), reached from the Builds page's Edit builds card and from a character's builds page.
 - **Builds export**: `GET /api/admin/builds/{game}/export` → `BuildImport::export()`: the game's builds by
   character key (compared as bytes) and then in each character's order, `BuildFile::entry()` per build - every
   text made neutral within the reader's caps, two qualifiers of a character's that neutral words make alike told
@@ -478,7 +478,7 @@ translations module, since its 0.3.0 - [decisions.md](decisions.md), 2026-10-11)
 pages' grid and languages, the checks of a string, the command line, the frontend's `TranslationService`
 and the admin Translations and Languages pages. One wire format for every anotoki site: the IAM's, snake_case
 (this site's already). What stays this site's own: its keys and their English and Slovak (the migrations, and
-the compiled English in `core/i18n/en/*.json`), its released languages (`SiteTranslations::RELEASED`), its last
+the compiled English in `shared/i18n/en/*.json`), its released languages (`SiteTranslations::RELEASED`), its last
 check (`names_another_site`), who may do what (its role checks on each route group), its error body
 (`{message, code, …}`), its typed keys and pipes, its storage names and the wording tables. The library has
 words of its own under `anotoki.` - its kit's, its shell's (the top bar, its menus, the theme switch, the
@@ -490,7 +490,7 @@ bar took the place of the site's own), each with every rewording.
 - **Keys, not sentences.** A template words a key with the `translate` / `translatePlural` pipes; state holds
   keys, kinds and errors, and a template or a `computed()` words them, so a page follows a change of language
   without reloading. Keys put together at run time come only from the closed lists in
-  `frontend/src/app/core/i18n/dynamic-keys.ts`.
+  `frontend/src/app/shared/i18n/dynamic-keys.ts`.
 - **What the server says to a member is a kind with params**: recommendations (`BuildEvaluator::KINDS` →
   `recommendation-words.ts`), import errors and warnings (`ImportKinds` → `import-words.ts`), and a failed
   request's `code` (`error-text.ts`, which never shows the server's sentence to a member). The English beside
@@ -499,9 +499,9 @@ bar took the place of the site's own), each with every rewording.
 - **Game terms stay as the game writes them** in every language: stat, slot, talent, set, weapon and
   character names, "Lv.", "4pc", UID, grades, and the game's notation ("62.4%", "R1"). They are never keys;
   they reach a sentence as a `{placeholder}` or stand before a colon, so no Slovak word agrees with one
-  (`core/game-terms.ts`, `shared/build-terms.ts`, and what `/api/meta` sends).
+  (`sites/main/common/game-terms.ts`, `sites/main/common/build-terms.ts`, and what `/api/meta` sends).
 - **The fallbacks**: the server merges English under every bundle; a key the database lacks shows as the key,
-  on purpose. The compiled English (`core/i18n/en.ts` and its parts `en/*.json`) is the list of keys (an
+  on purpose. The compiled English (`shared/i18n/en.ts` and its parts `en/*.json`) is the list of keys (an
   unknown key is a compile error: `TranslationKey`, through this site's typed view of the library's service
   and its typed `translate` / `translatePlural` pipes) and the last resort (the library's `fallbackEnglish`):
   it is shown only while no bundle is in memory - before migration 003 is applied (every translation route
@@ -510,7 +510,7 @@ bar took the place of the site's own), each with every rewording.
   library's built-in words.
 - **The language**: `?lang=` (kept for the tab), the menu's remembered choice, the IAM token's `locale`, the
   browser's languages (Czech readers get Slovak while no Czech is offered), else English (the library's
-  `TranslationService`, set up for this site in `core/i18n/translations.config.ts`, with the storage names this
+  `TranslationService`, set up for this site in `shared/i18n/translations.config.ts`, with the storage names this
   site always had). The last bundle is kept in the browser, so a returning reader starts in their language;
   a first visit whose answer is lost asks once more after half a second. `<html lang>` and the page titles
   (`title-strategy.ts`) follow it; dates and numbers use `Intl` (`localDate`).
@@ -523,8 +523,8 @@ bar took the place of the site's own), each with every rewording.
   `invalid_request` - stays this site's own for the visit, silently; any other refusal keeps it for the visit
   and the bar's language switcher says so under itself, `anotoki.language.notSaved`). The theme is the
   account's on every page, the admin panel included
-  (`core/shell.ts`, below). Dates follow the account's date order and clock where it has chosen them
-  (`core/i18n/date-patterns.ts`): What's new's days (`localDate: 'day'`), and in the admin panel when a
+  (`shared/shell.ts`, below). Dates follow the account's date order and clock where it has chosen them
+  (`shared/i18n/date-patterns.ts`): What's new's days (`localDate: 'day'`), and in the admin panel when a
   migration was applied and, on the Builds page, when a builds file was made; relative times ("3 hours ago")
   have neither and read the same for everybody. A visitor, and anybody signed in at an IAM before 015 (no
   `preferences`), keeps this device's choices exactly as before, and nothing is saved anywhere else.
@@ -534,7 +534,7 @@ bar took the place of the site's own), each with every rewording.
   (`errorMessage()`).
 - **The Translations and Languages pages** (editors; adding, renaming, switching and deleting a language:
   admins) are the anotoki family's (`@anotoki/lib/translations/admin`, a lazy entry point of their own), drawn
-  with the library's kit in the admin panel's frame (`pages/admin/translations`, `pages/admin/languages`), so
+  with the library's kit in the admin panel's frame (`sites/admin/translations`, `sites/admin/languages`), so
   every anotoki site's read alike. Translations is a grid of every key with its description and a box per
   language - coverage per language, a search, "Missing in X", plural families as one block - saved together
   (`PUT /api/admin/translations`, only the changed boxes, checked whole and written in one transaction), plus
@@ -542,7 +542,7 @@ bar took the place of the site's own), each with every rewording.
   and deletes languages (English never, Slovak - released with the site - never; a delete offers the
   language's strings as a file first); a new language starts hidden, so its strings can be written before
   readers are offered it. What neither page has saved is kept for the tab (the library's `LocalizationDrafts`,
-  in `sessionStorage` under `build-analyzer-localization-drafts`, per person; `core/localization-drafts.ts`
+  in `sessionStorage` under `build-analyzer-localization-drafts`, per person; `shared/localization-drafts.ts`
   reaches them from outside the pages without loading them: the bar's "Sign out without your latest
   changes?", and a page load's drafts armed before either page is opened), leaving inside the app asks first
   (the library's `anotokiUnsavedChangesGuard`, asking the page), and closing the tab asks the browser's question.
@@ -618,13 +618,19 @@ again). The Migrations page's API answers its own: 404 `not_found` (a file that 
 
 ## Frontend (`frontend/`, Angular 21 on the anotoki family's kit)
 
-- `core/api.ts` typed client (`API_BASE = '/api'`, same origin) + `errorMessage()`; `core/models.ts` mirrors the
-  API responses (keep in step with the presenters); `core/meta-store.ts` loads `/api/meta` at startup (labels,
-  formatting, sign-in settings); `core/site-status.ts` wires the family's site gate and Migrations page
+- The folders are the anotoki family's, the genshin site's (the owner's decision of 2026-10-24; decisions.md):
+  under `src/app/`, `api/` is the API layer, `shared/` what both halves use, `sites/main/` everybody's pages (with
+  their frame, `app-layout/`, the legal pages' `legal/` and what only they share, `common/`) and `sites/admin/` the
+  admin panel (its frame, `admin-layout/`, and a folder per page). Each half keeps its routes - `main.routes.ts`,
+  `admin.routes.ts` - and `app.routes.ts` spreads them into one list, `/admin` first; neither is a `loadChildren`
+  of its own, so the first load holds what it always held. The top bar is in `shared/` while both frames draw it.
+- `api/api.ts` typed client (`API_BASE = '/api'`, same origin) + `errorMessage()`; `api/models.ts` mirrors the
+  API responses (keep in step with the presenters); `shared/meta-store.ts` loads `/api/meta` at startup (labels,
+  formatting, sign-in settings); `shared/site-status.ts` wires the family's site gate and Migrations page
   (`@anotoki/lib/migrations`; the page itself from `@anotoki/lib/migrations/page`) to this site - see "The site
-  gate" above; `core/format.ts` the games (`GAMES`, `GAME_LABELS`: Genshin Impact alone, `GameKey` `'genshin'`
-  in `core/models.ts`), colors and time helpers; `core/changelog.ts` loads `public/changelog.json` (the version shown in the footer, and
-  "What's new" once per release per browser); `core/shell.ts` (`provideShell()`: the family's shell,
+  gate" above; `shared/format.ts` the games (`GAMES`, `GAME_LABELS`: Genshin Impact alone, `GameKey` `'genshin'`
+  in `api/models.ts`), colors and time helpers; `shared/changelog.ts` loads `public/changelog.json` (the version shown in the footer, and
+  "What's new" once per release per browser); `shared/shell.ts` (`provideShell()`: the family's shell,
   `@anotoki/lib/shell`, set up for this site - its `ThemeService`: light, dark or automatic (the device's),
   drawn on `<html data-theme>` and kept in localStorage `build-analyzer-theme` (nothing for automatic), where
   the kit's `theme-boot.js` - `index.html`, copied by `angular.json`'s assets - reads it before the first paint;
@@ -632,8 +638,8 @@ again). The Migrations page's API answers its own: 404 `not_found` (a file that 
   changes, and the bar's switch saves to it: shown at once, one save at a time with the latest choice last,
   never flicking back while its own save is on its way, and a refusal puts the account's theme back with a note
   under the switch, `anotoki.theme.notSaved`; and the bar's languages, `TranslationService.forShell()`);
-  `core/kit.ts` (`provideKit()`: the kit's words in the language on the page - `forKit()` - and the icons the
-  site names beyond the kit's own, `core/icons.ts`). `core/i18n/date-patterns.ts`: the
+  `shared/kit.ts` (`provideKit()`: the kit's words in the language on the page - `forKit()` - and the icons the
+  site names beyond the kit's own, `shared/icons.ts`). `shared/i18n/date-patterns.ts`: the
   account's four date orders and two clocks, as the IAM writes them, and `chosenMoment()` for a day with its
   time (each part the account's where chosen, the page's own where not; all the page's own when neither is).
 - Sign-in, through the anotoki IAM only - the anotoki family's auth module (`@anotoki/lib/auth`, set up in
@@ -642,12 +648,12 @@ again). The Migrations page's API answers its own: 404 `not_found` (a file that 
   failure route `/sign-in`; an editor sent from an ADMIN page to `/admin/builds`). `AnotokiAuth` (the IAM's
   client, the tokens in localStorage under `anotoki-auth:build-analyzer` as the IAM's SDK kept them, the
   callback, following the IAM, and the sign-in hint's one silent hop for a visitor signed in at the IAM) is seen
-  by the pages through `core/auth.ts` (`AuthService`, a facade under the names they always used:
+  by the pages through `shared/auth.ts` (`AuthService`, a facade under the names they always used:
   `available`, `loginRequired`, `user`, `signedIn`, `roles`, `isStaff` (EDITOR or ADMIN), `isAdmin`,
   `displayName`, `preferences` - the account's theme, date order and clock, null for a visitor or an IAM before
-  its migration 015 -, `failure`, `accountUrl`; `login()`, `logout()`, `savePreferences()`). `core/sign-in.ts` (`signInOrSayWhy()`: every Sign in button -
+  its migration 015 -, `failure`, `accountUrl`; `login()`, `logout()`, `savePreferences()`). `shared/sign-in.ts` (`signInOrSayWhy()`: every Sign in button -
   and the failure's screen when the sign-in cannot start). The guards are the family's: `sitePagesGuard`
-  (`core/auth.guards.ts`) on every child of the AppLayout is `personOrVisitorGuard` - a visitor passes while
+  (`shared/auth.guards.ts`) on every child of the AppLayout is `personOrVisitorGuard` - a visitor passes while
   the IAM lets visitors in; while it requires a sign-in somebody not signed in goes to the IAM and back - plus
   this site's one rule: a sign-in this page load came back without (or that could not start) is said once on
   `/sign-in`, to a visitor too; `personGuard` on `/admin` (anybody not signed in, a visitor too, goes to the
@@ -672,8 +678,8 @@ again). The Migrations page's API answers its own: 404 `not_found` (a file that 
   sent (only while it is the one held) and tries once more; a 401 `sign_in_required` says the site requires a
   sign-in now (the key stays). The move (`Api.moveVisitor()`, a person's, marked `CARRIES_VISITOR_KEY`) is the
   one request with the token and the key. Every write is counted while it is on its way (`SavesInFlight`).
-- `core/visitor-key.ts` (`VisitorKey`, root): the key in localStorage `build-analyzer-visitor` through the
-  never-throwing helpers of `core/storage.ts` (in memory when storage refuses), kept in step across tabs by the
+- `shared/visitor-key.ts` (`VisitorKey`, root): the key in localStorage `build-analyzer-visitor` through the
+  never-throwing helpers of `shared/storage.ts` (in memory when storage refuses), kept in step across tabs by the
   `storage` event and read again at send time; `key`, `active` (not signed in, sign-in not required, a key
   held), `lost` (forgotten on `visitor_unknown`: the dashboard says so once), `moves` (a counter the pages that list accounts reload on),
   `moved` (what the last move did, for the shell's toast - `visitor.moved` / `visitor.kept`). Its effect on
@@ -684,11 +690,11 @@ again). The Migrations page's API answers its own: 404 `not_found` (a file that 
   and asks again after the answer's Retry-After (else 2, 10, 30 s - `MOVE_RETRY_MS`), then at the next page
   load; a 401 keeps it for the next sign-in. The app initializer injects it right after the start, so the
   effect exists before the sign-in settles.
-- `core/sign-in-kind.ts` (`SignInKind`, root): how the present sign-in began, `silent` or `clicked`, noted from
+- `shared/sign-in-kind.ts` (`SignInKind`, root): how the present sign-in began, `silent` or `clicked`, noted from
   the auth module's client's own init() (its callback's `silent`) - the client factory provided as
   `ANOTOKI_AUTH_CLIENT_FACTORY` in `app.config.ts` wraps the library's `createAuthClient` - and kept in
   localStorage `build-analyzer-sign-in` for the page loads that restore the session; none noted: clicked.
-- `core/query-filters.ts` (`bindQueryFilters()`, called from a list page's constructor): a list page's filters
+- `sites/main/common/query-filters.ts` (`bindQueryFilters()`, called from a list page's constructor): a list page's filters
   kept in the address, both ways - the builds browser's, as genshin.anotoki.eu keeps its lists'. Each filter is a
   signal and the value it holds while nothing is chosen (`''` for a text field or a select's "Any", `'all'` for a
   segmented control's "All"), which leaves its parameter out of the address; the address seeds the signals before
@@ -697,7 +703,7 @@ again). The Migrations page's API answers its own: 404 `not_found` (a file that 
   Back, and another parameter of the address is not the filters' to drop. A filtered list is a place: coming back
   from a character finds it as it was left, and its address is worth sending to somebody; nothing is remembered
   in the browser.
-- `core/i18n/` (see "The site's words" above): `translation.ts` (`TranslationService`: anotoki-lib's service -
+- `shared/i18n/` (see "The site's words" above): `translation.ts` (`TranslationService`: anotoki-lib's service -
   the language, the bundle, `init()` from the app initializer, the English pages - under its own token, typed
   with this site's keys: `WordKey` = `TranslationKey` | the library's `LibraryKey`), `translations.config.ts`
   (`provideTranslations()`: the library set up for this site - its storage names `LANGUAGE_STORAGE`, the
@@ -711,30 +717,30 @@ again). The Migrations page's API answers its own: 404 `not_found` (a file that 
   `rankMark()`, "C2+", for a stat target from a constellation too), `title-strategy.ts` (`AppTitleStrategy`: a
   member route's `title` is a key; it tells the service where the page is, `noteAddress()`). The specs take the library's
   stand-in, `@anotoki/lib/translations/testing`. The kit's words (`provideAnotokiUi(... forKit())` in
-  `app.config.ts`) and the status page's (`siteStatusWords()`, `core/site-status.ts`) are the database's too.
-  The game's own words: `core/game-terms.ts`, `shared/build-terms.ts`.
+  `app.config.ts`) and the status page's (`siteStatusWords()`, `shared/site-status.ts`) are the database's too.
+  The game's own words: `sites/main/common/game-terms.ts`, `sites/main/common/build-terms.ts`.
 - The admin panel (`/admin/...`, English with `lang="en"`; `/admin` itself goes to Builds; the old `/sources`
   and `/admin/sources` - the Sources page's addresses, before the builds came in files - go to the Builds page,
-  the old `/translations` and `/languages` to theirs): `layouts/admin-layout/` (`AdminLayout`: for staff the
+  the old `/translations` and `/languages` to theirs): `sites/admin/admin-layout/` (`AdminLayout`: for staff the
   area's sections - Builds and Translations for an editor; Languages, People, Migrations, Errors, Audit, Feedback
   (with the count of new messages, the family's `FeedbackUnread`, asked once the ADMIN is in the panel) and
   Backups too for the ADMIN - and the page; for somebody whose session ended with an admin page open "You are
   signed out", with a Sign in button; for somebody without a role "This part is for editors and admins"), under
   the top bar with the area's sections as its links and the footer. The frontend only hides: the server refuses
   (403 `editor_only` / `admin_only`); and the admin panel's requests are a person's alone, also those the
-  library's pages make themselves. `pages/admin/builds` and `pages/admin/build-editor` (a character's builds editor,
-  `/admin/builds/:game/:key`: its route's `anotokiUnsavedChangesGuard` asks the page, and `core/build-editor-changes.ts`
+  library's pages make themselves. `sites/admin/builds` and `sites/admin/build-editor` (a character's builds editor,
+  `/admin/builds/:game/:key`: its route's `anotokiUnsavedChangesGuard` asks the page, and `shared/build-editor-changes.ts`
   tells the bar's Sign out it holds changes - one question with the drafts below, in the panel's English) are the
-  site's own (below, `pages/`);
-  `pages/admin/{translations,languages,migrations}` hold the anotoki family's pages in the panel's `.page` (each
+  site's own (below, "The pages");
+  `sites/admin/{translations,languages,migrations}` hold the anotoki family's pages in the panel's `.page` (each
   from its own lazy entry point); the People page and the admin tools are routed straight from theirs
   (`@anotoki/lib/people/page`, `@anotoki/lib/admin/errors`, `/audit`, `/feedback`, `/backups`, set up in
   `app.config.ts`: `provideAnotokiPeople()`, `provideAnotokiAdmin()`), the panel's frame given them by
   `styles.scss`. Translations and Languages answer the route's `anotokiUnsavedChangesGuard` by asking the
-  library's page. `core/localization-drafts.ts` reaches the library's `LocalizationDrafts` (what those pages
+  library's page. `shared/localization-drafts.ts` reaches the library's `LocalizationDrafts` (what those pages
   have not saved, for the tab and the IAM person who typed it, and the one `beforeunload` question) only when
   the tab holds some; the sign-out's question about them is the kit's `ConfirmService`.
-- Feedback (`core/feedback.ts`: `provideFeedback()`, the family's form set up for this site - the language on the
+- Feedback (`shared/feedback.ts`: `provideFeedback()`, the family's form set up for this site - the language on the
   page, the four places `FEEDBACK_SECTIONS` with the server's names, the person's address written in): the
   family's footer opens it in the kit's dialog, named by its button, loaded with the first press - as the Contact
   page does. Both only while a message can be sent (`feedbackOffered()`): the form says its message is anybody's
@@ -755,11 +761,11 @@ again). The Migrations page's API answers its own: 404 `not_found` (a file that 
   `app.ts` itself holds it back while `SiteStatus.blocked()`), the move's toast, and the kit's one question
   host and toast host (`<anotoki-confirm-host>`, `<anotoki-toast-host>` in `app.html`). Two layouts draw the
   rest, each in the family's frame (`<anotoki-shell>`: the bar, the page, the footer):
-  `layouts/app-layout/` (every page outside `/admin`: `<app-top-bar area="app">`, the page, the footer) and
-  `layouts/admin-layout/` (`area="admin"`, `lang="en"`). The footer is the family's (`<anotoki-site-footer>`,
+  `sites/main/app-layout/` (every page outside `/admin`: `<app-top-bar area="app">`, the page, the footer) and
+  `sites/admin/admin-layout/` (`area="admin"`, `lang="en"`). The footer is the family's (`<anotoki-site-footer>`,
   `@anotoki/lib/footer` - since anotoki-lib 0.6.3 the library's copy of this site's own): "v0.4.0 · What's new ·
   Feedback" (a screen reader hears "Version 0.4.0", the library's `anotoki.footer.version`) - the version the newest
-  entry of `public/changelog.json` (`core/changelog.ts`), What's new this
+  entry of `public/changelog.json` (`shared/changelog.ts`), What's new this
   site's own dialog (`(whatsNew)`), Feedback while a message can be sent - then About · Support · Terms · Privacy ·
   Contact and the fan clause (`fan="hoyoverse"`), in the library's words (`anotoki.footer.*`). What's new opens by
   itself with the releases after the one this browser saw last (`build-analyzer-version-seen`), compared by their numbers
@@ -767,12 +773,12 @@ again). The Migrations page's API answers its own: 404 `not_found` (a file that 
   three numbers, is 0.3.0).
 - The legal pages (anotoki-lib 0.6's `@anotoki/lib/legal` and `/legal/pages`; the owner's decisions of
   2026-10-13): Terms, Privacy and Contact on `/terms`, `/privacy`, `/contact`, each a lazy route of its own whose
-  parent is `layouts/legal-layout/` - everybody's pages' frame (`<app-app-layout>`, whose router outlet draws the
+  parent is `sites/main/legal/legal-layout/` - everybody's pages' frame (`<app-app-layout>`, whose router outlet draws the
   page) giving the pages this site's facts, so the facts and their code load with the pages, out of the first
-  load. No guard: anybody may read them, also while the IAM requires signing in here. `core/legal.ts`
+  load. No guard: anybody may read them, also while the IAM requires signing in here. `shared/legal.ts`
   (`provideLegal()`): the page's language, the database's words - the library's, the fan clause too, which names
   Genshin Impact, the one game here since 0.5.0 (the site's own `legal.fanClause`, which named both games, went
-  with migration 015). `core/legal-facts.ts` (`siteLegalFacts()`): what
+  with migration 015). `sites/main/legal/legal-facts.ts` (`siteLegalFacts()`): what
   the site keeps, what for and how long, its cookies and stored items by name, who else handles data (the hosting
   company, Cloudflare, the public showcase service a UID import asks - described, never named), the anotoki
   account's pages at the IAM's address `/api/meta` names - each fact with the code it rests on in its comment;
@@ -782,7 +788,7 @@ again). The Migrations page's API answers its own: 404 `not_found` (a file that 
   their words are the library's (`anotoki.about.*`, `anotoki.support.*`, its `anotoki_translations/013`), their
   tabs' titles its keys `anotoki.about.title` and `anotoki.support.title`, every address they link the library's
   code.
-- The top bar (`layouts/top-bar/`) is the anotoki family's own, `<anotoki-top-bar>` from `@anotoki/lib/shell`
+- The top bar (`shared/top-bar/`) is the anotoki family's own, `<anotoki-top-bar>` from `@anotoki/lib/shell`
   (since 0.4.0; before, a copy of it built from Angular Material's pieces), told what is this site's: the brand
   (the anotoki mark, "anotoki" and `brand.area`; on a phone and in the admin panel the family's short form,
   `brand.short`, with `brand.admin` under it there - the whole wordmark does not fit beside nine sections - and
@@ -809,56 +815,57 @@ again). The Migrations page's API answers its own: 404 `not_found` (a file that 
   sync a tab drove went with the syncs). Every member word is a key - the site's (`brand.*`, `topbar.*`) and the
   library's (`anotoki.topbar.*`, `anotoki.theme.*`, `anotoki.language.*`, which 006 and 010 gave the site's own
   wording); under `/admin` the translation service answers in English, so the same keys read English there.
-- `shared/`: `build-detail` (renders a build, optionally annotated with an evaluation: its weapons and sets in
-  order of rank, main stats, substats - "not listed for this build" with what the analysis goes by when it lists
-  none -, talents, stat targets, a target from a constellation marked "C2+", its teams, its notes in the kit's
-  disclosure, when the file that last brought it was made; a set option's pictures two at most, in a column of one
-  width, none for a piece any of several sets fills), `build-teams` (a build's teams - each under its name, members
-  side by side on a phone too, 64 px portraits, names broken between their words, their roles, a constellation a team
-  asks, the stand-ins' line built from `buildDetail.teamAlternatives` with every text in an element of its own; a
-  teammate with builds a link to them; each team's note titled with its name, `buildDetail.teamNotes`; given the
-  account's `owned_teammates`, a check on the members and stand-ins it has - heard "Owned" -, a member also "needs
-  C2", linked to its own analysis where the account has it as it is), `item-card`, `grade-badge`, `score-bar`,
-  `char-avatar` (`app-avatar`: 24, 32, 48, 64 or 88 px - `xs` to `xl`), `changelog-dialog`,
-  `stat-pipes` (`statLabel`, `statValue`, `slotLabel`, `timeAgo`), `visitor-notice/` (for somebody not signed
-  in: kept for this browser on the server for `visitors.keep_days` days after the last visit, signing in keeps
-  it - with a Sign in button), `visitor-hero/` (nobody's ways in: import, each game's builds, sign in),
-  `data-card/` ("Your data", signed in only: Export downloads `GET /api/me/export` under the server's name;
-  Import refuses a file over 8 MB before sending, sends its text unchanged as a dry run - the preview: added,
-  replaced by a newer copy, kept, entries left out, each account's outcome - and Confirm sends it for real; the
-  file's problems are worded from `data.error.<code>` with their params, anything else as a failed request).
-  `core/download.ts` (`downloadName()`, `saveFile()`) saves a file the API sent, for the card and the admin pages.
-- `pages/`: every page outside `/admin` is open to everybody. `dashboard` - three states: nobody (no token, no
-  key: `visitor-hero`, no request for anybody's accounts), a visitor (the accounts under the visitor notice),
-  signed in (the accounts and the data card) - and in each the builds part (`GET /api/builds`: for how many
-  characters each game has builds and when they were brought up to date; for staff a link to the admin panel's
-  Builds page); it loads the accounts again when the state changes and after a move. `import` (wizard +
-  `import-guides.ts`, whose texts are keys; four steps - the game is Genshin Impact, no step asks for it; the
-  notice for somebody not signed in; nobody's wizard asks for no accounts), `account` (each character's best
-  build, as its variation reads; its import history wraps a row under 600 px, so the last column is never cut)
-  and `character` (a tab per build, named by its variation, its score the kit's badge, the closest build marked,
-  a build the character's constellation does not reach locked and said so, "needs C4"; the notice for a visitor;
-  on a 401 for somebody not signed in, `visitor-hero` instead of an error), `builds` (the builds browser on
-  `/builds/genshin`, no game switch: each character a link card with its builds' roles, the newest release first;
-  above them the filters - the name; the element, the weapon type and the rarity, each the kit's segmented
-  control, All first and then what the characters here have, an element's colour mark before its name; the
-  region and the version the character came with, each the kit's select, the versions newest first with their
-  names, "6.1 (Luna II)"; Reset; "Showing N of M", read out as it changes - kept in the address,
-  `core/query-filters.ts`; per character: its builds in their order; the admin panel's Builds page a link for
-  staff, its name alone for anybody else), `admin/builds` (staff: per game the counts, when the newest file was
-  made and when a build last changed, Export, Import - `build-file.ts` checks a chosen file before anything is
-  sent, then the server's dry run is the preview: the counts, the characters skipped, the changes in the kit's
-  disclosure and a warning when the file is older than the one the builds came from, then Import or Cancel -,
-  the recent imports with who made each, and the catalog card: each list's entries and when it was refreshed,
-  Refresh catalog running the three lists one after another with the kit's progress bar, a list's last failure
-  in a warning), `admin/translations` (staff), `admin/languages` and `admin/people` (admin: everybody who
-  signed in, what they keep, Delete their data after a confirmation; visitors only counted), `admin/migrations`
+- `sites/main/common/`, what everybody's pages share: `build-detail` (renders a build, optionally annotated with an
+  evaluation: its weapons and sets in order of rank, main stats, substats - "not listed for this build" with what
+  the analysis goes by when it lists none -, talents, stat targets, a target from a constellation marked "C2+", its
+  teams, its notes in the kit's disclosure, when the file that last brought it was made; a set option's pictures two
+  at most, in a column of one width, none for a piece any of several sets fills), `build-teams` (a build's teams -
+  each under its name, members side by side on a phone too, 64 px portraits, names broken between their words, their
+  roles, a constellation a team asks, the stand-ins' line built from `buildDetail.teamAlternatives` with every text
+  in an element of its own; a teammate with builds a link to them; each team's note titled with its name,
+  `buildDetail.teamNotes`; given the account's `owned_teammates`, a check on the members and stand-ins it has -
+  heard "Owned" -, a member also "needs C2", linked to its own analysis where the account has it as it is),
+  `item-card`, `grade-badge`, `score-bar`, `visitor-notice/` (for somebody not signed in: kept for this browser on
+  the server for `visitors.keep_days` days after the last visit, signing in keeps it - with a Sign in button),
+  `visitor-hero/` (nobody's ways in: import, each game's builds, sign in), `data-card/` ("Your data", signed in
+  only: Export downloads `GET /api/me/export` under the server's name; Import refuses a file over 8 MB before
+  sending, sends its text unchanged as a dry run - the preview: added, replaced by a newer copy, kept, entries left
+  out, each account's outcome - and Confirm sends it for real; the file's problems are worded from
+  `data.error.<code>` with their params, anything else as a failed request). In `shared/`, as the admin panel's
+  pages use them too: `char-avatar` (`app-avatar`: 24, 32, 48, 64 or 88 px - `xs` to `xl`), `changelog-dialog`,
+  `stat-pipes` (`statLabel`, `statValue`, `slotLabel`, `timeAgo`) and `download.ts` (`downloadName()`,
+  `saveFile()`), which saves a file the API sent, for the card and the admin pages.
+- The pages, a folder each in their half: in `sites/main/`, every page outside `/admin`, open to everybody.
+  `dashboard` - three states: nobody (no token, no key: `visitor-hero`, no request for anybody's accounts), a
+  visitor (the accounts under the visitor notice), signed in (the accounts and the data card) - and in each the
+  builds part (`GET /api/builds`: for how many characters each game has builds and when they were brought up to
+  date; for staff a link to the admin panel's Builds page); it loads the accounts again when the state changes and
+  after a move. `import` (wizard + `import-guides.ts`, whose texts are keys; four steps - the game is Genshin
+  Impact, no step asks for it; the notice for somebody not signed in; nobody's wizard asks for no accounts),
+  `account` (each character's best build, as its variation reads; its import history wraps a row under 600 px, so
+  the last column is never cut) and `character` (a tab per build, named by its variation, its score the kit's badge,
+  the closest build marked, a build the character's constellation does not reach locked and said so, "needs C4"; the
+  notice for a visitor; on a 401 for somebody not signed in, `visitor-hero` instead of an error), `builds` (the
+  builds browser on `/builds/genshin`, no game switch: each character a link card with its builds' roles, the newest
+  release first; above them the filters - the name; the element, the weapon type and the rarity, each the kit's
+  segmented control, All first and then what the characters here have, an element's colour mark before its name; the
+  region and the version the character came with, each the kit's select, the versions newest first with their names,
+  "6.1 (Luna II)"; Reset; "Showing N of M", read out as it changes - kept in the address,
+  `sites/main/common/query-filters.ts`; per character: its builds in their order; the admin panel's Builds page a
+  link for staff, its name alone for anybody else); in `sites/admin/`, `builds` (staff: per game the counts, when
+  the newest file was made and when a build last changed, Export, Import - `build-file.ts` checks a chosen file
+  before anything is sent, then the server's dry run is the preview: the counts, the characters skipped, the changes
+  in the kit's disclosure and a warning when the file is older than the one the builds came from, then Import or
+  Cancel -, the recent imports with who made each, and the catalog card: each list's entries and when it was
+  refreshed, Refresh catalog running the three lists one after another with the kit's progress bar, a list's last
+  failure in a warning), `translations` (staff), `languages` and the People page, `/admin/people` (admin: everybody
+  who signed in, what they keep, Delete their data after a confirmation; visitors only counted), `migrations`
   (admin: the family's `<anotoki-migrations-page>` in the panel's `.page` - Pending in the order they will run,
-  Applied with their dates in the account's order and clock and each file's SQL, Apply pending after a
-  confirmation, and after it "Up to date", "There was nothing to apply" or "Stopped at <file>" with what was
-  applied first and the database's error; once nothing is left the site opens again in the tab and the strings
-  are read again), `sign-in`. Lazy-loaded
-  from `app.routes.ts`; route params arrive as signal inputs (`withComponentInputBinding`).
+  Applied with their dates in the account's order and clock and each file's SQL, Apply pending after a confirmation,
+  and after it "Up to date", "There was nothing to apply" or "Stopped at <file>" with what was applied first and the
+  database's error; once nothing is left the site opens again in the tab and the strings are read again); and
+  `/sign-in`, the library's. Lazy-loaded from `sites/main/main.routes.ts` and `sites/admin/admin.routes.ts` (both
+  spread into `app.routes.ts`); route params arrive as signal inputs (`withComponentInputBinding`).
 - Conventions: standalone components, always three files (`.ts`, `.html`, `.scss`), signals (`signal`,
   `computed`, `input`), `inject()`, built-in control flow (`@if`, `@for`, `@let`), zoneless change detection.
   The look is the anotoki family's kit, as on every anotoki site (no Angular Material, no CDK since 0.4.0 -

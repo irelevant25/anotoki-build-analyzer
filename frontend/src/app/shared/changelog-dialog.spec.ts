@@ -2,12 +2,12 @@ import { ApplicationRef } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
 import { provideTestTranslations } from '@anotoki/lib/translations/testing';
 import { AnotokiDialog, AnotokiDialogRef } from '@anotoki/lib/ui/dialog';
-import { AuthService } from '../core/auth';
-import type { ChangelogEntry } from '../core/changelog';
-import { en } from '../core/i18n/en';
-import { TranslationService } from '../core/i18n/translation';
+import { AuthService } from './auth';
+import type { ChangelogEntry } from './changelog';
+import { en } from './i18n/en';
+import { TranslationService } from './i18n/translation';
 import { ChangelogDialog } from './changelog-dialog';
-import { provideKit } from '../core/kit';
+import { provideKit } from './kit';
 
 const ENTRIES: ChangelogEntry[] = [
   { version: '1.2', date: '2026-11-01', changes: { added: ['A new page', 'A second thing'], fixed: ['A fixed thing'] } },

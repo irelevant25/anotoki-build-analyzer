@@ -9,7 +9,7 @@ use App\Support\Clock;
 use App\Support\Neutral;
 
 /**
- * Accounts and their imports as the API sends them (mirrored in frontend/src/app/core/models.ts).
+ * Accounts and their imports as the API sends them (mirrored in frontend/src/app/api/models.ts).
  */
 final class AccountPresenter
 {

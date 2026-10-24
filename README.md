@@ -52,7 +52,7 @@ Setting it up, running, testing, building and deploying: **[DEV.md](DEV.md)**.
 - **About, Support, Terms, Privacy and Contact**: the anotoki family's pages, linked at the foot of every page
   above the fan clause (a fan-made project, not affiliated with or endorsed by HoYoverse) - what the site keeps,
   what for and how long, its browser storage and who else handles data, true of the code as it is
-  (`frontend/src/app/core/legal-facts.ts`); Contact opens the feedback form.
+  (`frontend/src/app/sites/main/legal/legal-facts.ts`); Contact opens the feedback form.
 
 ## Quick start
 
@@ -251,20 +251,22 @@ backend/
   tools/                check-release.php/.mjs (the release names no other site), check-names.php (no tracked
                         file names a build site), php.sh (PHP 8.4+ for bash)
   setup.php, router.php, migration.php, sync-catalog.php, import-account.php, translations.php, backup.php
-frontend/src/app/
-  core/                 API client, models, metadata store, changelog, sign-in (on anotoki-lib's auth module), the
-                        visitor key, the filters kept in the address, i18n/ (the site's words on anotoki-lib's
-                        service: typed keys, pipes, the compiled English, a variation's words), game terms,
-                        site-status (anotoki-lib's site gate and Migrations page, wired to this site)
-  layouts/              top-bar, app-layout, legal-layout (the legal pages with the site's facts; About and Support,
-                        /about and /support), admin-layout (the admin panel's frame) - each layout with anotoki-lib's
-                        footer (version, What's new, Feedback; About · Support · Terms · Privacy · Contact)
-  shared/               build detail, item card, grade badge, score bar, changelog dialog, the visitor notice,
-                        the ways in for somebody new, the "Your data" card, ...
-  pages/                dashboard, import wizard, account, character analysis (a tab per variation), builds
-                        (the browser with its filters); admin/ (builds, translations, languages, migrations -
-                        translations, languages and migrations are anotoki-lib's pages, and so are People and the
-                        admin tools, routed straight)
+frontend/src/app/       the anotoki family's folders, the genshin site's: api/, shared/, sites/main/, sites/admin/
+  api/                  API client, models
+  shared/               what both halves use: metadata store, changelog and its dialog, sign-in (on anotoki-lib's auth
+                        module), the visitor key, i18n/ (the site's words on anotoki-lib's service: typed keys, pipes,
+                        the compiled English, a variation's words), site-status (anotoki-lib's site gate and Migrations
+                        page, wired to this site), top-bar/ (both frames draw it), the character avatar, ...
+  sites/main/           everybody's pages (main.routes.ts): app-layout (their frame), dashboard, import wizard,
+                        account, character analysis (a tab per variation), builds (the browser with its filters),
+                        legal/ (the legal pages' frame with the site's facts; About and Support, /about and
+                        /support), common/ (build detail, item card, grade badge, score bar, the visitor notice, the
+                        ways in for somebody new, the "Your data" card, game terms, the filters kept in the address)
+  sites/admin/          the admin panel (admin.routes.ts): admin-layout (its frame), builds, build-editor,
+                        translations, languages, migrations - translations, languages and migrations are
+                        anotoki-lib's pages, and so are People and the admin tools, routed straight. Both frames
+                        with anotoki-lib's footer (version, What's new, Feedback; About · Support · Terms · Privacy ·
+                        Contact)
 frontend/public/        changelog.json, favicon, robots.txt (keeps search engines off /auth/)
 docs/                   knowledge base (start at docs/README.md)
 .claude/                project skills and agents for AI-assisted work

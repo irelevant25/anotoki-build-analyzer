@@ -63,7 +63,7 @@ C ≥ 50, else D.
 
 Sorted high → medium → low. A recommendation is `{severity, category, kind, params, message, slot?}`: the
 page words it from `kind` and `params` in the reader's language (`recommendation.<kind>`, through
-`frontend/src/app/core/i18n/recommendation-words.ts`); `message` is the same sentence in English, kept for
+`frontend/src/app/shared/i18n/recommendation-words.ts`); `message` is the same sentence in English, kept for
 the command line, for the tests and as the fallback the page shows (with `lang="en"`) for a kind it does not
 know. The overview's best build carries `top_issue` (that English), `top_issue_kind` and `top_issue_params`
 (the first recommendation's pair, null when there is none) for the account page. A build the character's
@@ -85,8 +85,8 @@ constellation does not reach gets its recommendations like any other.
   („Goblet of Eonothem: main stat je ATK%, tento build chce Pyro DMG Bonus.“), so no Slovak word agrees with
   an English one.
 - A new kind: its row in `KINDS`, the `recommend()` call with the kind, its params and the English
-  `message`, its tail in `frontend/src/app/core/i18n/dynamic-keys.ts` (`recommendation.`), its English in
-  `core/i18n/en/core.json`, its row in the `KINDS` table of `recommendation-words.ts` (its key and the params
+  `message`, its tail in `frontend/src/app/shared/i18n/dynamic-keys.ts` (`recommendation.`), its English in
+  `shared/i18n/en/core.json`, its row in the `KINDS` table of `recommendation-words.ts` (its key and the params
   the sentence needs; a kind missing there is shown as its English `message`), and a new
   migration with the key, its description, the English and informal Slovak. The tests hold `KINDS`, the
   declared tails and the database to each other (`tests/translation_catalogue.test.php`), and each seeded
@@ -116,5 +116,5 @@ not it applies.
 
 ## Changing the scoring
 
-Use the `tune-analysis` skill. Keep the frontend in sync (`core/models.ts`, the character page's keys and
+Use the `tune-analysis` skill. Keep the frontend in sync (`api/models.ts`, the character page's keys and
 the recommendation wording) and the README's "How the analysis works" table.

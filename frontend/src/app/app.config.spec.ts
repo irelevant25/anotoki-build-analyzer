@@ -10,11 +10,11 @@ import { SiteStatus } from '@anotoki/lib/migrations';
 import { TranslationBundle } from '@anotoki/lib/translations';
 import { TEST_LANGUAGES } from '@anotoki/lib/translations/testing';
 import { appConfig } from './app.config';
-import { AuthService } from './core/auth';
-import { AppTitleStrategy } from './core/i18n/title-strategy';
-import { TranslationService } from './core/i18n/translation';
-import { Meta } from './core/models';
-import { VISITOR_STORAGE_KEY, VisitorKey } from './core/visitor-key';
+import { AuthService } from './shared/auth';
+import { AppTitleStrategy } from './shared/i18n/title-strategy';
+import { TranslationService } from './shared/i18n/translation';
+import { Meta } from './api/models';
+import { VISITOR_STORAGE_KEY, VisitorKey } from './shared/visitor-key';
 
 /** /api/meta of a site with no IAM yet (nothing to sign in with). */
 const META: Meta = { games: [], version: '0.1', auth: { issuer: '', client_id: '' } };

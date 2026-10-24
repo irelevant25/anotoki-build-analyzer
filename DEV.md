@@ -116,7 +116,7 @@ ran on SQLite is not carried over: import the accounts again, and a builds file;
   closed** (the site gate): everybody but the ADMIN on the Migrations page reads "The site is being updated" -
   on this computer too, so after pulling a new migration run `php migration.php` (or Apply on the page).
 - **API changes**: the shapes live in `backend/src/Presenters/` and are mirrored in
-  `frontend/src/app/core/models.ts`; change both together. The strings' routes are the library's: their
+  `frontend/src/app/api/models.ts`; change both together. The strings' routes are the library's: their
   shapes come with it, in both halves.
 - **Nothing names another site** in the UI or in what the API sends to be shown: the showcase service and the
   tools are described, never named. See [docs/architecture.md](docs/architecture.md) ("Neutral names").
@@ -130,7 +130,7 @@ ran on SQLite is not carried over: import the accounts again, and a builds file;
   build sites on the owner's computer and write one file per game, `builds-genshin-<date>.json`, which an editor
   imports on the Builds page. What a build is and what the file must hold: [docs/builds.md](docs/builds.md).
 - **Words a member reads are keys**: a template words a key with the `translate` pipe; a new string is its key
-  and English in `frontend/src/app/core/i18n/en/*.json` plus a new migration with the key, its description, the
+  and English in `frontend/src/app/shared/i18n/en/*.json` plus a new migration with the key, its description, the
   English and informal Slovak ("ty"). What the server says to a member (recommendations, import errors and
   warnings) is a kind with params that the page words. Game terms and the game's notation are never
   translated. The admin panel (`/admin/`: Builds, Translations, Languages, People, Migrations and the admin tools)
@@ -160,7 +160,7 @@ module, the auth module (signing in through the anotoki IAM: the token check, th
 client, interceptor, guards and the sign-in hint), the people module (the People page, the scrub of the accounts
 the IAM deleted, what a restore does again), the admin tools (the error log - the browser's errors too -, the
 audit log, feedback, sealed backups, one reading of a request's address), the legal pages (with this site's
-facts: `frontend/src/app/core/legal-facts.ts`) and the footer (`<anotoki-site-footer>`, in both layouts) - each set
+facts: `frontend/src/app/sites/main/legal/legal-facts.ts`) and the footer (`<anotoki-site-footer>`, in both layouts) - each set
 up for this site where it is
 used - they hold the migrations module, one behaviour for every anotoki site while its database is not ready:
 
@@ -173,7 +173,7 @@ used - they hold the migrations module, one behaviour for every anotoki site whi
   `GET /api/site-status`, and the Migrations page's API (`MigrationsRoutes`: `backend/api/routes/admin.php`);
 - in the frontend, the gate with its page - the router outlet given to it as a marked template,
   `<ng-template anotokiSitePages>`, so the pages are made only while the site is open -, and the Migrations
-  page, from its own entry point `@anotoki/lib/migrations/page` (`frontend/src/app/core/site-status.ts` wires
+  page, from its own entry point `@anotoki/lib/migrations/page` (`frontend/src/app/shared/site-status.ts` wires
   them to this site);
 
 and the translations module (since this site's 0.4.0), the strings every anotoki site keeps the same way:
@@ -184,7 +184,7 @@ and the translations module (since this site's 0.4.0), the strings every anotoki
   languages, its check that no string names another site, how its frontend's keys are found), and
   `backend/api/routes/translations.php` puts the routes behind this site's own rights;
 - the browser's half (`@anotoki/lib/translations`): the service, the pipes and the language switcher's state,
-  with this site's typed keys over them (`frontend/src/app/core/i18n/translation.ts`) and the English compiled
+  with this site's typed keys over them (`frontend/src/app/shared/i18n/translation.ts`) and the English compiled
   into the app as the fallback (`translations.config.ts`); the admin Translations and Languages pages from
   `@anotoki/lib/translations/admin`.
 
@@ -375,7 +375,7 @@ one (the Backups page, "before an update"). `config/*.local.php` and `storage/` 
   build's tab badge are heard by; the library's files add the pages' own words and the kit's. Then the foot of
   every page has Terms · Privacy · Contact and the fan clause, and `/privacy` links "your anotoki account" to the
   IAM's own Privacy page. A change to what the site keeps, or for how long, changes the facts' strings (a
-  migration) and `SITE_LEGAL_UPDATED` (`frontend/src/app/core/legal-facts.ts`). [docs/operations.md](docs/operations.md), "Deploying".
+  migration) and `SITE_LEGAL_UPDATED` (`frontend/src/app/sites/main/legal/legal-facts.ts`). [docs/operations.md](docs/operations.md), "Deploying".
 - **Version 0.5.0: builds from a file, Genshin Impact alone, the catalog from genshin.anotoki.eu** (migrations
   014-019), in this order and in one sitting: genshin.anotoki.eu first (its release and its migrations
   `genshin_impact/030` and `031`; its `GET /api/catalog/characters` answering 200 with an ETag, then 304 when

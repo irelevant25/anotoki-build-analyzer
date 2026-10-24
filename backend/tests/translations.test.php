@@ -1216,9 +1216,9 @@ test('the command line: --status reads a frontend against the database, and exit
     check(!str_contains($out, 'other.key'), 'a namespace the database does not have is nobody\'s key: ' . $out);
 
     // The keys put together at run time are declared, and must be there.
-    [$code, $out] = $status(['pages/home/home-page.html' => $page, 'core/i18n/dynamic-keys.ts' => "export const DYNAMIC_KEYS = {\n  'test.kind.': ['one_thing'],\n};\n"]);
+    [$code, $out] = $status(['pages/home/home-page.html' => $page, 'shared/i18n/dynamic-keys.ts' => "export const DYNAMIC_KEYS = {\n  'test.kind.': ['one_thing'],\n};\n"]);
     same(1, $code, $out);
-    check((bool) preg_match('/not in the database.*\n\s+test\.kind\.one_thing\n\s+core\/i18n\/dynamic-keys\.ts\n/', $out), $out);
+    check((bool) preg_match('/not in the database.*\n\s+test\.kind\.one_thing\n\s+shared\/i18n\/dynamic-keys\.ts\n/', $out), $out);
 
     // What the scan does not let through: exit 1.
     [$code, $out] = $status(['pages/home/home-page.html' => $page . "<p [innerHTML]=\"'test.bye' | translate\"></p>\n"]);

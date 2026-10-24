@@ -8,20 +8,20 @@ import { SiteStatus, siteStatusInterceptor } from '@anotoki/lib/migrations';
 import { provideAnotokiPeople } from '@anotoki/lib/people';
 
 import { routes } from './app.routes';
-import { AuthService } from './core/auth';
-import { SIGN_IN_FAILED_PATH } from './core/auth.guards';
-import { Changelog } from './core/changelog';
-import { provideFeedback } from './core/feedback';
-import { provideKit } from './core/kit';
-import { provideLegal } from './core/legal';
-import { AppTitleStrategy } from './core/i18n/title-strategy';
-import { TranslationService } from './core/i18n/translation';
-import { provideTranslations } from './core/i18n/translations.config';
-import { MetaStore } from './core/meta-store';
-import { provideShell } from './core/shell';
-import { signInKindClientFactory } from './core/sign-in-kind';
-import { MIGRATIONS_ROUTE, SITE_STATUS_URL, appliedAt, provideSiteStatus } from './core/site-status';
-import { VisitorKey } from './core/visitor-key';
+import { AuthService } from './shared/auth';
+import { SIGN_IN_FAILED_PATH } from './shared/auth.guards';
+import { Changelog } from './shared/changelog';
+import { provideFeedback } from './shared/feedback';
+import { provideKit } from './shared/kit';
+import { provideLegal } from './shared/legal';
+import { AppTitleStrategy } from './shared/i18n/title-strategy';
+import { TranslationService } from './shared/i18n/translation';
+import { provideTranslations } from './shared/i18n/translations.config';
+import { MetaStore } from './shared/meta-store';
+import { provideShell } from './shared/shell';
+import { signInKindClientFactory } from './shared/sign-in-kind';
+import { MIGRATIONS_ROUTE, SITE_STATUS_URL, appliedAt, provideSiteStatus } from './shared/site-status';
+import { VisitorKey } from './shared/visitor-key';
 
 /** "1 visitor", "3 game accounts" - the People page is English, as the whole admin panel. */
 function counted(n: number, noun: string): string {
@@ -65,17 +65,17 @@ export const appConfig: ApplicationConfig = {
       };
     }),
     // The module's own client, with what its callback says noted: whether the sign-in was the hint's silent hop
-    // (core/sign-in-kind.ts) - the move of a visitor's data after a sign-in asks the server with that.
+    // (shared/sign-in-kind.ts) - the move of a visitor's data after a sign-in asks the server with that.
     { provide: ANOTOKI_AUTH_CLIENT_FACTORY, useFactory: signInKindClientFactory },
-    // The site's words: the anotoki library's translations, set up for this site (core/i18n/translations.config.ts).
+    // The site's words: the anotoki library's translations, set up for this site (shared/i18n/translations.config.ts).
     provideTranslations(),
     // The anotoki family's kit draws every page (@anotoki/lib/ui/*): its words in the language on the page, from the
-    // database's anotoki.* strings, and the site's icons (core/kit.ts).
+    // database's anotoki.* strings, and the site's icons (shared/kit.ts).
     provideKit(),
     // The family's shell (@anotoki/lib/shell): the top bar's theme switch and language chooser - the account's
-    // theme while it keeps one, else this device's; the translations module's languages (core/shell.ts).
+    // theme while it keeps one, else this device's; the translations module's languages (shared/shell.ts).
     provideShell(),
-    // Where the site stands, and what is shown while it is not ready (core/site-status.ts).
+    // Where the site stands, and what is shown while it is not ready (shared/site-status.ts).
     provideSiteStatus(),
     // The People page (ADMIN; @anotoki/lib/people/page on /admin/people): everybody the IAM signed in here, with
     // their game accounts, imports and last import, and Delete - the site's game accounts and imports of the
@@ -112,10 +112,10 @@ export const appConfig: ApplicationConfig = {
         formatDate: (iso: string) => appliedAt(iso, site.preferences(), i18n.locale()),
       };
     }),
-    // The visitors' feedback form, opened from the foot of every page (core/feedback.ts).
+    // The visitors' feedback form, opened from the foot of every page (shared/feedback.ts).
     provideFeedback(),
     // The anotoki family's legal pages - Terms, Privacy, Contact on /terms, /privacy, /contact - and the footer's
-    // links to them (core/legal.ts); the site's facts come with the pages' frame (layouts/legal-layout).
+    // links to them (shared/legal.ts); the site's facts come with the pages' frame (sites/main/legal/legal-layout).
     provideLegal(),
     // Words a route's title in the language on the page, and tells the translation service where the page is.
     { provide: TitleStrategy, useClass: AppTitleStrategy },

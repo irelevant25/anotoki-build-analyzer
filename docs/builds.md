@@ -11,8 +11,8 @@ import, the export, the imports made), `BuildParts.php` (a build's parts as an i
 (the site's own notes), `api/routes/admin_builds.php` (the Builds page's routes), `api/routes/builds.php` (the public
 builds browser), `src/Models/Build.php`, `src/Repositories/Builds.php`, `src/Presenters/BuildPresenter.php`;
 migrations `016_builds_without_sources.sql`, `020_build_teams.sql`, `022_build_hand_edits.sql`. Frontend:
-`pages/admin/builds/` (the Builds page; `build-file.ts` checks a chosen file and holds the page's words),
-`core/i18n/variation-words.ts`, `shared/build-teams.*` (a build's teams). Tests: `backend/tests/builds_import.test.php`
+`sites/admin/builds/` (the Builds page; `build-file.ts` checks a chosen file and holds the page's words),
+`shared/i18n/variation-words.ts`, `sites/main/common/build-teams.*` (a build's teams). Tests: `backend/tests/builds_import.test.php`
 (the catalog's own refresh: `catalog_refresh.test.php`; a teammate the account has: `analysis.test.php`).
 
 ## A build is a variation of a character
@@ -67,7 +67,7 @@ builds of its own are not stored: `BuildPresenter` looks them up whenever the bu
 catalog learns of later shows its picture without an import (weapons store `known`; teams deliberately do not -
 [decisions.md](decisions.md)).
 
-Where they show (`shared/build-teams`, after the stat targets): each team under its name - the stored English, read
+Where they show (`sites/main/common/build-teams`, after the stat targets): each team under its name - the stored English, read
 with `lang="en"` -, its members side by side, on a phone too (four columns as wide as a 64 px portrait and a little
 more, narrower on a phone), each with its portrait, its name - broken between its words, never inside one -, its
 role in the reader's language and a constellation the team asks as "C2+" (on the build's own character only where it
@@ -322,7 +322,7 @@ changed the same part (the owner's decision of 2026-10-20, "Hand edits later, so
 The admin panel's builds editor (`BuildEditor`, the editors' routes below) loads a character's builds and saves them
 in one go.
 
-**The page** (`/admin/builds/:game/:key`, `frontend/src/app/pages/admin/build-editor/`; English, as the admin panel)
+**The page** (`/admin/builds/:game/:key`, `frontend/src/app/sites/admin/build-editor/`; English, as the admin panel)
 is reached from the Builds page's **Edit builds** card - every character of the catalog in a table (the kit's: its
 picture and name a link to its editor, its element, weapon, builds and what was done to them here; narrowed by the
 words typed - a name, an element, a weapon - or to the characters changed here; on a phone each row a small card of
@@ -420,11 +420,11 @@ there):
   **Reload** (asked first); 409 `busy`: a message to try again; any other failure is said in the bar;
 - leaving with changes not saved asks first (the route's `anotokiUnsavedChangesGuard` asks the page), closing the tab
   too (the browser's own question), and the top bar's **Sign out** asks while the editor holds changes
-  (`core/build-editor-changes.ts`; the admin panel's English). Nothing is kept in the browser's storage.
+  (`shared/build-editor-changes.ts`; the admin panel's English). Nothing is kept in the browser's storage.
 
 The members' pages show the notes (`BuildPresenter`: a build's `notes` and each team's `note` as `{en, sk?}` or null,
 from `site_notes`): in Slovak to a reader of Slovak where an editor wrote it, else in English - marked `lang="en"`
-while the page is in another language (`core/i18n/site-note.ts`). The texts the builds file carries but the site no
+while the page is in another language (`shared/i18n/site-note.ts`). The texts the builds file carries but the site no
 longer shows - the build's own `notes`, a weapon's, a set option's and a team's `note`, a stat target's `text` -
 are sent nowhere (the character's analysis neither): stored, read and exported as the format has them, and written
 empty by the local tools.
@@ -549,7 +549,7 @@ over: the builds come back with the first import. Data model: [data-model.md](da
 ## Where builds show
 
 - The builds browser (`/builds/genshin`): each character with builds a link card with its roles, filtered by name,
-  element, weapon type, rarity, region and version, the filters kept in the address (`core/query-filters.ts`); a
+  element, weapon type, rarity, region and version, the filters kept in the address (`sites/main/common/query-filters.ts`); a
   character's builds in their order on `/builds/genshin/{key}`, each with its teams and the site's notes; an editor or
   an admin finds **Edit builds** there, the way to the character's builds editor.
 - An account's character page: a tab per variation with its score, the closest build marked, one the character's

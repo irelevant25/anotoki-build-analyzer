@@ -103,7 +103,7 @@
 // pictures, a recommendation's mark).
 //
 // The grades and how much a recommendation matters are light and dark apart: a grade's letter is drawn in its
-// colour on a 14% tint of it (shared/grade-badge), and a recommendation's icon in its own, so each reaches 4.5:1 on
+// colour on a 14% tint of it (sites/main/common/grade-badge), and a recommendation's icon in its own, so each reaches 4.5:1 on
 // every ground of its theme - bg, surface, surface-2 and surface-3, the letter on its tint too (measured 2026-10-18:
 // 4.6 to 4.7 in light, 4.6 to 4.8 in dark; the light ones were 1.6 to 2.8, the dark ones 3.0 to 4.8). The same
 // hues, darker in light, lighter in dark; a severity is its grade's colour (high D, medium C, low B).

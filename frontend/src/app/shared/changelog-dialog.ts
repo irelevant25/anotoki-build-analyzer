@@ -3,10 +3,10 @@ import { BadgeComponent } from '@anotoki/lib/ui/badge';
 import { ButtonComponent } from '@anotoki/lib/ui/button';
 import { ANOTOKI_DIALOG_DATA, AnotokiDialogRef, DialogFooterDirective } from '@anotoki/lib/ui/dialog';
 import { IconComponent } from '@anotoki/lib/ui/icon';
-import type { ChangelogEntry } from '../core/changelog';
-import { LocalDatePipe } from '../core/i18n/local-date';
-import { TranslatePipe } from '../core/i18n/translate';
-import { TranslationService } from '../core/i18n/translation';
+import type { ChangelogEntry } from './changelog';
+import { LocalDatePipe } from './i18n/local-date';
+import { TranslatePipe } from './i18n/translate';
+import { TranslationService } from './i18n/translation';
 
 /**
  * "What's new": the releases it is handed (all of them from the footer's button, or the ones this browser has not

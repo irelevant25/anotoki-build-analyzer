@@ -82,15 +82,15 @@ function inOrder(array $list): array
 }
 
 /**
- * The English compiled into the app, key => text: the parts under core/i18n/en/ - flat {"key": "English"}
+ * The English compiled into the app, key => text: the parts under shared/i18n/en/ - flat {"key": "English"}
  * objects, a key in exactly one of them (the library's reader refuses anything else).
  *
  * @return array<string, string>
  */
 function compiledEnglish(): array
 {
-    $files = glob(SiteTranslations::frontendRoot() . '/core/i18n/en/*.json') ?: [];
-    check($files !== [], 'the frontend has a compiled English (core/i18n/en/*.json)');
+    $files = glob(SiteTranslations::frontendRoot() . '/shared/i18n/en/*.json') ?: [];
+    check($files !== [], 'the frontend has a compiled English (shared/i18n/en/*.json)');
     $english = EnglishDictionary::merge(...array_map(static fn(string $file): array => EnglishDictionary::read($file), $files));
     ksort($english, SORT_STRING);
 
@@ -434,7 +434,7 @@ test('a string names no other site and holds no web address - checked last, in a
 
 test('the legal pages\' strings (011) hold no address of any kind: where a link goes is the code\'s, never a string an administrator rewords', function () {
     // The 0.6.0 review of the library: the anotoki account's pages, the hosting company's, the operator's - every
-    // address the pages link to is given by the code (core/legal-facts.ts); a string only words what is around it.
+    // address the pages link to is given by the code (sites/main/legal/legal-facts.ts); a string only words what is around it.
     // The footer's fan clause, 011's footer.fanMade, is under the library's key since 013.
     $strings = db()->all("SELECT key_name, language_code, value FROM translations
         WHERE key_name LIKE 'legal.%' OR key_name LIKE 'title.%' OR key_name = 'anotoki.footer.fanHoyoverse' ORDER BY key_name, language_code");
@@ -456,11 +456,11 @@ test('the scan reads the real frontend: only the files it should, and the librar
     check(is_dir($root), 'the frontend is beside the backend: ' . $root);
     same($root, $scanner->root(), 'it reads the frontend\'s src/app');
     $files = $scanner->sourceFiles();
-    check(in_array('app.routes.ts', $files, true) && in_array('pages/dashboard/dashboard-page.html', $files, true), 'the sources are where the scan looks');
-    check(in_array('layouts/top-bar/top-bar.ts', $files, true), 'the top bar is read - it asks for the library\'s words (anotoki.topbar.*)');
+    check(in_array('app.routes.ts', $files, true) && in_array('sites/main/dashboard/dashboard-page.html', $files, true), 'the sources are where the scan looks');
+    check(in_array('shared/top-bar/top-bar.ts', $files, true), 'the top bar is read - it asks for the library\'s words (anotoki.topbar.*)');
     foreach ($files as $file) {
         check((bool) preg_match('/\.(ts|html)$/', $file), $file);
-        check(!preg_match('~\.spec\.ts$|^core/i18n/en\.ts$~', $file), "not read: {$file}");
+        check(!preg_match('~\.spec\.ts$|^shared/i18n/en\.ts$~', $file), "not read: {$file}");
     }
 
     // The library's words are asked for by their keys, and are never a key this site must have.

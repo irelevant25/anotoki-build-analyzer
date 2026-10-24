@@ -621,7 +621,7 @@ upload map, are in [DEV.md](../DEV.md) ("Deploying"); in short:
      a key has no string, or where nobody saved it. Then check: the foot of every page has Terms · Privacy ·
      Contact and the fan clause; `/privacy` reads the site's parts and its storage, and links "your anotoki account"
      to the IAM's own Privacy page (`https://iam.anotoki.eu/privacy`); `/contact` opens the feedback form. The
-     facts are the code's (`frontend/src/app/core/legal-facts.ts`): a change to what the site keeps, or for how
+     facts are the code's (`frontend/src/app/sites/main/legal/legal-facts.ts`): a change to what the site keeps, or for how
      long, changes their `legal.*` strings by a migration and `SITE_LEGAL_UPDATED`.
    - **The family's footer (anotoki-lib 0.6.3 in `vendor/` and in the app; migration 013, then the library's
      `anotoki_translations/012`)**: upload with `vendor/`, then **Apply pending** at once: 013 moves the footer's

@@ -3,9 +3,9 @@ import { TestBed } from '@angular/core/testing';
 import { Route, Router, RouterOutlet, Routes, provideRouter } from '@angular/router';
 import { RouterTestingHarness } from '@angular/router/testing';
 import { routes } from './app.routes';
-import { sitePagesGuard } from './core/auth.guards';
-import { LEGAL_PAGE_PATHS } from './core/legal';
-import { AppLayout } from './layouts/app-layout/app-layout';
+import { sitePagesGuard } from './shared/auth.guards';
+import { LEGAL_PAGE_PATHS } from './shared/legal';
+import { AppLayout } from './sites/main/app-layout/app-layout';
 
 @Component({
   selector: 'app-test-frame',

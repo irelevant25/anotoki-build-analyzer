@@ -6,8 +6,8 @@ weapons / items reference the catalog by `['external_id' => â€¦]`, `['name' => â
 `AccountImporter` resolves them (lookups only: whatever the shared catalog lacks is skipped and reported) and
 writes them into an account of the importing user ([data-model.md](data-model.md)). The showcase import is
 throttled to `showcase.per_minute` (10, `config/app.php`) a minute per user. User-facing steps for each method
-live in the wizard: `frontend/src/app/pages/import/import-guides.ts` (keys, written out whole; their English in
-`frontend/src/app/core/i18n/en/import.json`, every language in the database).
+live in the wizard: `frontend/src/app/sites/main/import/import-guides.ts` (keys, written out whole; their English in
+`frontend/src/app/shared/i18n/en/import.json`, every language in the database).
 
 Since 0.5.0 an account is a Genshin Impact account, imported in two ways: the Character Showcase by UID and a GOOD
 file. Honkai: Star Rail went with its showcase route, its scanner format and their kinds; the wizard has no Game
@@ -89,13 +89,13 @@ failure that is not an `ImportException`; 18 kinds) and `WARNINGS` (7).
   reference's name, else its key, else its in-game ID (`ImportKinds::ref()`), `count` and `status` numbers, a
   UID as the data or the account has it. What comes from an uploaded file goes through `Neutral` on the way out,
   like the messages.
-- The page: `frontend/src/app/core/i18n/import-words.ts` maps each code to its key (`import.error.<code>`,
+- The page: `frontend/src/app/shared/i18n/import-words.ts` maps each code to its key (`import.error.<code>`,
   `import.warning.<code>`) and the params its sentence needs. A code it does not know, a stored row without
   one, or one missing a param is shown as the stored English with `lang="en"`; a request that fails now never
   is (it falls back to the general error words).
 - A new kind is, together: its row in `ImportKinds`, its throw or `warn()` site, its tail in
-  `frontend/src/app/core/i18n/dynamic-keys.ts`, its row in `import-words.ts`, its English in
-  `core/i18n/en/core.json`, and a new string migration with the key, its description, the English and
+  `frontend/src/app/shared/i18n/dynamic-keys.ts`, its row in `import-words.ts`, its English in
+  `shared/i18n/en/core.json`, and a new string migration with the key, its description, the English and
   informal Slovak (game terms first, then a colon). `tests/import.test.php` reads every throw and `warn()`
   site in `src/` against `ImportKinds`; `tests/translation_catalogue.test.php` holds `ImportKinds`, the
   declared tails, the compiled English and the database to each other.

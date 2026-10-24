@@ -7,15 +7,15 @@ import { FeedbackUnread } from '@anotoki/lib/admin';
 import { SiteStatus, siteStatusInterceptor } from '@anotoki/lib/migrations';
 import { provideTestTranslations } from '@anotoki/lib/translations/testing';
 import { App } from './app';
-import { AuthService } from './core/auth';
-import { Changelog } from './core/changelog';
+import { AuthService } from './shared/auth';
+import { Changelog } from './shared/changelog';
 import { AnotokiUser } from '@anotoki/lib/auth';
-import { VisitorMove } from './core/models';
-import { provideShell } from './core/shell';
-import { provideSiteStatus } from './core/site-status';
-import { VisitorKey } from './core/visitor-key';
-import { AdminLayout } from './layouts/admin-layout/admin-layout';
-import { AppLayout } from './layouts/app-layout/app-layout';
+import { VisitorMove } from './api/models';
+import { provideShell } from './shared/shell';
+import { provideSiteStatus } from './shared/site-status';
+import { VisitorKey } from './shared/visitor-key';
+import { AdminLayout } from './sites/admin/admin-layout/admin-layout';
+import { AppLayout } from './sites/main/app-layout/app-layout';
 
 const ENGLISH = {
   'brand.area': 'Build Analyzer',

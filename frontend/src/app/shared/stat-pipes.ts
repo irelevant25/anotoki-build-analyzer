@@ -1,7 +1,7 @@
 import { Pipe, PipeTransform, inject } from '@angular/core';
-import { timeAgo } from '../core/format';
-import { MetaStore } from '../core/meta-store';
-import { GameKey } from '../core/models';
+import { timeAgo } from './format';
+import { MetaStore } from './meta-store';
+import { GameKey } from '../api/models';
 
 /** stat key => label, e.g. "critRate_" => "CRIT Rate" (or "CR" with short = true). */
 @Pipe({ name: 'statLabel' })

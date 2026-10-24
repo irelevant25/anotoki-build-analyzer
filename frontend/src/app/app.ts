@@ -4,16 +4,16 @@ import { SiteGateComponent, SitePagesDirective, SiteStatus } from '@anotoki/lib/
 import { ThemeService } from '@anotoki/lib/shell';
 import { ConfirmHostComponent } from '@anotoki/lib/ui/dialog';
 import { ToastHostComponent, ToastService } from '@anotoki/lib/ui/toast';
-import { AuthService } from './core/auth';
-import { Changelog } from './core/changelog';
-import { TranslationService } from './core/i18n/translation';
-import { localizationDrafts } from './core/localization-drafts';
-import { VisitorKey } from './core/visitor-key';
+import { AuthService } from './shared/auth';
+import { Changelog } from './shared/changelog';
+import { TranslationService } from './shared/i18n/translation';
+import { localizationDrafts } from './shared/localization-drafts';
+import { VisitorKey } from './shared/visitor-key';
 
 /**
- * The shell: the router, whose two layouts draw the family's frame - its top bar and the footer (layouts/app-layout
- * for everybody's pages, layouts/admin-layout for /admin) - inside the anotoki family's site gate
- * (@anotoki/lib/migrations, core/site-status.ts). While the site is not ready the gate shows its page instead:
+ * The shell: the router, whose two layouts draw the family's frame - its top bar and the footer (sites/main/app-layout
+ * for everybody's pages, sites/admin/admin-layout for /admin) - inside the anotoki family's site gate
+ * (@anotoki/lib/migrations, shared/site-status.ts). While the site is not ready the gate shows its page instead:
  * "being updated" (with a quiet Sign in while nobody is signed in) to everybody but the site's ADMIN, who reads
  * that a database update waits and reaches the Migrations page - the one page that shows then; "not set up yet"
  * with the setup page only while the site was never installed; "not available right now" otherwise. The
@@ -45,7 +45,7 @@ export class App {
     // What an editor typed on the Translations and Languages pages and did not save, brought back by a page
     // load: made now - after the sign-in has settled, so whose they are is known - and so asked about before the
     // tab closes, even before either page is opened again. The library keeps them with those pages, in an
-    // entry point of their own: it is loaded only when this tab holds some (core/localization-drafts.ts).
+    // entry point of their own: it is loaded only when this tab holds some (shared/localization-drafts.ts).
     void localizationDrafts(inject(Injector));
 
     // What is new since this browser last looked - for somebody who has used the site before (signed in, or

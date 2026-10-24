@@ -3,6 +3,30 @@
 Short records of choices that shape the code. Add a new entry (newest first) when you make a similar call.
 Older entries describe the Laravel version as it was; where a setting has since moved, the entry says so.
 
+**2026-10-24 — The frontend in the anotoki family's folders, the genshin site's.** The owner's request: "The admin
+panels in all projects should look like the genshin one... I mean the UI structure itself and the frontend folder
+structure as well (like frontend/src/app -> api, shared, sites and frontend/src/app/sites -> admin, main)." The
+folders came first, a move with nothing else changed - every address, guard, title, provider and lazy chunk as it
+was, each file moved by `git mv`; the admin panel's frame (the family's, anotoki-lib 0.10.0) comes after.
+- **Where a file goes is decided by who uses it.** `api/` is the API layer (`core/api.ts`, `core/models.ts`).
+  `shared/` is what both halves use: the rest of `core/` - `i18n/` whole, the site's words, whose compiled English
+  and run-time keys the backend reads together -, what the admin pages draw too (`char-avatar`, `stat-pipes`,
+  `changelog-dialog`), the builds editor's unsaved changes the bar's Sign out asks about (`build-editor-changes.ts`)
+  and the top bar (`top-bar/`: both frames draw it, until the family's admin frame takes the admin panel's).
+  `sites/main/` is everybody's pages, with their frame (`app-layout/`), the legal pages' frame and facts (`legal/`)
+  and what only they share (`common/`: the build sheet and its teams, the item card, the grade badge, the score bar,
+  the visitor notice and hero, the data card, the game's and the builds' terms, the filters kept in the address).
+  `sites/admin/` is the admin panel: its frame (`admin-layout/`) and a folder per page.
+- **The routes in two halves**, `sites/main/main.routes.ts` and `sites/admin/admin.routes.ts`, spread into
+  `app.routes.ts` - never a `loadChildren`, which would have taken the admin panel's routes out of the first load
+  into a chunk that was not there. `/admin` comes first, as on the other anotoki sites (the public site's routes end
+  with the `**`); no address goes anywhere else (`app.routes.spec.ts`). The production build's first load: 558,232
+  bytes before, 558,288 after (the two lists joined, and the paths in an error's words), the same 34 files; the same
+  55 lazy chunks, each the size it was.
+- **The backend reads the frontend where it now is**: the key scan's run-time keys and the compiled English it
+  leaves out (`SiteTranslations::DYNAMIC_KEYS`, `shared/i18n/dynamic-keys.ts`; `shared/i18n/en.ts`), the catalogue
+  test's compiled English (`shared/i18n/en/*.json`).
+
 **2026-10-22 — Version 0.7.0 (task 9): a builds editor, and imports that keep what editors did.**
 The owner's answers before the plan: a form for every part of a build, drawn with the family's kit; the site's own
 notes in English, Slovak optional, on a build and its teams only (the owner's choice of two: not on each weapon or set
@@ -44,7 +68,7 @@ to, so no edit and no note is ever lost unasked:
   no new column of a person's, nothing new on the legal pages but the audit log's sentence (migration 023, the legal
   pages' date moved).
 - **The notes in the reader's language, the file's texts nowhere** (step 3): a member reads a note in Slovak where an
-  editor wrote it, else in English marked `lang="en"` (one helper, `core/i18n/site-note.ts`). The texts the builds
+  editor wrote it, else in English marked `lang="en"` (one helper, `shared/i18n/site-note.ts`). The texts the builds
   file still carries - the build's own notes, a weapon's, a set option's and a team's note, a target's text - are sent
   by no answer any more, the analysis's neither: 0.6.1 kept showing them "when a file has some", but a hand-made or
   older file could bring a site's sentence back onto the page; the site's own notes took their place.
@@ -182,7 +206,7 @@ Without sources a build is no longer "Source 2's": it is what it is for. A role 
 `Game::roles()`), a short `qualifier` only where a character has two builds of one role ("Melt": at most 40 characters,
 one line, neutral; '' otherwise) and `min_rank`, the constellation it needs (0-6); a stat target can start from a
 constellation (`from_rank`). A character's builds come in their order of preference, the first the main one; a page
-writes a variation "Main DPS · Melt · C4+" (`core/i18n/variation-words.ts`), the role in the reader's language.
+writes a variation "Main DPS · Melt · C4+" (`shared/i18n/variation-words.ts`), the role in the reader's language.
 - *Constellations now* (the owner's decision): in the file and the analysis from the start, the local tools taking them
   from what the build sites say of a build's constellation and from their tables of a stat by constellation; a site's
   team section may add more later. The analysis follows the player's constellation: the best build is the best scored
@@ -234,7 +258,7 @@ hangs on them), imports, sync runs, build sources and catalog rows and tightens 
 (`game_sets.kind` to 'artifact'); 015 retires 56 keys and rewords what still named both games. The shape stays ready
 for another game: `App\Enums\Game` keeps one case, and every `$game === Game::Genshin ? X : Y` became a method of it
 (`maxRank()`, `rankPrefix()`, `roles()`, `setKinds()`, `setPieceCounts()`, `weaponLabel()`, `talentKeys()` ...); the
-routes keep `{game}`, the frontend one `GAMES` list (`core/format.ts`). A second game is a case with its arms and its
+routes keep `{game}`, the frontend one `GAMES` list (`shared/format.ts`). A second game is a case with its arms and its
 parsers, and a migration widening the CHECKs. What a player meets: GOOD files and the showcase by UID only; an
 accounts file holding a Star Rail account refused (`bad_entry`); the import guide without its Game step (four steps);
 the library's fan clause, which names Genshin Impact alone.
@@ -269,7 +293,7 @@ the version's name.
 The builds browser (`/builds/genshin`) filters its characters by name, element, weapon type, rarity, region and
 version: the kit's segmented controls (All first, only what its characters have, an element's colour mark) and
 selects (the versions newest first, "6.1 (Luna II)"), Reset, "Showing N of M". No other page takes these (the account
-page keeps its element filter alone). The filters live in the address (`core/query-filters.ts`): a filtered list is a
+page keeps its element filter alone). The filters live in the address (`sites/main/common/query-filters.ts`): a filtered list is a
 place, not a mode - a link opens it filtered, and coming back from a character finds it as it was left; written with
 `replaceUrl`, so a filter is no step of the history (Back leaves the page, never keystroke by keystroke), and nothing
 is kept in the browser to go stale. Migration 019 has their 14 words. The anotoki library has no such helper - worth
@@ -348,11 +372,11 @@ beside the live one, checks it and swaps it in by renames (the one before kept f
 Both halves on 0.6.2 (`anotoki/lib ^0.6.0` - `^0.5.0` never takes a 0.6 -, the 0.6.2 tarball in both lock files;
 package-lock.json's entry given bun.lock's version, address and integrity by hand, as the IAM did).
 - *The legal pages* (the owner's decisions of 2026-10-13, the library's `@anotoki/lib/legal` and `/legal/pages`): on
-  `/terms`, `/privacy` and `/contact`, each a lazy route of its own whose parent is the frame `layouts/legal-layout`
+  `/terms`, `/privacy` and `/contact`, each a lazy route of its own whose parent is the frame `sites/main/legal/legal-layout`
   - never one parent with an empty path holding the three, which the router would take for "/" with no guard (the
   survey's lesson of 2026-10-17, `app.routes.spec.ts`) -, before everybody's pages and the "**" at the end. The
   frame is everybody's pages' frame (`<app-app-layout>`, its router outlet draws the page) with this site's facts
-  (`core/legal-facts.ts`), so the facts load with the pages, out of the first load. No guard: what the site keeps
+  (`sites/main/legal/legal-facts.ts`), so the facts load with the pages, out of the first load. No guard: what the site keeps
   is said before anybody signs in, also while the IAM requires signing in here. The operator is the library's
   default (Code Hero s.r.o.); the hosting company WebSupport s.r.o. (the owner, 2026-10-18), Cloudflare, and the
   public showcase service a UID import asks - described, never named (the site names no other service).
@@ -362,7 +386,7 @@ package-lock.json's entry given bun.lock's version, address and integrity by han
   the site's own log (`storage/logs/app.log`), visitors (30 days), feedback, the audit log (the editors' too, so in
   the site's words), the backups (one on each day the site is used, plain, the library's keeping), every cookie and
   stored item by name, Umami. The library's fan clause names Genshin Impact alone: Terms and Contact read the site's
-  `legal.fanClause`, naming both games, in its place (`SITE_LEGAL_WORDS`, `core/legal.ts`), and the footer says its
+  `legal.fanClause`, naming both games, in its place (`SITE_LEGAL_WORDS`, `shared/legal.ts`), and the footer says its
   first sentence (`footer.fanMade`, genshin's words). Every address is the code's, never a string (the 0.6.0
   review): `tests/translation_catalogue.test.php` holds 011's strings free of any, `legal-facts.spec.ts` shows a
   rewording changing a link's words, never its address. Terms · Privacy · Contact are the family's
@@ -552,7 +576,7 @@ Both halves on 0.5.0 (`anotoki/lib ^0.5.0`, the 0.5.0 tarball in both lock files
   this browser, and the next sign-in the person clicks moves them. A sign-in the person clicks moves, as before.
   Decided on the server (`POST /api/visitor/move` `{silent}`; `Users::moveVisitor()` asks under both rows'
   locks); the page knows how the present sign-in began from the auth module's client - its callback's `silent` -
-  noted at that page load and kept with the session (`core/sign-in-kind.ts`).
+  noted at that page load and kept with the session (`shared/sign-in-kind.ts`).
 - *The security review of 2026-10-11*: a cleared reply address keeps none (the entry below); the People page's
   Delete also blanks the person's feedback address and browser and the syncs' logs' "Started by <name>" (the
   scrub's own hooks, in its transaction); a restore runs the scrub of the IAM's deleted accounts at once and says
@@ -577,7 +601,7 @@ Every anotoki site signs in, keeps its people and runs its admin tools one way n
   `/auth/callback`), the People page (`pages/admin/people/*`, `routes/people.php`'s own code - gone:
   `PeopleRoutes::admin()` and `@anotoki/lib/people/page`), the tests' stand-in IAM (`tests/tools/fake-iam.php`,
   `tests/support/FixedSignInPolicy.php` - gone: the library's `TestIam` and `stand-in-iam.php`).
-- *What stayed this site's*: the visitors (`App\Auth\Visitors`, the key store `core/visitor-key.ts`, handed to the
+- *What stayed this site's*: the visitors (`App\Auth\Visitors`, the key store `shared/visitor-key.ts`, handed to the
   library as its `visitors`), the route groups' checks in this site's words (`api/middleware/auth.php`: the same
   six functions, now the library's pieces in order - `App\Web\Pipeline`), `throttle()`, `AuthService` as a facade
   over `AnotokiAuth` under the names the pages always used, `sitePagesGuard` (the family's
@@ -630,7 +654,7 @@ Every anotoki site signs in, keeps its people and runs its admin tools one way n
   with every rewording, writer and time (the site keeps saying what it said), retires three, and adds the
   feedback button's and the form's four places.
 - *The admin panel's bar*: the ADMIN has nine sections now, so the ADMIN's row folds at `ADMIN_PHONE_BAR_MAX`
-  and an editor's two at `EDITOR_PHONE_BAR_MAX` (`layouts/top-bar`), each measured.
+  and an editor's two at `EDITOR_PHONE_BAR_MAX` (`shared/top-bar`), each measured.
 - What's new (0.4.0, unreleased): the automatic sign-in, the feedback form, and the sign-in failure's screen.
 
 **2026-10-11 — The site's words through anotoki-lib 0.3.0's translations module; Translations and Languages are the family's pages (the owner's decision; version 0.4.0).**
@@ -646,7 +670,7 @@ Every anotoki site keeps its words one way now, and this site's service is the o
   names another site (`SiteTranslations::namesAnotherSite()`, the library's `extraCheck`), the storage names a
   visitor's choice lives under, the rights (EDITOR the strings, ADMIN the languages: `requireRole` on the
   library's route groups), its error body `{message, code}`, and the typed view of the service
-  (`core/i18n/translation.ts`: the same injection token, an unknown key still a compile error).
+  (`shared/i18n/translation.ts`: the same injection token, an unknown key still a compile error).
 - *One wire format*: snake_case, as this site spoke already (the IAM's). What the library answers differently:
   415 for a body that is not JSON, 413 over 1 MiB, 422 `empty_body`, 400 `invalid_json`, sentences without the
   full stop, a DELETE that reads no body, the admin routes working once the tables are there (the bundle 503
@@ -669,7 +693,7 @@ Every anotoki site keeps its words one way now, and this site's service is the o
 **2026-10-08 — anotoki-lib 0.2.0 in the frontend: only what it requires; the site's own pages move onto the kit later.**
 The gate's pages are a marked template (`<ng-template anotokiSitePages>`, `SitePagesDirective` in `app.ts`):
 0.2.0 takes no other template for the pages, and an unmarked one draws nothing. The Migrations page comes from
-its own entry point (`@anotoki/lib/migrations/page`, imported by `pages/admin/migrations`), so it rides in that
+its own entry point (`@anotoki/lib/migrations/page`, imported by `sites/admin/migrations`), so it rides in that
 lazy route's chunk. The specs and the browser check read the kit's markup (`[data-confirm] h2`,
 `anotoki-dialog[data-sql]`, the result's `.heading` and `.result-text`). The waiting page now reloads without
 first telling the gate the site is ready (`SiteStatus.checkForReload()`); nothing here worked around the old
@@ -694,7 +718,7 @@ what means something to the people using the site, nothing technical or for deve
   same days are not in it. `backend/src/Version.php` (what `/api/meta` says, and what an accounts file carries)
   and `frontend/package.json` (0.0.0 until now) say the same; `tests/auth.test.php` holds the three together.
 - *The version a browser saw* (`build-analyzer-version-seen`, kept as "0.3" before the rename) is compared by
-  its numbers (`compareVersions()`, `core/changelog.ts`: part by part, a missing part 0), so "0.3" is 0.3.0 and
+  its numbers (`compareVersions()`, `shared/changelog.ts`: part by part, a missing part 0), so "0.3" is 0.3.0 and
   nobody is shown an old note again. What's new opens with the releases after the one seen, and with nothing
   when this one or a later one was seen (a release taken back); a seen value that is not a version counts as a
   first visit - the newest release alone, as before. Rejected: comparing the strings ("0.3" is not "0.3.0", and
@@ -791,7 +815,7 @@ the admin panel included (the IAM's migration 015 and its `decisions.md`). Here,
   choice, for when nobody is signed in. Before, the device's choice always came first.
 - *Dates*: where a date or a time is written for a person - What's new's days (`localDate: 'day'`), when a
   migration was applied and when a builds file was exported (the admin panel) - the account's order and clock,
-  where it has chosen them, the page's own way where not (`core/i18n/date-patterns.ts`, the IAM's formats).
+  where it has chosen them, the page's own way where not (`shared/i18n/date-patterns.ts`, the IAM's formats).
   Relative times have neither; the sync runs' log lines are stored text in UTC, shared by every editor, and stay.
 - *The stand-in IAM* gives a person `preferences` when told to and answers `POST /api/oidc/preferences` as the
   IAM does, so the browser check saves across origins with the real SDK. The survey's copy of the file does not
@@ -1077,7 +1101,7 @@ site's, because the host has no shell and every upload overwrites the build: the
 Translations page and adds or hides a language on the Languages page, in the browser. One migration holds the
 tables and every string, so no database ever has the tables without their words. English is the fallback
 string by string, and Slovak is informal ("ty"). A key the database lacks shows as the key, on purpose: the
-owner wants to see which one is missing. The English compiled into the app (`core/i18n/en.ts` and its parts) is
+owner wants to see which one is missing. The English compiled into the app (`shared/i18n/en.ts` and its parts) is
 the list of keys and the last resort only - shown while no bundle is in memory (before 003 is applied, or while
 a first visit waits), never to fill one missing string - and a test holds it equal to the seeded English. What
 the server tells a member - a recommendation, an import's error or warning, a failed request - is a kind with

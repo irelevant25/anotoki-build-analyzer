@@ -1,5 +1,5 @@
 import { Component, computed, input } from '@angular/core';
-import { elementColor } from '../core/format';
+import { elementColor } from './format';
 
 /**
  * Character (or weapon / set) icon on a rarity-colored background with an optional element ring.

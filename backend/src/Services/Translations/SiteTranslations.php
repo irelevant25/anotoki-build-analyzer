@@ -25,7 +25,7 @@ use PDO;
  * - How the frontend's keys are found (keyScanner()), for the command line and the tests.
  *
  * Who may do what is the routes' (api/routes/translations.php); which keys there are, and their English and
- * Slovak, are the migrations' - with the English compiled into the frontend (core/i18n/en/*.json) held to it.
+ * Slovak, are the migrations' - with the English compiled into the frontend (shared/i18n/en/*.json) held to it.
  */
 final class SiteTranslations
 {
@@ -33,7 +33,7 @@ final class SiteTranslations
     public const RELEASED = ['en', 'sk'];
 
     /** Where the keys put together at run time are declared, under the frontend's src/app. */
-    public const DYNAMIC_KEYS = 'core/i18n/dynamic-keys.ts';
+    public const DYNAMIC_KEYS = 'shared/i18n/dynamic-keys.ts';
 
     public static function config(): TranslationsConfig
     {
@@ -104,14 +104,14 @@ final class SiteTranslations
 
     /**
      * The scan of the frontend's keys (the library's KeyScanner, as every anotoki site's): every .ts and .html
-     * under src/app but the specs and the dictionary of the compiled English (core/i18n/en.ts, whose JSON parts
+     * under src/app but the specs and the dictionary of the compiled English (shared/i18n/en.ts, whose JSON parts
      * list every key and so say nothing of which are used); the
      * pipes translate and translatePlural, and the service's t / around / has and plural; the keys put together
-     * at run time declared in core/i18n/dynamic-keys.ts; innerHTML never given a translated string. The
+     * at run time declared in shared/i18n/dynamic-keys.ts; innerHTML never given a translated string. The
      * library's own keys (anotoki.*) are the library's to ask for, and are never looked for.
      */
     public static function keyScanner(?string $root = null): KeyScanner
     {
-        return new KeyScanner($root ?? self::frontendRoot(), exclude: ['core/i18n/en.ts'], dynamicKeys: self::DYNAMIC_KEYS);
+        return new KeyScanner($root ?? self::frontendRoot(), exclude: ['shared/i18n/en.ts'], dynamicKeys: self::DYNAMIC_KEYS);
     }
 }

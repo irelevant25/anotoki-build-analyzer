@@ -21,20 +21,20 @@ backend/src/Models/GameSet.php
 backend/src/Models/GameWeapon.php
 # Prettier puts a text's start or end on a line of its own (htmlWhitespaceSensitivity ignore) and Angular keeps a space there: these pages would
 # gain spaces - between a button's icon and its word ("<anotoki-icon ... />Sign in"), and inside a stat target's "120+" or an item's "+16 / +20".
-frontend/src/app/layouts/admin-layout/admin-layout.html
-frontend/src/app/pages/account/account-page.html
-frontend/src/app/pages/admin/builds/admin-builds-page.html
-frontend/src/app/pages/builds/build-character-page.html
-frontend/src/app/pages/builds/builds-page.html
-frontend/src/app/pages/character/character-page.html
-frontend/src/app/pages/dashboard/dashboard-page.html
-frontend/src/app/pages/import/import-wizard.html
-frontend/src/app/shared/build-detail.html
+frontend/src/app/sites/admin/admin-layout/admin-layout.html
+frontend/src/app/sites/main/account/account-page.html
+frontend/src/app/sites/admin/builds/admin-builds-page.html
+frontend/src/app/sites/main/builds/build-character-page.html
+frontend/src/app/sites/main/builds/builds-page.html
+frontend/src/app/sites/main/character/character-page.html
+frontend/src/app/sites/main/dashboard/dashboard-page.html
+frontend/src/app/sites/main/import/import-wizard.html
+frontend/src/app/sites/main/common/build-detail.html
 frontend/src/app/shared/changelog-dialog.html
-frontend/src/app/shared/data-card/data-card.html
-frontend/src/app/shared/item-card.html
-frontend/src/app/shared/visitor-hero/visitor-hero.html
-frontend/src/app/shared/visitor-notice/visitor-notice.html
+frontend/src/app/sites/main/common/data-card/data-card.html
+frontend/src/app/sites/main/common/item-card.html
+frontend/src/app/sites/main/common/visitor-hero/visitor-hero.html
+frontend/src/app/sites/main/common/visitor-notice/visitor-notice.html
 # The build copies it as it is: Prettier's four-space indent would make the built index.html differ from the one before.
 frontend/src/index.html
 # Runs on PHP 5.6 and up, so an old host still gets an answer: the PHP plugin would add PHP 7.3's trailing commas.
