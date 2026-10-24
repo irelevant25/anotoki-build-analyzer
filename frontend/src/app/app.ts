@@ -11,8 +11,9 @@ import { localizationDrafts } from './shared/localization-drafts';
 import { VisitorKey } from './shared/visitor-key';
 
 /**
- * The shell: the router, whose two layouts draw the family's frame - its top bar and the footer (sites/main/app-layout
- * for everybody's pages, sites/admin/admin-layout for /admin) - inside the anotoki family's site gate
+ * The shell: the router, whose two frames draw the family's frame round the page - the top bar and the footer for
+ * everybody's pages (sites/main/app-layout), the family's admin frame for /admin (sites/admin/app.ts: its column of
+ * the panel's pages, and the footer) - inside the anotoki family's site gate
  * (@anotoki/lib/migrations, shared/site-status.ts). While the site is not ready the gate shows its page instead:
  * "being updated" (with a quiet Sign in while nobody is signed in) to everybody but the site's ADMIN, who reads
  * that a database update waits and reaches the Migrations page - the one page that shows then; "not set up yet"

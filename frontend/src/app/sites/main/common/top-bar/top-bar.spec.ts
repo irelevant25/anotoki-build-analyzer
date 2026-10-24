@@ -1,31 +1,25 @@
 import { Component, signal } from '@angular/core';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { Router, provideRouter } from '@angular/router';
-import { FeedbackUnread } from '@anotoki/lib/admin';
 import { provideAnotokiTranslations } from '@anotoki/lib/translations';
 import { LocalizationDrafts } from '@anotoki/lib/translations/admin';
 import { provideTestTranslations } from '@anotoki/lib/translations/testing';
 import { ConfirmHostComponent, ConfirmService } from '@anotoki/lib/ui/dialog';
-import { AuthService } from '../auth';
-import { BuildEditorChanges } from '../build-editor-changes';
-import { en } from '../i18n/en';
-import { TranslationService } from '../i18n/translation';
-import { LANGUAGE_STORAGE } from '../i18n/translations.config';
-import { provideKit } from '../kit';
-import { provideShell } from '../shell';
-import { ADMIN_PHONE_BAR_MAX, EDITOR_PHONE_BAR_MAX, PHONE_BAR_MAX, TopBar } from './top-bar';
+import { AuthService } from '../../../../shared/auth';
+import { TranslationService } from '../../../../shared/i18n/translation';
+import { LANGUAGE_STORAGE } from '../../../../shared/i18n/translations.config';
+import { provideKit } from '../../../../shared/kit';
+import { provideShell } from '../../../../shared/shell';
+import { PHONE_BAR_MAX, TopBar } from './top-bar';
 
 const ENGLISH = {
   'brand.area': 'Build Analyzer',
   'brand.short': 'Analyzer',
-  'brand.admin': en['brand.admin'],
   'topbar.home': 'anotoki Build Analyzer: the start page',
-  'topbar.homeAdmin': en['topbar.homeAdmin'],
   'topbar.sections': "The site's sections",
   'topbar.dashboard': 'Dashboard',
   'topbar.import': 'Import',
   'topbar.builds': 'Builds',
-  'topbar.backToApp': 'Back to Build Analyzer',
   'topbar.signOutUnsaved.title': 'Sign out without your latest changes?',
   'topbar.signOutUnsaved.message': "Some changes to the site's strings or languages are not saved - the Translations and Languages pages show them. Signed out, they are lost.",
   'topbar.signOutUnsaved.confirm': 'Sign out anyway',
@@ -36,14 +30,11 @@ const ENGLISH = {
 const SLOVAK = {
   'brand.area': 'Build Analyzer',
   'brand.short': 'Analyzer',
-  'brand.admin': 'administrátorský panel',
   'topbar.home': 'anotoki Build Analyzer: úvodná stránka',
-  'topbar.homeAdmin': 'anotoki Build Analyzer: administrátorský panel',
   'topbar.sections': 'Časti stránky',
   'topbar.dashboard': 'Prehľad',
   'topbar.import': 'Import',
   'topbar.builds': 'Buildy',
-  'topbar.backToApp': 'Späť na Build Analyzer',
   'topbar.signOutUnsaved.title': 'Odhlásiť sa bez posledných zmien?',
   'topbar.signOutUnsaved.message': 'Niektoré zmeny v textoch alebo jazykoch stránky nie sú uložené - nájdeš ich na stránkach Translations a Languages. Po odhlásení sa stratia.',
   'topbar.signOutUnsaved.confirm': 'Aj tak sa odhlásiť',
@@ -60,13 +51,11 @@ class TestPage {}
 @Component({
   selector: 'app-test-frame',
   imports: [TopBar, ConfirmHostComponent],
-  template: '<app-top-bar [area]="area()" /><anotoki-confirm-host />',
+  template: '<app-top-bar /><anotoki-confirm-host />',
 })
-class TestFrame {
-  readonly area = signal<'app' | 'admin'>('app');
-}
+class TestFrame {}
 
-describe("the top bar: the family's bar, told what is this site's", () => {
+describe("the top bar: the family's bar, told what is this site's - everybody's pages' alone", () => {
   const user = signal<{
     sub: string;
     email: string | null;
@@ -88,8 +77,6 @@ describe("the top bar: the family's bar, told what is this site's", () => {
     login: vi.fn(async () => true),
     logout: vi.fn(async () => undefined),
   };
-  /** The feedback nobody has opened yet, as the anotoki family's FeedbackUnread holds it. */
-  const unread = { count: signal<number | null>(null), refresh: vi.fn(async () => undefined) };
 
   let fixture: ComponentFixture<TestFrame>;
   let host: HTMLElement;
@@ -106,9 +93,8 @@ describe("the top bar: the family's bar, told what is this site's", () => {
   /** The pieces of the bar's actions, in order: each as its first class, or its tag. */
   const actions = () => Array.from(host.querySelector('.anotoki-top-bar__actions')!.children).map((child) => (child.classList.length ? String(child.classList[0]) : child.tagName.toLowerCase()));
 
-  async function draw(area: 'app' | 'admin' = 'app'): Promise<void> {
+  async function draw(): Promise<void> {
     fixture = TestBed.createComponent(TestFrame);
-    fixture.componentInstance.area.set(area);
     host = fixture.nativeElement;
     document.body.appendChild(host);
     await fixture.whenStable();
@@ -145,7 +131,6 @@ describe("the top bar: the family's bar, told what is this site's", () => {
     user.set({ sub: '7', email: 'mona@example.test', preferred_username: 'mona' });
     roles.set(['ADMIN']);
     failure.set(null);
-    unread.count.set(null);
     auth.login.mockReset().mockResolvedValue(true);
     auth.logout.mockClear();
     windowOf(1280);
@@ -161,7 +146,6 @@ describe("the top bar: the family's bar, told what is this site's", () => {
         provideShell(),
         provideRouter([{ path: '**', component: TestPage }]),
         { provide: AuthService, useValue: auth },
-        { provide: FeedbackUnread, useValue: unread },
       ],
     });
   });
@@ -177,6 +161,7 @@ describe("the top bar: the family's bar, told what is this site's", () => {
     await draw();
     expect(host.querySelector('app-top-bar anotoki-top-bar')).not.toBeNull();
     expect(words(host.querySelector('.anotoki-brand__wordmark'))).toBe('anotoki Build Analyzer');
+    expect(host.querySelector('anotoki-brand a')?.getAttribute('href')).toBe('/');
     expect(host.querySelector('anotoki-brand a')?.getAttribute('aria-label')).toBe('anotoki Build Analyzer: úvodná stránka');
     expect(host.querySelector('.anotoki-top-bar__nav')?.getAttribute('aria-label')).toBe('Časti stránky');
     expect(actions()).toEqual(['anotoki-language-switcher', 'anotoki-theme-toggle', 'anotoki-top-bar__person-button', 'anotoki-menu']);
@@ -224,39 +209,6 @@ describe("the top bar: the family's bar, told what is this site's", () => {
     expect(personButton()?.getAttribute('aria-label')).toBe('Tvoja ponuka: č. 42');
   });
 
-  it('reads English in the admin panel, whatever the person reads - the family\'s "anotoki Build Analyzer · admin panel", short there; no language chooser', async () => {
-    TestBed.inject(TranslationService).noteAddress('/admin/builds');
-    windowOf(ADMIN_PHONE_BAR_MAX + 201);
-    await draw('admin');
-    await at('/admin/builds');
-    // Short at every width: the area and the part of the site under it, the whole name in the link's name.
-    expect(words(host.querySelector('.anotoki-brand__wordmark'))).toBe('Analyzer · admin panel');
-    expect(host.querySelector('anotoki-brand a')?.getAttribute('href')).toBe('/admin');
-    expect(host.querySelector('anotoki-brand a')?.getAttribute('aria-label')).toBe('anotoki Build Analyzer: the admin panel');
-    expect(host.querySelector('anotoki-language-switcher')).toBeNull();
-    expect(links().map(described)).toEqual([
-      'Builds /admin/builds [page] [here]',
-      'Translations /admin/translations',
-      'Languages /admin/languages',
-      'People /admin/people',
-      'Migrations /admin/migrations',
-      'Errors /admin/errors',
-      'Audit /admin/audit',
-      'Feedback /admin/feedback',
-      'Backups /admin/backups',
-    ]);
-    await openMenu();
-    expect(items().map(words)).toEqual(['Your anotoki account', 'Back to Build Analyzer', 'Sign out']);
-    expect(items()[1].getAttribute('href')).toBe('/');
-
-    roles.set(['EDITOR']);
-    await fixture.whenStable();
-    expect(links().map((link) => words(link))).toEqual(['Builds', 'Translations']);
-    roles.set([]);
-    await fixture.whenStable();
-    expect(host.querySelector('.anotoki-top-bar__nav')).toBeNull();
-  });
-
   it('follows a change of language without being drawn again', async () => {
     await draw();
     await TestBed.inject(TranslationService).setLanguage('en', { remember: false });
@@ -265,18 +217,10 @@ describe("the top bar: the family's bar, told what is this site's", () => {
     expect(links().map((link) => words(link))).toEqual(['Dashboard', 'Import', 'Builds']);
   });
 
-  it('carries no widget of its own: the language comes first after the sections, for an editor and in the admin panel too', async () => {
+  it('carries no widget of its own: the language comes first after the sections, for an editor too', async () => {
     roles.set(['EDITOR']);
     await draw();
     expect(actions()).toEqual(['anotoki-language-switcher', 'anotoki-theme-toggle', 'anotoki-top-bar__person-button', 'anotoki-menu']);
-    fixture.destroy();
-    host.remove();
-
-    TestBed.inject(TranslationService).noteAddress('/admin/builds');
-    windowOf(ADMIN_PHONE_BAR_MAX + 201);
-    roles.set(['ADMIN']);
-    await draw('admin');
-    expect(actions()).toEqual(['anotoki-theme-toggle', 'anotoki-top-bar__person-button', 'anotoki-menu']);
   });
 
   describe('signed out', () => {
@@ -335,7 +279,7 @@ describe("the top bar: the family's bar, told what is this site's", () => {
       expect(items()[0].getAttribute('aria-current')).toBe('page');
     });
 
-    it('marks nothing on the menu button of an editor or an admin on the member pages: the menu holds the links and theirs alone', async () => {
+    it('marks nothing on the menu button of an editor or an admin: the menu holds the links and theirs alone', async () => {
       windowOf(390);
       for (const role of ['EDITOR', 'ADMIN']) {
         roles.set([role]);
@@ -361,49 +305,24 @@ describe("the top bar: the family's bar, told what is this site's", () => {
       expect(auth.login).toHaveBeenCalledWith(undefined);
     });
 
-    it(`folds up to ${PHONE_BAR_MAX} px on the member pages, ${ADMIN_PHONE_BAR_MAX} px for the ADMIN's admin panel and ${EDITOR_PHONE_BAR_MAX} px for an editor's`, async () => {
-      for (const [width, area, who, folded] of [
-        [PHONE_BAR_MAX, 'app', 'ADMIN', true],
-        [PHONE_BAR_MAX + 1, 'app', 'ADMIN', false],
-        [ADMIN_PHONE_BAR_MAX, 'admin', 'ADMIN', true],
-        [ADMIN_PHONE_BAR_MAX + 1, 'admin', 'ADMIN', false],
-        [EDITOR_PHONE_BAR_MAX, 'admin', 'EDITOR', true],
-        [EDITOR_PHONE_BAR_MAX + 1, 'admin', 'EDITOR', false],
+    it(`folds up to ${PHONE_BAR_MAX} px, for everybody`, async () => {
+      for (const [width, who, folded] of [
+        [PHONE_BAR_MAX, 'ADMIN', true],
+        [PHONE_BAR_MAX + 1, 'ADMIN', false],
+        [PHONE_BAR_MAX, 'MEMBER', true],
+        [PHONE_BAR_MAX + 1, 'MEMBER', false],
       ] as const) {
-        if (area === 'admin') {
-          TestBed.inject(TranslationService).noteAddress('/admin/builds');
-        }
         roles.set([who]);
         windowOf(width);
-        await draw(area);
-        expect(phoneButton() !== null, `${area}, ${who}, ${width} px`).toBe(folded);
+        await draw();
+        expect(phoneButton() !== null, `${who}, ${width} px`).toBe(folded);
         fixture.destroy();
         host.remove();
       }
     });
-
-    it('counts the new feedback on the menu button in the admin panel, and beside Feedback in its menu - for the ADMIN alone', async () => {
-      TestBed.inject(TranslationService).noteAddress('/admin/builds');
-      unread.count.set(4);
-      windowOf(390);
-      await draw('admin');
-      expect(words(host.querySelector('.anotoki-top-bar__mark-badge'))).toBe('4');
-      expect(phoneButton()?.getAttribute('aria-label')).toBe('Menu: 4 new feedback');
-      await openMenu();
-      const item = items().find((one) => one.getAttribute('href') === '/admin/feedback')!;
-      // The number seen alone, and heard after the item's name (anotoki-lib 0.6.0: the kit's topbar.linkCount).
-      expect(words(item)).toBe('Feedback 4, 4 new');
-      fixture.destroy();
-      host.remove();
-
-      // An editor has no Feedback, and no count anywhere.
-      roles.set(['EDITOR']);
-      await draw('admin');
-      expect(host.querySelector('.anotoki-top-bar__mark-badge')).toBeNull();
-    });
   });
 
-  describe('signing out', () => {
+  describe("signing out: the site's one (shared/sign-out.ts), the admin panel's frame's too", () => {
     const chooseSignOut = async (label: string) => {
       await openMenu();
       items()
@@ -442,11 +361,12 @@ describe("the top bar: the family's bar, told what is this site's", () => {
       });
       expect(auth.logout).not.toHaveBeenCalled();
       expect(drafts.count()).toBe(1);
+      // The menu that asked went first: the question stands alone.
+      expect(host.querySelector('anotoki-menu [role="menu"]')).toBeNull();
     });
 
     it('gives the drafts up before it signs out when the answer is to go - the question drawn by the kit, its no first', async () => {
-      TestBed.inject(TranslationService).noteAddress('/admin/translations');
-      await draw('admin');
+      await draw();
       const drafts = TestBed.inject(LocalizationDrafts);
       drafts.languages.set({ cs: { name: 'Czech', native_name: 'Čeština', sort_order: '3' } });
       await fixture.whenStable();
@@ -454,42 +374,15 @@ describe("the top bar: the family's bar, told what is this site's", () => {
       auth.logout.mockImplementationOnce(async () => {
         draftsAtSignOut = drafts.count();
       });
-      await chooseSignOut('Sign out');
+      await chooseSignOut('Odhlásiť sa');
 
       // The kit's question: its title, the stay first.
-      expect(words(document.querySelector('anotoki-confirm-host .anotoki-dialog__title'))).toBe('Sign out without your latest changes?');
-      expect(words(document.querySelector('anotoki-confirm-host [data-answer="no"]'))).toBe('Stay');
+      expect(words(document.querySelector('anotoki-confirm-host .anotoki-dialog__title'))).toBe('Odhlásiť sa bez posledných zmien?');
+      expect(words(document.querySelector('anotoki-confirm-host [data-answer="no"]'))).toBe('Zostať');
       document.querySelector<HTMLButtonElement>('anotoki-confirm-host [data-answer="yes"]')!.click();
       await vi.waitFor(() => expect(auth.logout).toHaveBeenCalledTimes(1));
       expect(draftsAtSignOut).toBe(0);
       expect(sessionStorage.getItem('build-analyzer-localization-drafts')).toBeNull();
-    });
-
-    it("asks first while the builds editor holds changes not saved - in the admin panel's English, one question for the strings too - and gives them up when the answer is to go", async () => {
-      const ask = vi.spyOn(TestBed.inject(ConfirmService), 'ask').mockResolvedValueOnce(false).mockResolvedValueOnce(true);
-      TestBed.inject(TranslationService).noteAddress('/admin/builds/genshin/hutao');
-      await draw('admin');
-      const changes = TestBed.inject(BuildEditorChanges);
-      changes.unsaved.set(true);
-      TestBed.inject(LocalizationDrafts).strings.set({ 'home.title': { sk: 'Každá postava' } });
-      await fixture.whenStable();
-
-      await chooseSignOut('Sign out');
-      expect(ask).toHaveBeenCalledWith({
-        title: 'Sign out without saving?',
-        message: 'The builds editor holds changes that are not saved, and so do the Translations or Languages pages. Signed out, they are lost.',
-        confirmLabel: 'Sign out anyway',
-        cancelLabel: 'Stay',
-        tone: 'danger',
-      });
-      expect(auth.logout).not.toHaveBeenCalled();
-      expect(changes.unsaved()).toBe(true);
-
-      await chooseSignOut('Sign out');
-      expect(ask).toHaveBeenCalledTimes(2);
-      expect(auth.logout).toHaveBeenCalledTimes(1);
-      // Given up: the editor's page lets the tab go without asking again, and the drafts went with them.
-      expect([changes.unsaved(), changes.givenUp(), TestBed.inject(LocalizationDrafts).count()]).toEqual([false, true, 0]);
     });
 
     it("does not ask over somebody else's drafts left in the tab: they are not this person's to give up", async () => {

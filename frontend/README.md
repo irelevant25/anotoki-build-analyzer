@@ -27,7 +27,7 @@ which every anotoki site shares; a visitor's stay this device's - `shared/shell.
 
 The People page and the admin tools (the error log, the audit log, feedback, backups) are the family's pages
 (`@anotoki/lib/people/page`, `@anotoki/lib/admin/*`, lazy, routed in `sites/admin/admin.routes.ts`, set up in
-`app.config.ts`); the bar counts the new feedback beside Feedback (`FeedbackUnread`). Terms, Privacy and Contact
+`app.config.ts`); the admin panel's column counts the new feedback beside Feedback (`FeedbackUnread`). Terms, Privacy and Contact
 are the family's pages too (`@anotoki/lib/legal/pages`, lazy, on `/terms`, `/privacy`, `/contact` - anybody's, no
 guard), in `sites/main/legal/legal-layout/` - everybody's pages' frame giving them this site's facts
 (`sites/main/legal/legal-facts.ts`, every fact named with the code it rests on; the words `legal.*`, migration
@@ -36,7 +36,7 @@ guard), in `sites/main/legal/legal-layout/` - everybody's pages' frame giving th
 above the fan clause. So are the About and Support pages (`@anotoki/lib/legal/about`, `/legal/support`, lazy, on
 `/about`, `/support`, in the same frame; the library's words, titled by its keys), which the footer links first. The
 footer is the family's (`<anotoki-site-footer>`, `@anotoki/lib/footer`, in both
-layouts): the version, What's new (this site's dialog) and Feedback, which opens the visitors' feedback form
+frames): the version, What's new (this site's dialog) and Feedback, which opens the visitors' feedback form
 (`@anotoki/lib/feedback/form`, set up in `shared/feedback.ts`) in the kit's dialog, loaded with the first press -
 offered, there and on the Contact page, only while a message can be sent (`feedbackOffered()`).
 `public/robots.txt` keeps search engines off `/auth/`. The
@@ -61,14 +61,15 @@ its page runs; the interceptor that hears the server say so; and the admin panel
 (`sites/admin/migrations/`, from `@anotoki/lib/migrations/page`). `shared/site-status.ts` wires them to this site
 (who is ADMIN, how to sign in, the language on the page, the account's dates).
 
-Every page is drawn with the family's kit (0.9.2): `src/styles.scss` takes `@anotoki/lib/styles` (the tokens,
+Every page is drawn with the family's kit (0.10.0): `src/styles.scss` takes `@anotoki/lib/styles` (the tokens,
 Manrope, the base, utilities and tables) and sets this site's colours over the family's `--anotoki-*` tokens,
 light and dark - never re-styling a kit piece; the pieces come each from its own entry point
 (`@anotoki/lib/ui/button`, `/ui/dialog`, `/ui/forms` ...), never the `@anotoki/lib/ui` barrel; `shared/kit.ts`
 gives the kit its words and the site's extra icons (`shared/icons.ts`), `shared/shell.ts` the shell its theme
 (`build-analyzer-theme`, read before the first paint by the kit's `theme-boot.js` in `index.html`) and
-languages. The top bar and the page's frame are the family's (`<anotoki-top-bar>`, `<anotoki-shell>`); the
-kit's question and toasts sit once in `app.html`. The kit's newer pieces stand where the site drew its own: the
+languages. Everybody's pages' top bar and frame are the family's (`<anotoki-top-bar>`, `<anotoki-shell>`), and so
+is the admin panel's frame (`<anotoki-admin-frame>`, `@anotoki/lib/admin/frame`, anotoki-lib 0.10.0: the panel's
+pages in a column on the left, no top bar); the kit's question and toasts sit once in `app.html`. The kit's newer pieces stand where the site drew its own: the
 import wizard's stepper and disclosures, the score bars and a sync's progress (its progress bar), the characters'
 link cards, a build's tab with its score as a badge, the element filter's segmented control with each element's
 mark (`--el-mark-*`), and the family's icons in `shared/icons.ts`. What the kit has no piece for stays the site's,
@@ -93,21 +94,24 @@ src/app/
                 the theme - the account's while signed in, else this device's - and the languages),
                 site-status.ts (the family's site gate and Migrations page, wired to this site), i18n/ (the
                 site's words on @anotoki/lib/translations; date-patterns.ts: the account's date order and clock),
-                localization-drafts.ts and build-editor-changes.ts (the sign-out's questions about unsaved
-                strings and builds), char-avatar, stat-pipes.ts, top-bar/ (the anotoki family's bar,
-                @anotoki/lib/shell, told this site's brand, sections and person: a phone's menu up to
-                PHONE_BAR_MAX - in the admin panel the ADMIN's and an editor's rows each their own)
+                sign-out.ts (the site's one Sign out, the top bar's and the admin frame's: its questions about
+                unsaved strings - localization-drafts.ts - and builds - build-editor-changes.ts), char-avatar,
+                stat-pipes.ts
   sites/main/   main.routes.ts, app-layout/ (everybody's pages' frame), dashboard, import, account, character,
                 builds; legal/ (legal-layout/ - the legal pages: everybody's frame with the facts - and
-                legal-facts.ts); common/ (what these pages share: visitor-notice/, visitor-hero/, data-card/
-                ("Your data"), build-detail, build-teams, item-card, grade-badge, score-bar, build-terms.ts,
-                game-terms.ts, query-filters.ts)
-  sites/admin/  admin.routes.ts, admin-layout/ (the admin panel: staff / signed out / no role), builds,
-                build-editor, translations, languages, migrations - English, under /admin/; People and the admin
-                tools are the family's pages, routed straight
+                legal-facts.ts); common/ (what these pages share: top-bar/ - the anotoki family's bar,
+                @anotoki/lib/shell, told this site's brand, sections and person, a phone's menu up to PHONE_BAR_MAX
+                -, visitor-notice/, visitor-hero/, data-card/ ("Your data"), build-detail, build-teams, item-card,
+                grade-badge, score-bar, build-terms.ts, game-terms.ts, query-filters.ts)
+  sites/admin/  admin.routes.ts, app.ts (the admin panel's frame: the family's <anotoki-admin-frame> for staff -
+                the panel's name, who is signed in, Back, Sign out, the theme and its pages in a column -, and
+                for anybody else a page of its own: signed out / no role), builds, build-editor, translations,
+                languages, migrations - English, under /admin/; People and the admin tools are the family's
+                pages, routed straight
 ```
 
-Both frames are in the family's `<anotoki-shell>`, with the family's footer (`<anotoki-site-footer>`).
+Everybody's pages are in the family's `<anotoki-shell>` with its top bar; the admin panel is in its admin frame,
+with no top bar; both with the family's footer (`<anotoki-site-footer>`).
 
 Every page outside `/admin/` is open to everybody - unless the IAM says this site requires a sign-in
 (`AuthService.loginRequired`, from `/api/meta`): then `sitePagesGuard` (the family's `personOrVisitorGuard`) sends

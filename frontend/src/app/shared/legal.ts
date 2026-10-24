@@ -11,7 +11,7 @@ export const LEGAL_PAGE_PATHS: readonly string[] = [DEFAULT_LEGAL_PATHS.about, D
 /**
  * How this site plugs into the anotoki family's legal pages (@anotoki/lib/legal, anotoki-lib 0.6.0: Terms, Privacy
  * and Contact on the lazy routes /terms, /privacy and /contact - app.routes.ts - and the links to them in the
- * family's footer, <anotoki-site-footer> in sites/main/app-layout and sites/admin/admin-layout) and, since 0.8.0, its About
+ * family's footer, <anotoki-site-footer> in sites/main/app-layout and sites/admin/app.ts) and, since 0.8.0, its About
  * and Support pages on /about and /support, which the footer links first. provideAnotokiLegal() runs it in an
  * injection context.
  *

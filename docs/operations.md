@@ -458,7 +458,7 @@ whole admin panel. No file explorer here (the owner's choice for this site).
   deleted, backups made, downloaded, deleted and restored. No address is kept. A restore keeps it as it is.
 - **Feedback** (the table `anotoki_feedback`): what visitors send from **Feedback** at the foot of every page - a
   bug, an idea or anything else, about one of the site's places (Dashboard, Import, Accounts, Builds). Nobody is
-  mailed: the bar counts what is new beside Feedback. Who sent it comes from their token alone; for somebody signed
+  mailed: the admin panel's column counts what is new beside Feedback. Who sent it comes from their token alone; for somebody signed
   in the page writes their account's address into the form's address field, and the address they leave there -
   none once they cleared it - is the only one kept, unless they tick "send it without my name" (no id, no
   address): their choice (the owner's decision of 2026-10-11). Nothing on the server fills an empty field: the
@@ -635,6 +635,8 @@ upload map, are in [DEV.md](../DEV.md) ("Deploying"); in short:
      file's import, in one sitting - the order is its own section, "Deploying 0.5.0" (below).
    - **Version 0.7.0: the builds editor (migrations 022-023)**: the release, then Apply at once; nothing to import -
      its own section, "Deploying 0.7.0" (below).
+   - **The admin panel in the family's frame (anotoki-lib 0.10.0, both halves; migration 024)**: the release with
+     `vendor/`, then Apply at once - its own section, "Deploying the admin panel's frame" (below).
    - **Version 0.3: visitors and the family's bar (migration 004, IAM migration 007)**, in this
      order: (1) before uploading, make sure an account that can sign in holds **ADMIN on `build-analyzer` now**
      (the IAM's admin panel; IAM 007 is what later gives every IAM administrator ADMIN here); (2) upload;
@@ -668,6 +670,28 @@ upload map, are in [DEV.md](../DEV.md) ("Deploying"); in short:
 Check after an install: `https://builder.anotoki.eu/config/database.local.php`, `/storage/logs/app.log` and
 `/src/Config.php` must not download (403); `https://builder.anotoki.eu/api/meta` answers JSON with the IAM's
 `issuer`, `client_id` and `login_required` under `auth`; `/api/accounts` answers 401 without a token.
+
+### Deploying the admin panel's frame
+
+The owner's request of 2026-10-24 ([decisions.md](decisions.md)): the admin panel in the anotoki family's frame,
+as every anotoki admin panel - anotoki-lib 0.10.0, both halves (`vendor/` from Composer's `^0.10.0`, the app's
+`@anotoki/lib` from the 0.10.0 tarball): the panel's pages in a column on the left, the page on the right, and no
+top bar - the bar is everybody's pages' alone. Migration 024 deletes the one string only the admin panel's bar
+said - `topbar.homeAdmin`, the name of its brand's link - and describes `brand.admin` and `topbar.backToApp` anew,
+which the frame's column says.
+
+1. **The release**: `bun run anotoki-deploy deploy --backups <folder> --go`, `vendor/` with it. From then on the
+   site is closed until the Apply.
+2. **Apply pending at once** (signed in as the ADMIN, on the Migrations page): 024, after a backup of the database
+   as it was ("before-migration"); its gate refuses (rolled back whole) unless the key and its strings are gone, the
+   two keys it describes have their English, and the site's own keys are 439.
+
+Then check: `/admin` on a computer - the column with "Analyzer · admin panel", the person, Back to Build Analyzer,
+Sign out, the theme and the pages (an editor's two, the ADMIN's nine, the count of new feedback beside Feedback) -
+and on a phone (up to 860 px) the row with Menu and its drawer; every page outside `/admin` keeps its top bar, with
+no admin sections in it. No release from before 024 goes on the host after it: its admin panel's bar would name the
+panel's home by a bare key. **The backups made before this Apply are restored offline only** (`409
+schema_differs`, as after every Apply): make a backup by hand once it is applied.
 
 ### Deploying 0.7.1
 

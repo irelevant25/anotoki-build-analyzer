@@ -21,7 +21,7 @@ backend/src/Models/GameSet.php
 backend/src/Models/GameWeapon.php
 # Prettier puts a text's start or end on a line of its own (htmlWhitespaceSensitivity ignore) and Angular keeps a space there: these pages would
 # gain spaces - between a button's icon and its word ("<anotoki-icon ... />Sign in"), and inside a stat target's "120+" or an item's "+16 / +20".
-frontend/src/app/sites/admin/admin-layout/admin-layout.html
+frontend/src/app/sites/admin/app.html
 frontend/src/app/sites/main/account/account-page.html
 frontend/src/app/sites/admin/builds/admin-builds-page.html
 frontend/src/app/sites/main/builds/build-character-page.html

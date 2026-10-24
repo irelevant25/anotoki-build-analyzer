@@ -87,6 +87,12 @@ const VERSION_07_FILES = ['022_build_hand_edits.sql', '023_builds_editor_words.s
 /** What version 0.7's files do to the count of the site's own keys: 022 adds none, 023 adds 1. */
 const VERSION_07_KEYS = 1;
 
+/** After 0.7's: the admin panel in the family's frame (anotoki-lib 0.10.0) - the name its top bar gave the panel's home retired (024). */
+const ADMIN_FRAME_FILES = ['024_admin_frame.sql'];
+
+/** What the admin frame's file does to the count of the site's own keys: 024 retires 1. */
+const ADMIN_FRAME_KEYS = -1;
+
 /** Every column, constraint and index of the app's tables, as comparable lines. */
 function schemaOf(PDO $pdo): array
 {
@@ -680,7 +686,10 @@ test('006 moves the two words of the library\'s under its keys with every reword
     // two; 011 added the legal pages' words; 012 the kit's pieces'; 013 moved the footer's three; version 0.5's files
     // change them as VERSION_05_KEYS says. The library's keys are every key of its words file (261 with 0.6.3).
     same(
-        ['the site\'s' => $keys - 2 - 8 + 5 - 14 + LEGAL_PAGES_KEYS + KIT_PIECES_KEYS - FOOTER_KEYS + VERSION_05_KEYS + VERSION_06_KEYS + VERSION_07_KEYS, 'the library\'s' => libraryKeyCount()],
+        [
+            'the site\'s' => $keys - 2 - 8 + 5 - 14 + LEGAL_PAGES_KEYS + KIT_PIECES_KEYS - FOOTER_KEYS + VERSION_05_KEYS + VERSION_06_KEYS + VERSION_07_KEYS + ADMIN_FRAME_KEYS,
+            'the library\'s' => libraryKeyCount(),
+        ],
         [
             'the site\'s' => (int) $pdo->query("SELECT count(*) FROM translation_keys WHERE name NOT LIKE 'anotoki.%'")->fetchColumn(),
             'the library\'s' => (int) $pdo->query("SELECT count(*) FROM translation_keys WHERE name LIKE 'anotoki.%'")->fetchColumn(),
@@ -716,6 +725,7 @@ test('006\'s gate refuses a database whose keys are not the ones it expects - an
             ...VERSION_05_FILES,
             ...VERSION_06_FILES,
             ...VERSION_07_FILES,
+            ...ADMIN_FRAME_FILES,
             ...array_column(libraryFiles(), 'name'),
             ...array_column(peopleFiles(), 'name'),
         ],
@@ -875,7 +885,12 @@ test(
         $result = Migrations::migrator($pdo)->apply();
         same(null, $result['error'], 'no error');
         same(
-            [...adminFiles(), ...array_map('siteFile', [...VERSION_04_FILES, ...VERSION_05_FILES, ...VERSION_06_FILES, ...VERSION_07_FILES]), ...array_slice(libraryFiles(), 2), ...peopleFiles()],
+            [
+                ...adminFiles(),
+                ...array_map('siteFile', [...VERSION_04_FILES, ...VERSION_05_FILES, ...VERSION_06_FILES, ...VERSION_07_FILES, ...ADMIN_FRAME_FILES]),
+                ...array_slice(libraryFiles(), 2),
+                ...peopleFiles(),
+            ],
             $result['applied'],
             'in the README\'s order',
         );
@@ -909,7 +924,7 @@ test(
         // The feedback button's words 009 added - under the library's key since 013, the footer the family's.
         same([['en', 'Feedback'], ['sk', 'Spätná väzba']], array_map(fn($row) => [$row['language_code'], $row['value']], stringsOf($pdo, 'anotoki.footer.feedback')), 'the feedback button\'s words');
         same(
-            $keys - 8 + 5 - 14 + LEGAL_PAGES_KEYS + KIT_PIECES_KEYS - FOOTER_KEYS + VERSION_05_KEYS + VERSION_06_KEYS + VERSION_07_KEYS,
+            $keys - 8 + 5 - 14 + LEGAL_PAGES_KEYS + KIT_PIECES_KEYS - FOOTER_KEYS + VERSION_05_KEYS + VERSION_06_KEYS + VERSION_07_KEYS + ADMIN_FRAME_KEYS,
             (int) $pdo->query("SELECT count(*) FROM translation_keys WHERE name NOT LIKE 'anotoki.%'")->fetchColumn(),
             'the site\'s keys: eight gone and five new (009), fourteen gone (010), the legal pages\' words (011), the stepper\'s and tabs\' (012), the footer\'s three gone (013), and version 0.5\'s',
         );
@@ -927,7 +942,12 @@ test('009 where the library\'s sign-in words went in first: the site\'s words ta
     $result = Migrations::migrator($pdo)->apply();
     same(null, $result['error'], 'no error');
     same(
-        [...adminFiles(), ...array_map('siteFile', [...VERSION_04_FILES, ...VERSION_05_FILES, ...VERSION_06_FILES, ...VERSION_07_FILES]), ...array_slice(libraryFiles(), 4), ...peopleFiles()],
+        [
+            ...adminFiles(),
+            ...array_map('siteFile', [...VERSION_04_FILES, ...VERSION_05_FILES, ...VERSION_06_FILES, ...VERSION_07_FILES, ...ADMIN_FRAME_FILES]),
+            ...array_slice(libraryFiles(), 4),
+            ...peopleFiles(),
+        ],
         $result['applied'],
         'the rest - and the library\'s later words',
     );
@@ -963,6 +983,7 @@ test('009\'s gate refuses a database whose keys are not the ones it expects - no
             ...VERSION_05_FILES,
             ...VERSION_06_FILES,
             ...VERSION_07_FILES,
+            ...ADMIN_FRAME_FILES,
             ...array_column(array_slice(libraryFiles(), 2), 'name'),
             ...array_column(peopleFiles(), 'name'),
         ],
@@ -1012,7 +1033,12 @@ test(
         $result = Migrations::migrator($pdo)->apply();
         same(null, $result['error'], 'no error');
         same(
-            [...adminFiles(), ...array_map('siteFile', [...VERSION_04_FILES, ...VERSION_05_FILES, ...VERSION_06_FILES, ...VERSION_07_FILES]), ...array_slice(libraryFiles(), 2), ...peopleFiles()],
+            [
+                ...adminFiles(),
+                ...array_map('siteFile', [...VERSION_04_FILES, ...VERSION_05_FILES, ...VERSION_06_FILES, ...VERSION_07_FILES, ...ADMIN_FRAME_FILES]),
+                ...array_slice(libraryFiles(), 2),
+                ...peopleFiles(),
+            ],
             $result['applied'],
             'version 0.4 and on in one Apply',
         );
@@ -1069,7 +1095,7 @@ test('010\'s gate refuses a database whose keys are not the ones it expects - no
         'the keys stay',
     );
     same(
-        ['010_top_bar_words_through_the_library.sql', LEGAL_PAGES_FILE, KIT_PIECES_FILE, FOOTER_FILE, ...VERSION_05_FILES, ...VERSION_06_FILES, ...VERSION_07_FILES],
+        ['010_top_bar_words_through_the_library.sql', LEGAL_PAGES_FILE, KIT_PIECES_FILE, FOOTER_FILE, ...VERSION_05_FILES, ...VERSION_06_FILES, ...VERSION_07_FILES, ...ADMIN_FRAME_FILES],
         array_column(Migrations::migrator($pdo)->status()['pending'], 'name'),
         'it still waits, and the files after it',
     );
@@ -1124,7 +1150,7 @@ test(
         $result = Migrations::migrator($pdo)->apply();
         same(null, $result['error'], 'no error');
         same(
-            [siteFile(FOOTER_FILE), ...array_map('siteFile', [...VERSION_05_FILES, ...VERSION_06_FILES, ...VERSION_07_FILES]), ...array_slice(libraryFiles(), 11)],
+            [siteFile(FOOTER_FILE), ...array_map('siteFile', [...VERSION_05_FILES, ...VERSION_06_FILES, ...VERSION_07_FILES, ...ADMIN_FRAME_FILES]), ...array_slice(libraryFiles(), 11)],
             $result['applied'],
             '013 and the site\'s files after it, then the library\'s 012 - one Apply',
         );
@@ -1151,7 +1177,7 @@ test(
             'whatsNew.title\'s description names the footer\'s word',
         );
         same(
-            $keys - FOOTER_KEYS + VERSION_05_KEYS + VERSION_06_KEYS + VERSION_07_KEYS,
+            $keys - FOOTER_KEYS + VERSION_05_KEYS + VERSION_06_KEYS + VERSION_07_KEYS + ADMIN_FRAME_KEYS,
             (int) $pdo->query("SELECT count(*) FROM translation_keys WHERE name NOT LIKE 'anotoki.%'")->fetchColumn(),
             'the site\'s keys less the three, and version 0.5\'s',
         );
@@ -1170,7 +1196,11 @@ test('013 where the library\'s footer words went in first: the site\'s take thei
 
     $result = Migrations::migrator($pdo)->apply();
     same(null, $result['error'], 'no error');
-    same([siteFile(FOOTER_FILE), ...array_map('siteFile', [...VERSION_05_FILES, ...VERSION_06_FILES, ...VERSION_07_FILES])], $result['applied'], '013 and the site\'s files after it');
+    same(
+        [siteFile(FOOTER_FILE), ...array_map('siteFile', [...VERSION_05_FILES, ...VERSION_06_FILES, ...VERSION_07_FILES, ...ADMIN_FRAME_FILES])],
+        $result['applied'],
+        '013 and the site\'s files after it',
+    );
 
     same($feedback[0], stringsOf($pdo, 'anotoki.footer.feedback')[0], 'the editor\'s English, by whom and when, in place of the library\'s');
     same('Spätná väzba', wordsOf($pdo, 'anotoki.footer.feedback')['sk'], 'the Slovak, the same words');
@@ -1193,7 +1223,7 @@ test('013\'s gate refuses a database whose keys are not the ones it expects - no
     same(0, (int) $pdo->query("SELECT count(*) FROM translation_keys WHERE name LIKE 'anotoki.footer.%'")->fetchColumn(), 'nothing of 013, nor the library\'s 012');
     // The library's 012 and every file of its set after it (anotoki-lib 0.8.0's 013, the About and Support pages' words).
     same(
-        [FOOTER_FILE, ...VERSION_05_FILES, ...VERSION_06_FILES, ...VERSION_07_FILES, ...array_column(array_slice(libraryFiles(), 11), 'name')],
+        [FOOTER_FILE, ...VERSION_05_FILES, ...VERSION_06_FILES, ...VERSION_07_FILES, ...ADMIN_FRAME_FILES, ...array_column(array_slice(libraryFiles(), 11), 'name')],
         array_column(Migrations::migrator($pdo)->status()['pending'], 'name'),
         'they all still wait',
     );
@@ -1820,6 +1850,44 @@ test(
             !str_contains((string) $pdo->query("SELECT description FROM translation_keys WHERE name = 'buildDetail.notes'")->fetchColumn(), 'as written, in English'),
             'the notes\' panel described as the site\'s own notes',
         );
+    },
+);
+
+test(
+    '024 where an editor reworded the name the top bar gave the admin panel\'s home: the key goes with both its strings, the reworded one too; the frame\'s words stay, described anew',
+    function () use ($server) {
+        $pdo = upTo013($server, 'to013frame');
+        siteFilesBefore($pdo, 'to013frame', '024')->apply();
+        $pdo->exec("UPDATE translations SET value = 'My own name of the admin panel' WHERE key_name = 'topbar.homeAdmin' AND language_code = 'en'");
+        $count = fn(): int => (int) $pdo->query("SELECT count(*) FROM translation_keys WHERE name NOT LIKE 'anotoki.%'")->fetchColumn();
+        $before = $count();
+
+        $result = Migrations::migrator($pdo)->apply();
+        same(null, $result['error'], 'no error');
+        same([siteFile('024_admin_frame.sql')], $result['applied'], '024 applied, alone');
+        same(
+            [0, 0],
+            [
+                (int) $pdo->query("SELECT count(*) FROM translation_keys WHERE name = 'topbar.homeAdmin'")->fetchColumn(),
+                (int) $pdo->query("SELECT count(*) FROM translations WHERE key_name = 'topbar.homeAdmin'")->fetchColumn(),
+            ],
+            'no key, no string - the reworded one neither',
+        );
+        same($before + ADMIN_FRAME_KEYS, $count(), 'one key of the site\'s own fewer');
+        // What the frame's column says with the site's words stays, in both languages: the panel's name and Back.
+        same(
+            ['brand.admin en', 'brand.admin sk', 'brand.short en', 'brand.short sk', 'topbar.backToApp en', 'topbar.backToApp sk'],
+            $pdo
+                ->query(
+                    "SELECT key_name || ' ' || language_code FROM translations WHERE key_name IN ('brand.admin', 'brand.short', 'topbar.backToApp') ORDER BY (key_name || ' ' || language_code) COLLATE \"C\"",
+                )
+                ->fetchAll(PDO::FETCH_COLUMN),
+            'the frame\'s words, in English and Slovak',
+        );
+        foreach (['brand.admin', 'topbar.backToApp'] as $key) {
+            $description = (string) $pdo->query("SELECT description FROM translation_keys WHERE name = '{$key}'")->fetchColumn();
+            check(str_starts_with($description, 'The admin panel (which reads English)') && !str_contains($description, 'top bar'), "{$key}: described as the frame's column says it");
+        }
     },
 );
 

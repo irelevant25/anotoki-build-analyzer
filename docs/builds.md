@@ -419,8 +419,9 @@ there):
   no field has it. 409 `changed`: the page says the builds changed meanwhile and keeps what was typed until
   **Reload** (asked first); 409 `busy`: a message to try again; any other failure is said in the bar;
 - leaving with changes not saved asks first (the route's `anotokiUnsavedChangesGuard` asks the page), closing the tab
-  too (the browser's own question), and the top bar's **Sign out** asks while the editor holds changes
-  (`shared/build-editor-changes.ts`; the admin panel's English). Nothing is kept in the browser's storage.
+  too (the browser's own question), and **Sign out** - the site's one (`shared/sign-out.ts`), in the admin panel's
+  column - asks while the editor holds changes (`shared/build-editor-changes.ts`; the admin panel's English).
+  Nothing is kept in the browser's storage.
 
 The members' pages show the notes (`BuildPresenter`: a build's `notes` and each team's `note` as `{en, sk?}` or null,
 from `site_notes`): in Slovak to a reader of Slovak where an editor wrote it, else in English - marked `lang="en"`

@@ -4,7 +4,7 @@ import { SiteFooterComponent } from '@anotoki/lib/footer';
 import { ShellComponent } from '@anotoki/lib/shell';
 import { Changelog } from '../../../shared/changelog';
 import { feedbackOffered } from '../../../shared/feedback';
-import { TopBar } from '../../../shared/top-bar/top-bar';
+import { TopBar } from '../common/top-bar/top-bar';
 
 /**
  * The frame of every page outside the admin panel - open to everybody (somebody new, a visitor, a person

@@ -14,7 +14,7 @@ import { VisitorMove } from './api/models';
 import { provideShell } from './shared/shell';
 import { provideSiteStatus } from './shared/site-status';
 import { VisitorKey } from './shared/visitor-key';
-import { AdminLayout } from './sites/admin/admin-layout/admin-layout';
+import { AdminApp } from './sites/admin/app';
 import { AppLayout } from './sites/main/app-layout/app-layout';
 
 const ENGLISH = {
@@ -52,11 +52,11 @@ type Who = 'nobody' | 'member' | 'admin';
 type Standing = { code: 'ready' } | { code: 'update_pending' } | { code: 'unavailable' } | { code: 'not_set_up'; installed: boolean };
 
 /**
- * The page in the site's two real frames, as app.routes.ts nests them: everybody's pages in the AppLayout, the
- * admin panel in the AdminLayout - each with the family's bar and footer.
+ * The page in the site's two real frames, as app.routes.ts nests them: everybody's pages in the AppLayout (the
+ * family's bar and footer), the admin panel in AdminApp (the family's admin frame, with the footer and no bar).
  */
 const FRAMED: Routes = [
-  { path: 'admin', component: AdminLayout, children: [{ path: '**', component: TestPage }] },
+  { path: 'admin', component: AdminApp, children: [{ path: '**', component: TestPage }] },
   { path: '', component: AppLayout, children: [{ path: '**', component: TestPage }] },
 ];
 
@@ -135,7 +135,7 @@ describe('the shell', () => {
         },
         { provide: Changelog, useValue: changelog },
         { provide: VisitorKey, useValue: visitor },
-        // What the layouts' bar asks: the feedback nobody opened.
+        // What the admin panel's frame asks: the feedback nobody opened.
         { provide: FeedbackUnread, useValue: { count: signal(null), refresh: vi.fn() } },
       ],
     });
@@ -307,10 +307,11 @@ describe('the shell', () => {
   });
 
   /**
-   * Anything of a frame on the page: the family's shell, the bar, the footer, the legal links - or any banner,
-   * foot or navigation at all.
+   * Anything of a frame on the page: the family's shell, the bar, the admin frame, the footer, the legal links - or
+   * any banner, foot or navigation at all.
    */
-  const frame = () => [...host.querySelectorAll('anotoki-shell, app-top-bar, anotoki-top-bar, anotoki-site-footer, anotoki-legal-links, header, footer, nav')].map((element) => element.localName);
+  const frame = () =>
+    [...host.querySelectorAll('anotoki-shell, app-top-bar, anotoki-top-bar, anotoki-admin-frame, anotoki-site-footer, anotoki-legal-links, header, footer, nav')].map((element) => element.localName);
 
   it("the gate's page is bare - no bar, no footer, nothing of the frame - while an update waits, the database is out of reach or the site is not set up, in the site's real layouts", async () => {
     const closed: [string, Who, Standing, string][] = [
@@ -333,7 +334,7 @@ describe('the shell', () => {
     }
   });
 
-  it("the frame comes back with the site: the bar and the footer around everybody's pages and the admin panel - and around the one page the ADMIN reaches while an update waits, Migrations", async () => {
+  it("the frame comes back with the site: the bar and the footer around everybody's pages, the admin frame and the footer round the admin panel - and round the one page the ADMIN reaches while an update waits, Migrations", async () => {
     const framed = () => ({
       bar: host.querySelector('anotoki-shell app-top-bar anotoki-top-bar') !== null,
       page: host.querySelector('anotoki-shell main .the-page') !== null,
@@ -341,6 +342,15 @@ describe('the shell', () => {
       gate: statusPage() !== null,
     });
     const whole = { bar: true, page: true, footer: true, gate: false };
+    // The admin panel: the family's admin frame - its column with the pages, the page in its <main>, the footer - and no bar.
+    const adminFramed = () => ({
+      column: host.querySelector('app-admin-root anotoki-admin-frame header.anotoki-admin-frame__column nav') !== null,
+      page: host.querySelector('anotoki-admin-frame main .the-page') !== null,
+      footer: host.querySelector('anotoki-admin-frame anotoki-site-footer anotoki-legal-links') !== null,
+      bar: host.querySelector('app-top-bar, anotoki-top-bar') !== null,
+      gate: statusPage() !== null,
+    });
+    const wholeAdmin = { column: true, page: true, footer: true, bar: false, gate: false };
 
     const feedback = () => host.querySelector('anotoki-site-footer [data-open-feedback]') !== null;
 
@@ -349,7 +359,7 @@ describe('the shell', () => {
 
     TestBed.resetTestingModule();
     await setup({ who: 'admin', path: '/admin/builds', framed: true });
-    expect([framed(), feedback()]).toEqual([whole, true]);
+    expect([adminFramed(), feedback()]).toEqual([wholeAdmin, true]);
 
     // The ADMIN's Migrations page while an update waits: the frame, but no Feedback - the gate would answer it 503.
     TestBed.resetTestingModule();
@@ -359,7 +369,7 @@ describe('the shell', () => {
       path: '/admin/migrations',
       framed: true,
     });
-    expect([framed(), feedback()]).toEqual([whole, false]);
+    expect([adminFramed(), feedback()]).toEqual([wholeAdmin, false]);
 
     // Closed while a page was open: the frame goes with the page, and comes back with it.
     TestBed.resetTestingModule();

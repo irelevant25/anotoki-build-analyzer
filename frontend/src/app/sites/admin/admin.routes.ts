@@ -3,9 +3,10 @@ import { adminGuard, personGuard } from '@anotoki/lib/auth';
 import { anotokiUnsavedChangesGuard } from '@anotoki/lib/translations';
 
 /**
- * The admin panel's addresses, /admin/**: its frame (the AdminLayout, behind personGuard) and its pages - Builds and a
- * character's builds editor, Translations; for the ADMIN (adminGuard) Languages, People, Migrations and the admin
- * tools. The map of every address, its guards and its titles is app.routes.ts's, which lists this first.
+ * The admin panel's addresses, /admin/**: its frame (AdminApp, sites/admin/app.ts - the family's admin frame, behind
+ * personGuard) and its pages - Builds and a character's builds editor, Translations; for the ADMIN (adminGuard)
+ * Languages, People, Migrations and the admin tools. The map of every address, its guards and its titles is
+ * app.routes.ts's, which lists this first.
  *
  * Spread there, never loaded as a chunk of its own: the routes stay in the first load, as they always were, and the
  * frame and each page keep their own lazy chunks.
@@ -14,7 +15,7 @@ export const ADMIN_ROUTES: Routes = [
   {
     path: 'admin',
     canActivate: [personGuard],
-    loadComponent: () => import('./admin-layout/admin-layout').then((m) => m.AdminLayout),
+    loadComponent: () => import('./app').then((m) => m.AdminApp),
     children: [
       { path: '', pathMatch: 'full', redirectTo: 'builds' },
       {

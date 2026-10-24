@@ -11,10 +11,14 @@ import {
   iconDatabase,
   iconDownload,
   iconGamepad,
+  iconGlobe,
+  iconHistory,
   iconKey,
+  iconLanguages,
   iconLayers,
   iconLightbulb,
   iconLock,
+  iconMessage,
   iconMinus,
   iconMoreHorizontal,
   iconPencil,
@@ -35,8 +39,9 @@ import {
  * the ones this site drew itself are the family's too: upload (the imports), lightbulb (a tip), minus (what an import method lacks, beside the kit's check), wrench
  * ("Fixed" in What's new), gamepad (the game itself, in the wizard's guides) and save (saving the export). The builds
  * editor's: arrowUp and arrowDown (moving a build or a row of one), arrowRight beside the kit's own arrowLeft (moving
- * a team's member, its columns side by side), undo (a part back as the file has it). A game's
- * mark is the kit's own (Genshin Impact's sparkle).
+ * a team's member, its columns side by side), undo (a part back as the file has it). The admin panel's column (the
+ * family's admin frame, sites/admin/app.ts) names its pages' with the others: languages (Translations), globe
+ * (Languages), history (Audit) and message (Feedback). A game's mark is the kit's own (Genshin Impact's sparkle).
  */
 
 /** Every icon this site names beyond the kit's own: `<anotoki-icon name="trash" />`. */
@@ -65,6 +70,10 @@ export const SITE_ICONS: IconSet = {
   arrowDown: iconArrowDown,
   arrowRight: iconArrowRight,
   undo: iconUndo,
+  languages: iconLanguages,
+  globe: iconGlobe,
+  history: iconHistory,
+  message: iconMessage,
 };
 
 /** A game's mark, by game: Genshin Impact's sparkle (the kit's). */

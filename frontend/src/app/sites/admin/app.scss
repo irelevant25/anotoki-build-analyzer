@@ -1,0 +1,38 @@
+// The frame, or the page of a card: either way a box of its own (the frame sizes itself to the window).
+:host {
+  display: block;
+}
+
+// The panel's pages in the frame's page column keep the measure they had in the family's page frame (its 84rem less
+// its padding), in the column's middle on a wide window.
+.page-width {
+  max-width: 80.5rem;
+  margin: 0 auto;
+}
+
+// A card in the middle of the page, for whoever the admin panel is not for: why, and the way on.
+.no-access {
+  max-width: 40rem;
+  margin: 2rem auto 0;
+  text-align: center;
+
+  h1 {
+    margin: 0.5rem 0;
+  }
+
+  p {
+    max-width: 32.5rem;
+    margin: 0 auto 1.25rem;
+  }
+}
+
+.no-access-icon {
+  color: var(--anotoki-primary);
+}
+
+// A page printed: the page alone, as wide as the paper - the frame leaves its column out itself.
+@media print {
+  .page-width {
+    max-width: none;
+  }
+}

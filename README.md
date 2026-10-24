@@ -41,9 +41,13 @@ Setting it up, running, testing, building and deploying: **[DEV.md](DEV.md)**.
   browser). The words live in the database, so editors reword them, and admins add or hide languages, in the
   browser (the admin panel's Translations and Languages pages, in English like the rest of `/admin/`). The game's own words -
   stat, set, weapon and character names, "Lv.", "4pc", values like "62.4%" - stay as the game writes them.
-- **The anotoki top bar**: the same bar as on the other anotoki sites - the brand, the sections, the language,
-  the theme and the person's menu (their anotoki account, the admin panel for editors and admins, Sign out); on
-  a phone (up to 880 px) the sections and the menu fold into one menu button.
+- **The anotoki top bar**: the same bar as on the other anotoki sites, on every page outside the admin panel - the
+  brand, the sections, the language, the theme and the person's menu (their anotoki account, the admin panel for
+  editors and admins, Sign out); on a phone (up to 880 px) the sections and the menu fold into one menu button.
+- **The admin panel in the anotoki family's frame** (anotoki-lib 0.10.0, as on every anotoki site): no top bar - its
+  pages in a column on the left, under the panel's name, who is signed in, Back to Build Analyzer, Sign out and the
+  theme, and the page on the right; on a phone (up to 860 px) a row with the panel's name and Menu, the column in a
+  drawer.
 - **One anotoki account, one look**: signed in, the theme (the admin panel's too), the language and how dates
   are written are the anotoki account's - the same on every anotoki site - and a choice in the bar is saved to
   it. Without signing in, each browser keeps its own.
@@ -170,7 +174,7 @@ played in (0.6.0) -, the builds editor (0.7.0: hand edits and the site's own not
 from genshin.anotoki.eu, sign-in through the IAM only, visitors (somebody not signed in imports and uses their
 accounts; the dashboard shows nobody the ways in, a visitor their accounts under a notice of how long they are
 kept; at sign-in they move into the account - unless the IAM says this site requires a sign-in: then every page
-asks for one first), the admin panel under `/admin/` (editors: Builds and Translations; admins also Languages,
+asks for one first), the admin panel under `/admin/` in the anotoki family's admin frame (editors: Builds and Translations; admins also Languages,
 People, Migrations - the database's updates seen and applied, as on the IAM - and the error log, the audit log,
 feedback and backups), the "Your data" card for every signed-in person (export, import with a preview), and
 Feedback at the foot of every page, under the anotoki top bar with the version in the footer. Version 0.7.0's
@@ -256,17 +260,18 @@ frontend/src/app/       the anotoki family's folders, the genshin site's: api/, 
   shared/               what both halves use: metadata store, changelog and its dialog, sign-in (on anotoki-lib's auth
                         module), the visitor key, i18n/ (the site's words on anotoki-lib's service: typed keys, pipes,
                         the compiled English, a variation's words), site-status (anotoki-lib's site gate and Migrations
-                        page, wired to this site), top-bar/ (both frames draw it), the character avatar, ...
-  sites/main/           everybody's pages (main.routes.ts): app-layout (their frame), dashboard, import wizard,
-                        account, character analysis (a tab per variation), builds (the browser with its filters),
-                        legal/ (the legal pages' frame with the site's facts; About and Support, /about and
-                        /support), common/ (build detail, item card, grade badge, score bar, the visitor notice, the
-                        ways in for somebody new, the "Your data" card, game terms, the filters kept in the address)
-  sites/admin/          the admin panel (admin.routes.ts): admin-layout (its frame), builds, build-editor,
-                        translations, languages, migrations - translations, languages and migrations are
-                        anotoki-lib's pages, and so are People and the admin tools, routed straight. Both frames
-                        with anotoki-lib's footer (version, What's new, Feedback; About · Support · Terms · Privacy ·
-                        Contact)
+                        page, wired to this site), the one Sign out, the character avatar, ...
+  sites/main/           everybody's pages (main.routes.ts): app-layout (their frame, with the top bar), dashboard,
+                        import wizard, account, character analysis (a tab per variation), builds (the browser with
+                        its filters), legal/ (the legal pages' frame with the site's facts; About and Support, /about
+                        and /support), common/ (the top bar, build detail, item card, grade badge, score bar, the
+                        visitor notice, the ways in for somebody new, the "Your data" card, game terms, the filters
+                        kept in the address)
+  sites/admin/          the admin panel (admin.routes.ts): app.ts (its frame - anotoki-lib's admin frame, the pages
+                        in a column on the left, no top bar), builds, build-editor, translations, languages,
+                        migrations - translations, languages and migrations are anotoki-lib's pages, and so are
+                        People and the admin tools, routed straight. Both frames with anotoki-lib's footer (version,
+                        What's new, Feedback; About · Support · Terms · Privacy · Contact)
 frontend/public/        changelog.json, favicon, robots.txt (keeps search engines off /auth/)
 docs/                   knowledge base (start at docs/README.md)
 .claude/                project skills and agents for AI-assisted work

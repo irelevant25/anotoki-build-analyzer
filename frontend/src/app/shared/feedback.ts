@@ -18,7 +18,7 @@ export const FEEDBACK_SECTIONS = [
 
 /**
  * The visitors' feedback form - the anotoki family's (@anotoki/lib/feedback/form, opened by Feedback in the family's
- * footer of every page, <anotoki-site-footer> in sites/main/app-layout and sites/admin/admin-layout, and by the Contact
+ * footer of every page, <anotoki-site-footer> in sites/main/app-layout and sites/admin/app.ts, and by the Contact
  * page) - set up for this site: in the language on the page (English in the admin panel), an owner's rewording of
  * its words (anotoki.feedback.*) from the database, about one of the site's places; for somebody signed in, their
  * account's address is written in as the address for an answer (they may type another) and "send it without my
@@ -41,7 +41,7 @@ export function provideFeedback(): EnvironmentProviders {
 
 /**
  * Whether a message can be sent now: Feedback in the footer and the Contact page's form are offered only then
- * (sites/main/app-layout, sites/admin/admin-layout, sites/main/legal/legal-facts.ts). Call it in an injection context.
+ * (sites/main/app-layout, sites/admin/app.ts, sites/main/legal/legal-facts.ts). Call it in an injection context.
  *
  * The form says its message is anybody's (issuedAs('anybody'), anotoki-lib 0.7.2): the person's, with their token,
  * while somebody is signed in, the visitor's while the page is shown to one (AuthService.visiting), nobody's

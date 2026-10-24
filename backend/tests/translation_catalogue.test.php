@@ -457,7 +457,7 @@ test('the scan reads the real frontend: only the files it should, and the librar
     same($root, $scanner->root(), 'it reads the frontend\'s src/app');
     $files = $scanner->sourceFiles();
     check(in_array('app.routes.ts', $files, true) && in_array('sites/main/dashboard/dashboard-page.html', $files, true), 'the sources are where the scan looks');
-    check(in_array('shared/top-bar/top-bar.ts', $files, true), 'the top bar is read - it asks for the library\'s words (anotoki.topbar.*)');
+    check(in_array('sites/main/common/top-bar/top-bar.ts', $files, true), 'the top bar is read - it asks for the library\'s words (anotoki.topbar.*)');
     foreach ($files as $file) {
         check((bool) preg_match('/\.(ts|html)$/', $file), $file);
         check(!preg_match('~\.spec\.ts$|^shared/i18n/en\.ts$~', $file), "not read: {$file}");

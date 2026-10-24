@@ -146,21 +146,23 @@ ran on SQLite is not carried over: import the accounts again, and a builds file;
 
 What the anotoki sites share lives in one library, [irelevant25/anotoki-lib](https://github.com/irelevant25/anotoki-lib),
 in two halves with one version: the Composer package `anotoki/lib` (`backend/composer.json`: a `vcs` repository
-entry and `"anotoki/lib": "^0.9.0"`; installed into `backend/vendor/`, which the upload carries) and the npm
-package `@anotoki/lib` (`frontend/package.json`: the release's tarball). Both halves are 0.9.2 (0.6.0: the legal
+entry and `"anotoki/lib": "^0.10.0"`; installed into `backend/vendor/`, which the upload carries) and the npm
+package `@anotoki/lib` (`frontend/package.json`: the release's tarball). Both halves are 0.10.0 (0.6.0: the legal
 pages - Terms, Privacy, Contact - and the kit's newer pieces; 0.6.1 and 0.6.2: the Privacy page's sentences made
 true on every site; 0.6.3: the family's footer, this site's own made the library's; 0.7.0: the library's folders
 renamed - its PHP half's files are under `vendor/anotoki/lib/backend/`; 0.7.1: the footer's version written short,
 "v0.4.0"; 0.7.2: the feedback form saying itself whom its message is for, and the library's words in the reader's
 language while no bundle is in memory; 0.8.0: the About and Support pages on `/about` and `/support`, linked first
-in the footer). A minor version is taken by
+in the footer; 0.10.0: the admin panel's frame, genshin's, for every anotoki site - `<anotoki-admin-frame>`, the
+panel's pages in a column on the left and no top bar). A minor version is taken by
 hand while the version is 0.x: `^0.5.0` never took 0.6 by itself;
 never 0.4.0, whose Feedback page fails on PHP 8.2. Besides the translations
 module, the auth module (signing in through the anotoki IAM: the token check, the IAM's switch, the browser's
 client, interceptor, guards and the sign-in hint), the people module (the People page, the scrub of the accounts
 the IAM deleted, what a restore does again), the admin tools (the error log - the browser's errors too -, the
 audit log, feedback, sealed backups, one reading of a request's address), the legal pages (with this site's
-facts: `frontend/src/app/sites/main/legal/legal-facts.ts`) and the footer (`<anotoki-site-footer>`, in both layouts) - each set
+facts: `frontend/src/app/sites/main/legal/legal-facts.ts`), the footer (`<anotoki-site-footer>`, in both frames) and
+the admin panel's frame (`frontend/src/app/sites/admin/app.ts`) - each set
 up for this site where it is
 used - they hold the migrations module, one behaviour for every anotoki site while its database is not ready:
 
@@ -239,7 +241,8 @@ preview first, a hand edit kept and the question when a file changes the same pa
 English and Slovak, every part's form, a team with its note, read back on the member pages), the top bar at 360-1280 px in light and dark with a real Tab press, Slovak at
 390 px with no key on the page, the account's theme, dates and language saved from the bar to the
 stand-in IAM, the automatic sign-in by the IAM's hint, the screen of a sign-in that failed, the feedback form,
-the People page and the admin tools (light and dark, 1280 and 390 px), Terms, Privacy and Contact from the
+the admin panel's frame (its column, and its drawer on a phone), the People page and the admin tools (light and
+dark, 1280 and 390 px), Terms, Privacy and Contact from the
 footer (1280 and 390 px, light and dark, English and Slovak; read while sign-in is required too), and the site
 while an update waits and while it is not set up (the site gate's pages with no page made behind them, the
 Migrations page, Sign in from the waiting page):

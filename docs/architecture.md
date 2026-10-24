@@ -621,9 +621,10 @@ again). The Migrations page's API answers its own: 404 `not_found` (a file that 
 - The folders are the anotoki family's, the genshin site's (the owner's decision of 2026-10-24; decisions.md):
   under `src/app/`, `api/` is the API layer, `shared/` what both halves use, `sites/main/` everybody's pages (with
   their frame, `app-layout/`, the legal pages' `legal/` and what only they share, `common/`) and `sites/admin/` the
-  admin panel (its frame, `admin-layout/`, and a folder per page). Each half keeps its routes - `main.routes.ts`,
+  admin panel (its frame, `app.ts`, and a folder per page). Each half keeps its routes - `main.routes.ts`,
   `admin.routes.ts` - and `app.routes.ts` spreads them into one list, `/admin` first; neither is a `loadChildren`
-  of its own, so the first load holds what it always held. The top bar is in `shared/` while both frames draw it.
+  of its own, so the first load holds what it always held. The top bar is everybody's pages' alone
+  (`sites/main/common/top-bar/`): the admin panel has the family's admin frame, with no bar.
 - `api/api.ts` typed client (`API_BASE = '/api'`, same origin) + `errorMessage()`; `api/models.ts` mirrors the
   API responses (keep in step with the presenters); `shared/meta-store.ts` loads `/api/meta` at startup (labels,
   formatting, sign-in settings); `shared/site-status.ts` wires the family's site gate and Migrations page
@@ -721,16 +722,27 @@ again). The Migrations page's API answers its own: 404 `not_found` (a file that 
   The game's own words: `sites/main/common/game-terms.ts`, `sites/main/common/build-terms.ts`.
 - The admin panel (`/admin/...`, English with `lang="en"`; `/admin` itself goes to Builds; the old `/sources`
   and `/admin/sources` - the Sources page's addresses, before the builds came in files - go to the Builds page,
-  the old `/translations` and `/languages` to theirs): `sites/admin/admin-layout/` (`AdminLayout`: for staff the
-  area's sections - Builds and Translations for an editor; Languages, People, Migrations, Errors, Audit, Feedback
-  (with the count of new messages, the family's `FeedbackUnread`, asked once the ADMIN is in the panel) and
-  Backups too for the ADMIN - and the page; for somebody whose session ended with an admin page open "You are
-  signed out", with a Sign in button; for somebody without a role "This part is for editors and admins"), under
-  the top bar with the area's sections as its links and the footer. The frontend only hides: the server refuses
+  the old `/translations` and `/languages` to theirs): `sites/admin/app.ts` (`AdminApp`, `app-admin-root`: for
+  staff the anotoki family's admin frame - `<anotoki-admin-frame>`, `@anotoki/lib/admin/frame`, anotoki-lib 0.10.0,
+  the owner's request of 2026-10-24 that every admin panel look like the genshin site's - and the page; for
+  somebody whose session ended with an admin page open "You are signed out", with a Sign in button; for somebody
+  without a role "This part is for editors and admins" - those two a page of their own, the family's page frame
+  with no bar and no column, the footer under it). The frame has no top bar: on a computer a column on the left -
+  the panel's name as its bar said it, "Analyzer · admin panel" (`brand.short`, `brand.admin`; each side held
+  together by no-break spaces, so on two lines it breaks after the dot), a link to Builds; who is signed in (the
+  name and the address); "Back to Build Analyzer" (`topbar.backToApp`), to `/`; Sign out (the site's one,
+  `shared/sign-out.ts` - the top bar's too); the theme (`<anotoki-theme-toggle adminFrameTheme />`: the shell's
+  ThemeService, the account's theme); then the panel's pages, the ones its bar had - Builds; Localization:
+  Translations, and Languages for the ADMIN; System, the ADMIN's: People, Migrations, Errors, Audit, Feedback (with
+  the count of new messages, the family's `FeedbackUnread`, asked once the ADMIN is in the panel) and Backups -,
+  each with its icon (`shared/icons.ts`); and the page beside it, in the measure the panel's pages always had,
+  the footer under it. On a phone (up to 860 px, the frame's) a row with the panel's name and Menu, everything of
+  the column in the kit's drawer. The frame's own words - Skip to content, Menu, Sign out, Theme, Admin panel -
+  are the kit's, English in the panel. The frontend only hides: the server refuses
   (403 `editor_only` / `admin_only`); and the admin panel's requests are a person's alone, also those the
   library's pages make themselves. `sites/admin/builds` and `sites/admin/build-editor` (a character's builds editor,
   `/admin/builds/:game/:key`: its route's `anotokiUnsavedChangesGuard` asks the page, and `shared/build-editor-changes.ts`
-  tells the bar's Sign out it holds changes - one question with the drafts below, in the panel's English) are the
+  tells the site's Sign out it holds changes - one question with the drafts below, in the panel's English) are the
   site's own (below, "The pages");
   `sites/admin/{translations,languages,migrations}` hold the anotoki family's pages in the panel's `.page` (each
   from its own lazy entry point); the People page and the admin tools are routed straight from theirs
@@ -759,10 +771,10 @@ again). The Migrations page's API answers its own: 404 `not_found` (a file that 
   belongs to no page - the theme on `<html>`, What's new to somebody who has used the site before (signed in,
   or holding a visitor key) while the site is there to use (its dialog is the shell's, outside the gate, so
   `app.ts` itself holds it back while `SiteStatus.blocked()`), the move's toast, and the kit's one question
-  host and toast host (`<anotoki-confirm-host>`, `<anotoki-toast-host>` in `app.html`). Two layouts draw the
-  rest, each in the family's frame (`<anotoki-shell>`: the bar, the page, the footer):
-  `sites/main/app-layout/` (every page outside `/admin`: `<app-top-bar area="app">`, the page, the footer) and
-  `sites/admin/admin-layout/` (`area="admin"`, `lang="en"`). The footer is the family's (`<anotoki-site-footer>`,
+  host and toast host (`<anotoki-confirm-host>`, `<anotoki-toast-host>` in `app.html`). Two frames draw the
+  rest, both the family's: `sites/main/app-layout/` (every page outside `/admin`: `<anotoki-shell>` - the bar
+  `<app-top-bar>`, the page, the footer) and `sites/admin/app.ts` (the admin panel, `lang="en"`:
+  `<anotoki-admin-frame>` - its column, the page, the footer; above). The footer is the family's (`<anotoki-site-footer>`,
   `@anotoki/lib/footer` - since anotoki-lib 0.6.3 the library's copy of this site's own): "v0.4.0 · What's new ·
   Feedback" (a screen reader hears "Version 0.4.0", the library's `anotoki.footer.version`) - the version the newest
   entry of `public/changelog.json` (`shared/changelog.ts`), What's new this
@@ -788,33 +800,27 @@ again). The Migrations page's API answers its own: 404 `not_found` (a file that 
   their words are the library's (`anotoki.about.*`, `anotoki.support.*`, its `anotoki_translations/013`), their
   tabs' titles its keys `anotoki.about.title` and `anotoki.support.title`, every address they link the library's
   code.
-- The top bar (`shared/top-bar/`) is the anotoki family's own, `<anotoki-top-bar>` from `@anotoki/lib/shell`
-  (since 0.4.0; before, a copy of it built from Angular Material's pieces), told what is this site's: the brand
-  (the anotoki mark, "anotoki" and `brand.area`; on a phone and in the admin panel the family's short form,
-  `brand.short`, with `brand.admin` under it there - the whole wordmark does not fit beside nine sections - and
-  the app's whole name in the link's accessible name, `topbar.home` / `topbar.homeAdmin`), the area's sections
-  (`APP_LINKS`: Dashboard with `/accounts/` under it, Import, Builds with `/builds/` under it - the same for
-  nobody, a visitor and a person; `ADMIN_LINKS`: Builds, Translations, and for ADMIN Languages, People,
-  Migrations, Errors, Audit, Feedback - the count of new feedback beside it, the library's badge - and Backups,
-  English, staff only), who is signed in (name, address, the role "Administrator" / "Editor") with their menu
-  items ("Your anotoki account"; "Admin panel" for staff, or "Back to Build Analyzer" in the admin panel), Sign in (`signInOrSayWhy()`) and Sign out (which first
-  asks, the kit's `ConfirmService`, about strings typed on the Translations and Languages pages and not saved).
-  The library draws the row in the family's order and owns its pieces and their rules: the language switcher
-  (only with more than one language and never under `/admin`; signed in, a choice is the account's too - its
+- The top bar (`sites/main/common/top-bar/`) is the anotoki family's own, `<anotoki-top-bar>` from
+  `@anotoki/lib/shell` (since 0.4.0; before, a copy of it built from Angular Material's pieces), on everybody's
+  pages alone - since anotoki-lib 0.10.0 the admin panel has the family's admin frame instead (above) -, told what
+  is this site's: the brand (the anotoki mark, "anotoki" and `brand.area`; on a phone the family's short form,
+  `brand.short`; the app's whole name in the link's accessible name, `topbar.home`), the sections (`APP_LINKS`:
+  Dashboard with `/accounts/` under it, Import, Builds with `/builds/` under it - the same for nobody, a visitor and
+  a person), who is signed in (name, address, the role "Administrator" / "Editor") with their menu items ("Your
+  anotoki account"; "Admin panel" for staff), Sign in (`signInOrSayWhy()`) and Sign out (the site's one,
+  `shared/sign-out.ts`, which first asks, the kit's `ConfirmService`, about strings typed on the Translations and
+  Languages pages and not saved). The library draws the row in the family's order and owns its pieces and their
+  rules: the language switcher (only with more than one language; signed in, a choice is the account's too - its
   languages and choice `TranslationService.forShell()`), the theme switch (light, dark, automatic; signed in,
-  the account's, in both areas), its menus (focus into the menu on open, arrows / Home / End, Escape and an
-  outside click close it, Tab and Shift+Tab close it with the focus on its button - never on `<body>`) and the
-  fold. Up to `PHONE_BAR_MAX` = 880 px the sections and the person's menu (or Sign in) fold into one menu
-  button (in the admin panel the count of new feedback a badge on it); the person's name shows from 1081 px and
-  gives way first. The widths are this site's, measured in the family's bar (`verify-ui`'s `run.mjs --measure`):
-  the member pages' row needs 793 px in English and 803 in Slovak signed out - 880 leaves room for a scrollbar
-  and for a language added later whose words run longer; the admin panel's row, the ADMIN's nine sections with a
-  count beside Feedback, needs 1171 px, so `ADMIN_PHONE_BAR_MAX` = 1270 (room for a scrollbar and a count of two
-  digits: a 1280 px screen has the whole row; the name from 1471 px), and an editor's two sections 545 px,
-  `EDITOR_PHONE_BAR_MAX` = 640 (the name from 841 px). Since 0.5.0 the bar carries no widget of the site's (the
-  sync a tab drove went with the syncs). Every member word is a key - the site's (`brand.*`, `topbar.*`) and the
-  library's (`anotoki.topbar.*`, `anotoki.theme.*`, `anotoki.language.*`, which 006 and 010 gave the site's own
-  wording); under `/admin` the translation service answers in English, so the same keys read English there.
+  the account's - the admin frame's switch is the same one), its menus (focus into the menu on open, arrows / Home
+  / End, Escape and an outside click close it, Tab and Shift+Tab close it with the focus on its button - never on
+  `<body>`) and the fold. Up to `PHONE_BAR_MAX` = 880 px the sections and the person's menu (or Sign in) fold into
+  one menu button; the person's name shows from 1081 px and gives way first. The width is this site's, measured in
+  the family's bar (`verify-ui`'s `run.mjs --measure`): the row needs 793 px in English and 803 in Slovak signed
+  out - 880 leaves room for a scrollbar and for a language added later whose words run longer. Since 0.5.0 the bar
+  carries no widget of the site's (the sync a tab drove went with the syncs). Every member word is a key - the
+  site's (`brand.*`, `topbar.*`) and the library's (`anotoki.topbar.*`, `anotoki.theme.*`, `anotoki.language.*`,
+  which 006 and 010 gave the site's own wording).
 - `sites/main/common/`, what everybody's pages share: `build-detail` (renders a build, optionally annotated with an
   evaluation: its weapons and sets in order of rank, main stats, substats - "not listed for this build" with what
   the analysis goes by when it lists none -, talents, stat targets, a target from a constellation marked "C2+", its

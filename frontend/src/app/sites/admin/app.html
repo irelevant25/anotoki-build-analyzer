@@ -1,0 +1,56 @@
+@if (auth.isStaff()) {
+  <!-- The anotoki family's admin frame: the column (the panel's name, who is signed in, Back, Sign out, the theme, the
+       pages), the page beside it - in the measure the panel's pages always had - and the family's footer under it. -->
+  <anotoki-admin-frame [brand]="brand()" [person]="person()" [back]="back()" [signOut]="signOut" [groups]="groups()">
+    <anotoki-theme-toggle adminFrameTheme />
+    <div class="page-width">
+      <router-outlet />
+    </div>
+    <anotoki-site-footer
+      adminFrameFooter
+      [version]="changelog.current()"
+      [whatsNew]="changelog.current() !== null"
+      (whatsNew)="changelog.open()"
+      [feedback]="feedback()"
+      fan="hoyoverse"
+    />
+  </anotoki-admin-frame>
+} @else {
+  <!-- A page of its own, without the frame's column: the family's page frame with no bar, the card, the footer. -->
+  <anotoki-shell>
+    @if (!auth.signedIn()) {
+      <anotoki-card class="no-access">
+        <anotoki-icon class="no-access-icon" name="lock" [size]="40" />
+        <!-- The guard let only a signed-in person in: the session ended with the page open. -->
+        <h1>You are signed out</h1>
+        <p class="muted">
+          Your session has ended. Sign in again: what you typed on the Translations and Languages
+          pages is kept in this tab, and will be in its boxes again.
+        </p>
+        @if (auth.available()) {
+          <button anotokiButton variant="primary" (click)="signIn()">
+            <anotoki-icon name="logIn" [size]="18" />Sign in
+          </button>
+        }
+      </anotoki-card>
+    } @else {
+      <anotoki-card class="no-access">
+        <anotoki-icon class="no-access-icon" name="lock" [size]="40" />
+        <h1>This part is for editors and admins</h1>
+        <p class="muted">
+          Your anotoki account has no editor role here. The site's administrator can give it to you in
+          the anotoki IAM's admin panel.
+        </p>
+        <a anotokiButton variant="primary" routerLink="/">To your accounts</a>
+      </anotoki-card>
+    }
+    <anotoki-site-footer
+      shellFooter
+      [version]="changelog.current()"
+      [whatsNew]="changelog.current() !== null"
+      (whatsNew)="changelog.open()"
+      [feedback]="feedback()"
+      fan="hoyoverse"
+    />
+  </anotoki-shell>
+}

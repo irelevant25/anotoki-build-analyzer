@@ -3,7 +3,6 @@ import { provideHttpClientTesting } from '@angular/common/http/testing';
 import { Component, signal } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
 import { Router, provideRouter } from '@angular/router';
-import { FeedbackUnread } from '@anotoki/lib/admin';
 import { SiteStatus } from '@anotoki/lib/migrations';
 import { provideTestTranslations } from '@anotoki/lib/translations/testing';
 import { AuthService } from '../../../shared/auth';
@@ -78,7 +77,6 @@ async function draw(options: Options = {}): Promise<{
           failure: signal(null),
         },
       },
-      { provide: FeedbackUnread, useValue: { count: signal(null), refresh: vi.fn() } },
       { provide: Changelog, useValue: changelog },
       { provide: SiteStatus, useValue: { blocked: signal(options.blocked ?? false) } },
     ],

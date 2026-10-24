@@ -3,6 +3,34 @@
 Short records of choices that shape the code. Add a new entry (newest first) when you make a similar call.
 Older entries describe the Laravel version as it was; where a setting has since moved, the entry says so.
 
+**2026-10-24 — The admin panel in the anotoki family's frame (anotoki-lib 0.10.0).** The owner's request, its second
+step: "The admin panels in all projects should look like the genshin one so it is directly distinguishable if I am on
+the site or the admin panel. The main idea is to have the menu on the left, not on top, and on the right the
+content." anotoki-lib 0.10.0 made genshin's frame the family's (`@anotoki/lib/admin/frame`, `<anotoki-admin-frame>`).
+- **The frame** is `sites/admin/app.ts` (`AdminApp`, `app-admin-root`: genshin's name, in the site's own way of
+  naming its files - no `.component`, as its root's `app.ts`). No top bar; on a computer a column on the left: the
+  panel's name as its bar said it, "Analyzer · admin panel" (`brand.short`, `brand.admin` - the bar's short form: the
+  whole "anotoki Build Analyzer · admin panel" would take three lines of the column), each side held together by
+  no-break spaces so that it breaks after the dot, a link to Builds; who is signed in; "Back to Build Analyzer", to
+  `/`; Sign out; the theme (the family's switch, the account's theme); then the pages the bar had, for the same
+  people - Builds; Localization: Translations, Languages; System: People, Migrations, Errors, Audit, Feedback with
+  the count of new messages, Backups -, each with an icon. Four of the icons are new to the site's set
+  (`shared/icons.ts`): they come with the first load, a few hundred bytes, because the library's icons are one
+  module the first load uses already. The footer is as it was, in the frame's footer.
+- **One Sign out** (`shared/sign-out.ts`): the bar's own function, moved out so that the frame takes it too, with
+  its questions about the builds editor's changes and the strings not saved. `build-editor-changes.ts` stays in
+  `shared/`: that one Sign out reads it.
+- **The closed panel** - "You are signed out", "This part is for editors and admins" - keeps its words and buttons,
+  a page of its own: the family's page frame with no bar and no column, the footer under it.
+- **The top bar** lost its admin area (`ADMIN_LINKS`, `ADMIN_PHONE_BAR_MAX`, `EDITOR_PHONE_BAR_MAX`,
+  `ADMIN_SHORT_BRAND_MAX`, the admin wordmark, "Back to Build Analyzer", the count) and moved to
+  `sites/main/common/top-bar/`: it is everybody's pages' alone.
+- **Migration 024** retires `topbar.homeAdmin`, the name the bar gave the panel's home - the frame's link is named
+  by its own words, so nothing says it any more -, and describes `brand.admin` and `topbar.backToApp` as the column
+  says them.
+- The production build's first load: 558,288 bytes before, 557,398 after, the same 34 files (the bar's admin area
+  gone, 0.10.0's own changes, the four icons); the frame comes with the admin panel's own chunk.
+
 **2026-10-24 — The frontend in the anotoki family's folders, the genshin site's.** The owner's request: "The admin
 panels in all projects should look like the genshin one... I mean the UI structure itself and the frontend folder
 structure as well (like frontend/src/app -> api, shared, sites and frontend/src/app/sites -> admin, main)." The
@@ -654,7 +682,7 @@ Every anotoki site signs in, keeps its people and runs its admin tools one way n
   with every rewording, writer and time (the site keeps saying what it said), retires three, and adds the
   feedback button's and the form's four places.
 - *The admin panel's bar*: the ADMIN has nine sections now, so the ADMIN's row folds at `ADMIN_PHONE_BAR_MAX`
-  and an editor's two at `EDITOR_PHONE_BAR_MAX` (`shared/top-bar`), each measured.
+  and an editor's two at `EDITOR_PHONE_BAR_MAX` (`sites/main/common/top-bar`), each measured.
 - What's new (0.4.0, unreleased): the automatic sign-in, the feedback form, and the sign-in failure's screen.
 
 **2026-10-11 — The site's words through anotoki-lib 0.3.0's translations module; Translations and Languages are the family's pages (the owner's decision; version 0.4.0).**

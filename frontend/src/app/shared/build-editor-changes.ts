@@ -2,8 +2,8 @@ import { Injectable, signal } from '@angular/core';
 
 /**
  * Whether the admin panel's builds editor holds changes that are not saved (sites/admin/build-editor) - outside the
- * page, so the top bar's Sign out can ask about them first (shared/top-bar). Nothing of them is kept anywhere but on
- * the page: signed out, or the tab closed, they are gone.
+ * page, so the site's Sign out can ask about them first (shared/sign-out.ts: the admin panel's frame's, the top
+ * bar's). Nothing of them is kept anywhere but on the page: signed out, or the tab closed, they are gone.
  */
 @Injectable({ providedIn: 'root' })
 export class BuildEditorChanges {
