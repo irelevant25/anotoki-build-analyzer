@@ -25,11 +25,9 @@ const backend = join(repo, 'backend');
 const shots = join(WORK, 'shots');
 const php = process.env.PHP ?? 'php';
 
-/** The bar's breakpoints, as top-bar.ts has them: the member pages', and the admin panel's (a longer row). */
-const TOP_BAR_TS = readFileSync(join(repo, 'frontend/src/app/shared/top-bar/top-bar.ts'), 'utf8');
+/** The bar's breakpoint, as top-bar.ts has it: everybody's pages' (the admin panel has the family's admin frame, no bar). */
+const TOP_BAR_TS = readFileSync(join(repo, 'frontend/src/app/sites/main/common/top-bar/top-bar.ts'), 'utf8');
 const PHONE_BAR_MAX = Number(/export const PHONE_BAR_MAX = (\d+);/.exec(TOP_BAR_TS)[1]);
-const ADMIN_PHONE_BAR_MAX = Number(/export const ADMIN_PHONE_BAR_MAX = (\d+);/.exec(TOP_BAR_TS)[1]);
-const EDITOR_PHONE_BAR_MAX = Number(/export const EDITOR_PHONE_BAR_MAX = (\d+);/.exec(TOP_BAR_TS)[1]);
 /** Every key of the site's words: none of them may show where a word should be. */
 const KEYS = readdirSync(join(repo, 'frontend/src/app/shared/i18n/en')).flatMap((file) => Object.keys(JSON.parse(readFileSync(join(repo, 'frontend/src/app/shared/i18n/en', file), 'utf8'))));
 
@@ -48,6 +46,22 @@ const BAR_MENU = 'app-top-bar .anotoki-top-bar__actions > anotoki-menu > [role=m
 const LANGUAGE_BUTTON = 'app-top-bar .anotoki-language-switcher__switcher';
 const LANGUAGE_MENU = 'app-top-bar anotoki-language-switcher [role=menu]';
 const THEME_SWITCH = 'app-top-bar anotoki-theme-toggle';
+/**
+ * The admin panel's frame: the anotoki family's (@anotoki/lib/admin/frame's <anotoki-admin-frame>, inside the site's
+ * app-admin-root, anotoki-lib 0.10.0) - its column on a computer (the panel's name, the person, Back, Sign out, the
+ * theme, the pages), on a phone its row with Menu and the side navigation's drawer.
+ */
+const ADMIN_FRAME = 'app-admin-root anotoki-admin-frame';
+const FRAME_COLUMN = `${ADMIN_FRAME} header.anotoki-admin-frame__column`;
+const FRAME_LINK = `${FRAME_COLUMN} nav a.anotoki-side-nav__link`;
+const FRAME_LABEL = `${FRAME_COLUMN} nav .anotoki-side-nav__label`;
+const FRAME_MENU = `${FRAME_COLUMN} button.anotoki-admin-frame__menu`;
+/** The drawer the frame's Menu opens, while it is open: the kit's, around a native <dialog>. */
+const FRAME_DRAWER = 'dialog[open]';
+/** Up to this width (px) the frame is a phone's: the library's default, which the site keeps. */
+const FRAME_PHONE_MAX = 860;
+/** What open() waits for: everybody's pages' bar, the admin panel's frame, or the closed panel's card. */
+const PAGE_FRAME = `${BAR}, ${ADMIN_FRAME}, app-admin-root .no-access`;
 /** The kit's dialog - What's new, feedback, a question - around a native <dialog>. */
 const DIALOG = 'anotoki-dialog';
 /** A message of the kit's toasts. */
@@ -179,10 +193,10 @@ async function shot(page, name, options = {}) {
   await page.screenshot({ path: join(shots, `${name}.png`), ...options });
 }
 
-/** Opens a page of the site and waits for the bar. */
+/** Opens a page of the site and waits for its frame: the bar, the admin panel's frame, or the closed panel's card. */
 async function open(page, path) {
   await page.goto(SITE + path);
-  await page.waitForSelector(BAR, { timeout: 15000 });
+  await page.waitForSelector(PAGE_FRAME, { timeout: 15000 });
   await page.waitForLoadState('networkidle');
 }
 
@@ -360,9 +374,8 @@ async function rowNeeds(page) {
 
 try {
   if (MEASURE) {
+    // The bar is everybody's pages' alone: the admin panel has the family's admin frame, whose phone width is the library's.
     step("What the row needs (the person's name aside), at 1600 px");
-    // Feedback nobody has opened: the ADMIN's row as it is with the count beside Feedback.
-    await fetch(`${SITE}/api/feedback`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ kind: 'idea', message: 'Measuring the bar.' }) });
     for (const language of ['en', 'sk']) {
       const context = await newContext({ width: 1800 });
       const page = await context.newPage();
@@ -370,19 +383,7 @@ try {
       console.log(`  ${language}, signed out: ${await rowNeeds(page)} px`);
       await signIn(page, ADA);
       console.log(`  ${language}, an admin: ${await rowNeeds(page)} px`);
-      // The admin panel reads English whichever language was chosen: measured from both.
-      await open(page, '/admin/builds');
-      await page.waitForSelector('app-top-bar .anotoki-top-bar__badge', { timeout: 5000 }).catch(() => null);
-      console.log(`  the admin panel (English, every section, the count beside Feedback), an admin who chose ${language}: ${await rowNeeds(page)} px`);
       await context.close();
-
-      const editing = await newContext({ width: 1800 });
-      const editor = await editing.newPage();
-      await open(editor, `/?lang=${language}`);
-      await signIn(editor, EDDIE);
-      await open(editor, '/admin/builds');
-      console.log(`  the admin panel, an editor (two sections) who chose ${language}: ${await rowNeeds(editor)} px`);
-      await editing.close();
     }
   } else {
     // ── Nobody ─────────────────────────────────────────────────────────────────────────────────────────
@@ -763,24 +764,25 @@ try {
     await tab.setViewportSize({ width: 1280, height: 800 });
     await open(tab, '/admin?lang=sk');
     check((await tab.locator('h1').innerText()) === 'This part is for editors and admins', 'mona (no role): the card');
-    check((await tab.locator(BAR_LINK).count()) === 0, 'no admin sections in her bar');
+    check((await tab.locator(`${ADMIN_FRAME}, app-top-bar`).count()) === 0, "a page of its own: no frame, no bar, none of the panel's pages");
 
     const editor = await newContext();
     const ed = await editor.newPage();
     await open(ed, '/?lang=sk');
     await signIn(ed, EDDIE);
     await open(ed, '/admin');
-    check((await ed.locator(BAR_LINK).allInnerTexts()).join('|') === 'Builds|Translations', "an editor's sections: Builds, Translations");
+    check((await ed.locator(FRAME_LABEL).allInnerTexts()).join('|') === 'Builds|Translations', "an editor's pages in the frame's column: Builds, Translations");
     check((await ed.evaluate(() => document.documentElement.lang)) === 'en', '<html lang="en"> in the admin panel');
-    check((await ed.locator('app-top-bar anotoki-language-switcher').count()) === 0, 'no language chooser in the admin panel');
-    await ed.click(PERSON_BUTTON);
-    await ed.waitForSelector(BAR_MENU);
+    check((await ed.locator('app-top-bar, anotoki-language-switcher').count()) === 0, 'no top bar in the admin panel, and no language chooser');
+    const editorColumn = (await ed.locator(`${FRAME_COLUMN} .anotoki-admin-frame__account`).innerText()).replace(/\s+/g, ' ').trim();
     check(
-      (await ed.locator(`${BAR_MENU} .anotoki-top-bar__menu-role`).innerText()).trim() === 'Editor' && (await ed.locator(BAR_MENU).innerText()).includes('Back to Build Analyzer'),
-      'the role pill "Editor", "Back to Build Analyzer"',
+      editorColumn.includes('eddie') &&
+        editorColumn.includes('Back to Build Analyzer') &&
+        editorColumn.includes('Sign out') &&
+        (await ed.locator(`${FRAME_COLUMN} a.anotoki-admin-frame__back`).getAttribute('href')) === '/',
+      `the column: who is signed in, "Back to Build Analyzer" to /, Sign out (${editorColumn})`,
     );
     await shot(ed, '09-admin-editor-builds', { fullPage: true });
-    await ed.keyboard.press('Escape');
     await open(ed, '/admin/languages');
     check(new URL(ed.url()).pathname === '/admin/builds', 'Languages sends an editor to Builds');
     await open(ed, '/admin/people');
@@ -944,7 +946,10 @@ try {
       await ed.waitForURL('**/admin/builds/genshin/hutao', { timeout: 15000 });
       await ed.waitForSelector('.build-panel [data-path="notes.build.en"] textarea', { timeout: 15000 });
       check((await ed.locator('h1').innerText()).trim() === 'Builds of Hu Tao', 'the editor: Builds of Hu Tao');
-      check((await ed.locator(`${BAR_LINK}.anotoki-top-bar__link--active`).innerText()).trim() === 'Builds', "the bar's Builds marked as the section the page is in: the editor is the Builds page's");
+      check(
+        (await ed.locator(`${FRAME_LINK}[aria-current="page"] .anotoki-side-nav__label`).innerText()).trim() === 'Builds',
+        "the column's Builds marked as the page's: the editor is the Builds page's",
+      );
       const tabs = await ed.locator('.build-tabs .anotoki-tabs__label').allInnerTexts();
       check(tabs.join('|') === 'Main DPS|Sub DPS · C2+', `a tab a build, by its variation (${tabs.join(', ')})`);
       // A build of the file's: its name there changeable - renamed, it becomes one of the editor's own, said so, and back.
@@ -1217,28 +1222,24 @@ try {
       `the person's menu leads into the "Admin panel" (${adminItems.join(' | ')})`,
     );
     await ad.keyboard.press('Escape');
-    await ad.setViewportSize({ width: ADMIN_PHONE_BAR_MAX + 201, height: 900 });
+    await ad.setViewportSize({ width: 1280, height: 900 });
     await open(ad, '/admin/people');
-    // Each section by its own words: a count beside one (Feedback's badge, and what it counts for the ear) is not
-    // its name.
-    const sections = await ad.locator(BAR_LINK).evaluateAll((links) =>
-      links.map((link) =>
-        [...link.childNodes]
-          .filter((node) => node.nodeType === Node.TEXT_NODE)
-          .map((node) => node.textContent)
-          .join('')
-          .trim(),
-      ),
-    );
+    // Each page by its own words (its label): a count beside one (Feedback's badge, and what it counts for the ear)
+    // is not its name.
+    const pages = await ad.locator(FRAME_LABEL).allInnerTexts();
     check(
-      sections.join('|') === 'Builds|Translations|Languages|People|Migrations|Errors|Audit|Feedback|Backups',
-      `an admin's sections: all nine - the family's admin tools too (${sections.join(', ')})`,
+      pages.join('|') === 'Builds|Translations|Languages|People|Migrations|Errors|Audit|Feedback|Backups',
+      `an admin's pages in the frame's column: all nine - the family's admin tools too (${pages.join(', ')})`,
     );
-    // The family's brand of an admin panel, short at every width beside nine sections: the site's short name with
-    // "admin panel" under it; the app's whole name in the link's accessible name.
-    const wordmark = (await ad.locator('app-top-bar anotoki-brand .anotoki-brand__wordmark').innerText()).replace(/\s+/g, ' ').trim();
-    check(wordmark === 'Analyzer admin panel', `the brand says "Analyzer", "admin panel" under it (${wordmark})`);
-    check((await ad.locator('app-top-bar anotoki-brand a').getAttribute('aria-label')) === 'anotoki Build Analyzer: the admin panel', 'its link is named "anotoki Build Analyzer: the admin panel"');
+    const headings = await ad.locator(`${FRAME_COLUMN} nav .anotoki-side-nav__heading`).evaluateAll((all) => all.map((heading) => heading.textContent.trim()));
+    check(headings.join('|') === 'Localization|System', `under their headings (${headings.join(', ')})`);
+    // The panel's name as its bar said it, at the top of the column: a link to its first page.
+    const brand = (await ad.locator(`${FRAME_COLUMN} a.anotoki-admin-frame__brand`).innerText()).replace(/\s+/g, ' ').trim();
+    check(
+      brand === 'Analyzer · admin panel' && (await ad.locator(`${FRAME_COLUMN} a.anotoki-admin-frame__brand`).getAttribute('href')) === '/admin',
+      `the column's name: "${brand}", a link to /admin`,
+    );
+    check((await ad.locator('app-top-bar').count()) === 0, 'no top bar in the admin panel');
     check((await ad.title()) === 'People · Admin panel · Build Analyzer', `the tab's title: ${await ad.title()}`);
     await ad.waitForSelector('anotoki-people-page [data-person]', { timeout: 15000 });
     const people = await ad.locator('main').innerText();
@@ -1262,34 +1263,50 @@ try {
     await ad.emulateMedia({ colorScheme: 'light' });
 
     step(
-      `The admin panel's bar at 390, 1024, 1280, ${ADMIN_PHONE_BAR_MAX}, ${ADMIN_PHONE_BAR_MAX + 1} and ${ADMIN_PHONE_BAR_MAX + 201} px for the ADMIN, light and dark - and an editor's at ${EDITOR_PHONE_BAR_MAX} and ${EDITOR_PHONE_BAR_MAX + 1} px`,
+      `The admin panel's frame at 390, ${FRAME_PHONE_MAX}, ${FRAME_PHONE_MAX + 1} and 1280 px for the ADMIN, light and dark - a phone's row with Menu and its drawer, then the column - and an editor's at 390 and 1280 px`,
     );
     for (const scheme of ['light', 'dark']) {
-      for (const width of [390, 1024, 1280, ADMIN_PHONE_BAR_MAX, ADMIN_PHONE_BAR_MAX + 1, ADMIN_PHONE_BAR_MAX + 201]) {
+      for (const width of [390, FRAME_PHONE_MAX, FRAME_PHONE_MAX + 1, 1280]) {
         await ad.setViewportSize({ width, height: 760 });
         await ad.emulateMedia({ colorScheme: scheme });
         await open(ad, '/admin/migrations');
-        const layout = await checkBar(ad, `admin panel, ${width} px, ${scheme}`);
-        check((await ad.locator(MENU_BUTTON).count()) === (width <= ADMIN_PHONE_BAR_MAX ? 1 : 0), `admin panel, ${width} px: ${width <= ADMIN_PHONE_BAR_MAX ? "a phone's bar" : "a desktop's bar"}`);
-        if (width === ADMIN_PHONE_BAR_MAX + 201) {
-          check(layout.nameCut === false, `admin panel, ${width} px: the person's name shows, whole (${layout.nameCut})`);
+        const phone = width <= FRAME_PHONE_MAX;
+        check(
+          (await ad.locator(FRAME_MENU).count()) === (phone ? 1 : 0) && (await ad.locator(FRAME_LINK).count()) === (phone ? 0 : 9),
+          `admin panel, ${width} px, ${scheme}: ${phone ? "a phone's row with Menu" : 'the column with the nine pages'}`,
+        );
+        const scroll = await ad.evaluate(() => document.documentElement.scrollWidth);
+        check(scroll <= width, `admin panel, ${width} px, ${scheme}: no sideways scroll (${scroll})`);
+        await shot(ad, `admin-frame-${width}-${scheme}`);
+        if (phone) {
+          await ad.click(FRAME_MENU);
+          await ad.waitForSelector(`${FRAME_DRAWER} nav .anotoki-side-nav__label`, { timeout: 10000 });
+          const drawer = (await ad.locator(FRAME_DRAWER).innerText()).replace(/\s+/g, ' ');
+          check(
+            drawer.includes('ada') && drawer.includes('Back to Build Analyzer') && drawer.includes('Sign out') && drawer.includes('Backups'),
+            `admin panel, ${width} px, ${scheme}: the drawer holds the person, Back, Sign out and the pages`,
+          );
+          await shot(ad, `admin-frame-${width}-${scheme}-drawer`);
+          await ad.keyboard.press('Escape');
+          await ad.waitForSelector(FRAME_DRAWER, { state: 'detached', timeout: 5000 });
         }
-        await shot(ad, `admin-bar-${width}-${scheme}`, { clip: { x: 0, y: 0, width, height: 120 } });
       }
     }
     await ad.emulateMedia({ colorScheme: 'light' });
-    for (const width of [EDITOR_PHONE_BAR_MAX, EDITOR_PHONE_BAR_MAX + 1, EDITOR_PHONE_BAR_MAX + 201]) {
+    for (const width of [390, 1280]) {
       await ed.setViewportSize({ width, height: 760 });
       await open(ed, '/admin/builds');
-      const layout = await checkBar(ed, `admin panel, an editor, ${width} px`);
-      check(
-        (await ed.locator(MENU_BUTTON).count()) === (width <= EDITOR_PHONE_BAR_MAX ? 1 : 0),
-        `admin panel, an editor, ${width} px: ${width <= EDITOR_PHONE_BAR_MAX ? "a phone's bar" : "a desktop's bar"}`,
-      );
-      if (width === EDITOR_PHONE_BAR_MAX + 201) {
-        check(layout.nameCut === false, `admin panel, an editor, ${width} px: the person's name shows, whole (${layout.nameCut})`);
+      if (width <= FRAME_PHONE_MAX) {
+        await ed.click(FRAME_MENU);
+        await ed.waitForSelector(`${FRAME_DRAWER} nav .anotoki-side-nav__label`, { timeout: 10000 });
       }
-      await shot(ed, `admin-bar-editor-${width}`, { clip: { x: 0, y: 0, width, height: 120 } });
+      const labels = await ed.locator(width <= FRAME_PHONE_MAX ? `${FRAME_DRAWER} nav .anotoki-side-nav__label` : FRAME_LABEL).allInnerTexts();
+      check(labels.join('|') === 'Builds|Translations', `admin panel, an editor, ${width} px: Builds and Translations (${labels.join(', ')})`);
+      await shot(ed, `admin-frame-editor-${width}`);
+      if (width <= FRAME_PHONE_MAX) {
+        await ed.keyboard.press('Escape');
+        await ed.waitForSelector(FRAME_DRAWER, { state: 'detached', timeout: 5000 });
+      }
     }
 
     // ── The site's words: the Translations and Languages pages (anotoki-lib's, drawn with its kit) ──────
@@ -1391,11 +1408,13 @@ try {
     }
 
     // ── The family's admin tools ───────────────────────────────────────────────────────────────────────
-    step("The anotoki family's admin tools (ADMIN): the error log, the audit log, feedback with its count in the bar, backups - light and dark, 1280 and 390 px; an editor has none of them");
+    step(
+      "The anotoki family's admin tools (ADMIN): the error log, the audit log, feedback with its count in the frame's column, backups - light and dark, 1280 and 390 px; an editor has none of them",
+    );
     {
       // Something worth seeing in the error log: a path nobody has (404).
       await fetch(`${SITE}/api/nothing-here`);
-      const wide = ADMIN_PHONE_BAR_MAX + 201;
+      const wide = 1280;
       await ad.setViewportSize({ width: wide, height: 900 });
       await ad.emulateMedia({ colorScheme: 'light' });
       await open(ad, '/admin/builds');
@@ -1417,13 +1436,13 @@ try {
         thrown.length === 1 && thrown[0].user_id === 1 && thrown[0].path === '/admin/builds' && !JSON.stringify(pageErrors()).includes('@example.test'),
         `the error log has it as the browser's - scrubbed, by ada, on its page (${JSON.stringify(pageErrors().map((line) => [line.message, line.user_id, line.path]))})`,
       );
-      await ad.waitForSelector('app-top-bar a[href="/admin/feedback"] .anotoki-top-bar__badge', { timeout: 15000 });
-      const count = (await ad.locator('app-top-bar a[href="/admin/feedback"] .anotoki-top-bar__badge').innerText()).trim();
-      // The family's bar (anotoki-lib 0.6.0): the number seen beside Feedback, and what it counts heard after the
-      // name - "Feedback, 1 new", never "Feedback 1".
-      const heard = (await ad.locator('app-top-bar a[href="/admin/feedback"] .anotoki-visually-hidden').innerText()).replace(/\s+/g, ' ').trim();
+      await ad.waitForSelector(`${FRAME_COLUMN} a[href="/admin/feedback"] .anotoki-side-nav__badge`, { timeout: 15000 });
+      const count = (await ad.locator(`${FRAME_COLUMN} a[href="/admin/feedback"] .anotoki-side-nav__badge`).innerText()).trim();
+      // The family's side navigation (anotoki-lib 0.10.0's admin frame): the number seen beside Feedback, and what it
+      // counts heard after the name - "Feedback, 1 new", never "Feedback 1".
+      const heard = (await ad.locator(`${FRAME_COLUMN} a[href="/admin/feedback"] .anotoki-visually-hidden`).innerText()).replace(/\s+/g, ' ').trim();
       check(count === '1' && heard === ', 1 new', `the new feedback counted beside Feedback (seen ${count}, heard "Feedback${heard}")`);
-      await shot(ad, '19-admin-bar-feedback-count', { clip: { x: 0, y: 0, width: wide, height: 120 } });
+      await shot(ad, '19-admin-frame-feedback-count', { clip: { x: 0, y: 0, width: 240, height: 760 } });
 
       const tools = [
         ['/admin/errors', 'anotoki-error-log-page', 'Error log'],
@@ -1479,7 +1498,7 @@ try {
       await ad.keyboard.press('Escape');
       await ad.setViewportSize({ width: wide, height: 900 });
       await ad.waitForFunction(
-        () => document.querySelector('app-top-bar a[href="/admin/feedback"]') !== null && document.querySelector('app-top-bar a[href="/admin/feedback"] .anotoki-top-bar__badge') === null,
+        () => document.querySelector('app-admin-root a[href="/admin/feedback"]') !== null && document.querySelector('app-admin-root a[href="/admin/feedback"] .anotoki-side-nav__badge') === null,
         null,
         { timeout: 10000 },
       );
@@ -1630,7 +1649,7 @@ try {
       // Pending is one list in the order the files run (anotoki-lib 0.4), each named as its set's records name it.
       const pendingFiles = (await ad.locator('[data-pending] .anotoki-migrations-page__files li').allInnerTexts()).map((line) => line.replace(/\s+/g, ' ').trim());
       check(pendingFiles.join('|') === '004_visitors_and_family_bar.sql pending', `Migrations: 004 pending (${pendingFiles.join(', ')})`);
-      check((await ad.locator(BAR).count()) === 1, "in the admin panel's frame");
+      check((await ad.locator(ADMIN_FRAME).count()) === 1, "in the admin panel's frame");
       await shot(ad, '13-admin-migrations-pending', { fullPage: true });
 
       step("An update waits: a signed-out ADMIN presses Sign in on the waiting page and comes back to it - now the ADMIN's");
@@ -1800,7 +1819,7 @@ try {
     await away.waitForURL((url) => url.href.startsWith(SITE) && url.pathname === '/sign-in', { timeout: 15000 });
     await away.waitForSelector('anotoki-sign-in-failure [role=alert]');
     check((await failureScreen()).message.length > 0, "a visitor at /admin is sent to sign in; refused, the failure's screen says so");
-    check((await away.locator(BAR_LINK, { hasText: 'Translations' }).count()) === 0, 'and no section of the panel shows');
+    check((await away.locator(BAR_LINK, { hasText: 'Translations' }).count()) === 0 && (await away.locator(ADMIN_FRAME).count()) === 0, 'and nothing of the panel shows');
     await iamState({ deny: false });
     await turned.close();
 

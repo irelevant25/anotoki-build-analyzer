@@ -230,12 +230,15 @@ Correctness first:
   target is the one with the highest `from_rank` reached (`BuildEvaluator::targetsFor()`), and a build without
   substats is scored from its own main stats (`ItemScorer::fallbackSubstats()`), never from another build's.
 - API changes are mirrored in `frontend/src/app/api/models.ts`; routes validate input (`Web\Input`).
-- The top bar (`shared/top-bar/`) is the family's `<anotoki-top-bar>` (`@anotoki/lib/shell`), told this site's
-  brand, sections, person and menu items: every member word a key (`brand.*`, `topbar.*`, the library's
-  `anotoki.topbar.*` and `anotoki.theme.*`; the admin sections English); its menus, keys and fold are the
+- The top bar (`sites/main/common/top-bar/`) is the family's `<anotoki-top-bar>` (`@anotoki/lib/shell`), on
+  everybody's pages alone, told this site's brand, sections, person and menu items: every member word a key
+  (`brand.*`, `topbar.*`, the library's `anotoki.topbar.*` and `anotoki.theme.*`); its menus, keys and fold are the
   library's (Tab / Shift+Tab from any item close the menu with the focus on its button) - never a copy here; a
-  new piece or longer words mean measuring the row again (`run.mjs --measure`) and keeping `PHONE_BAR_MAX`,
-  the admin panel's `ADMIN_PHONE_BAR_MAX` / `EDITOR_PHONE_BAR_MAX` in step.
+  new piece or longer words mean measuring the row again (`run.mjs --measure`) and keeping `PHONE_BAR_MAX` in step.
+- The admin panel has no bar: the family's admin frame (`sites/admin/app.ts`, `<anotoki-admin-frame>`, anotoki-lib
+  0.10.0) - its column the panel's name, who is signed in, Back, the site's one Sign out (`shared/sign-out.ts`, the
+  bar's too), the theme and the pages (`PANEL_GROUPS`: the same pages and role checks as the bar had, English); its
+  layout, keys and drawer are the library's - never a copy here.
 - The builds editor's page (`sites/admin/build-editor/`, docs/builds.md "The editor"; English, the admin panel):
   `editor-draft.ts` stays plain functions over immutable data - a part nobody touched goes back as the very object the
   server sent, a part changed back is the loaded one again (`withPart()`, `asLoadedTeams()`: the Save bar never
