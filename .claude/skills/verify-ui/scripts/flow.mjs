@@ -26,12 +26,12 @@ const shots = join(WORK, 'shots');
 const php = process.env.PHP ?? 'php';
 
 /** The bar's breakpoints, as top-bar.ts has them: the member pages', and the admin panel's (a longer row). */
-const TOP_BAR_TS = readFileSync(join(repo, 'frontend/src/app/layouts/top-bar/top-bar.ts'), 'utf8');
+const TOP_BAR_TS = readFileSync(join(repo, 'frontend/src/app/shared/top-bar/top-bar.ts'), 'utf8');
 const PHONE_BAR_MAX = Number(/export const PHONE_BAR_MAX = (\d+);/.exec(TOP_BAR_TS)[1]);
 const ADMIN_PHONE_BAR_MAX = Number(/export const ADMIN_PHONE_BAR_MAX = (\d+);/.exec(TOP_BAR_TS)[1]);
 const EDITOR_PHONE_BAR_MAX = Number(/export const EDITOR_PHONE_BAR_MAX = (\d+);/.exec(TOP_BAR_TS)[1]);
 /** Every key of the site's words: none of them may show where a word should be. */
-const KEYS = readdirSync(join(repo, 'frontend/src/app/core/i18n/en')).flatMap((file) => Object.keys(JSON.parse(readFileSync(join(repo, 'frontend/src/app/core/i18n/en', file), 'utf8'))));
+const KEYS = readdirSync(join(repo, 'frontend/src/app/shared/i18n/en')).flatMap((file) => Object.keys(JSON.parse(readFileSync(join(repo, 'frontend/src/app/shared/i18n/en', file), 'utf8'))));
 
 /**
  * The family's bar (@anotoki/lib/shell's <anotoki-top-bar>, inside the site's app-top-bar) and the kit's pieces

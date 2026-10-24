@@ -76,8 +76,8 @@ Keep scores in 0–100, keep parts that lack data out of the overall (they retur
 `message` of a recommendation a short, actionable sentence with the slot/stat named - and without the name of
 any website (a build is named by its variation, "the Main DPS build", never by where it came from). When you add a
 field to the evaluation or detail output,
-add it to `frontend/src/app/core/models.ts` and render it where it helps (character page, build detail), with
-its words as keys (`core/i18n/en/*.json` and a string migration, as below).
+add it to `frontend/src/app/api/models.ts` and render it where it helps (character page, build detail), with
+its words as keys (`shared/i18n/en/*.json` and a string migration, as below).
 
 A recommendation is a **kind with params** that the page words in the reader's language; the English
 `message` beside it is for the command line, the tests and the fallback (`docs/analysis.md`,
@@ -89,10 +89,10 @@ A recommendation is a **kind with params** that the page words in the reader's l
    lists joined as in the message).
 2. The `recommend($severity, $category, $kind, $params, $message, $slot)` call - an existing `message` stays
    byte for byte (tests assert it).
-3. `frontend/src/app/core/i18n/dynamic-keys.ts` - the tail under `recommendation.`, written out whole.
-4. `frontend/src/app/core/i18n/recommendation-words.ts` - the kind's row (its key, the params its sentence
+3. `frontend/src/app/shared/i18n/dynamic-keys.ts` - the tail under `recommendation.`, written out whole.
+4. `frontend/src/app/shared/i18n/recommendation-words.ts` - the kind's row (its key, the params its sentence
    needs); `target_below`-like numbers go through `MetaStore.formatStat()`, the game's notation.
-5. The English in `frontend/src/app/core/i18n/en/core.json` (`recommendation.<kind>`) - the message with the
+5. The English in `frontend/src/app/shared/i18n/en/core.json` (`recommendation.<kind>`) - the message with the
    params as `{placeholders}`.
 6. A **new migration** (`backend/migrations/NNN_*.sql`, 003's pattern: the key with a description saying
    where it shows and its placeholders, one `VALUES` block per language, `ON CONFLICT DO NOTHING`, a `DO $$`

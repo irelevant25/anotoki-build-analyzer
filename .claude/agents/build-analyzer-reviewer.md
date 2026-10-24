@@ -154,7 +154,7 @@ Correctness first:
   Game names are fine. The command line and `docs/` may name the services and tools the code talks to or reads the
   files of - never a build site (below). The one exception in the UI is the legal
   pages, which name who else handles the data, as the law asks - the hosting company WebSupport s.r.o. (`HOSTING`,
-  `core/legal-facts.ts`), Cloudflare and Umami (the library's words) - and no build site, data provider, tool or
+  `sites/main/legal/legal-facts.ts`), Cloudflare and Umami (the library's words) - and no build site, data provider, tool or
   the showcase service (described there, never named). That covers every string a migration
   seeds or the owner edits: run `cd backend && php tests/translation_catalogue.test.php`, which puts each
   seeded string (every language) through `SiteTranslations::namesAnotherSite()` - no other site's name, no web
@@ -172,8 +172,8 @@ Correctness first:
   - A member page shows keys worded in a template (`translate` / `translatePlural`) or a `computed()`; no
     sentence written into a template or a component, and **state holds keys, kinds and errors** - never a
     worded sentence (a signal holding `i18n.t(...)`'s result does not follow a change of language). Keys put
-    together at run time come only from `core/i18n/dynamic-keys.ts`, written out whole.
-  - A new string is its key and English in `core/i18n/en/*.json` plus a **new** migration (never 003 once it
+    together at run time come only from `shared/i18n/dynamic-keys.ts`, written out whole.
+  - A new string is its key and English in `shared/i18n/en/*.json` plus a **new** migration (never 003 once it
     ran) with the key, a description, the English and informal Slovak ("ty"); a new recommendation or import
     kind also has its row in `KINDS` / `ImportKinds`, its tail in `dynamic-keys.ts` and its row in
     `recommendation-words.ts` / `import-words.ts`. Never a key under `anotoki.` (the library's, with its own
@@ -181,13 +181,13 @@ Correctness first:
   - The strings' machinery is anotoki-lib's (`Anotoki\Lib\Translations`, `@anotoki/lib/translations`): the
     site's part is `SiteTranslations` (released languages, `extraCheck`, the key scan), the rights on the route
     groups in `api/routes/translations.php` (`STAFF` the strings, `ADMIN` the languages), the typed view in
-    `core/i18n/translation.ts` and `provideTranslations()`; a change the library needs is made there and
+    `shared/i18n/translation.ts` and `provideTranslations()`; a change the library needs is made there and
     released, never patched here. Kit pieces come from their own entry points, never the `@anotoki/lib/ui`
     barrel (the first load).
   - **No Slovak word agrees with a game term**: game terms and values (stat, slot, talent, set, weapon,
     character names, "Lv.", "4pc", UID, grades, "62.4%", "R1") stay English and reach the sentence as a
-    `{placeholder}` or before a colon - never declined, never a key, never a row (`core/game-terms.ts`,
-    `shared/build-terms.ts`).
+    `{placeholder}` or before a colon - never declined, never a key, never a row (`sites/main/common/game-terms.ts`,
+    `sites/main/common/build-terms.ts`).
   - The admin panel's pages - Builds, Translations, Languages and the rest - stay English (Translations and
     Languages are the library's, in the admin panel's frame); a member never sees
     the server's English sentence except a stored row without a known kind, marked `lang="en"`.
@@ -214,7 +214,7 @@ Correctness first:
   trusts no proxy (never Cloudflare's ranges in its place), `cloudflare.local.php` fails closed (a secret no request
   carries) - as does one read cleanly that names no usable secret (blank, no array, another key, not a string): only
   deleting the file switches the secret off - and `tests/settings_files.test.php` holds each with the attack it stops.
-- The legal pages: every fact in `core/legal-facts.ts` true of the code (a change to what the site keeps, or for
+- The legal pages: every fact in `sites/main/legal/legal-facts.ts` true of the code (a change to what the site keeps, or for
   how long, changes `legal.*` by a migration and `SITE_LEGAL_UPDATED`); every address the pages link to the code's,
   never a translatable string; the routes each a path of their own with the frame as parent, no guard, before the
   `**`.
@@ -229,14 +229,14 @@ Correctness first:
   not reach is never the best while one applies (`CharacterAnalyzer::best()`, a tie to the earlier build), a stat's
   target is the one with the highest `from_rank` reached (`BuildEvaluator::targetsFor()`), and a build without
   substats is scored from its own main stats (`ItemScorer::fallbackSubstats()`), never from another build's.
-- API changes are mirrored in `frontend/src/app/core/models.ts`; routes validate input (`Web\Input`).
-- The top bar (`layouts/top-bar/`) is the family's `<anotoki-top-bar>` (`@anotoki/lib/shell`), told this site's
+- API changes are mirrored in `frontend/src/app/api/models.ts`; routes validate input (`Web\Input`).
+- The top bar (`shared/top-bar/`) is the family's `<anotoki-top-bar>` (`@anotoki/lib/shell`), told this site's
   brand, sections, person and menu items: every member word a key (`brand.*`, `topbar.*`, the library's
   `anotoki.topbar.*` and `anotoki.theme.*`; the admin sections English); its menus, keys and fold are the
   library's (Tab / Shift+Tab from any item close the menu with the focus on its button) - never a copy here; a
   new piece or longer words mean measuring the row again (`run.mjs --measure`) and keeping `PHONE_BAR_MAX`,
   the admin panel's `ADMIN_PHONE_BAR_MAX` / `EDITOR_PHONE_BAR_MAX` in step.
-- The builds editor's page (`pages/admin/build-editor/`, docs/builds.md "The editor"; English, the admin panel):
+- The builds editor's page (`sites/admin/build-editor/`, docs/builds.md "The editor"; English, the admin panel):
   `editor-draft.ts` stays plain functions over immutable data - a part nobody touched goes back as the very object the
   server sent, a part changed back is the loaded one again (`withPart()`, `asLoadedTeams()`: the Save bar never
   stands for a change nobody sees), each list's rows keep an identity through edits (`rowId()`, `carried()`; loaded

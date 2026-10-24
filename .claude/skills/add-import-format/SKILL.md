@@ -53,8 +53,8 @@ items (set, slot, rarity, level, main stat, substats with values and roll counts
   A new one touches, together: its row in `ImportKinds` (the names of its params, in order; params flat -
   `Game::label()`, `Game::weaponLabel()`, `ImportKinds::ref()`, numbers as numbers; a clause the sentence may
   or may not have is a kind of its own, never an English fragment in a param); its tail in
-  `frontend/src/app/core/i18n/dynamic-keys.ts` (`import.error.` / `import.warning.`); its row in
-  `core/i18n/import-words.ts`; its English in `core/i18n/en/core.json`; and a **new string migration** (003's
+  `frontend/src/app/shared/i18n/dynamic-keys.ts` (`import.error.` / `import.warning.`); its row in
+  `shared/i18n/import-words.ts`; its English in `shared/i18n/en/core.json`; and a **new string migration** (003's
   pattern: the key with a description, the English and informal Slovak, `ON CONFLICT DO NOTHING`, a `DO $$`
   gate). Game terms and the player's names stay as they are, first and before a colon - no Slovak word agrees
   with one. `docs/import-formats.md`, "Errors and warnings are kinds", has the whole picture.
@@ -73,7 +73,7 @@ items (set, slot, rarity, level, main stat, substats with values and roll counts
   validation, `requireOwner($app, mayMakeVisitor: true)` on the group and `->add(makeVisitor($app))->add(throttle(...))`
   on the route (the throttle counts a visitor per address; `makeVisitor` innermost, so a refused import makes no
   visitor), the visitor caps (`$roomForAccount`, `$smallEnough`), and an `Api` method in
-  `frontend/src/app/core/api.ts`. The route path must not carry the service's name (the showcase import is
+  `frontend/src/app/api/api.ts`. The route path must not carry the service's name (the showcase import is
   `/api/imports/showcase`).
 - Credentials (e.g. the official web account's cookies): ask the user before building this. Never log or return
   them, store them encrypted (with a key in a `config/*.local.php` that `setup.php` writes) or not at all,
@@ -101,12 +101,12 @@ cd backend && php import-account.php genshin path/to/real-sample.json --user=<yo
 
 ## 5. User-facing guide and docs
 
-- Wizard content: `frontend/src/app/pages/import/import-guides.ts` (`METHODS` pros/cons, `GUIDES` steps, tips,
+- Wizard content: `frontend/src/app/sites/main/import/import-guides.ts` (`METHODS` pros/cons, `GUIDES` steps, tips,
   troubleshooting, `fileHint`) - describe tools by what they do ("an inventory exporter that saves the GOOD
   format"), with no names and no links. Every text there is a key written out whole; a new or reworded one is
-  its English in `core/i18n/en/import.json` plus a string migration with English and informal Slovak (an
+  its English in `shared/i18n/en/import.json` plus a string migration with English and informal Slovak (an
   applied migration is never edited: a reworded string is a new migration plus the same change there). A
   brand-new method key also needs handling in
-  `import-wizard.ts/.html` and `ImportKind` in `core/models.ts`.
+  `import-wizard.ts/.html` and `ImportKind` in `api/models.ts`.
 - Update `docs/import-formats.md`, the README import table, and `docs/decisions.md` for notable choices.
 - Check the wizard visually with the `verify-ui` skill.
