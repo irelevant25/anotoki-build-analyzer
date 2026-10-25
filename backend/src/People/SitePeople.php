@@ -134,11 +134,12 @@ final class SitePeople
     /**
      * The People page's Delete: an IAM person's row and, by the foreign keys, their game accounts with
      * everything imported into them and their import runs - their anotoki account stays, and signing in
-     * again starts them afresh, with nothing. The builds they imported and the strings they saved stay, by
-     * nobody (build_imports.imported_by goes NULL with the row), and so does what they sent through the feedback
-     * form - but nothing of the person stays with them: their feedback loses the address and browser it was sent
-     * with (the library does that itself, in the same transaction). Null for an id that is no person's here (a
-     * visitor's row never is one).
+     * again starts them afresh, with nothing. The builds they imported, the strings they saved and the site settings
+     * they changed last (a switch, a page's row of Page access: the library's anotoki_admin/003 keeps updated_by,
+     * the IAM's id) stay, by nobody (build_imports.imported_by goes NULL with the row), and so does what they sent
+     * through the feedback form - but nothing of the person stays with them: their feedback loses the address and
+     * browser it was sent with (the library does that itself, in the same transaction). Null for an id that is no
+     * person's here (a visitor's row never is one).
      *
      * It runs inside the library's transaction (People::delete(), anotoki-lib 0.5.0), on the $pdo that holds it:
      * the People page's connection - or a restore's, which holds every restored table locked until it commits.
@@ -156,6 +157,13 @@ final class SitePeople
         }
         // The strings they saved stay, saved by nobody.
         SiteTranslations::make($pdo)->forgetWriter($sub);
+        // And the site settings they changed last, changed by nobody - where the library's tables are there (003 may
+        // wait for its Apply). No foreign key does it: the library's tables point at no site's table.
+        foreach ([AdminSchema::SITE_SETTINGS_TABLE, AdminSchema::PAGE_ACCESS_TABLE] as $table) {
+            if (AdminSchema::has($pdo, $table)) {
+                $pdo->prepare("UPDATE {$table} SET updated_by = NULL WHERE updated_by = ?")->execute([$sub]);
+            }
+        }
 
         return [
             'deleted' => [

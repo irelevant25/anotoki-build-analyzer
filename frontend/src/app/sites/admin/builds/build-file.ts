@@ -1,5 +1,6 @@
+import type { AnotokiDateChoices } from '@anotoki/lib/ui/config';
+import { formatDateTime } from '@anotoki/lib/ui/dates';
 import { GAME_LABELS } from '../../../shared/format';
-import { DateChoices, OwnDateParts, chosenMoment } from '../../../shared/i18n/date-patterns';
 import { BuildChange, BuildImportEntry, BuildImportPlan, BuildMerged, BuildPart, BuildQuestion, BuildVariationRef, GameKey } from '../../../api/models';
 
 /**
@@ -207,7 +208,7 @@ export function changeCount(plan: Pick<BuildImportPlan, 'created' | 'updated' | 
  * 10:00: 2 new, 1 updated, 240 unchanged, 3 removed." With characters skipped, the builds counted are those of the
  * characters this installation knows. `dates` is the account's date order and clock (AuthService.preferences()).
  */
-export function planSummary(plan: BuildImportPlan, dates: DateChoices | null = null): string {
+export function planSummary(plan: BuildImportPlan, dates: AnotokiDateChoices | null = null): string {
   const known = plan.skipped.length > 0 ? ' this installation knows' : '';
   const teams = plan.teams > 0 ? `, with ${count(plan.teams, 'team')}` : '';
   return (
@@ -251,26 +252,21 @@ export function importSummary(result: BuildImportPlan): string {
  * October 2026 at 10:00 · 3 new, 1 updated, 0 removed, 2 skipped · by Mona". The import of a person since deleted is
  * nobody's.
  */
-export function importLine(entry: BuildImportEntry, dates: DateChoices | null = null): string {
+export function importLine(entry: BuildImportEntry, dates: AnotokiDateChoices | null = null): string {
   const file = entry.file_exported_at ? `file made ${momentText(entry.file_exported_at, dates)}` : 'file of an unknown date';
   const { created, updated, removed, skipped, edits_kept } = entry.summary;
   const counts = `${created ?? 0} new, ${updated ?? 0} updated, ${removed ?? 0} removed, ${skipped ?? 0} skipped${edits_kept ? `, ${edits_kept} kept an edit` : ''}`;
   return `${file} · ${counts} · by ${entry.imported_by?.name ?? 'a deleted person'}`;
 }
 
-/** The page's own way of writing a day and a time, for the part the account leaves at "automatic". */
-const OWN_PARTS: OwnDateParts = {
-  day: (date) => date.toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' }),
-  time: (date) => date.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' }),
-};
-
 /**
  * A moment the server names (ISO 8601): "20 October 2026 at 14:03" in the browser's time zone - or in the account's
- * date order and clock where the person has chosen them, "2026-10-20 2:03 pm".
+ * date order and clock where the person has chosen them, "2026-10-20 2:03 pm" (the part left at "automatic" the long
+ * English way). The family's dates (@anotoki/lib/ui/dates' formatDateTime(), the long day), in English as the admin
+ * panel is.
  */
-export function momentText(value: string, dates: DateChoices | null = null): string {
-  const date = parseTime(value);
-  return chosenMoment(date, dates, 'en-GB', OWN_PARTS) ?? date.toLocaleString('en-GB', { day: 'numeric', month: 'long', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+export function momentText(value: string, dates: AnotokiDateChoices | null = null): string {
+  return formatDateTime(parseTime(value), { locale: 'en-GB', choices: dates }, { style: 'long' });
 }
 
 /** "1 build", "250 builds". */

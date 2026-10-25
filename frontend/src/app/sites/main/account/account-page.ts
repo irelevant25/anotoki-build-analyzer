@@ -14,6 +14,8 @@ import { PageHeaderComponent } from '@anotoki/lib/ui/page-header';
 import { SegmentedComponent, SegmentedOption } from '@anotoki/lib/ui/segmented';
 import { SpinnerComponent } from '@anotoki/lib/ui/spinner';
 import { ToastService } from '@anotoki/lib/ui/toast';
+import { AnotokiAgoPipe } from '@anotoki/lib/ui/dates';
+import { matchesSearch } from '@anotoki/lib/ui/search';
 import { Api } from '../../../api/api';
 import { AuthService } from '../../../shared/auth';
 import { GAME_LABELS, titleCase } from '../../../shared/format';
@@ -21,7 +23,6 @@ import { GAME_TERMS, UID_TERM, level } from '../common/game-terms';
 import { TranslationKey } from '../../../shared/i18n/en';
 import { ErrorTextPipe, errorText, isSignInRefusal } from '../../../shared/i18n/error-text';
 import { importRunError, importStatusText } from '../../../shared/i18n/import-words';
-import { LocalDatePipe } from '../../../shared/i18n/local-date';
 import { recommendationText } from '../../../shared/i18n/recommendation-words';
 import { TranslatePipe } from '../../../shared/i18n/translate';
 import { TranslatePluralPipe } from '../../../shared/i18n/translate-plural';
@@ -99,7 +100,7 @@ const STATUS_TONES: Record<string, BadgeTone> = { success: 'success', partial: '
     ScoreBar,
     TranslatePipe,
     TranslatePluralPipe,
-    LocalDatePipe,
+    AnotokiAgoPipe,
     ErrorTextPipe,
     VisitorHero,
     VisitorNotice,
@@ -174,15 +175,12 @@ export class AccountPage {
   /** The orders, worded in the language on the page. */
   protected readonly sortOptions = computed<SelectOption[]>(() => SORTS.map((option) => ({ value: option.value, label: this.i18n.t(option.label) })));
 
+  /** The account's characters the filters find (a name the family's way, @anotoki/lib/ui/search: each word typed anywhere in it, accents and case aside), in the order chosen. */
   protected readonly characters = computed(() => {
-    const query = this.search().trim().toLowerCase();
+    const query = this.search();
     const element = this.element();
     let list = (this.account()?.characters ?? []).filter(
-      (c) =>
-        (!query || c.name.toLowerCase().includes(query)) &&
-        (element === 'all' || c.element === element) &&
-        (!this.onlyWithBuilds() || c.builds_count > 0) &&
-        (!this.hideUnbuilt() || c.items_count > 0),
+      (c) => matchesSearch(c.name, query) && (element === 'all' || c.element === element) && (!this.onlyWithBuilds() || c.builds_count > 0) && (!this.hideUnbuilt() || c.items_count > 0),
     );
 
     const score = (c: CharacterOverview) => c.best?.overall ?? -1;

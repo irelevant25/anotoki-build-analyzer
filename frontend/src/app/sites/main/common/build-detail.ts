@@ -3,8 +3,8 @@ import { BadgeComponent } from '@anotoki/lib/ui/badge';
 import { DisclosureComponent } from '@anotoki/lib/ui/disclosure';
 import { IconComponent } from '@anotoki/lib/ui/icon';
 import { TooltipDirective } from '@anotoki/lib/ui/tooltip';
+import { AnotokiAgoPipe } from '@anotoki/lib/ui/dates';
 import { GAME_TERMS, SET_KIND_TERMS, pieces } from './game-terms';
-import { LocalDatePipe } from '../../../shared/i18n/local-date';
 import { siteNoteText } from '../../../shared/i18n/site-note';
 import { TranslatePipe } from '../../../shared/i18n/translate';
 import { TranslatePluralPipe } from '../../../shared/i18n/translate-plural';
@@ -39,7 +39,7 @@ interface SetGroup {
  */
 @Component({
   selector: 'app-build-detail',
-  imports: [Avatar, BuildTeams, StatValuePipe, LocalDatePipe, TranslatePipe, TranslatePluralPipe, BadgeComponent, DisclosureComponent, IconComponent, TooltipDirective],
+  imports: [Avatar, BuildTeams, StatValuePipe, AnotokiAgoPipe, TranslatePipe, TranslatePluralPipe, BadgeComponent, DisclosureComponent, IconComponent, TooltipDirective],
   templateUrl: './build-detail.html',
   styleUrl: './build-detail.scss',
 })

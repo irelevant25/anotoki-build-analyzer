@@ -53,6 +53,10 @@ const WORDS: Record<string, string> = {
   'legal.staff.what': 'Who imported builds, who saved a word.',
   'legal.staff.why': 'Why who imported.',
   'legal.staff.kept': 'How long who imported.',
+  'legal.settings.name': "If you change the site's settings",
+  'legal.settings.what': 'Who changed a setting last.',
+  'legal.settings.why': 'Why who changed it.',
+  'legal.settings.kept': 'Until the setting changes again.',
   'legal.limits.name': 'Limits against floods',
   'legal.limits.what': 'The counts.',
   'legal.limits.why': 'Why the counts.',
@@ -200,7 +204,7 @@ describe('the legal pages, as this site fills them in', () => {
     expect(() => config.facts()).toThrow(/frame/);
   });
 
-  it('the facts: six parts of its own, the visitors for the days the sweep keeps them, feedback, its audit log and backups in its words, its cookies and storage by name, the hosting company, Cloudflare and the showcase service, the fan clause', async () => {
+  it("the facts: seven parts of its own (the site settings' changers since anotoki-lib 0.11.0), the visitors for the days the sweep keeps them, feedback, its audit log and backups in its words, its cookies and storage by name (the announcement's mark among them), the hosting company, Cloudflare and the showcase service, the fan clause", async () => {
     await configure();
     const facts = siteLegalFacts(TestBed.inject(TranslationService), TestBed.inject(AnotokiAuth), 30);
     expect(facts.site).toBe('Build Analyzer');
@@ -212,10 +216,17 @@ describe('the legal pages, as this site fills them in', () => {
       'Your record',
       'Your game accounts',
       "If you import builds or keep the site's words",
+      "If you change the site's settings",
       'Limits against floods',
       'Showcase answers',
       "The site's own log",
     ]);
+    expect(facts.data[3]).toEqual({
+      name: WORDS['legal.settings.name'],
+      what: WORDS['legal.settings.what'],
+      why: WORDS['legal.settings.why'],
+      kept: WORDS['legal.settings.kept'],
+    });
     expect(facts.visitors).toEqual({
       what: WORDS['legal.visitors.what'],
       why: WORDS['legal.visitors.why'],
@@ -245,6 +256,7 @@ describe('the legal pages, as this site fills them in', () => {
       ['build-analyzer-visitor', null, 'visitorKey'],
       ['build-analyzer-version-seen', 'local', null],
       ['build-analyzer-localization-drafts', 'session', null],
+      ['build-analyzer-announcement', null, 'announcement'],
     ]);
     expect(facts.processors).toEqual([
       { preset: 'hosting', name: 'WebSupport s.r.o.', url: 'https://www.websupport.sk' },
@@ -270,6 +282,7 @@ describe('the legal pages, as this site fills them in', () => {
       'data-3',
       'data-4',
       'data-5',
+      'data-6',
       'visitors',
       'feedback',
       'error-log',
@@ -295,6 +308,7 @@ describe('the legal pages, as this site fills them in', () => {
       'build-analyzer-visitor',
       'build-analyzer-version-seen',
       'build-analyzer-localization-drafts',
+      'build-analyzer-announcement',
     ]);
     expect(texts(host, '[data-recipient] .anotoki-legal-page__item-name')).toEqual(['WebSupport s.r.o.', 'Cloudflare, Inc.', 'The showcase service']);
     expect(host.querySelector('[data-analytics]')?.textContent).toContain('umami.anotoki.eu');

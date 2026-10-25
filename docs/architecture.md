@@ -68,6 +68,7 @@ stands (`api/middleware/site_gate.php`: `siteState()`), afresh each time:
 | not set up | `Config::load()` found a required local file missing or incomplete (no database, no IAM issuer or client id; the log says which file and which value) | every path `503 {"code": "not_set_up", "installed": …, "message": …}`, with `"setup": "/setup.php"` only while the site was never installed - `storage/installed.lock`, which `setup.php` writes when it finishes on a real host (never on this computer) |
 | update pending | a migration file is ready to apply | every path `503 {"code": "update_pending", "message": "The site is being updated. Try again in a few minutes."}` with `Retry-After: 60` - but the open paths (`siteOpenPaths()`): `/api/meta` (where people sign in), `/api/translations/{code}` (the pages' words, opened by the library's own pattern, `TranslationsRoutes::openPath()`; its route answers `translations_unavailable` itself while the tables are not there), the Migrations page's three routes, `/api/admin/migrations`, `…/file` and `…/apply`, the error log's (`ErrorLogRoutes::openPaths()`: `/api/admin/errors` and one fingerprint) and the backups' but a restore (`BackupsRoutes::openPaths()`: the list, `/proof`, one backup, its ticket, file and preview - a backup just before Apply is the point) - an ADMIN's, judged from the token alone: `requireTokenRole()`. Each is a route exactly, never a prefix: the gate reads the path decoded, as the router does, and neither resolves dot segments, so a crafted `/api/admin/migrations/../x` (or `%2e%2e`, `%2F`) stays closed |
 | unavailable | the database cannot be reached | everything passes: the routes answer as they do without a database (500 `server_error`) |
+| closed for maintenance | ready, and the site's ADMIN has switched the site settings' Getting in on (anotoki-lib 0.11.0, "The site settings", below) | every path `503 {"code": "maintenance", "message", "maintenance_message": {en, sk, …}}` with `Retry-After: 300` - but the open paths above and the settings' reserved API paths (`/api/meta`, `/api/icons`, the status, the words, the settings' two), each itself and everything under it - to everybody but the site's ADMIN, judged from a verified token alone (the gate's `exempt`: `AccessTokens::personOf()` - it runs before any route group's Identify; a forged, expired or other site's token is nobody). The status says `maintenance`; nothing of it goes into the error log |
 | ready | otherwise | everything passes |
 
 `GET /api/site-status` always answers `{state, installed}` - how the pages learn which - to anybody: it reads no
@@ -105,6 +106,35 @@ are the database's (`anotoki.siteStatus.*`, `anotoki.ui.*`: `TranslationService.
 `siteStatusWords()`), the library's own under them. The Migrations page names this site's files by their names
 (`004_….sql`) and the library's with their set (`anotoki_admin/001_….sql`, `anotoki_translations/001_….sql`,
 `anotoki_people/001_….sql`): four sets are configured, one of them the site's.
+
+### The site settings, robots.txt and sitemap.xml
+
+The anotoki family's site settings (anotoki-lib 0.11.0, the owner's request of 2026-10-25; [decisions.md](decisions.md);
+the routes and what each part does: [operations.md](operations.md), "The site settings"): the library's `SiteSettings`
+on its tables (`anotoki_admin/003`), with this site's part in `App\Web\SitePages` - all three parts, the reserved API
+paths (`RESERVED_API_PATHS`: `/api/meta`, `/api/icons`, beside the library's own), the reserved pages
+(`RESERVED_PAGES`: `/sign-in`, beside the library's), and the public pages Page access governs with the API paths each
+reads (`GOVERNED`). The container keeps one `SiteSettings` across requests (`App::LASTING`): it reads its tables afresh
+for every question, and while `003` waits every switch is at its default and no page is governed.
+
+- **Getting in**: `siteState()` gives the settings to the library's `SiteState` and `siteGate()` the ADMIN's check to
+  its `SiteGate` (`exempt`; the library builds no gate for a site that can be closed without one). `GET
+  /api/site-status` says `maintenance` with the administrators' message.
+- **Page access**: `pageAccess($app)` (`api/middleware/auth.php`) - the library's `PageAccessGate` - in every route
+  group's middleware, right after its own check (`RequirePerson`, `RequireCaller`, the role check): the person Identify
+  found is the reader (a visitor is nobody), an API path a row refuses with its page answers `423 page_locked` in this
+  site's body, never to the ADMIN and never on a reserved path; for the ADMIN it reads no table at all. The routes with
+  no Identify (`/api/meta`, the icons, the bundle, the status, the settings' public route) are all reserved.
+- **The admin routes** (`/api/admin/site-settings[/pages[/{id}]]`, `SiteSettingsRoutes::admin()`) behind
+  `requireRole(ADMIN)`, audited by the site's `AuditLog`; the People page's delete leaves what a person changed by
+  nobody (`SitePeople::deleteData()`).
+- **robots.txt and sitemap.xml** (`api/routes/robots.php`, the library's `Robots` from `SitePages::robots()`): the
+  site's address from `Config::siteAddress()` (config/site.local.php, else where the code runs), never a request's
+  `Host`; the sitemap's own entries `SitePages::publicEntries()` - the dashboard, the import, each game's builds and
+  every character with builds (`Builds::charactersWithBuilds()`, its newest `changed_at` or `edited_at`) - only while
+  the IAM lets visitors in (`SignInRule`); what Page access hides the library leaves out. Neither path is under `/api`:
+  `router.php` (`App\DevRouter::ROBOTS_PATHS`), the release's `.htaccess` (`composer.json`'s `routes`) and the dev
+  proxy send both to the front controller.
 
 ### Sign-in
 
@@ -513,7 +543,8 @@ bar took the place of the site's own), each with every rewording.
   `TranslationService`, set up for this site in `shared/i18n/translations.config.ts`, with the storage names this
   site always had). The last bundle is kept in the browser, so a returning reader starts in their language;
   a first visit whose answer is lost asks once more after half a second. `<html lang>` and the page titles
-  (`title-strategy.ts`) follow it; dates and numbers use `Intl` (`localDate`).
+  (`title-strategy.ts`) follow it; dates and numbers use `Intl` (the family's dates, `@anotoki/lib/ui/dates`:
+  `anotokiAgo`, `anotokiDate`, in the translations' locale - `provideKit()`).
 - **The account's language, theme and dates** (the IAM's migration 015, read through the library's auth module; the owner's decision of
   2026-10-06 - "it should be in the iam only and apply for every project/application"): while somebody is
   signed in at an IAM that keeps them (`AuthService.preferences()` not null), the account's `locale` comes
@@ -523,13 +554,14 @@ bar took the place of the site's own), each with every rewording.
   `invalid_request` - stays this site's own for the visit, silently; any other refusal keeps it for the visit
   and the bar's language switcher says so under itself, `anotoki.language.notSaved`). The theme is the
   account's on every page, the admin panel included
-  (`shared/shell.ts`, below). Dates follow the account's date order and clock where it has chosen them
-  (`shared/i18n/date-patterns.ts`): What's new's days (`localDate: 'day'`), and in the admin panel when a
-  migration was applied and, on the Builds page, when a builds file was made; relative times ("3 hours ago")
-  have neither and read the same for everybody. A visitor, and anybody signed in at an IAM before 015 (no
+  (`shared/shell.ts`, below). Dates follow the account's date order and clock where it has chosen them (the
+  family's dates, given the account's choices by `provideKit()`'s `dateChoices`): What's new's days (`anotokiDate:
+  'day'`), and in the admin panel when a migration was applied (`appliedAt()`) and, on the Builds page, when a builds
+  file was made (`momentText()`: `formatDateTime()`); relative times ("3 hours ago", `anotokiAgo` with `{ dateAfter:
+  null }`) have neither and read the same for everybody. A visitor, and anybody signed in at an IAM before 015 (no
   `preferences`), keeps this device's choices exactly as before, and nothing is saved anywhere else.
-- **English pages**: the admin panel - `/admin/...` (Builds, Translations, Languages, People, Migrations, Errors,
-  Audit, Feedback, Backups) - keeps its English code and reads English with `<html lang="en">` whatever language
+- **English pages**: the admin panel - `/admin/...` (Builds, Translations, Languages, Site settings, People,
+  Feedback, Error log, Audit log, Backups, Migrations) - keeps its English code and reads English with `<html lang="en">` whatever language
   is chosen; the server's admin-only sentences stay English and those pages show them as they come
   (`errorMessage()`).
 - **The Translations and Languages pages** (editors; adding, renaming, switching and deleting a language:
@@ -577,8 +609,11 @@ bar took the place of the site's own), each with every rewording.
 | `GET /api/admin/builds/{game}/export` | editor | the game's builds as a file to save (`builds-{game}-{date}.json`, format version 3: data-model.md "Builds files") |
 | `POST /api/admin/builds/{game}/import[?dry_run=1]` (the file's JSON as the body, at most 8 MB) | editor | the game's builds become the file's (see "Main flows"): `{dry_run, game, exported_at, older_than_current, characters, builds, teams, created, updated, unchanged, removed, skipped: [{key, name, builds}], teammates_unknown: [{key, name}], teammates_unknown_total, edits_kept, made_here, kept_removed, file_taken, questions: [{id, kind, character, role, qualifier, min_rank, parts, taken, notes}], plan, merged, order_kept, notes_dormant, changes: [{change: created\|updated\|removed, character: {key, name}, role, qualifier, min_rank}], changes_listed}` - every change counted, the first 500 listed; `older_than_current` when the file was made before the one the builds there came from; the questions where the file and an editor's work disagree (builds.md, "Hand edits"), answered by `?file=<ids>\|all&plan=<hash>`; a dry run writes nothing. 422 for a file that does not fit or choices that name no question (nothing written), 409 while another import writes, 409 `plan_changed` when the questions are not the preview's any more |
 | `POST /api/admin/catalog/{game}/{list}[?force=1]` (`characters`, `weapons`, `sets`) | editor | one list of the catalog refreshed from the game's provider, a conditional request unless forced: `{outcome: changed\|unchanged, written, list, entries, refreshed_at, problem}`; 409 while another refresh of the list runs, 502 when the provider is closed, has no such list or cannot be read (the reason as the message); 404 for another list |
-| `GET /api/site-status` | anyone, always (the gate lets it through) | `{state: ready\|not_set_up\|update_pending\|unavailable, installed}` - nothing else (anotoki-lib's `MigrationsRoutes::status`) |
-| `GET /api/admin/migrations` | admin (from the token alone; open while an update waits) | `{sets: ["build_analyzer"], applied: [{set, name, applied_at}], pending: [{set, name, ready, blocked}], missing: [{set, name, applied_at}]}` - the files applied, in order, with when (UTC, `…Z`); the files not applied yet, in the order they will run; files recorded but not on disk (anotoki-lib's `MigrationsRoutes::admin`) |
+| `GET /api/site-status` | anyone, always (the gate lets it through) | `{state: ready\|not_set_up\|update_pending\|unavailable\|maintenance, installed, maintenance_message?}` - `maintenance` (with the administrators' message per language) while the site settings close the site; nothing else (anotoki-lib's `MigrationsRoutes::status`) |
+| `GET /api/site-settings` | anyone, always (no token read; a reserved path) | what every page is told of the site settings: `{maintenance, announcement: null\|{level, message: {en, sk, …}}, pages: [{path, visibility, blocked}]}` - never a row's API paths (anotoki-lib's `SiteSettingsRoutes::public`) |
+| `GET/PUT /api/admin/site-settings`, `POST/PUT /api/admin/site-settings/pages`, `DELETE …/pages/{id}` | admin | the Site settings page: the page's whole (`parts`, each switch with when and by whom it last changed, the pages with their API paths, what is reserved, the limits) / the switches that changed (`{settings: {name: value}}`) / a page's row added (201), rows changed (`{pages: [{id, visibility?, blocked?, api_paths?}]}`), a row removed - each audited (`site_settings.changed`, `page_access.added`, `.changed`, `.removed`); 422 `invalid_setting`, `invalid_page`, `invalid_api_path` (a reserved one, either way round), 409 `page_exists` (anotoki-lib's `SiteSettingsRoutes::admin`) |
+| `GET\|HEAD /robots.txt`, `GET\|HEAD /sitemap.xml` | anyone (behind the site gate) | what robots read: out of `/admin`, `/api`, `/auth`, `/accounts`, `/sign-in`, `/staff`, the sitemap named by the site's own address; the legal pages, About, Support - and while the IAM lets visitors in the dashboard, the import, the builds and each character's builds with its `lastmod` - never what Page access hides; `Cache-Control: public, max-age=3600` - the library's 404 `not_configured` never comes here: a checkout and a release each have an address (anotoki-lib's `RobotsRoutes`) |
+| `GET /api/admin/migrations` | admin (from the token alone; open while an update waits) | `{sets: ["build_analyzer"], applied: [{set, name, applied_at}], pending: [{set, name, ready, blocked, duplicates}], missing: [{set, name, applied_at}]}` - the files applied, in order, with when (UTC, `…Z`); the files not applied yet, in the order they will run (`duplicates`: the other files of its set with its number - one waits until none is left, anotoki-lib 0.11.0); files recorded but not on disk (anotoki-lib's `MigrationsRoutes::admin`) |
 | `GET /api/admin/migrations/file?set=&name=` | admin (likewise) | `{set, name, sql}` of one of the set's files; 404 `not_found` for anything else (no path tricks) |
 | `POST /api/admin/migrations/apply` | admin (likewise) | applies every pending file in order, each in its own transaction with its record, stopping at the first that fails: `{applied: [{set, name}], failed: {set, name}\|null, error: string\|null, note: null}` (200 either way; the failed file rolled back whole; `error` is `statement N of M: <the database's message>` and the statement's first lines); 409 `busy` while another apply holds the advisory lock every apply takes (the page, `migration.php`, setup). No shell on the host; the same engine as `migration.php` and setup. Given five minutes and not cut short when the browser goes; the log says what was applied and where it stopped |
 | `GET /api/translations/{code}` | anyone (no token read) | the bundle: `{language, languages (the offered ones), values, english?}`, the language's strings with English underneath (the library's words among them); ETag and 304 |
@@ -606,10 +641,13 @@ visitor's limits,
 `file_too_big` `{max_mb}`, `not_a_data_file`, `newer_version` `{version}`, `bad_entry` `{path}`, `too_many_accounts`
 `{max}`, and an export too large for one file, `export_too_big` `{max_mb, max_accounts}`), the translation routes' 400
 `invalid_json`, 413 `too_large` (over 1 MiB) and 415 `unsupported_media_type` (a write that is not
-`application/json`, such as a form), 429 (`too_many_imports`; `too_many_visitors`, which says to sign in), 502
+`application/json`, such as a form), 423 `page_locked` "That part of the site is not available." (an API path the
+site settings' Page access refuses with its page, to whoever the page is not shown to), 429 (`too_many_imports`;
+`too_many_visitors`, which says to sign in), 502
 (the Builds page's refresh of a catalog list: the game data provider closed, without the list or unreadable - its
-reason as the message), 503 `not_set_up` and `update_pending` (the site gate's: `{code, message}`, `not_set_up`
-with `installed` and - only while never installed - `setup`; see "The site gate"), 503
+reason as the message), 503 `not_set_up`, `update_pending` and `maintenance` (the site gate's: `{code, message}`,
+`not_set_up` with `installed` and - only while never installed - `setup`, `maintenance` with `maintenance_message`
+and `Retry-After: 300`; see "The site gate"), 503
 `translations_unavailable` (with `Retry-After: 60`) from the translation routes while the tables of migration
 003 are not there (and from the bundle while English has no string), 503 `visitors_unavailable` from the visitor
 paths while 004's columns are not (both behind the gate: a second line), and 503 `visitor_move_retry` (ask
@@ -639,10 +677,24 @@ again). The Migrations page's API answers its own: 404 `not_found` (a file that 
   changes, and the bar's switch saves to it: shown at once, one save at a time with the latest choice last,
   never flicking back while its own save is on its way, and a refusal puts the account's theme back with a note
   under the switch, `anotoki.theme.notSaved`; and the bar's languages, `TranslationService.forShell()`);
-  `shared/kit.ts` (`provideKit()`: the kit's words in the language on the page - `forKit()` - and the icons the
-  site names beyond the kit's own, `shared/icons.ts`). `shared/i18n/date-patterns.ts`: the
-  account's four date orders and two clocks, as the IAM writes them, and `chosenMoment()` for a day with its
-  time (each part the account's where chosen, the page's own where not; all the page's own when neither is).
+  `shared/kit.ts` (`provideKit()`: the kit's words in the language on the page and its dates' locale - `forKit()` -,
+  the account's date order and clock for the kit's dates - `dateChoices`, asked when a date is written: the sign-in
+  reads the kit's words, a circle otherwise -, and the icons the site names beyond the kit's own, `shared/icons.ts`).
+  The dates are the family's (`@anotoki/lib/ui/dates`, anotoki-lib 0.11.0): `anotokiAgo` and `anotokiDate` in the
+  templates, `formatDateTime()` and `formatRelative()` in code; the search is the family's too (`@anotoki/lib/ui/search`:
+  `filterBySearch()`, `matchesSearch()` - accents and case aside, each word anywhere).
+- The site settings (anotoki-lib 0.11.0, `shared/site-settings.ts`: `provideSiteSettings()` - the token's roles and
+  whether anybody is signed in, the announcement's mark under `build-analyzer-announcement`): read once at the start
+  beside the site's status (`SiteSettings.load()` in `app.config.ts`, before the router's first navigation; with no
+  credentials - `api.skip`), again after an administrator saves them. Everybody's pages' frame draws the announcement
+  above the bar and the administrators' notice above the page (`<anotoki-announcement>`, `<anotoki-page-notice>`); the
+  admin frame the notice alone (`adminFrameNotice`: the maintenance line). Page access is `pageAccessGuard` (a
+  `canMatch`) on the six public pages (`sites/main/main.routes.ts`): a page closed to the reader falls through to the
+  `**` and the dashboard - and where the dashboard is closed too, the last `**` draws "This page is not open right
+  now" (`sites/main/not-open`); the bar leaves such a section out (`TopBar.links`). While the site is closed the gate
+  draws the family's closed sign for everybody but the site's ADMIN (`shared/site-status.ts`: `staffRoute: '/staff'`,
+  `openWhileClosed` the library's and `/sign-in`), its Sign in at `/staff` alone - a route of its own
+  (`staffRouteGuard`: kept while the site is closed to the reader, the dashboard otherwise), back to `/`.
 - Sign-in, through the anotoki IAM only - the anotoki family's auth module (`@anotoki/lib/auth`, set up in
   `app.config.ts`: `provideAnotokiAuth()` - its boot configuration is `/api/meta`'s `auth`, read once with the
   game metadata by `MetaStore`; this site's visitor key store; the language the IAM's pages open in; the
@@ -658,10 +710,10 @@ again). The Migrations page's API answers its own: 404 `not_found` (a file that 
   the IAM lets visitors in; while it requires a sign-in somebody not signed in goes to the IAM and back - plus
   this site's one rule: a sign-in this page load came back without (or that could not start) is said once on
   `/sign-in`, to a visitor too; `personGuard` on `/admin` (anybody not signed in, a visitor too, goes to the
-  IAM and back); `adminGuard` on Languages, People, Migrations and the admin tools (an editor goes to
+  IAM and back); `adminGuard` on Languages, Site settings, People, Migrations and the admin tools (an editor goes to
   `/admin/builds`). `/sign-in` is the library's `<anotoki-sign-in-failure>` in the site's frame (why, from the
   failure's code alone; Try again, Back; `noindex`), `/auth/callback` its `<anotoki-auth-callback>`;
-  `robots.txt` (`public/`) keeps search engines off `/auth/`. A sign-in leaves only once the writes on their
+  robots.txt - the library's, from the site's PHP since anotoki-lib 0.11.0 - keeps search engines off `/auth`. A sign-in leaves only once the writes on their
   way have answers (the library's `SavesInFlight`, 30 s at most): a visitor's first import brings the key the
   move needs.
 - Who a request is, in the browser - decided when it is ISSUED, never from whether a token happens to be there
@@ -710,8 +762,8 @@ again). The Migrations page's API answers its own: 404 `not_found` (a file that 
   (`provideTranslations()`: the library set up for this site - its storage names `LANGUAGE_STORAGE`, the
   compiled English as the fallback, the account, `canAsk` = `/api/meta` answered, the admin pages' rights and
   routes), `en.ts` with the compiled English parts `en/{core,shell,builds,import,legal}.json` (one flat
-  `{"key": "English"}` object each, a key in exactly one part), the typed pipes `translate`, `translatePlural`,
-  and `localDate`, `dynamic-keys.ts`, `error-text.ts` (a failed request by its `code`),
+  `{"key": "English"}` object each, a key in exactly one part), the typed pipes `translate` and `translatePlural`
+  (dates are the family's pipes, `anotokiAgo` and `anotokiDate`), `dynamic-keys.ts`, `error-text.ts` (a failed request by its `code`),
   `recommendation-words.ts`, `import-words.ts`, `variation-words.ts` (a build's variation as a tab, a heading or a
   line says it: its role in the reader's language - `builds.role.*`, "Build" for a role a newer server adds -,
   its qualifier as the build has it, the constellation it needs in the game's notation: "Main DPS · Melt · C4+";
@@ -733,8 +785,10 @@ again). The Migrations page's API answers its own: 404 `not_found` (a file that 
   name and the address); "Back to Build Analyzer" (`topbar.backToApp`), to `/`; Sign out (the site's one,
   `shared/sign-out.ts` - the top bar's too); the theme (`<anotoki-theme-toggle adminFrameTheme />`: the shell's
   ThemeService, the account's theme); then the panel's pages, the ones its bar had - Builds; Localization:
-  Translations, and Languages for the ADMIN; System, the ADMIN's: People, Migrations, Errors, Audit, Feedback (with
-  the count of new messages, the family's `FeedbackUnread`, asked once the ADMIN is in the panel) and Backups -,
+  Translations, and Languages for the ADMIN; System, the ADMIN's, in the family's one shape (anotoki-lib 0.11.0): Site
+  settings, People, Feedback (with the count of new messages, the family's `FeedbackUnread`, asked once the ADMIN is
+  in the panel and the site runs for them), Error log, Audit log, Backups and Migrations - Migrations alone while an
+  update waits (`UPDATE_GROUPS`) -,
   each with its icon (`shared/icons.ts`); and the page beside it, in the measure the panel's pages always had,
   the footer under it. On a phone (up to 860 px, the frame's) a row with the panel's name and Menu, everything of
   the column in the kit's drawer. The frame's own words - Skip to content, Menu, Sign out, Theme, Admin panel -
@@ -839,7 +893,7 @@ again). The Migrations page's API answers its own: 404 `not_found` (a file that 
   out, each account's outcome - and Confirm sends it for real; the file's problems are worded from
   `data.error.<code>` with their params, anything else as a failed request). In `shared/`, as the admin panel's
   pages use them too: `char-avatar` (`app-avatar`: 24, 32, 48, 64 or 88 px - `xs` to `xl`), `changelog-dialog`,
-  `stat-pipes` (`statLabel`, `statValue`, `slotLabel`, `timeAgo`) and `download.ts` (`downloadName()`,
+  `stat-pipes` (`statLabel`, `statValue`, `slotLabel`; how long ago is the family's `anotokiAgo`) and `download.ts` (`downloadName()`,
   `saveFile()`), which saves a file the API sent, for the card and the admin pages.
 - The pages, a folder each in their half: in `sites/main/`, every page outside `/admin`, open to everybody.
   `dashboard` - three states: nobody (no token, no key: `visitor-hero`, no request for anybody's accounts), a

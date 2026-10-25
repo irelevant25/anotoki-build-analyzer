@@ -213,6 +213,6 @@
     }
   }
   @if (b.checked_at) {
-    {{ 'buildDetail.checked' | translate: { when: (b.checked_at | localDate: 'ago') } }}
+    {{ 'buildDetail.checked' | translate: { when: (b.checked_at | anotokiAgo: { dateAfter: null }) } }}
   }
 </footer>

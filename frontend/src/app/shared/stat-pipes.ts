@@ -1,5 +1,4 @@
 import { Pipe, PipeTransform, inject } from '@angular/core';
-import { timeAgo } from './format';
 import { MetaStore } from './meta-store';
 import { GameKey } from '../api/models';
 
@@ -30,13 +29,5 @@ export class SlotLabelPipe implements PipeTransform {
 
   transform(slot: string, game: GameKey): string {
     return this.meta.slotLabel(game, slot);
-  }
-}
-
-/** Relative time, e.g. "3 hours ago". */
-@Pipe({ name: 'timeAgo' })
-export class TimeAgoPipe implements PipeTransform {
-  transform(iso: string | null | undefined): string {
-    return timeAgo(iso);
   }
 }

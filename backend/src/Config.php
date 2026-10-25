@@ -34,6 +34,11 @@ use Anotoki\Lib\Auth\IamClient;
  *                        App\Support\Neutral keeps out of what the API sends, beyond the ones it names itself, and the
  *                        words tools/check-names.php looks for in the tracked files. Read by readOptionalFile(), not
  *                        load(); one passed over adds nothing (the names Neutral holds itself still apply).
+ *   site.local.php       optional, written by hand, never by setup.php: ['address' => 'https://builds.example'] - the
+ *                        site's own public address for robots.txt and sitemap.xml (siteAddress()), only where it is
+ *                        not the one the code's place gives: a release's RELEASE_ADDRESS, a checkout's
+ *                        DEVELOPMENT_ADDRESS. Its address and nothing else: an http(s) origin, nothing after its host
+ *                        and port.
  *
  * Every one of them is read cleanly or not at all (readLocalFile(): the anotoki family's rule of 2026-10-13, and
  * its first five bytes since 2026-10-18 - docs/decisions.md): a file that does not start with <?php is never
@@ -50,6 +55,8 @@ use Anotoki\Lib\Auth\IamClient;
  *                        as the edge it came from until the file is mended - never "no secret", which would believe
  *                        CF-Connecting-IP from every Cloudflare customer's Worker (and so is one read cleanly that
  *                        names no usable secret)
+ *   site                 the address of where the code runs holds (and so for one read cleanly that names no usable
+ *                        address): robots.txt keeps its Sitemap line - never the address a request's Host names
  *
  * There is no committed default for the required files: an installation that has not been set up says so
  * (503 "not_set_up", see api/middleware) instead of quietly running against a database or an IAM nobody
@@ -68,6 +75,18 @@ final class Config
 
     /** The file that may hold the origin secret (see the class comment; read apart from the others: it holds a secret). */
     public const ORIGIN_SECRET_FILE = 'cloudflare.local.php';
+
+    /** The file that may name the site's own public address (see the class comment; siteAddress()). */
+    public const SITE_ADDRESS_FILE = 'site.local.php';
+
+    /**
+     * Where a release is served: the address the deploy tool puts it at - backend/composer.json's
+     * extra["anotoki-deploy"]["url"] (tests/settings_files.test.php holds the two together).
+     */
+    public const RELEASE_ADDRESS = 'https://builder.anotoki.eu';
+
+    /** Where a checkout is served on this computer: the Angular dev server (DEV.md), which proxies the API to PHP. */
+    public const DEVELOPMENT_ADDRESS = 'http://localhost:4600';
 
     /** What readLocalFile() says of a file that does not start with <?php: passed over, never compiled. */
     public const NOT_PHP = 'does not start with <?php (a byte-order mark, a blank line or a space before it, or no <?php line at all)';
@@ -204,6 +223,25 @@ final class Config
                         self::ORIGIN_SECRET_FILE .
                         ' holds no origin_secret (a string with something in it): no request carries its secret, so every request from Cloudflare\'s ranges counts as the edge it came from until the file names one - deleting the file switches the secret off';
                 }
+            }
+        }
+
+        // The site's own public address (site.local.php, by hand): its address alone. One that cannot be read cleanly,
+        // or names no usable address, is passed over - the address of where the code runs holds (siteAddress()), so
+        // robots.txt keeps its Sitemap line. Never a request's Host: that header is anybody's to write.
+        $site = $dir . '/' . self::SITE_ADDRESS_FILE;
+        if (file_exists($site)) {
+            $read = is_file($site) ? self::readLocalFile($site) : ['value' => null, 'problem' => 'is no file (a folder in its place?)'];
+            $address = $read['problem'] === null && is_array($read['value']) ? self::origin($read['value']['address'] ?? null) : null;
+            if ($address !== null) {
+                $values['site'] = ['address' => $address];
+            } else {
+                $said[] =
+                    'config/' .
+                    self::SITE_ADDRESS_FILE .
+                    ' ' .
+                    ($read['problem'] ?? 'names no usable address (an http(s) origin, nothing after its host and port)') .
+                    ': it is passed over - the address of where the code runs holds';
             }
         }
 
@@ -470,6 +508,28 @@ final class Config
         $secret = $this->get('cloudflare.origin_secret');
 
         return is_string($secret) && trim($secret) !== '' ? trim($secret) : null;
+    }
+
+    /**
+     * The site's own public address, as its origin ('https://builder.anotoki.eu'): robots.txt's Sitemap line and every
+     * address in sitemap.xml (anotoki-lib 0.11.0's Robots, App\Web\SitePages) - never one read off a request, whose Host
+     * header is anybody's to write. The one site.local.php names, where it names a usable one (load()); otherwise where
+     * the code runs says it: a release (release.json beside the code - the deploy tool put it on the host) is
+     * RELEASE_ADDRESS, the one address a release is deployed to; a checkout is DEVELOPMENT_ADDRESS.
+     */
+    public function siteAddress(): string
+    {
+        return self::origin($this->get('site.address')) ?? (is_file($this->root . '/release.json') ? self::RELEASE_ADDRESS : self::DEVELOPMENT_ADDRESS);
+    }
+
+    /** An http(s) origin as the sitemap writes it - its scheme and host in lower case, its port, no slash after it -, or null for anything else. */
+    private static function origin(mixed $value): ?string
+    {
+        if (!is_string($value) || preg_match('~^(https?)://([A-Za-z0-9.-]+)(:\d{1,5})?/?$~Di', trim($value), $match) !== 1) {
+            return null;
+        }
+
+        return strtolower($match[1]) . '://' . strtolower($match[2]) . ($match[3] ?? '');
     }
 
     /**

@@ -5,7 +5,7 @@
       @if (first) {
         <anotoki-badge tone="success">{{ 'whatsNew.latest' | translate }}</anotoki-badge>
       }
-      <span class="date muted small">{{ entry.date | localDate: 'day' }}</span>
+      <span class="date muted small">{{ entry.date | anotokiDate: 'day' }}</span>
     </header>
 
     <!-- The entries are written once, in English, and shown as they are: each list says which language it is in. -->

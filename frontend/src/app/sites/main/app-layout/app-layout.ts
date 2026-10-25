@@ -2,6 +2,7 @@ import { Component, inject } from '@angular/core';
 import { RouterOutlet } from '@angular/router';
 import { SiteFooterComponent } from '@anotoki/lib/footer';
 import { ShellComponent } from '@anotoki/lib/shell';
+import { AnnouncementComponent, PageNoticeComponent } from '@anotoki/lib/site-settings';
 import { Changelog } from '../../../shared/changelog';
 import { feedbackOffered } from '../../../shared/feedback';
 import { TopBar } from '../common/top-bar/top-bar';
@@ -16,10 +17,16 @@ import { TopBar } from '../common/top-bar/top-bar';
  * What's new this site's own dialog (both once the changelog has come: shared/changelog.ts), Feedback the family's
  * form in the kit's dialog, only while a message can be sent (shared/feedback.ts); then Terms · Privacy · Contact and
  * the fan clause. Its words are the library's (`anotoki.footer.*`, the database's strings first).
+ *
+ * And the site settings' two pieces (anotoki-lib 0.11.0, shared/site-settings.ts): the announcement above the bar
+ * (<anotoki-announcement>: information, a warning or something wrong, in the page's language, hidden in this browser
+ * until its words or kind change - nothing while there is none), and above the page what the site's administrators
+ * alone read about it (<anotoki-page-notice>: the site is closed for maintenance, this page is switched off, or kept
+ * for some readers). The legal pages, About and Support are drawn in this frame too, so they have both.
  */
 @Component({
   selector: 'app-app-layout',
-  imports: [RouterOutlet, ShellComponent, SiteFooterComponent, TopBar],
+  imports: [RouterOutlet, ShellComponent, SiteFooterComponent, TopBar, AnnouncementComponent, PageNoticeComponent],
   templateUrl: './app-layout.html',
   styleUrl: './app-layout.scss',
 })

@@ -16,7 +16,8 @@ const choices = (date_format: AnotokiPreferences['date_format'], time_format: An
 
 describe('appliedAt: when a migration was applied, as the Migrations page writes it', () => {
   it("writes it the page's own way for somebody who chose nothing, or for whom no account says", () => {
-    expect(appliedAt(AT.toISOString(), null, 'en-GB')).toMatch(/^\d{1,2} Sep 2026, \d\d:\d\d$/);
+    // The family's English (en-GB, @anotoki/lib/ui/dates): September is "Sept" - Angular's en-US pattern wrote "Sep".
+    expect(appliedAt(AT.toISOString(), null, 'en-GB')).toMatch(/^\d{1,2} Sept 2026, \d\d:\d\d$/);
     expect(appliedAt(AT.toISOString(), null, 'en-GB')).toContain(CLOCK);
     expect(appliedAt(AT.toISOString(), choices(null, null), 'en-GB')).toBe(appliedAt(AT.toISOString(), null, 'en-GB'));
   });
@@ -26,7 +27,7 @@ describe('appliedAt: when a migration was applied, as the Migrations page writes
     // Only the order chosen: the page's own clock beside it.
     expect(appliedAt(AT.toISOString(), choices('ymd_dash', null), 'en-GB')).toBe(`${DAY} ${CLOCK}`);
     // Only the clock chosen: the page's own day beside it.
-    expect(appliedAt(AT.toISOString(), choices(null, '12'), 'en-GB')).toMatch(/^\d{1,2} Sep 2026 \d{1,2}:\d\d\s?[ap]m$/i);
+    expect(appliedAt(AT.toISOString(), choices(null, '12'), 'en-GB')).toMatch(/^\d{1,2} Sept 2026 \d{1,2}:\d\d\s?[ap]m$/i);
   });
 
   it('leaves what is not a date as it came', () => {
@@ -117,8 +118,18 @@ describe('the site status, wired to this site (provideSiteStatus)', () => {
     expect(config.language()).toBe('sk');
   });
 
-  it("writes the Migrations page's dates in the account's order and clock", () => {
+  it("signs an administrator in at the staff route while the site is closed - back to the dashboard - and leaves the sign-in's way back, its failure's screen and the legal pages anybody's", async () => {
+    setup(null);
+    expect(config.staffRoute).toBe('/staff');
+    expect(config.openWhileClosed).toEqual(['/auth', '/terms', '/privacy', '/contact', '/about', '/support', '/sign-in']);
+    // The closed sign's Sign in comes back to the dashboard (the family's returnTo), where the ADMIN uses the site as it is.
+    await config.signIn('/');
+    expect(auth.login).toHaveBeenCalledWith('/');
+  });
+
+  it("writes the Migrations page's dates in the account's order and clock - in English, as the admin panel is", () => {
     setup(['ADMIN']);
+    i18n.noteAddress('/admin/migrations');
     expect(config.formatDate!(AT.toISOString())).toBe(appliedAt(AT.toISOString(), null, 'en-GB'));
     auth.preferences.set({ theme: 'auto', date_format: 'ymd_dash', time_format: '24' });
     expect(config.formatDate!(AT.toISOString())).toBe(`${DAY} ${CLOCK}`);

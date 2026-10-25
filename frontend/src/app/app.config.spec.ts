@@ -7,6 +7,7 @@ import { ANOTOKI_AUTH_BROWSER, ANOTOKI_AUTH_CLIENT_FACTORY, AnotokiAuth, Anotoki
 import { FakeAuthClient, TestAnotokiAuth, TestUser, testAnotokiAuth } from '@anotoki/lib/auth/testing';
 import { ANOTOKI_ERROR_REPORT } from '@anotoki/lib/error-report';
 import { SiteStatus } from '@anotoki/lib/migrations';
+import { SiteSettings } from '@anotoki/lib/site-settings';
 import { TranslationBundle } from '@anotoki/lib/translations';
 import { TEST_LANGUAGES } from '@anotoki/lib/translations/testing';
 import { appConfig } from './app.config';
@@ -91,8 +92,13 @@ describe('the start of the app (app.config.ts)', () => {
 
   const started = () => TestBed.inject(ApplicationInitStatus).donePromise;
   const translations = () => requests.match((request) => request.url.startsWith('/api/translations/'));
-  /** The site's status, asked at the start beside /api/meta: what the server says of it. */
-  const site = (state: 'ready' | 'update_pending' | 'not_set_up', installed = false) => requests.expectOne('/api/site-status').flush({ state, installed });
+  /** The site settings (anotoki-lib 0.11.0), asked at the start beside the site's status: nothing switched, by default. */
+  const settings = (body: object = { maintenance: false, announcement: null, pages: [] }) => requests.expectOne('/api/site-settings').flush(body);
+  /** The site's status, asked at the start beside /api/meta: what the server says of it - and the site settings with it. */
+  const site = (state: 'ready' | 'update_pending' | 'not_set_up', installed = false) => {
+    requests.expectOne('/api/site-status').flush({ state, installed });
+    settings();
+  };
 
   beforeEach(() => {
     localStorage.clear();
@@ -129,6 +135,25 @@ describe('the start of the app (app.config.ts)', () => {
     // No IAM named: nothing to sign in with, and no client made.
     expect(TestBed.inject(AnotokiAuth).state()).toBe('unavailable');
     expect(client).toBeNull();
+  });
+
+  it('reads the site settings beside the status, with no credentials, before the first page: the announcement, and the pages Page access governs', async () => {
+    start();
+    requests.expectOne('/api/site-status').flush({ state: 'ready', installed: false });
+    const asked = requests.expectOne('/api/site-settings');
+    expect(asked.request.headers.has('Authorization')).toBe(false);
+    asked.flush({ maintenance: false, announcement: { level: 'warning', message: { en: 'Back at five.' } }, pages: [{ path: '/import', visibility: 'USER', blocked: false }] });
+    requests.expectOne('changelog.json').flush([]);
+    requests.expectOne('/api/meta').flush(META);
+    await settle();
+    translations()[0].flush(EN_BUNDLE);
+    await started();
+
+    const siteSettings = TestBed.inject(SiteSettings);
+    expect(siteSettings.announcement()).toEqual({ level: 'warning', message: { en: 'Back at five.' } });
+    // Nobody signed in: a page kept for people signed in is not theirs; a page no row governs is anybody's.
+    expect(siteSettings.mayNavigate('/import')).toBe(false);
+    expect(siteSettings.mayNavigate('/builds/genshin')).toBe(true);
   });
 
   it('reads the boot configuration from /api/meta - asked once, with no credentials - and lets visitors in as the server says', async () => {
@@ -317,6 +342,8 @@ describe('the start of the app (app.config.ts)', () => {
     localStorage.setItem('build-analyzer-language-cache', JSON.stringify(SK_BUNDLE));
     start();
     requests.expectOne('/api/site-status').error(new ProgressEvent('error'));
+    // The site settings cannot be read either: no announcement, every page anybody's - the start goes on.
+    requests.expectOne('/api/site-settings').error(new ProgressEvent('error'));
     requests.expectOne('changelog.json').flush([]);
     requests.expectOne('/api/meta').error(new ProgressEvent('error'));
     await started();

@@ -3,6 +3,73 @@
 Short records of choices that shape the code. Add a new entry (newest first) when you make a similar call.
 Older entries describe the Laravel version as it was; where a setting has since moved, the entry says so.
 
+**2026-10-25 — anotoki-lib 0.11.0: the site settings, robots.txt and sitemap.xml, the family's dates and search, one
+admin menu.** The owner's requests for every anotoki site: "Projects should use the library primarily", genshin's site
+settings made general ("Getting in", "Announcement", "Page access"), "Every project should have robots.txt and
+sitemap.xml", and every admin menu in one shape.
+- **All three parts of the site settings** (`App\Web\SitePages`, `api/routes/site_settings.php`; the library's tables,
+  `anotoki_admin/003`). Getting in: the site gate answers `503 maintenance` to everybody but the site's ADMIN, known by
+  a verified token alone (`AccessTokens::personOf()` - the gate runs before any route group identifies the request);
+  the family's closed sign, Sign in at `/staff` - a route of its own, because the `**` would move the address (its guard
+  sends anybody to the dashboard while the site is open to them). The announcement: above everybody's pages (the legal
+  pages too: they are in that frame), not in the admin panel. Page access: the six public pages (`pageAccessGuard`, a
+  `canMatch`); on the server the library's `PageAccessGate` in every route group, right after the group's own check -
+  so who the request is (401) and its role (403) are said first, as before - and before the person's row is kept or a
+  visitor is made: a refused import makes nobody. A visitor is nobody to Page access.
+- **The reserved API paths**: the library's four (the status, the words, the settings' two), `/api/meta` - the
+  sign-in's configuration and the start of every page - and `/api/icons` - an `<img>` carries no token, so a row would
+  refuse every picture to everybody, and maintenance the ADMIN's. Who the reader is comes from the IAM's token: no route
+  here says it. Not `/api/me` (the person's own accounts file, the account pages': maintenance closes it, a row may take
+  it with them) and not `/api/visitor` (the move at sign-in: refused, the key stays in the browser and the move is asked
+  again - nothing is lost). The reserved pages add `/sign-in`, the failure screen at this site's own address.
+- **A closed page falls through to the dashboard, as an unknown address does**; where the dashboard is closed too, the
+  router follows no second redirect, and the last `**` draws "This page is not open right now" (`sites/main/not-open`,
+  Piano Academy's way). The old admin addresses (`/sources`, `/translations`, `/languages`) moved before everybody's
+  pages, whose `**` now ends their own children. The bar leaves out a section Page access closes to the reader (asked by
+  the page its link lands on: `/builds` by `/builds/genshin`).
+- **The admin menu in the family's one shape**: Builds; Localization: Translations, Languages; System: Site settings,
+  People, Feedback, Error log, Audit log, Backups, Migrations (were Errors and Audit, in another order) - an editor's
+  two, the ADMIN's ten; while an update waits the ADMIN's column has Migrations alone, and no feedback count is asked.
+  The maintenance line sits above every page of the admin frame (`<anotoki-page-notice adminFrameNotice>`).
+- **robots.txt and sitemap.xml from the site's PHP** (`api/routes/robots.php`; the release's `routes`, `router.php`,
+  the dev proxy): out of `/admin`, `/api`, `/auth`, `/accounts`, `/sign-in`, `/staff`; the legal pages, About and
+  Support always, the dashboard, the import, the builds and every character's builds (`lastmod` the newest change by a
+  file or by hand) only while the IAM lets visitors in - those pages send everybody to the IAM otherwise. No kept copy
+  (the library's `cacheFile`): what is public changes with an import and the IAM's switch, and made afresh it is one
+  query. The address: `config/site.local.php` where it names one, else a release's `https://builder.anotoki.eu` or a
+  checkout's `http://localhost:4600` - never a request's `Host` (the survey's `siteAddress()`, here
+  `Config::siteAddress()`). `frontend/public/robots.txt` is gone (a release refuses a file at a backend route).
+- **`maintenance` is an expected answer of the error log** (`AdminTools::EXPECTED_ANSWERS`): a state somebody chose,
+  not a failure - every refused request would be written while it lasts. The library's own default lacks it.
+- **What a person changed of the settings is kept by their anotoki id** (`updated_by`, the library's tables): the
+  scrub leaves it naming the IAM's placeholder, the People page's delete leaves it changed by nobody
+  (`SitePeople::deleteData()`; no foreign key does it). The Privacy page says so in a seventh part of its own
+  (`legal.settings.*`), its audit-log sentence names the settings, and its storage list the announcement's mark (the
+  library's preset); `SITE_LEGAL_UPDATED` 2026-10-25. Migration **025** (7 keys, the sentence reworded only where it
+  reads as 023 left it).
+- **The family's dates in place of the site's own**: `anotokiAgo` (`{ dateAfter: null }`: a count, never a date in its
+  place) and `anotokiDate: 'day'` for `localDate`, `formatDateTime()` for `date-patterns.ts`' `chosenMoment()` (the
+  Migrations, People and admin tools' dates, the Builds page's), the library's `anotokiAgo` for the admin pages'
+  `timeAgo()` - in the page's locale and the account's date order and clock (`provideKit()`'s `dateChoices`, asked when
+  a date is written: the sign-in reads the kit's words, a circle otherwise). The same output but where the family's
+  words differ: under a minute "just now" ("práve teraz"; was "30 seconds ago"), the day before "yesterday" ("včera";
+  was "1 day ago"), two days in Slovak "predvčerom", a month and a year "last month", "last year" - days counted by the
+  calendar, not by 24 hours -, and the admin panel's short dates write September "Sept" (the family's en-GB; Angular's
+  en-US pattern wrote "Sep"). Long dates and What's new's days are as they were.
+- **The family's search** (`ui/search`): `filterBySearch()` for the Builds page's Edit builds table (its `folded()`
+  gone), `matchesSearch()` for the builds browser's and the account page's name filters (were a lower-cased substring):
+  accents and case aside, each word anywhere in the name.
+- **"https://…" is no web address** (`Neutral::URL`): the library's HTML editor says what a link may point at so
+  (`anotoki_translations/014`), and the site's check refused those strings as it stood - the Translations page could
+  not have saved them unchanged. A scheme or "www." followed by nothing but an ellipsis names and links nobody; anything
+  after the ellipsis is an address again ("https://…elsewhere.example").
+- **Left as they were**: the import wizard's file size (a sentence of the site's with "{kilobytes} KB": the kit's
+  `writtenSize()` would reword two strings by a migration for "12 kB"), the builds editor's number choices on string
+  values (the kit's typed select values change nothing a reader sees), the stat targets' bounds (the kit's number field
+  gives no way to hold the save while a bound is not a number yet, as the editor does).
+- The production build's first load: 558.80 kB before, 567.52 kB after (163.17 and 165.76 kB to transfer) - the site
+  settings' bar, notice, guard and service, which every page has.
+
 **2026-10-24 — The admin panel in the anotoki family's frame (anotoki-lib 0.10.0).** The owner's request, its second
 step: "The admin panels in all projects should look like the genshin one so it is directly distinguishable if I am on
 the site or the admin panel. The main idea is to have the menu on the left, not on top, and on the right the

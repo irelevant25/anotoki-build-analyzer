@@ -10,7 +10,7 @@
         "@angular/core": "^21.2.0",
         "@angular/platform-browser": "^21.2.0",
         "@angular/router": "^21.2.0",
-        "@anotoki/lib": "https://github.com/irelevant25/anotoki-lib/releases/download/v0.10.0/anotoki-lib-0.10.0.tgz",
+        "@anotoki/lib": "https://github.com/irelevant25/anotoki-lib/releases/download/v0.11.0/anotoki-lib-0.11.0.tgz",
         "rxjs": "~7.8.0",
         "tslib": "^2.3.0",
       },
@@ -82,7 +82,7 @@
 
     "@anotoki/deploy": ["@anotoki/deploy@https://github.com/irelevant25/anotoki-lib/releases/download/v0.9.0/anotoki-deploy-0.9.0.tgz", { "dependencies": { "ssh2-sftp-client": "12.1.1" }, "bin": { "anotoki-deploy": "cli.mjs" } }, "sha512-RIckQ8lnIHGq2pG4K4AnuDrMPGwdVcLzSt/jKh0TveEt8SR+hlKmzCvMNtXzqHAUrUe4rHUBabbHCrsamWATOg=="],
 
-    "@anotoki/lib": ["@anotoki/lib@https://github.com/irelevant25/anotoki-lib/releases/download/v0.10.0/anotoki-lib-0.10.0.tgz", { "dependencies": { "@fontsource-variable/manrope": "^5.3.0", "tslib": "^2.3.0" }, "peerDependencies": { "@angular/common": "^21.2.0", "@angular/core": "^21.2.0", "@angular/router": "^21.2.0", "rxjs": "^7.8.0" } }, "sha512-AxkDFlJzMH8rxAw//EN/tZjjrJn7OW0laGI8sD+roKkgpwke4KXTFnkY87tup0HIEjx2LyY2VelSYBimZqVdwQ=="],
+    "@anotoki/lib": ["@anotoki/lib@https://github.com/irelevant25/anotoki-lib/releases/download/v0.11.0/anotoki-lib-0.11.0.tgz", { "dependencies": { "@fontsource-variable/manrope": "^5.3.0", "tslib": "^2.3.0" }, "peerDependencies": { "@angular/common": "^21.2.0", "@angular/core": "^21.2.0", "@angular/router": "^21.2.0", "rxjs": "^7.8.0" } }, "sha512-zJBAwpxheiqBDRsqxPlViifwoCPUPDWpNZJ2lM0++1pPRkqI7ryGDJlHjYR9Qsr8ytnnUxvcOxZmhKiYqxxJ+Q=="],
 
     "@asamuzakjp/css-color": ["@asamuzakjp/css-color@5.1.11", "", { "dependencies": { "@asamuzakjp/generational-cache": "^1.0.1", "@csstools/css-calc": "^3.2.0", "@csstools/css-color-parser": "^4.1.0", "@csstools/css-parser-algorithms": "^4.0.0", "@csstools/css-tokenizer": "^4.0.0" } }, "sha512-KVw6qIiCTUQhByfTd78h2yD1/00waTmm9uy/R7Ck/ctUyAPj+AEDLkQIdJW0T8+qGgj3j5bpNKK7Q3G+LedJWg=="],
 

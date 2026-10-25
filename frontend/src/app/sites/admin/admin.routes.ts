@@ -5,8 +5,8 @@ import { anotokiUnsavedChangesGuard } from '@anotoki/lib/translations';
 /**
  * The admin panel's addresses, /admin/**: its frame (AdminApp, sites/admin/app.ts - the family's admin frame, behind
  * personGuard) and its pages - Builds and a character's builds editor, Translations; for the ADMIN (adminGuard)
- * Languages, People, Migrations and the admin tools. The map of every address, its guards and its titles is
- * app.routes.ts's, which lists this first.
+ * Languages, the site settings, People, Migrations and the admin tools. The map of every address, its guards and its
+ * titles is app.routes.ts's, which lists this first.
  *
  * Spread there, never loaded as a chunk of its own: the routes stay in the first load, as they always were, and the
  * frame and each page keep their own lazy chunks.
@@ -45,6 +45,15 @@ export const ADMIN_ROUTES: Routes = [
         canActivate: [adminGuard],
         canDeactivate: [anotokiUnsavedChangesGuard],
         loadComponent: () => import('./languages/languages-page').then((m) => m.LanguagesPage),
+      },
+      {
+        // The anotoki family's Site settings page (anotoki-lib 0.11.0, from its own entry point - a lazy chunk;
+        // app.config.ts gives it the languages a message is written in): a card for each part the site offers - Getting
+        // in, Announcement, Page access - each opening its dialog. The server's part is App\Web\SitePages.
+        path: 'site-settings',
+        title: 'Site settings',
+        canActivate: [adminGuard],
+        loadComponent: () => import('@anotoki/lib/admin/site-settings').then((m) => m.SiteSettingsPageComponent),
       },
       {
         // The anotoki family's People page, from its own entry point (a lazy chunk; app.config.ts sets it up).

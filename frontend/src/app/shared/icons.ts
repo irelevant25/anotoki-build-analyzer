@@ -24,6 +24,7 @@ import {
   iconPencil,
   iconPlay,
   iconSave,
+  iconSliders,
   iconTrash,
   iconUndo,
   iconUpload,
@@ -41,7 +42,8 @@ import {
  * editor's: arrowUp and arrowDown (moving a build or a row of one), arrowRight beside the kit's own arrowLeft (moving
  * a team's member, its columns side by side), undo (a part back as the file has it). The admin panel's column (the
  * family's admin frame, sites/admin/app.ts) names its pages' with the others: languages (Translations), globe
- * (Languages), history (Audit) and message (Feedback). A game's mark is the kit's own (Genshin Impact's sparkle).
+ * (Languages), sliders (Site settings), history (Audit log) and message (Feedback). A game's mark is the kit's own
+ * (Genshin Impact's sparkle).
  */
 
 /** Every icon this site names beyond the kit's own: `<anotoki-icon name="trash" />`. */
@@ -72,6 +74,7 @@ export const SITE_ICONS: IconSet = {
   undo: iconUndo,
   languages: iconLanguages,
   globe: iconGlobe,
+  sliders: iconSliders,
   history: iconHistory,
   message: iconMessage,
 };

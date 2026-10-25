@@ -3,8 +3,8 @@ import { BadgeComponent } from '@anotoki/lib/ui/badge';
 import { ButtonComponent } from '@anotoki/lib/ui/button';
 import { ANOTOKI_DIALOG_DATA, AnotokiDialogRef, DialogFooterDirective } from '@anotoki/lib/ui/dialog';
 import { IconComponent } from '@anotoki/lib/ui/icon';
+import { AnotokiDatePipe } from '@anotoki/lib/ui/dates';
 import type { ChangelogEntry } from './changelog';
-import { LocalDatePipe } from './i18n/local-date';
 import { TranslatePipe } from './i18n/translate';
 import { TranslationService } from './i18n/translation';
 
@@ -19,7 +19,7 @@ import { TranslationService } from './i18n/translation';
  */
 @Component({
   selector: 'app-changelog-dialog',
-  imports: [BadgeComponent, ButtonComponent, DialogFooterDirective, IconComponent, TranslatePipe, LocalDatePipe],
+  imports: [BadgeComponent, ButtonComponent, DialogFooterDirective, IconComponent, TranslatePipe, AnotokiDatePipe],
   templateUrl: './changelog-dialog.html',
   styleUrl: './changelog-dialog.scss',
 })

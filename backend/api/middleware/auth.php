@@ -9,6 +9,8 @@ use Anotoki\Lib\Auth\SignInRule;
 use Anotoki\Lib\People\Http\RecordPerson;
 use Anotoki\Lib\People\People;
 use Anotoki\Lib\People\PeopleRecorder;
+use Anotoki\Lib\SiteSettings\Http\PageAccessGate;
+use Anotoki\Lib\SiteSettings\SiteSettings;
 use Anotoki\Lib\Support\Refusal;
 use App\App;
 use App\Auth\RequestCaller;
@@ -65,6 +67,13 @@ use Slim\Psr7\Factory\ResponseFactory;
  * made on a first request, the name the token's, last seen at most every five minutes; never an account the
  * IAM deleted) before the route runs - every account and import points at it.
  *
+ * And each, right after its own check, asks Page access (the site settings, App\Web\SitePages: the library's
+ * PageAccessGate, which reads the person Identify found): an API path a page's row refuses with it answers 423
+ * page_locked to everybody that page is not shown to - a visitor and nobody are nobody, a person their roles -,
+ * never to the site's ADMIN, never on a reserved path. After the check, so that who the request is (401) and its
+ * role (403) are said first, as before; before the person's row is kept and before a visitor is made, so a refused
+ * import makes nobody.
+ *
  * The answers, in this site's shape {message, code}:
  *
  *   no token                         401 sign_in_required: "Sign in to continue." (WWW-Authenticate: Bearer
@@ -78,6 +87,7 @@ use Slim\Psr7\Factory\ResponseFactory;
  *   not an admin                     403 admin_only: "Only an admin can do this."
  *   a visitor key nobody has         401 visitor_unknown (requireOwner() only; a malformed one too)
  *   too many visitors                429 too_many_visitors (makeVisitor(): at once, or new this hour)
+ *   a page's row refuses the path    423 page_locked: "That part of the site is not available." (Page access)
  *   migration 004 not applied        503 visitors_unavailable, wherever a visitor is looked for or made
  */
 
@@ -179,10 +189,22 @@ function signInRequired(): HttpError
     return new HttpError(401, 'Sign in to continue.', ['code' => 'sign_in_required'], ['WWW-Authenticate' => 'Bearer']);
 }
 
+/**
+ * Page access's half on the server (the site settings, App\Web\SitePages): the library's PageAccessGate, after a
+ * group's Identify and its own check (see the file comment). Its refusal - 423 page_locked, "That part of the site is
+ * not available." - is this site's error body through Identify's responder (siteRefusal()), never cached. While the
+ * library's anotoki_admin/003 waits, no page is governed and nothing is refused; for the site's ADMIN and on a reserved
+ * path nothing is read at all.
+ */
+function pageAccess(App $app): PageAccessGate
+{
+    return new PageAccessGate($app->get(SiteSettings::class), new ResponseFactory());
+}
+
 /** Middleware: a signed-in person, any role or none. */
 function requireSignIn(App $app): Closure
 {
-    return middlewareSteps([identifyRequest($app), new RequirePerson(), recordPerson($app)]);
+    return middlewareSteps([identifyRequest($app), new RequirePerson(), pageAccess($app), recordPerson($app)]);
 }
 
 /**
@@ -202,6 +224,7 @@ function requireOwner(App $app, bool $mayMakeVisitor = false): Closure
         identifyRequest($app, visitors: true),
         new RequireCaller($mayMakeVisitor ? RequireCaller::MAKE : RequireCaller::REFUSE),
         ...$mayMakeVisitor ? [jsonFromNobody()] : [],
+        pageAccess($app),
         recordPerson($app),
         function (ServerRequestInterface $request, RequestHandlerInterface $handler) use ($app): ResponseInterface {
             if (currentUserOrNull($request) !== null) {
@@ -275,18 +298,19 @@ function makeVisitor(App $app): Closure
  */
 function requireRole(App $app, string ...$roles): Closure
 {
-    return middlewareSteps([identifyRequest($app), roleCheck(...$roles), recordPerson($app)]);
+    return middlewareSteps([identifyRequest($app), roleCheck(...$roles), pageAccess($app), recordPerson($app)]);
 }
 
 /**
  * Middleware: requireRole() with no row of users read or written - for the routes that must answer on a
  * database the migrations have yet to build: the Migrations page's, the error log's and the backups', which
  * stay open while an update waits (api/middleware/site_gate.php) - on a new or a half-built database even the
- * users table may not be there yet. The same answers as requireRole().
+ * users table may not be there yet. The same answers as requireRole(). Page access reads no table for the ADMIN
+ * these routes are for, and asks whether its own is there before it reads it for anybody else.
  */
 function requireTokenRole(App $app, string ...$roles): Closure
 {
-    return middlewareSteps([identifyRequest($app), roleCheck(...$roles)]);
+    return middlewareSteps([identifyRequest($app), roleCheck(...$roles), pageAccess($app)]);
 }
 
 /**
@@ -297,7 +321,7 @@ function requireTokenRole(App $app, string ...$roles): Closure
  */
 function optionalSignIn(App $app): Closure
 {
-    return middlewareSteps([identifyRequest($app), new RequireCaller(RequireCaller::EMPTY), recordPerson($app)]);
+    return middlewareSteps([identifyRequest($app), new RequireCaller(RequireCaller::EMPTY), pageAccess($app), recordPerson($app)]);
 }
 
 /**

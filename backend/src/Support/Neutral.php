@@ -24,8 +24,14 @@ final class Neutral
     /** The optional settings file that adds names (App\Config::readOptionalFile()). */
     public const LOCAL_FILE = 'neutral.local.php';
 
-    /** Web addresses, with or without a scheme. */
-    private const URL = '~\b(?:https?://|www\.)[^\s"\'<>()\[\]]+~i';
+    /**
+     * Web addresses, with or without a scheme - but not the shape of one alone: a scheme or "www." followed by nothing
+     * but an ellipsis ("https://…", "https://..."), which names and links no site. The anotoki library's HTML editor
+     * says what a link may point at so (anotoki_translations/014: "A web address (https://…) or a mail address
+     * (mailto:…)."); anything after the ellipsis - "https://…elsewhere.example" - is an address again. The regular
+     * expression reads bytes: the ellipsis is its three in UTF-8.
+     */
+    private const URL = '~\b(?:https?://|www\.)(?!(?:\xE2\x80\xA6|\.\.\.)(?:[\s"\'<>()\[\].,;:!?]|$))[^\s"\'<>()\[\]]+~i';
 
     /**
      * Names and host names of the services and tools involved. Matched case-insensitively on word boundaries,

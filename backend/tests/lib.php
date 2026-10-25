@@ -248,8 +248,9 @@ function db(): Db
 
 /**
  * Every table empty again (what a test wrote goes; the schema stays) - the anotoki library's too: the audit
- * log, feedback, and where the people's scrub stands. The languages and the site's strings are not among
- * them: they are what the migrations left, and no table here points at them.
+ * log, feedback, the site settings' switches and pages (every switch at its default, no page governed), and where
+ * the people's scrub stands. The languages and the site's strings are not among them: they are what the
+ * migrations left, and no table here points at them.
  */
 function resetDatabase(): void
 {
@@ -258,7 +259,22 @@ function resetDatabase(): void
     // world of its own may be a database before or after a file.
     $there = static fn(string $table): bool => (bool) db()->value('SELECT to_regclass(?) IS NOT NULL', [$table]);
     $some = array_values(
-        array_filter(['anotoki_audit_log', 'anotoki_feedback', 'anotoki_people_anonymized', 'build_imports', 'build_removals', 'build_orders', 'build_sources', 'sync_runs', 'cache_locks'], $there),
+        array_filter(
+            [
+                'anotoki_audit_log',
+                'anotoki_feedback',
+                'anotoki_people_anonymized',
+                'anotoki_site_settings',
+                'anotoki_page_access',
+                'build_imports',
+                'build_removals',
+                'build_orders',
+                'build_sources',
+                'sync_runs',
+                'cache_locks',
+            ],
+            $there,
+        ),
     );
     db()->run(
         'TRUNCATE users, game_characters, game_weapons, game_sets, accounts, import_runs, account_characters,

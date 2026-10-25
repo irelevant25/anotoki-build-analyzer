@@ -26,7 +26,7 @@
         }
         ·
         @if (acc.last_import_at) {
-          {{ 'account.imported' | translate: { when: (acc.last_import_at | localDate: 'ago') } }}
+          {{ 'account.imported' | translate: { when: (acc.last_import_at | anotokiAgo: { dateAfter: null }) } }}
         } @else {
           {{ 'account.notImportedYet' | translate }}
         }
@@ -207,7 +207,7 @@
             <tbody>
               @for (row of history(); track row.run.id) {
                 <tr>
-                  <td>{{ row.run.created_at | localDate: 'ago' }}</td>
+                  <td>{{ row.run.created_at | anotokiAgo: { dateAfter: null } }}</td>
                   <td>{{ row.source | translate }}</td>
                   <td>
                     <anotoki-badge [tone]="statusTone(row.run.status)">{{ row.status }}</anotoki-badge>

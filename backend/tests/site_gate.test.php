@@ -266,7 +266,11 @@ test('an update waits: 503 update_pending with Retry-After everywhere - but meta
         $people['an editor']->post('/api/admin/migrations/apply')->status(403)->path('code', 'admin_only');
         (new Client())->withToken('x')->get('/api/admin/migrations')->status(401)->path('code', 'invalid_token');
         $admin = $people['an admin'];
-        same([['set' => Migrations::SET, 'name' => '900_waiting.sql', 'ready' => true, 'blocked' => false]], $admin->get('/api/admin/migrations')->status(200)->json('pending'), 'what waits');
+        same(
+            [['set' => Migrations::SET, 'name' => '900_waiting.sql', 'ready' => true, 'blocked' => false, 'duplicates' => []]],
+            $admin->get('/api/admin/migrations')->status(200)->json('pending'),
+            'what waits',
+        );
         $admin->get('/api/admin/migrations/file?set=build_analyzer&name=900_waiting.sql')->status(200)->path('sql', 'CREATE TABLE waiting (id INT);');
 
         // Open too, for an ADMIN alone: the error log and the backups, which need no table - a backup just before

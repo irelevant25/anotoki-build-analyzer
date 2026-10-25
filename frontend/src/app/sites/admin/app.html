@@ -3,6 +3,8 @@
        pages), the page beside it - in the measure the panel's pages always had - and the family's footer under it. -->
   <anotoki-admin-frame [brand]="brand()" [person]="person()" [back]="back()" [signOut]="signOut" [groups]="groups()">
     <anotoki-theme-toggle adminFrameTheme />
+    <!-- Above every page, while the site's ADMIN has closed the site for maintenance: the family's line that says so (no row of Page access governs /admin). -->
+    <anotoki-page-notice adminFrameNotice />
     <div class="page-width">
       <router-outlet />
     </div>

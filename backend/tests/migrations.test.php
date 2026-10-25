@@ -93,6 +93,12 @@ const ADMIN_FRAME_FILES = ['024_admin_frame.sql'];
 /** What the admin frame's file does to the count of the site's own keys: 024 retires 1. */
 const ADMIN_FRAME_KEYS = -1;
 
+/** After the admin frame's: the site settings (anotoki-lib 0.11.0) - the Privacy page's part about them, the page that is not open, the audit log's sentence (025). */
+const SITE_SETTINGS_FILES = ['025_site_settings_words.sql'];
+
+/** What the site settings' file does to the count of the site's own keys: 025 adds 7. */
+const SITE_SETTINGS_KEYS = 7;
+
 /** Every column, constraint and index of the app's tables, as comparable lines. */
 function schemaOf(PDO $pdo): array
 {
@@ -441,9 +447,9 @@ test('"Apply pending" on the Migrations page that stops at a failing file: 200, 
         $status = $admin->get('/api/admin/migrations')->status(200);
         same(
             [
-                siteFile('900_good.sql') + ['ready' => true, 'blocked' => false],
-                siteFile('901_bad.sql') + ['ready' => true, 'blocked' => false],
-                siteFile('902_never.sql') + ['ready' => true, 'blocked' => false],
+                siteFile('900_good.sql') + ['ready' => true, 'blocked' => false, 'duplicates' => []],
+                siteFile('901_bad.sql') + ['ready' => true, 'blocked' => false, 'duplicates' => []],
+                siteFile('902_never.sql') + ['ready' => true, 'blocked' => false, 'duplicates' => []],
             ],
             $status->json('pending'),
             'pending, in the order they will run',
@@ -687,7 +693,7 @@ test('006 moves the two words of the library\'s under its keys with every reword
     // change them as VERSION_05_KEYS says. The library's keys are every key of its words file (261 with 0.6.3).
     same(
         [
-            'the site\'s' => $keys - 2 - 8 + 5 - 14 + LEGAL_PAGES_KEYS + KIT_PIECES_KEYS - FOOTER_KEYS + VERSION_05_KEYS + VERSION_06_KEYS + VERSION_07_KEYS + ADMIN_FRAME_KEYS,
+            'the site\'s' => $keys - 2 - 8 + 5 - 14 + LEGAL_PAGES_KEYS + KIT_PIECES_KEYS - FOOTER_KEYS + VERSION_05_KEYS + VERSION_06_KEYS + VERSION_07_KEYS + ADMIN_FRAME_KEYS + SITE_SETTINGS_KEYS,
             'the library\'s' => libraryKeyCount(),
         ],
         [
@@ -726,6 +732,7 @@ test('006\'s gate refuses a database whose keys are not the ones it expects - an
             ...VERSION_06_FILES,
             ...VERSION_07_FILES,
             ...ADMIN_FRAME_FILES,
+            ...SITE_SETTINGS_FILES,
             ...array_column(libraryFiles(), 'name'),
             ...array_column(peopleFiles(), 'name'),
         ],
@@ -887,7 +894,7 @@ test(
         same(
             [
                 ...adminFiles(),
-                ...array_map('siteFile', [...VERSION_04_FILES, ...VERSION_05_FILES, ...VERSION_06_FILES, ...VERSION_07_FILES, ...ADMIN_FRAME_FILES]),
+                ...array_map('siteFile', [...VERSION_04_FILES, ...VERSION_05_FILES, ...VERSION_06_FILES, ...VERSION_07_FILES, ...ADMIN_FRAME_FILES, ...SITE_SETTINGS_FILES]),
                 ...array_slice(libraryFiles(), 2),
                 ...peopleFiles(),
             ],
@@ -924,7 +931,7 @@ test(
         // The feedback button's words 009 added - under the library's key since 013, the footer the family's.
         same([['en', 'Feedback'], ['sk', 'Spätná väzba']], array_map(fn($row) => [$row['language_code'], $row['value']], stringsOf($pdo, 'anotoki.footer.feedback')), 'the feedback button\'s words');
         same(
-            $keys - 8 + 5 - 14 + LEGAL_PAGES_KEYS + KIT_PIECES_KEYS - FOOTER_KEYS + VERSION_05_KEYS + VERSION_06_KEYS + VERSION_07_KEYS + ADMIN_FRAME_KEYS,
+            $keys - 8 + 5 - 14 + LEGAL_PAGES_KEYS + KIT_PIECES_KEYS - FOOTER_KEYS + VERSION_05_KEYS + VERSION_06_KEYS + VERSION_07_KEYS + ADMIN_FRAME_KEYS + SITE_SETTINGS_KEYS,
             (int) $pdo->query("SELECT count(*) FROM translation_keys WHERE name NOT LIKE 'anotoki.%'")->fetchColumn(),
             'the site\'s keys: eight gone and five new (009), fourteen gone (010), the legal pages\' words (011), the stepper\'s and tabs\' (012), the footer\'s three gone (013), and version 0.5\'s',
         );
@@ -944,7 +951,7 @@ test('009 where the library\'s sign-in words went in first: the site\'s words ta
     same(
         [
             ...adminFiles(),
-            ...array_map('siteFile', [...VERSION_04_FILES, ...VERSION_05_FILES, ...VERSION_06_FILES, ...VERSION_07_FILES, ...ADMIN_FRAME_FILES]),
+            ...array_map('siteFile', [...VERSION_04_FILES, ...VERSION_05_FILES, ...VERSION_06_FILES, ...VERSION_07_FILES, ...ADMIN_FRAME_FILES, ...SITE_SETTINGS_FILES]),
             ...array_slice(libraryFiles(), 4),
             ...peopleFiles(),
         ],
@@ -984,6 +991,7 @@ test('009\'s gate refuses a database whose keys are not the ones it expects - no
             ...VERSION_06_FILES,
             ...VERSION_07_FILES,
             ...ADMIN_FRAME_FILES,
+            ...SITE_SETTINGS_FILES,
             ...array_column(array_slice(libraryFiles(), 2), 'name'),
             ...array_column(peopleFiles(), 'name'),
         ],
@@ -1035,7 +1043,7 @@ test(
         same(
             [
                 ...adminFiles(),
-                ...array_map('siteFile', [...VERSION_04_FILES, ...VERSION_05_FILES, ...VERSION_06_FILES, ...VERSION_07_FILES, ...ADMIN_FRAME_FILES]),
+                ...array_map('siteFile', [...VERSION_04_FILES, ...VERSION_05_FILES, ...VERSION_06_FILES, ...VERSION_07_FILES, ...ADMIN_FRAME_FILES, ...SITE_SETTINGS_FILES]),
                 ...array_slice(libraryFiles(), 2),
                 ...peopleFiles(),
             ],
@@ -1095,7 +1103,17 @@ test('010\'s gate refuses a database whose keys are not the ones it expects - no
         'the keys stay',
     );
     same(
-        ['010_top_bar_words_through_the_library.sql', LEGAL_PAGES_FILE, KIT_PIECES_FILE, FOOTER_FILE, ...VERSION_05_FILES, ...VERSION_06_FILES, ...VERSION_07_FILES, ...ADMIN_FRAME_FILES],
+        [
+            '010_top_bar_words_through_the_library.sql',
+            LEGAL_PAGES_FILE,
+            KIT_PIECES_FILE,
+            FOOTER_FILE,
+            ...VERSION_05_FILES,
+            ...VERSION_06_FILES,
+            ...VERSION_07_FILES,
+            ...ADMIN_FRAME_FILES,
+            ...SITE_SETTINGS_FILES,
+        ],
         array_column(Migrations::migrator($pdo)->status()['pending'], 'name'),
         'it still waits, and the files after it',
     );
@@ -1150,7 +1168,11 @@ test(
         $result = Migrations::migrator($pdo)->apply();
         same(null, $result['error'], 'no error');
         same(
-            [siteFile(FOOTER_FILE), ...array_map('siteFile', [...VERSION_05_FILES, ...VERSION_06_FILES, ...VERSION_07_FILES, ...ADMIN_FRAME_FILES]), ...array_slice(libraryFiles(), 11)],
+            [
+                siteFile(FOOTER_FILE),
+                ...array_map('siteFile', [...VERSION_05_FILES, ...VERSION_06_FILES, ...VERSION_07_FILES, ...ADMIN_FRAME_FILES, ...SITE_SETTINGS_FILES]),
+                ...array_slice(libraryFiles(), 11),
+            ],
             $result['applied'],
             '013 and the site\'s files after it, then the library\'s 012 - one Apply',
         );
@@ -1177,7 +1199,7 @@ test(
             'whatsNew.title\'s description names the footer\'s word',
         );
         same(
-            $keys - FOOTER_KEYS + VERSION_05_KEYS + VERSION_06_KEYS + VERSION_07_KEYS + ADMIN_FRAME_KEYS,
+            $keys - FOOTER_KEYS + VERSION_05_KEYS + VERSION_06_KEYS + VERSION_07_KEYS + ADMIN_FRAME_KEYS + SITE_SETTINGS_KEYS,
             (int) $pdo->query("SELECT count(*) FROM translation_keys WHERE name NOT LIKE 'anotoki.%'")->fetchColumn(),
             'the site\'s keys less the three, and version 0.5\'s',
         );
@@ -1197,7 +1219,7 @@ test('013 where the library\'s footer words went in first: the site\'s take thei
     $result = Migrations::migrator($pdo)->apply();
     same(null, $result['error'], 'no error');
     same(
-        [siteFile(FOOTER_FILE), ...array_map('siteFile', [...VERSION_05_FILES, ...VERSION_06_FILES, ...VERSION_07_FILES, ...ADMIN_FRAME_FILES])],
+        [siteFile(FOOTER_FILE), ...array_map('siteFile', [...VERSION_05_FILES, ...VERSION_06_FILES, ...VERSION_07_FILES, ...ADMIN_FRAME_FILES, ...SITE_SETTINGS_FILES])],
         $result['applied'],
         '013 and the site\'s files after it',
     );
@@ -1223,7 +1245,7 @@ test('013\'s gate refuses a database whose keys are not the ones it expects - no
     same(0, (int) $pdo->query("SELECT count(*) FROM translation_keys WHERE name LIKE 'anotoki.footer.%'")->fetchColumn(), 'nothing of 013, nor the library\'s 012');
     // The library's 012 and every file of its set after it (anotoki-lib 0.8.0's 013, the About and Support pages' words).
     same(
-        [FOOTER_FILE, ...VERSION_05_FILES, ...VERSION_06_FILES, ...VERSION_07_FILES, ...ADMIN_FRAME_FILES, ...array_column(array_slice(libraryFiles(), 11), 'name')],
+        [FOOTER_FILE, ...VERSION_05_FILES, ...VERSION_06_FILES, ...VERSION_07_FILES, ...ADMIN_FRAME_FILES, ...SITE_SETTINGS_FILES, ...array_column(array_slice(libraryFiles(), 11), 'name')],
         array_column(Migrations::migrator($pdo)->status()['pending'], 'name'),
         'they all still wait',
     );
@@ -1862,7 +1884,7 @@ test(
         $count = fn(): int => (int) $pdo->query("SELECT count(*) FROM translation_keys WHERE name NOT LIKE 'anotoki.%'")->fetchColumn();
         $before = $count();
 
-        $result = Migrations::migrator($pdo)->apply();
+        $result = siteFilesBefore($pdo, 'to013frame', '025')->apply();
         same(null, $result['error'], 'no error');
         same([siteFile('024_admin_frame.sql')], $result['applied'], '024 applied, alone');
         same(
@@ -1890,5 +1912,65 @@ test(
         }
     },
 );
+
+test(
+    '025 where an editor reworded the Privacy page\'s audit log in Slovak: the English names the site settings, the editor\'s Slovak kept; the settings\' part and the page that is not open in both languages',
+    function () use ($server) {
+        $pdo = upTo013($server, 'to013settings');
+        siteFilesBefore($pdo, 'to013settings', '025')->apply();
+        $pdo->exec("UPDATE translations SET value = 'Moje vlastné slová o zázname úprav.' WHERE key_name = 'legal.auditLog.what' AND language_code = 'sk'");
+        $count = fn(): int => (int) $pdo->query("SELECT count(*) FROM translation_keys WHERE name NOT LIKE 'anotoki.%'")->fetchColumn();
+        $before = $count();
+
+        $result = Migrations::migrator($pdo)->apply();
+        same(null, $result['error'], 'no error');
+        same([siteFile('025_site_settings_words.sql')], $result['applied'], '025 applied, alone');
+        same($before + SITE_SETTINGS_KEYS, $count(), 'seven keys of the site\'s own more');
+        $value = fn(string $key, string $language) => $pdo->query("SELECT value FROM translations WHERE key_name = '{$key}' AND language_code = '{$language}'")->fetchColumn();
+        check(
+            str_contains((string) $value('legal.auditLog.what', 'en'), 'the words and languages saved, the site\'s settings changed, a person\'s data deleted'),
+            'the English, as 023 left it, names the site settings',
+        );
+        same('Moje vlastné slová o zázname úprav.', $value('legal.auditLog.what', 'sk'), 'the editor\'s Slovak kept');
+        same(
+            [
+                'Not open right now',
+                'Teraz nie je otvorené',
+                'If you change the site\'s settings',
+                'Ak meníš nastavenia stránky',
+                'So that the administrators know who changed what.',
+                'Aby správcovia vedeli, kto čo zmenil.',
+            ],
+            [
+                $value('title.notOpen', 'en'),
+                $value('title.notOpen', 'sk'),
+                $value('legal.settings.name', 'en'),
+                $value('legal.settings.name', 'sk'),
+                $value('legal.settings.why', 'en'),
+                $value('legal.settings.why', 'sk'),
+            ],
+            'the new words in English and Slovak',
+        );
+        foreach (['notOpen.title', 'notOpen.text', 'legal.settings.what', 'legal.settings.kept'] as $key) {
+            check(is_string($value($key, 'en')) && is_string($value($key, 'sk')), "{$key}: in English and Slovak");
+        }
+
+        // A second run finds nothing to do, and an Apply over a database where the audit log's English was reworded
+        // by an editor never writes over it (the sentence is reworded only where it reads as 023 left it).
+        same([], Migrations::migrator($pdo)->apply()['applied'], 'nothing left to apply');
+    },
+);
+
+test('025\'s gate refuses a database whose keys are not the ones it expects - nothing of it is applied', function () use ($server) {
+    $pdo = upTo013($server, 'to013settingsgate');
+    siteFilesBefore($pdo, 'to013settingsgate', '025')->apply();
+    $pdo->exec("INSERT INTO translation_keys (name, description) VALUES ('test.extra', 'A key nobody expects')");
+
+    $result = Migrations::migrator($pdo)->apply();
+    same('025_site_settings_words.sql', $result['failed']['name'] ?? null, 'it stops at 025');
+    check(str_contains((string) $result['error'], 'keys of the site\'s own'), 'its gate says why: ' . $result['error']);
+    same(0, (int) $pdo->query("SELECT count(*) FROM translation_keys WHERE name IN ('title.notOpen', 'legal.settings.name')")->fetchColumn(), 'none of its keys');
+    same(['025_site_settings_words.sql'], array_column(Migrations::migrator($pdo)->status()['pending'], 'name'), 'it still waits');
+});
 
 finishTests();

@@ -27,14 +27,20 @@
  *   people                 admins: the people who used the site, and deleting a person's data (anotoki/lib's
  *                          people module)
  *   feedback               public: the visitors' feedback form (anotoki/lib's)
+ *   site_settings          public: what every page is told of the site settings, GET /api/site-settings; admins:
+ *                          the Site settings page's API, /api/admin/site-settings (anotoki/lib's, App\Web\SitePages)
+ *   robots                 public: GET /robots.txt and /sitemap.xml (anotoki/lib's - router.php and the release's
+ *                          front controller send both here beside /api)
  *   site-status            public: where the site stands, {state, installed} (anotoki/lib) - what the pages
  *                          ask first
  *
  * Middleware, outermost first: a fresh request scope, security headers, the error log's watch on every answer,
  * JSON errors, the site gate (503 "not_set_up" until config/*.local.php are there; 503 "update_pending" while a
- * migration waits, but on its open paths - api/middleware/site_gate.php), the upkeep after the answer (the scrub
- * of the IAM's deleted accounts, the day's backup and tidying up), routing, body parsing; then per group who the request is
- * and its sign-in or role check (api/middleware/auth.php), so that a route added to a group cannot go without it.
+ * migration waits, but on its open paths; 503 "maintenance" while the site's ADMIN has closed the site, to anybody
+ * but that ADMIN - api/middleware/site_gate.php), the upkeep after the answer (the scrub of the IAM's deleted
+ * accounts, the day's backup and tidying up), routing, body parsing; then per group who the request is, its sign-in
+ * or role check and Page access (the library's PageAccessGate: 423 page_locked for an API path a page's row refuses
+ * with it - api/middleware/auth.php), so that a route added to a group cannot go without them.
  */
 
 use Anotoki\Lib\ErrorLog\ErrorLog;
@@ -61,7 +67,7 @@ function buildAnalyzerApi(App $app): Slim\App
     $errorLog = AdminTools::errorLog($app, $slim);
     $app->set(ErrorLog::class, $errorLog);
 
-    foreach (['meta', 'icons', 'accounts', 'imports', 'visitor', 'me', 'builds', 'admin_builds', 'admin', 'admin_tools', 'translations', 'people', 'feedback'] as $routes) {
+    foreach (['meta', 'icons', 'accounts', 'imports', 'visitor', 'me', 'builds', 'admin_builds', 'admin', 'admin_tools', 'translations', 'people', 'feedback', 'site_settings', 'robots'] as $routes) {
         (require __DIR__."/routes/{$routes}.php")($slim, $app);
     }
     // GET /api/site-status: the gate always lets it through.
@@ -74,7 +80,7 @@ function buildAnalyzerApi(App $app): Slim\App
     $slim->add(upkeepAfterAnswer($app, $state));
     // Inside the JSON errors, so that whatever the gate might meet besides a database it cannot reach (which it
     // answers itself: the site is unavailable) is a JSON answer too.
-    $slim->add(siteGate($slim, $state));
+    $slim->add(siteGate($slim, $state, $app));
     $slim->add(jsonErrors($app, $slim));
     // Outside the JSON errors: the answer as it went out. One worth seeing is written into the error log, unless
     // the exception behind it was already (jsonErrors() writes every one it answers 500).

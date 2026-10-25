@@ -7,13 +7,15 @@
  *
  *   /api/...     the API (api/index.php), whatever the path looks like: without this, `php -S` treats a
  *                path with a dot in its last segment as a static file and answers 404 itself
+ *   /robots.txt, the API's front controller too (anotoki-lib 0.11.0's RobotsRoutes), before any file of the
+ *   /sitemap.xml build is looked for - as the release's frontend/.htaccess sends them
  *   /setup.php   the installer
  *   anything else the built Angular app (frontend/dist/frontend/browser) when there is one - its files, and
  *                index.html for the app's own paths (/accounts/3, /auth/callback), never for a missing
  *                file such as an old hashed chunk (App\DevRouter)
  *
- * During development the Angular dev server (http://localhost:4600) serves the app and proxies /api and
- * /setup.php here.
+ * During development the Angular dev server (http://localhost:4600) serves the app and proxies /api,
+ * /robots.txt, /sitemap.xml and /setup.php here.
  */
 
 require_once __DIR__ . '/vendor/autoload.php';

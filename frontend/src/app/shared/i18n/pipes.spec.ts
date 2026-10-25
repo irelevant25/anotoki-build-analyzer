@@ -1,10 +1,10 @@
 import { signal } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
 import { provideTestTranslations } from '@anotoki/lib/translations/testing';
+import { AnotokiAgoPipe, AnotokiDatePipe } from '@anotoki/lib/ui/dates';
 import { AuthService } from '../auth';
-import { timeAgo } from '../format';
+import { provideKit } from '../kit';
 import { AnotokiPreferences } from '@anotoki/lib/auth';
-import { LocalDatePipe } from './local-date';
 import { TranslatePluralPipe } from './translate-plural';
 import { TranslatePipe } from './translate';
 import { TranslationService } from './translation';
@@ -33,7 +33,8 @@ const DAY = 24 * HOUR;
 
 /**
  * The pipes in a language - and, given `account`, for somebody signed in whose account says how dates are
- * written (AuthService.preferences()).
+ * written (AuthService.preferences()). The dates are the family's pipes (@anotoki/lib/ui/dates) as this site sets
+ * the kit up (shared/kit.ts: the translations' locale, the account's choices).
  */
 function pipes(language: 'en' | 'sk', account?: Partial<AnotokiPreferences>) {
   TestBed.resetTestingModule();
@@ -41,9 +42,11 @@ function pipes(language: 'en' | 'sk', account?: Partial<AnotokiPreferences>) {
   TestBed.configureTestingModule({
     providers: [
       language === 'sk' ? provideTestTranslations(SLOVAK, { language: 'sk', english: ENGLISH }) : provideTestTranslations(ENGLISH),
+      provideKit(),
       TranslatePipe,
       TranslatePluralPipe,
-      LocalDatePipe,
+      AnotokiAgoPipe,
+      AnotokiDatePipe,
       account
         ? { provide: AuthService, useValue: { user: signal({ sub: '7', preferences }), preferences: signal(preferences) } }
         : { provide: AuthService, useValue: { user: () => null, signedIn: () => false, preferences: () => null } },
@@ -53,9 +56,13 @@ function pipes(language: 'en' | 'sk', account?: Partial<AnotokiPreferences>) {
     i18n: TestBed.inject(TranslationService),
     translate: TestBed.inject(TranslatePipe),
     plural: TestBed.inject(TranslatePluralPipe),
-    date: TestBed.inject(LocalDatePipe),
+    ago: TestBed.inject(AnotokiAgoPipe),
+    date: TestBed.inject(AnotokiDatePipe),
   };
 }
+
+/** How long ago, as the member pages ask it: the family's anotokiAgo with no date in place of a count (`{ dateAfter: null }`). */
+const AGO = { dateAfter: null } as const;
 
 describe('the translate pipes', () => {
   it('word a key, and fill its placeholders', () => {
@@ -87,7 +94,7 @@ describe('the translate pipes', () => {
   });
 });
 
-describe('the localDate pipe', () => {
+describe("the dates: the family's pipes as this site sets them up (anotokiAgo, anotokiDate)", () => {
   const NOW = new Date(2026, 8, 30, 10, 0, 0).getTime();
 
   beforeEach(() => {
@@ -98,63 +105,38 @@ describe('the localDate pipe', () => {
   afterEach(() => vi.useRealTimers());
 
   function ago(language: 'en' | 'sk', milliseconds: number): string {
-    return pipes(language).date.transform(new Date(NOW - milliseconds).toISOString(), 'ago');
+    return pipes(language).ago.transform(new Date(NOW - milliseconds).toISOString(), AGO);
   }
 
-  it('says how long ago in English exactly as timeAgo() does - the same thresholds, from seconds to years', () => {
-    const { date } = pipes('en');
-    const offsets = [
-      0,
-      400,
-      SECOND,
-      30 * SECOND,
-      59 * SECOND,
-      MINUTE,
-      90 * SECOND,
-      59 * MINUTE + 59 * SECOND,
-      HOUR,
-      3 * HOUR + 5 * SECOND,
-      23 * HOUR + 59 * MINUTE,
-      DAY,
-      13 * DAY,
-      29 * DAY + 23 * HOUR,
-      30 * DAY,
-      45 * DAY,
-      359 * DAY,
-      360 * DAY,
-      800 * DAY,
-      // In the future too: a clock that runs behind, a time still to come.
-      -30 * SECOND,
-      -2 * HOUR,
-      -3 * DAY,
-    ];
-    for (const offset of offsets) {
-      const iso = new Date(NOW - offset).toISOString();
-      expect(date.transform(iso, 'ago'), String(offset)).toBe(timeAgo(iso));
-    }
-    expect(ago('en', 0)).toBe('1 second ago');
-    expect(ago('en', 30 * SECOND)).toBe('30 seconds ago');
+  it('say how long ago in English as the site always did - minutes, hours, days, months, years, never a date in place of a count', () => {
+    expect(ago('en', MINUTE)).toBe('1 minute ago');
+    expect(ago('en', 5 * MINUTE)).toBe('5 minutes ago');
     expect(ago('en', 3 * HOUR + 5 * SECOND)).toBe('3 hours ago');
-    expect(ago('en', DAY)).toBe('1 day ago');
-    expect(ago('en', 30 * DAY)).toBe('1 month ago');
+    expect(ago('en', 2 * DAY)).toBe('2 days ago');
+    expect(ago('en', 13 * DAY)).toBe('13 days ago');
+    expect(ago('en', 75 * DAY)).toBe('2 months ago');
     expect(ago('en', 800 * DAY)).toBe('2 years ago');
     expect(ago('en', -2 * HOUR)).toBe('in 2 hours');
-    // 'ago' is what the pipe does when nothing else is asked for.
-    expect(date.transform(new Date(NOW - 5 * MINUTE).toISOString())).toBe('5 minutes ago');
+    // Where the family's words differ from the site's own (2026-10-25, anotoki-lib 0.11.0): under a minute "just now"
+    // (was "30 seconds ago"), the day before "yesterday" (was "1 day ago"), a month and a year "last month", "last year".
+    expect(ago('en', 30 * SECOND)).toBe('just now');
+    expect(ago('en', DAY)).toBe('yesterday');
+    expect(ago('en', 45 * DAY)).toBe('last month');
   });
 
-  it('says how long ago in Slovak, in phrases that stand inside a sentence', () => {
-    expect(ago('sk', 10 * SECOND)).toBe('pred 10 sekundami');
+  it('say how long ago in Slovak, in phrases that stand inside a sentence', () => {
     expect(ago('sk', 5 * MINUTE)).toBe('pred 5 minútami');
     expect(ago('sk', 3 * HOUR)).toBe('pred 3 hodinami');
-    expect(ago('sk', DAY)).toBe('pred 1 dňom');
     expect(ago('sk', 5 * DAY)).toBe('pred 5 dňami');
-    expect(ago('sk', 60 * DAY)).toBe('pred 2 mesiacmi');
+    expect(ago('sk', 75 * DAY)).toBe('pred 2 mesiacmi');
     expect(ago('sk', 800 * DAY)).toBe('pred 2 rokmi');
     expect(ago('sk', -2 * HOUR)).toBe('o 2 hodiny');
+    expect(ago('sk', 10 * SECOND)).toBe('práve teraz');
+    expect(ago('sk', DAY)).toBe('včera');
+    expect(ago('sk', 2 * DAY)).toBe('predvčerom');
   });
 
-  it('writes a calendar day in full, as that day wherever the reader is', () => {
+  it('write a calendar day in full, as that day wherever the reader is - as the site always did', () => {
     expect(pipes('en').date.transform('2026-09-29', 'day')).toBe('29 September 2026');
     expect(pipes('en').date.transform('2026-01-01', 'day')).toBe('1 January 2026');
     // The genitive, as Slovak writes a date.
@@ -164,24 +146,24 @@ describe('the localDate pipe', () => {
     expect(pipes('en').date.transform(new Date(2026, 9, 20, 12).toISOString(), 'day')).toBe('20 October 2026');
   });
 
-  it('gives nothing for a missing time - never "never" - and what is not a date back as it came', () => {
-    const { date } = pipes('en');
-    expect(date.transform(null, 'ago')).toBe('');
-    expect(date.transform(undefined, 'ago')).toBe('');
+  it('give nothing for a missing time - never "never" - and what is not a date back as it came', () => {
+    const { ago, date } = pipes('en');
+    expect(ago.transform(null, AGO)).toBe('');
+    expect(ago.transform(undefined, AGO)).toBe('');
     expect(date.transform('', 'day')).toBe('');
-    expect(date.transform('soon', 'ago')).toBe('soon');
+    expect(ago.transform('soon', AGO)).toBe('soon');
     expect(date.transform('soon', 'day')).toBe('soon');
     expect(date.transform('2026-13-45', 'day')).toBe('2026-13-45');
   });
 
-  it('is English on the English pages', () => {
-    const { i18n, date } = pipes('sk');
+  it('are English on the English pages', () => {
+    const { i18n, ago, date } = pipes('sk');
     i18n.noteAddress('/admin/builds');
     expect(date.transform('2026-09-29', 'day')).toBe('29 September 2026');
-    expect(date.transform(new Date(NOW - 3 * HOUR).toISOString(), 'ago')).toBe('3 hours ago');
+    expect(ago.transform(new Date(NOW - 3 * HOUR).toISOString(), AGO)).toBe('3 hours ago');
   });
 
-  it("writes a day in the account's date order for somebody signed in who has chosen one - in every language", () => {
+  it("write a day in the account's date order for somebody signed in who has chosen one - in every language", () => {
     expect(pipes('en', { date_format: 'ymd_dash' }).date.transform('2026-09-29', 'day')).toBe('2026-09-29');
     expect(pipes('sk', { date_format: 'dmy_dot' }).date.transform('2026-09-29', 'day')).toBe('29.9.2026');
     expect(pipes('sk', { date_format: 'mdy_slash' }).date.transform('2026-01-05', 'day')).toBe('01/05/2026');
@@ -191,9 +173,9 @@ describe('the localDate pipe', () => {
     expect(pipes('en', { date_format: 'ymd_dash' }).date.transform('2026-13-45', 'day')).toBe('2026-13-45');
   });
 
-  it("writes days the page's own way while the account leaves them at automatic; 'ago' is the same for everybody", () => {
+  it("write days the page's own way while the account leaves them at automatic; how long ago is the same for everybody", () => {
     expect(pipes('sk', { date_format: null, time_format: '12' }).date.transform('2026-09-29', 'day')).toBe('29. septembra 2026');
-    const { date } = pipes('sk', { date_format: 'ymd_dash', time_format: '24' });
-    expect(date.transform(new Date(NOW - 3 * HOUR).toISOString(), 'ago')).toBe('pred 3 hodinami');
+    const { ago } = pipes('sk', { date_format: 'ymd_dash', time_format: '24' });
+    expect(ago.transform(new Date(NOW - 3 * HOUR).toISOString(), AGO)).toBe('pred 3 hodinami');
   });
 });

@@ -53,8 +53,8 @@ all of them, without it) is `Config::FETCH_DEFAULTS`'.
 
 **Every one of them is read cleanly or not at all** (`App\Config::readLocalFile()` - the anotoki family's rule of
 2026-10-13, and its first five bytes since 2026-10-18; [decisions.md](decisions.md)), the ones written by hand -
-`client_address.local.php`, `cloudflare.local.php`, `neutral.local.php` (below) - and the committed `app.php`
-too: a file that does not start with `<?php` (saved with a byte-order mark, a blank line or a space before it, or
+`client_address.local.php`, `cloudflare.local.php`, `neutral.local.php`, `site.local.php` (below) - and the committed
+`app.php` too: a file that does not start with `<?php` (saved with a byte-order mark, a blank line or a space before it, or
 without that line) is
 passed over without being compiled - required, it would print what comes before it (all of it, the database's
 password included, where the line is missing) ahead of every answer, and with `declare(strict_types=1)` after such
@@ -71,6 +71,15 @@ error's message can quote it. What passing over means, never looser than no file
 | `client_address.local.php` | no proxy is trusted - every request counts its own connection - never Cloudflare's ranges in its place: it may be the very file that said `[]` for a host not behind Cloudflare |
 | `cloudflare.local.php` | a secret no request carries: it fails closed - as does one read cleanly that names no usable secret; deleting the file is the way to switch the secret off (see "Which address", below) |
 | `neutral.local.php` | it adds no names: what `App\Support\Neutral` names itself, and every web address, are still kept out of what the API sends; `tools/check-names.php` has nothing to look for, and says so |
+| `site.local.php` | the address of where the code runs holds - a release's `https://builder.anotoki.eu`, a checkout's `http://localhost:4600` - as for one read cleanly that names no usable address (an http(s) origin, nothing after its host and port): robots.txt keeps its Sitemap line |
+
+**The site's own address** (`config/site.local.php`, optional, by hand - never written or read by `setup.php`,
+anotoki-lib 0.11.0): `<?php return ['address' => 'https://builds.example'];` - for robots.txt's Sitemap line and
+every address in sitemap.xml (`App\Config::siteAddress()`), only where it is not the one the code's place gives: a
+release (`release.json` beside `backend/`) is `Config::RELEASE_ADDRESS`, the address the deploy tool puts it at
+(`composer.json`'s `extra["anotoki-deploy"]["url"]`, which a test holds to it); a checkout is
+`Config::DEVELOPMENT_ADDRESS`, the Angular dev server. Never an address read off a request: a `Host` header is
+anybody's to write.
 
 `setup.php` reads its files the same way: on this computer it names a broken one by its fault (never a value), and
 asks for every field again - the password too - since it shows none of that file's values and keeps none of its
@@ -136,8 +145,9 @@ drawn (`prompt=none`; whatever comes back, nothing is said; each hint tried once
 the marker `anotoki-auth:build-analyzer:hint` in localStorage). Signed out at the IAM is signed out here at the
 next page load. It needs nothing here but the IAM's hint (the IAM's own release) and the site under the IAM's
 parent domain; in development the IAM's hint is host-only `localhost`, so open the site as `localhost`, never
-`127.0.0.1`. Search engines never get the cookie; `robots.txt` keeps them off `/auth/`, and the callback and the
-failure screen say `noindex`. A sign-in that came back without one is said on `/sign-in` (the library's screen,
+`127.0.0.1`. Search engines never get the cookie; `robots.txt` (the library's, answered by the site's PHP since
+anotoki-lib 0.11.0: "The site settings", below) keeps them off `/auth`, and the callback and the failure screen say
+`noindex`. A sign-in that came back without one is said on `/sign-in` (the library's screen,
 in the site's frame: why, from the failure's code alone - Try again, Back).
 
 **Whether sign-in is required is the IAM's switch**, not a setting here: the IAM's admin panel, Applications ->
@@ -517,6 +527,57 @@ whole admin panel. No file explorer here (the owner's choice for this site).
   until those backups go - delete them by hand when that matters. Download one now and then, and keep it off the
   host.
 
+## The site settings (ADMIN)
+
+The anotoki family's site settings (anotoki-lib 0.11.0, the owner's request of 2026-10-25: genshin's switches on
+every site; [decisions.md](decisions.md)): the admin panel's **Site settings** page (`/admin/site-settings`, the
+library's, English) - the site's ADMIN alone (an editor is refused: 403 `admin_only`) - throws them without a deploy,
+each change audited (`site_settings.changed`, `page_access.added`, `.changed`, `.removed`). Kept in the library's
+tables (its `anotoki_admin/003`); the site's part is `App\Web\SitePages`. All three parts:
+
+- **Getting in**: closed for maintenance, every API path answers `503 maintenance` (`Retry-After: 300`, the
+  administrators' message per language) to everybody but the site's ADMIN, whom the site gate knows by the token alone;
+  the pages draw the family's closed sign, in the page's language (the message written for it, else English, else the
+  library's sentence). The ADMIN uses the site as it is, a line above every page saying it is closed. An administrator
+  signed out signs in at **`/staff`** - the closed sign offers Sign in there alone, back to the dashboard. What keeps
+  answering while it is closed: the site's status (it says `maintenance`), `/api/meta` (the sign-in's configuration and
+  the start), the words, the settings themselves, the catalog's pictures (`/api/icons`: an `<img>` carries no token) -
+  and the Migrations page's, the error log's and the backups' routes, which are the ADMIN's anyway. Nothing of it goes
+  into the error log (a state somebody chose, not a failure).
+- **Announcement**: a bar above everybody's pages - information, a warning or something wrong -, a message per
+  language (else English, else no bar). A reader's Hide keeps a mark of it in the browser (never its words,
+  `build-analyzer-announcement`) until its words or its kind change.
+- **Page access**: a row per page - who sees it (anybody, anybody signed in, editors and administrators,
+  administrators), or switched off for all but the administrators - and the API paths refused with it (`423
+  page_locked` to whoever the page is not shown to: a visitor is nobody here). The page itself is taken out of the
+  router (it falls through to the dashboard, or to "This page is not open right now" where the dashboard is closed
+  too) and out of the bar's sections and the sitemap; the site's ADMIN keeps everything, with a line above such a page.
+  The pages it can govern, as the router names them, with the API paths each reads (`SitePages::GOVERNED`) - name a
+  page's paths with its row where its data must go too; an API path claimed by two rows is refused only when both
+  refuse the reader:
+
+  | Page | Its API paths |
+  | --- | --- |
+  | `/` (the dashboard) | `/api/builds` (the builds' counts), `/api/accounts`, `/api/me` |
+  | `/import` | `/api/imports`, `/api/accounts` |
+  | `/accounts/:id` | `/api/accounts`, `/api/me` |
+  | `/accounts/:id/characters/:key` | `/api/accounts` |
+  | `/builds/:game` | `/api/builds` |
+  | `/builds/:game/:key` | `/api/builds` |
+
+  No row governs `/auth`, `/staff`, `/admin`, the legal pages, About, Support or `/sign-in`, and no row claims
+  `/api/meta`, `/api/icons`, `/api/site-status`, `/api/translations` or the settings' own two - either way round
+  (`/api/m` covers `/api/meta`; `/api/meta/x` is inside it): the page refuses them, and one put in the table by hand
+  is passed over.
+
+**robots.txt and sitemap.xml** (the library's `Robots`, answered by the site's PHP - never a file of the app: a release
+refuses one at a backend route). robots.txt keeps every robot out of `/admin`, `/api`, `/auth`, `/accounts` (a reader's
+own accounts), `/sign-in` and `/staff`, and names the sitemap by the site's own address ("Configuration", above).
+sitemap.xml lists the legal pages, About and Support always, and while the IAM lets visitors in the dashboard, the
+import, the builds browser and every character's builds page - each with the day one of its builds last changed, by a
+file or by hand - never what Page access hides. Both `Cache-Control: public, max-age=3600`; made afresh for each
+request (no kept copy: an import or the IAM's switch shows at once).
+
 ## Deploying (FTP-only shared hosting)
 
 The host: Apache with `.htaccess` support (`mod_rewrite`), **PHP 8.4** with `pdo_pgsql`, `openssl`, `mbstring`,
@@ -637,6 +698,8 @@ upload map, are in [DEV.md](../DEV.md) ("Deploying"); in short:
      its own section, "Deploying 0.7.0" (below).
    - **The admin panel in the family's frame (anotoki-lib 0.10.0, both halves; migration 024)**: the release with
      `vendor/`, then Apply at once - its own section, "Deploying the admin panel's frame" (below).
+   - **The site settings, robots.txt and sitemap.xml (anotoki-lib 0.11.0, both halves; migration 025)**: the release
+     with `vendor/`, then Apply at once - its own section, "Deploying anotoki-lib 0.11.0" (below).
    - **Version 0.3: visitors and the family's bar (migration 004, IAM migration 007)**, in this
      order: (1) before uploading, make sure an account that can sign in holds **ADMIN on `build-analyzer` now**
      (the IAM's admin panel; IAM 007 is what later gives every IAM administrator ADMIN here); (2) upload;
@@ -670,6 +733,32 @@ upload map, are in [DEV.md](../DEV.md) ("Deploying"); in short:
 Check after an install: `https://builder.anotoki.eu/config/database.local.php`, `/storage/logs/app.log` and
 `/src/Config.php` must not download (403); `https://builder.anotoki.eu/api/meta` answers JSON with the IAM's
 `issuer`, `client_id` and `login_required` under `auth`; `/api/accounts` answers 401 without a token.
+
+### Deploying anotoki-lib 0.11.0
+
+The owner's requests of 2026-10-25 ([decisions.md](decisions.md)): the site settings (Getting in, the announcement,
+Page access), robots.txt and sitemap.xml from the site's PHP, the family's dates and search, and the admin menu in the
+family's one shape - anotoki-lib 0.11.0, both halves (`vendor/` from Composer's `^0.11.0`, the app's `@anotoki/lib`
+from the 0.11.0 tarball). The release's front controller takes `/robots.txt` and `/sitemap.xml` beside `/api`
+(`composer.json`'s `extra["anotoki-deploy"]["routes"]`); the app keeps no `robots.txt` of its own.
+
+1. **The release**: `bun run anotoki-deploy deploy --backups <folder> --go`, `vendor/` with it. From then on the
+   site is closed until the Apply.
+2. **Apply pending at once** (signed in as the ADMIN, on the Migrations page), after a backup of the database as it
+   was ("before-migration"): the library's `anotoki_admin/003` (the site settings' two tables: no row, every switch at
+   its default), this site's **025** (the Privacy page's part about the settings, the page that is not open, the
+   audit log's sentence where it reads as 023 left it - its gate refuses unless the site's own keys are 446), then the
+   library's `anotoki_translations/014` (its new pieces' words) and `015` (the settings' and the closed sign's words).
+3. Optional, by hand: `config/site.local.php` only where the site's address is not `https://builder.anotoki.eu`.
+
+Then check: `https://builder.anotoki.eu/robots.txt` ends `Sitemap: https://builder.anotoki.eu/sitemap.xml`, and
+`/sitemap.xml` lists the legal pages - with the builds while visitors are welcome; `/admin` has Site settings first in
+System (Site settings, People, Feedback, Error log, Audit log, Backups, Migrations); an announcement saved there shows
+above every page (and goes once switched off); maintenance switched on shows a private window the closed sign, and
+`/staff` its Sign in, while the ADMIN's window uses the site with the line above each page - switch it off again. No
+release from before 025 goes on the host after it: its Privacy page would not say what the site settings keep.
+**The backups made before this Apply are restored offline only** (`409 schema_differs`, as after every Apply): make a
+backup by hand once it is applied.
 
 ### Deploying the admin panel's frame
 

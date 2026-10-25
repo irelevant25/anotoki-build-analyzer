@@ -289,9 +289,9 @@
               @if (!d.character.synced_at) {
                 {{ 'character.stats.inGame' | translate }}
               } @else if (d.character.final_stats_source === 'showcase') {
-                {{ 'character.stats.fromShowcase' | translate: { when: (d.character.synced_at | localDate: 'ago') } }}
+                {{ 'character.stats.fromShowcase' | translate: { when: (d.character.synced_at | anotokiAgo: { dateAfter: null }) } }}
               } @else {
-                {{ 'character.stats.fromFile' | translate: { when: (d.character.synced_at | localDate: 'ago') } }}
+                {{ 'character.stats.fromFile' | translate: { when: (d.character.synced_at | anotokiAgo: { dateAfter: null }) } }}
               }
             </p>
             <div class="stat-table">

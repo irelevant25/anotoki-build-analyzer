@@ -17,6 +17,13 @@ import { provideKit } from '../../../shared/kit';
 const HOUR = 3_600_000;
 /** A moment that reads "N hours ago" for as long as the spec runs. */
 const hoursAgo = (hours: number) => new Date(Date.now() - hours * HOUR - 5000).toISOString();
+/** Noon N days ago by this computer's calendar: the family's dates count calendar days, so it reads the same at any hour. */
+const daysAgoAtNoon = (days: number) => {
+  const noon = new Date();
+  noon.setDate(noon.getDate() - days);
+  noon.setHours(12, 0, 0, 0);
+  return noon.toISOString();
+};
 
 function account(id: number, overrides: Partial<AccountSummary> = {}): AccountSummary {
   return {
@@ -28,7 +35,7 @@ function account(id: number, overrides: Partial<AccountSummary> = {}): AccountSu
     world_level: 8,
     signature: null,
     has_full_inventory: true,
-    last_import_at: hoursAgo(48),
+    last_import_at: daysAgoAtNoon(2),
     counts: { characters: 12, weapons: 23, items: 187 },
     meta: null,
     ...overrides,
@@ -140,7 +147,7 @@ describe('the dashboard', () => {
         (options.language ?? 'sk') === 'sk' ? provideTestTranslations({ ...SLOVAK, ...options.strings }, { language: 'sk', english: en }) : provideTestTranslations(en),
         provideKit(),
         { provide: Api, useValue: api },
-        { provide: AuthService, useValue: { ...auth, isAdmin: auth.isStaff, available: signal(true), failure: signal(null), user: signal(null) } },
+        { provide: AuthService, useValue: { ...auth, isAdmin: auth.isStaff, available: signal(true), failure: signal(null), user: signal(null), preferences: signal(null) } },
         { provide: VisitorKey, useValue: visitor },
         { provide: ToastService, useValue: toasts },
       ],
@@ -191,8 +198,9 @@ describe('the dashboard', () => {
     expect(counts(first)).toEqual(['12 Postavy', '187 Artifacts', '23 Weapons']);
     expect(text(first.querySelector('anotoki-badge'))).toBe('Celý inventár');
     expect(text(second.querySelector('anotoki-badge'))).toBe('Len Showcase');
-    // A relative time goes into the sentence; a missing one is a sentence of its own - never "never" glued on.
-    expect(imported(first)).toBe('Importované pred 2 dňami');
+    // A relative time goes into the sentence - the family's dates (@anotoki/lib/ui/dates), which count calendar days and
+    // say the day before yesterday as Slovak does -; a missing one is a sentence of its own - never "never" glued on.
+    expect(imported(first)).toBe('Importované predvčerom');
     expect(imported(second)).toBe('Zatiaľ bez importu');
     expect([...first.querySelectorAll('.account-actions a')].map(text)).toEqual(['Otvoriť', 'Aktualizovať údaje']);
     expect(first.querySelector('.account-actions button')?.getAttribute('aria-label')).toBe('Ďalšie akcie');

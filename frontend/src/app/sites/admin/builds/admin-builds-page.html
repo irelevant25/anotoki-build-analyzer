@@ -53,8 +53,8 @@
               <anotoki-stat-tiles class="counts">
                 <anotoki-stat-tile label="Characters with builds" [value]="data.characters" />
                 <anotoki-stat-tile label="Builds" [value]="data.builds" />
-                <anotoki-stat-tile label="Newest file made" [value]="data.checked_at | timeAgo" [note]="moment(data.checked_at)" />
-                <anotoki-stat-tile label="Last change" [value]="data.changed_at | timeAgo" [note]="moment(data.changed_at)" />
+                <anotoki-stat-tile label="Newest file made" [value]="(data.checked_at | anotokiAgo: { dateAfter: null }) || 'never'" [note]="moment(data.checked_at)" />
+                <anotoki-stat-tile label="Last change" [value]="(data.changed_at | anotokiAgo: { dateAfter: null }) || 'never'" [note]="moment(data.changed_at)" />
               </anotoki-stat-tiles>
 
               @if (state.problem; as message) {
@@ -243,7 +243,7 @@
               <ul class="import-list">
                 @for (entry of data.imports; track entry.id) {
                   <li>
-                    <time class="import-when" [attr.datetime]="entry.created_at">{{ entry.created_at | timeAgo }}</time> ·
+                    <time class="import-when" [attr.datetime]="entry.created_at">{{ entry.created_at | anotokiAgo: { dateAfter: null } }}</time> ·
                     {{ importLine(entry) }}
                   </li>
                 }
@@ -276,7 +276,7 @@
                   <anotoki-stat-tile
                     [label]="listNames[list.list]"
                     [value]="list.entries"
-                    [note]="list.refreshed_at ? 'refreshed ' + (list.refreshed_at | timeAgo) : 'never refreshed'"
+                    [note]="list.refreshed_at ? 'refreshed ' + (list.refreshed_at | anotokiAgo: { dateAfter: null }) : 'never refreshed'"
                   />
                 }
               </anotoki-stat-tiles>

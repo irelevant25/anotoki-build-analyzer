@@ -45,31 +45,3 @@ export function titleCase(text: string | null | undefined): string {
   }
   return text.replace(/(^|[\s-])(\w)/g, (_, sep: string, char: string) => sep + char.toUpperCase());
 }
-
-/**
- * "3 hours ago" style relative time.
- */
-export function timeAgo(iso: string | null | undefined): string {
-  if (!iso) {
-    return 'never';
-  }
-  const seconds = Math.round((Date.now() - new Date(iso).getTime()) / 1000);
-  const units: [number, string][] = [
-    [60, 'second'],
-    [60, 'minute'],
-    [24, 'hour'],
-    [30, 'day'],
-    [12, 'month'],
-    [Number.POSITIVE_INFINITY, 'year'],
-  ];
-  let value = Math.abs(seconds);
-  for (const [size, unit] of units) {
-    if (value < size) {
-      const rounded = Math.max(1, Math.floor(value));
-      const label = `${rounded} ${unit}${rounded === 1 ? '' : 's'}`;
-      return seconds >= 0 ? `${label} ago` : `in ${label}`;
-    }
-    value /= size;
-  }
-  return iso;
-}

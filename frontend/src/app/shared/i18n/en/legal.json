@@ -20,6 +20,11 @@
   "legal.staff.why": "So that the people who look after the site know who did what.",
   "legal.staff.kept": "With no set time limit. When your anotoki account is deleted, they no longer show your name; when an administrator deletes your data here, the imports and words stay, by nobody.",
 
+  "legal.settings.name": "If you change the site's settings",
+  "legal.settings.what": "Administrators change the site's settings in its admin panel - an announcement at the top of its pages, closing the site for a while, who may see which page: each setting keeps who changed it last, and when.",
+  "legal.settings.why": "So that the administrators know who changed what.",
+  "legal.settings.kept": "Until the setting is changed again. When your anotoki account is deleted, it no longer shows your name; when an administrator deletes your data here, the setting stays, changed by nobody.",
+
   "legal.limits.name": "Limits against floods",
   "legal.limits.what": "How many imports each person or address makes, how many people start without an account from one address, and how many feedback messages and error reports each sender sends - counted by the account, or by a code made from the IP address with a secret key, never the address itself.",
   "legal.limits.why": "To keep the site working for everybody when somebody sends too much.",
@@ -42,7 +47,7 @@
   "legal.feedback.what": "What you send with the form at the foot of every page: your message (and its subject, if you give one), its kind and the part of the site it is about, the page's address without anything after ? or #, the page's language and your browser's name; your account's id, unless you send it without your name; and an address to answer you at, only if you leave one (signed in, the form writes your account's in - you may change it or clear it).",
   "legal.feedback.kept": "Until an administrator deletes it - a message marked as spam goes 30 days later, a resolved one a year later (with the first message sent after that day). When your anotoki account is deleted, or an administrator deletes your data here, the reply address and the browser go from your messages; the words stay.",
 
-  "legal.auditLog.what": "What the site's editors and administrators do in its admin panel - builds imported from a file or edited by hand, the game catalog refreshed, the words and languages saved, a person's data deleted, an update applied, the backups, the error log and feedback handled: who, what and when. Never an IP address.",
+  "legal.auditLog.what": "What the site's editors and administrators do in its admin panel - builds imported from a file or edited by hand, the game catalog refreshed, the words and languages saved, the site's settings changed, a person's data deleted, an update applied, the backups, the error log and feedback handled: who, what and when. Never an IP address.",
 
   "legal.backups.what": "A copy of the site's whole database: one on each day the site is used, one before every update and every restore, and one whenever an administrator makes it. Each copy holds what the site kept when it was made.",
 

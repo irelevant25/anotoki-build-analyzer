@@ -34,6 +34,7 @@ const NAMESPACES = [
   'brand',
   'footer',
   'legal',
+  'notOpen',
 ];
 
 /** A key: namespace.thing[.detail] - the same shape the backend's key scan reads. */

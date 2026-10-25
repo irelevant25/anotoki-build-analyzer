@@ -36,14 +36,15 @@ function stringsOf(mixed $value, string $path = ''): array
 
 /**
  * Fails naming the first string that mentions another site. The only address an answer may carry is the
- * anotoki IAM's (meta says where to sign in).
+ * anotoki IAM's (meta says where to sign in) - and the shape of one, a scheme followed by an ellipsis alone
+ * ("https://…": the anotoki library's HTML editor's hint), names nobody.
  */
 function assertNeutral(Tests\Support\Answer $answer, string $what, int $status = 200): void
 {
     $answer->status($status);
     foreach (stringsOf($answer->json()) as $line) {
         $line = str_replace(TEST_ISSUER, '(the IAM)', $line);
-        check(!Neutral::mentionsAny($line) && !preg_match('~https?://~i', $line), "{$what} names another site: {$line}");
+        check(!Neutral::mentionsAny($line) && !Neutral::holdsAddress($line), "{$what} names another site: {$line}");
     }
 }
 
@@ -76,6 +77,20 @@ test('addresses and names of other sites become neutral words', function () {
     }
     same(null, Neutral::text(null), 'null');
     same(['notes' => ['The source page', 'ok']], Neutral::deep(['notes' => ['https://elsewhere.example/x', 'ok']]), 'nested values');
+
+    // The shape of an address alone - a scheme or "www." and an ellipsis, as the library's HTML editor says what a link
+    // may point at - names nobody; anything after the ellipsis is an address again.
+    foreach (['A web address (https://…) or a mail address (mailto:…).', 'Keep https://… and mailto:… as they are.', 'http://...', 'See www.… for it.'] as $text) {
+        same($text, Neutral::text($text), "a placeholder: {$text}");
+        same(false, Neutral::holdsAddress($text), "no address: {$text}");
+    }
+    foreach (
+        ['See https://…elsewhere.example' => 'See the source page', 'https://...elsewhere.example/x' => 'The source page', 'Look at https://elsewhere.example/….' => 'Look at the source page']
+        as $text => $expected
+    ) {
+        same($expected, Neutral::text($text), "an address after all: {$text}");
+        same(true, Neutral::holdsAddress($text), "an address: {$text}");
+    }
 });
 
 test('config/neutral.local.php is read cleanly or not at all: a broken one adds no name', function () {

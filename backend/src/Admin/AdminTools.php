@@ -43,10 +43,11 @@ use Throwable;
  *               exception jsonErrors() answered 500, PHP's warnings and fatal errors, the errors the pages meet
  *               in the browser (POST /api/client-errors), and answers worth seeing (404, 405, 413, 415, 429, every
  *               5xx) - but an answer that says a state, not a failure (EXPECTED_ANSWERS: the site gate while an
- *               update waits, a feature whose table waits). storage/logs/app.log stays for the site's info lines.
+ *               update waits or while the site is closed for maintenance, a feature whose table waits).
+ *               storage/logs/app.log stays for the site's info lines.
  *   audit log   the table anotoki_audit_log (the library's anotoki_admin/001): what was done in the admin panel
- *               - a builds file imported, the catalog refreshed, the strings and languages, a person's data
- *               deleted, migrations applied, and the tools' own (errors cleared,
+ *               - a builds file imported, the catalog refreshed, the strings and languages, the site settings, a
+ *               person's data deleted, migrations applied, and the tools' own (errors cleared,
  *               backups, feedback). No address is kept with an entry.
  *   feedback    the table anotoki_feedback (anotoki_admin/002): what visitors send from the form at the foot of
  *               every page - no mail; the admin panel counts what is new. Nothing of where a message came from
@@ -91,12 +92,14 @@ final class AdminTools
     /**
      * The answers that say a state the site is in, not a failure - never written into the error log, however often
      * they come: the library's own (update_pending, the site gate's while an update waits; not_set_up;
-     * feature_unavailable, an admin tool whose table waits) and this site's of the same kind, each a waiting
+     * feature_unavailable, an admin tool whose table waits), the site gate's while the site's ADMIN has closed the
+     * site for maintenance (maintenance - the site settings' Getting in: every request but the ADMIN's would be
+     * written while it lasts, and the state is one somebody chose), and this site's of the same kind, each a waiting
      * migration's table (visitors_unavailable, translations_unavailable, people_unavailable). Any other answer of a
      * status worth seeing is written - a 503 that is a failure too (feedback's storage_unavailable: its limits
      * cannot be counted; the move's visitor_move_retry).
      */
-    public const EXPECTED_ANSWERS = [...ErrorLog::EXPECTED_CODES, 'visitors_unavailable', 'translations_unavailable', 'people_unavailable'];
+    public const EXPECTED_ANSWERS = [...ErrorLog::EXPECTED_CODES, 'maintenance', 'visitors_unavailable', 'translations_unavailable', 'people_unavailable'];
 
     /**
      * The error log - with the Slim app that answers the requests it names, each line's route too. The family's rule

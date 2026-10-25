@@ -1,4 +1,5 @@
 import { HttpErrorResponse } from '@angular/common/http';
+import { signal } from '@angular/core';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { provideRouter } from '@angular/router';
 import { provideTestTranslations } from '@anotoki/lib/translations/testing';
@@ -6,6 +7,7 @@ import { ConfirmService } from '@anotoki/lib/ui/dialog';
 import { ToastService } from '@anotoki/lib/ui/toast';
 import { Observable, Subject, of, throwError } from 'rxjs';
 import { Api } from '../../../api/api';
+import { AuthService } from '../../../shared/auth';
 import { BuildEditorChanges } from '../../../shared/build-editor-changes';
 import { provideKit } from '../../../shared/kit';
 import { CharacterEditing, EditorBuild, EditorCatalog, EditorSave, GameKey } from '../../../api/models';
@@ -186,6 +188,8 @@ describe("the builds editor: a character's builds changed by hand, saved in one 
         { provide: Api, useValue: api },
         { provide: ConfirmService, useValue: { ask } },
         { provide: ToastService, useValue: toasts },
+        // The kit's dates ask the account for its date order and clock (shared/kit.ts): an editor who chose none.
+        { provide: AuthService, useValue: { preferences: signal(null) } },
       ],
     });
     fixture = TestBed.createComponent(BuildEditorPage);

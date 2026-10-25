@@ -1,6 +1,7 @@
 import { Component, computed, inject, viewChild } from '@angular/core';
 import { Router } from '@angular/router';
 import { TopBarComponent as FamilyTopBar, TopBarBrand, TopBarLink, TopBarMenuItem, TopBarPerson } from '@anotoki/lib/shell';
+import { SiteSettings } from '@anotoki/lib/site-settings';
 import { AuthService } from '../../../../shared/auth';
 import { TranslationKey } from '../../../../shared/i18n/en';
 import { TranslatePipe } from '../../../../shared/i18n/translate';
@@ -8,18 +9,23 @@ import { TranslationService } from '../../../../shared/i18n/translation';
 import { signInOrSayWhy } from '../../../../shared/sign-in';
 import { SignOut } from '../../../../shared/sign-out';
 
-/** A section in the bar: its words (a key), where it goes, and the address beginnings that belong to it too (an account and its characters are the dashboard's). */
+/**
+ * A section in the bar: its words (a key), where it goes, the address beginnings that belong to it too (an account and
+ * its characters are the dashboard's), and the page it lands on where that is another address (/builds goes on to the
+ * game's builds browser) - the one Page access is asked about.
+ */
 export interface BarLink {
   key: TranslationKey;
   path: string;
   under: readonly string[];
+  page?: string;
 }
 
 /** Everybody's sections - the same for somebody not signed in, a visitor and a person. */
 export const APP_LINKS: readonly BarLink[] = [
   { key: 'topbar.dashboard', path: '/', under: ['/accounts/'] },
   { key: 'topbar.import', path: '/import', under: [] },
-  { key: 'topbar.builds', path: '/builds', under: ['/builds/'] },
+  { key: 'topbar.builds', path: '/builds', under: ['/builds/'], page: '/builds/genshin' },
 ];
 
 /**
@@ -59,6 +65,7 @@ export class TopBar {
   protected readonly i18n = inject(TranslationService);
   private readonly router = inject(Router);
   private readonly signOutService = inject(SignOut);
+  private readonly settings = inject(SiteSettings);
 
   private readonly bar = viewChild(FamilyTopBar);
 
@@ -72,9 +79,13 @@ export class TopBar {
     label: this.i18n.t('topbar.home'),
   }));
 
-  /** Everybody's sections. */
+  /**
+   * Everybody's sections - but one the site settings' Page access closes to the reader: its page would not open for
+   * them (the family's pageAccessGuard), and a link that lands on the dashboard is no section. The site's ADMIN has
+   * every one.
+   */
   protected readonly links = computed<TopBarLink[]>(() =>
-    APP_LINKS.map((link) => ({
+    APP_LINKS.filter((link) => this.settings.mayNavigate(link.page ?? link.path)).map((link) => ({
       id: link.path,
       label: this.i18n.t(link.key),
       path: link.path,

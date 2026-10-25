@@ -107,7 +107,7 @@
                     @if (account.last_import_at) {
                       {{
                         'dashboard.imported'
-                          | translate: { when: (account.last_import_at | localDate: 'ago') }
+                          | translate: { when: (account.last_import_at | anotokiAgo: { dateAfter: null }) }
                       }}
                     } @else {
                       {{ 'dashboard.notImportedYet' | translate }}
@@ -189,7 +189,7 @@
               <span class="spacer"></span>
               <span class="muted small">
                 @if (entry.checked_at) {
-                  {{ 'dashboard.buildsUpdated' | translate: { when: (entry.checked_at | localDate: 'ago') } }}
+                  {{ 'dashboard.buildsUpdated' | translate: { when: (entry.checked_at | anotokiAgo: { dateAfter: null }) } }}
                 } @else {
                   {{ 'dashboard.buildsNever' | translate }}
                 }

@@ -13,6 +13,7 @@ import { PageHeaderComponent } from '@anotoki/lib/ui/page-header';
 import { SpinnerComponent } from '@anotoki/lib/ui/spinner';
 import { ToastService } from '@anotoki/lib/ui/toast';
 import { TooltipDirective } from '@anotoki/lib/ui/tooltip';
+import { AnotokiAgoPipe } from '@anotoki/lib/ui/dates';
 import { forkJoin, of } from 'rxjs';
 import { Api } from '../../../api/api';
 import { AuthService } from '../../../shared/auth';
@@ -20,7 +21,6 @@ import { GAME_LABELS, GAMES } from '../../../shared/format';
 import { GAME_TERMS, UID_TERM } from '../common/game-terms';
 import { gameIcon } from '../../../shared/icons';
 import { ErrorTextPipe, errorText } from '../../../shared/i18n/error-text';
-import { LocalDatePipe } from '../../../shared/i18n/local-date';
 import { TranslatePipe } from '../../../shared/i18n/translate';
 import { TranslatePluralPipe } from '../../../shared/i18n/translate-plural';
 import { TranslationService } from '../../../shared/i18n/translation';
@@ -60,7 +60,7 @@ export type DashboardState = 'person' | 'visitor' | 'nobody';
     TooltipDirective,
     TranslatePipe,
     TranslatePluralPipe,
-    LocalDatePipe,
+    AnotokiAgoPipe,
     ErrorTextPipe,
     DataCard,
     VisitorHero,

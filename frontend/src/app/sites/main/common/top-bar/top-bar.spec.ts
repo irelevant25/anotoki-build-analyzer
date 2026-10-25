@@ -1,6 +1,7 @@
 import { Component, signal } from '@angular/core';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { Router, provideRouter } from '@angular/router';
+import { SiteSettings } from '@anotoki/lib/site-settings';
 import { provideAnotokiTranslations } from '@anotoki/lib/translations';
 import { LocalizationDrafts } from '@anotoki/lib/translations/admin';
 import { provideTestTranslations } from '@anotoki/lib/translations/testing';
@@ -177,6 +178,15 @@ describe("the top bar: the family's bar, told what is this site's - everybody's 
     expect(links().map(described)).toEqual(['Prehľad / [here]', 'Import /import', 'Buildy /builds']);
     await at('/builds/genshin');
     expect(links().map(described)).toEqual(['Prehľad /', 'Import /import', 'Buildy /builds [here]']);
+  });
+
+  it("leaves out a section the site settings' Page access closes to the reader - its page would not open for them - asking by the page a link lands on", async () => {
+    const asked: string[] = [];
+    TestBed.overrideProvider(SiteSettings, { useValue: { mayNavigate: (path: string) => (asked.push(path), path !== '/import' && path !== '/builds/genshin') } });
+    await draw();
+    expect(links().map((link) => link.getAttribute('href'))).toEqual(['/']);
+    // The builds' link lands on the game's builds browser: that is the page asked about.
+    expect([...new Set(asked)]).toEqual(['/', '/import', '/builds/genshin']);
   });
 
   it('names the person, their address and role, and holds their anotoki account and the way into the admin panel', async () => {

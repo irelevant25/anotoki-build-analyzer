@@ -18,6 +18,7 @@ import { SpinnerComponent } from '@anotoki/lib/ui/spinner';
 import { TabItem, TabsComponent } from '@anotoki/lib/ui/tabs';
 import { ToastService } from '@anotoki/lib/ui/toast';
 import { TooltipDirective } from '@anotoki/lib/ui/tooltip';
+import { AnotokiAgoPipe } from '@anotoki/lib/ui/dates';
 import { firstValueFrom } from 'rxjs';
 import { Api, errorMessage } from '../../../api/api';
 import { BuildEditorChanges } from '../../../shared/build-editor-changes';
@@ -36,7 +37,6 @@ import {
   StatPriority,
   TalentPriority,
 } from '../../../api/models';
-import { TimeAgoPipe } from '../../../shared/stat-pipes';
 import { roleName, variationName } from '../builds/build-file';
 import {
   BuildName,
@@ -162,7 +162,7 @@ const UNREADABLE = 'Write a number, such as 70 or 120.5 - or leave it empty.';
     TabsComponent,
     TextFieldComponent,
     TooltipDirective,
-    TimeAgoPipe,
+    AnotokiAgoPipe,
     MoveButtons,
     NoteFields,
     PartCard,

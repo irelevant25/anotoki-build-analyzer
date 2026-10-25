@@ -94,6 +94,25 @@ final class Builds
     }
 
     /**
+     * The characters of a game that have builds - each one's key and when one of its builds last changed, by a file
+     * (changed_at) or by hand in the builds editor (edited_at) - for the sitemap (App\Web\SitePages): a character's
+     * builds page each, by key (compared as bytes).
+     *
+     * @return list<array{key: string, changed_at: string|null}>
+     */
+    public function charactersWithBuilds(Game $game): array
+    {
+        return $this->db->all(
+            'SELECT c.key, max(GREATEST(b.changed_at, b.edited_at)) AS changed_at
+               FROM builds b JOIN game_characters c ON c.id = b.game_character_id
+              WHERE c.game = ?
+              GROUP BY c.key
+              ORDER BY c.key COLLATE "C"',
+            [$game->value],
+        );
+    }
+
+    /**
      * Characters of a game that have builds, a line per build: the builds browser.
      *
      * @return list<array{id: int|string, game_character_id: int|string, role: string, min_rank: int|string, checked_at: string|null, changed_at: string|null}>

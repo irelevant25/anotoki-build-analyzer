@@ -458,4 +458,57 @@ function visitorFile(): string
     ]);
 }
 
+test(
+    'the site\'s own address (config/site.local.php: optional, by hand) - the one it names; else a release\'s or a checkout\'s - and one that cannot be read cleanly or names no usable address passed over, said once by its fault, the address of where the code runs holding',
+    function () use ($server) {
+        // The address a release is deployed to is the deploy tool's (composer.json): the two are one.
+        $composer = json_decode((string) file_get_contents(__DIR__ . '/../composer.json'), true);
+        same(Config::RELEASE_ADDRESS, $composer['extra']['anotoki-deploy']['url'] ?? null, 'a release\'s address, as composer.json deploys it');
+
+        // No file: where the code runs - a checkout's address; a release's beside release.json.
+        $root = settingsRoot(setUpFiles($server));
+        same(Config::DEVELOPMENT_ADDRESS, Config::load($root)->siteAddress(), 'a checkout');
+        file_put_contents($root . '/release.json', '{}');
+        same(Config::RELEASE_ADDRESS, Config::load($root)->siteAddress(), 'a release');
+        removeTree($root);
+
+        // Named: its origin, as a sitemap writes it - its scheme and host in lower case, its port, no slash after it.
+        $root = settingsRoot(['site.local.php' => '<?php ' . returning(['address' => ' https://Builds.Example:8443/ '])] + setUpFiles($server));
+        [$config, $printed, $log] = watched($root, fn(): Config => Config::load($root));
+        same(['https://builds.example:8443', '', '', []], [$config->siteAddress(), $printed, $log, $config->problems()], 'its address, nothing said, the site set up as ever');
+        removeTree($root);
+
+        // Passed over: the address of where the code runs - never none, never looser than no file.
+        $cases = [];
+        foreach (BAD_STARTS as $what => [$before, $start]) {
+            $cases[$what] = [$before . $start . returning(['address' => 'https://elsewhere.example']), Config::NOT_PHP];
+        }
+        $cases['text after a closing tag'] = ["<?php \$kept = 1; ?>\nby hand\n<?php " . returning(['address' => 'https://elsewhere.example']), 'prints 8 bytes of its own'];
+        foreach (
+            ['a path after the host' => 'https://builds.example/site', 'another scheme' => 'ftp://builds.example', 'a query' => 'https://builds.example?x=1', 'no address' => '']
+            as $what => $value
+        ) {
+            $cases[$what] = ['<?php ' . returning(['address' => $value]), 'names no usable address'];
+        }
+        $cases['another key'] = ['<?php ' . returning(['url' => 'https://builds.example']), 'names no usable address'];
+        $cases['no array'] = ["<?php return 'https://builds.example';\n", 'names no usable address'];
+        foreach ($cases as $what => [$contents, $fault]) {
+            $root = settingsRoot(['site.local.php' => $contents] + setUpFiles($server));
+            [$config, $printed, $log] = watched($root, fn(): Config => Config::load($root));
+            same([Config::DEVELOPMENT_ADDRESS, '', []], [$config->siteAddress(), $printed, $config->problems()], "{$what}: the checkout's address, nothing printed, the site set up");
+            check(str_contains($log, "config/site.local.php {$fault}") && str_contains($log, 'the address of where the code runs holds'), "{$what}: said by its fault: {$log}");
+            check(!str_contains($log, 'elsewhere.example') && !str_contains($log, 'builds.example'), "{$what}: never its text");
+            removeTree($root);
+        }
+
+        // A folder in the file's place is no file either.
+        $root = settingsRoot(setUpFiles($server));
+        mkdir($root . '/config/site.local.php');
+        [$config, , $log] = watched($root, fn(): Config => Config::load($root));
+        same(Config::DEVELOPMENT_ADDRESS, $config->siteAddress(), 'a folder: the checkout\'s address');
+        check(str_contains($log, 'config/site.local.php is no file'), "a folder: said: {$log}");
+        removeTree($root);
+    },
+);
+
 finishTests();

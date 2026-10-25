@@ -172,7 +172,7 @@ test('the database has seen the first two migrations, and the rest wait for an a
         ->get('/api/admin/migrations')
         ->status(200);
     same([AdminSchema::SET, Migrations::SET, Schema::SET, PeopleSchema::SET], $status->json('sets'), 'the library\'s admin tools\' set, the site\'s, then the library\'s translations and people');
-    same(array_map(fn(array $file): array => $file + ['ready' => true, 'blocked' => false], waiting()), $status->json('pending'), 'pending, in the order they will run');
+    same(array_map(fn(array $file): array => $file + ['ready' => true, 'blocked' => false, 'duplicates' => []], waiting()), $status->json('pending'), 'pending, in the order they will run');
     same(['001_adopt_laravel_database.sql', '002_schema.sql'], array_column($status->json('applied'), 'name'), 'applied, in the order they were');
     same([], $status->json('missing'), 'nothing missing');
     foreach ($status->json('applied') as $file) {

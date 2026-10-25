@@ -1,4 +1,4 @@
-import { gradeColor, scoreColor, timeAgo, titleCase } from './format';
+import { gradeColor, scoreColor, titleCase } from './format';
 
 describe('format helpers', () => {
   it('maps grades and scores to theme colors', () => {
@@ -14,12 +14,5 @@ describe('format helpers', () => {
     expect(titleCase('pyro')).toBe('Pyro');
     expect(titleCase('the hunt')).toBe('The Hunt');
     expect(titleCase(null)).toBe('');
-  });
-
-  it('formats relative times', () => {
-    const threeHoursAgo = new Date(Date.now() - 3 * 3600 * 1000 - 5000).toISOString();
-    expect(timeAgo(threeHoursAgo)).toBe('3 hours ago');
-    expect(timeAgo(new Date(Date.now() - 30 * 1000).toISOString())).toBe('30 seconds ago');
-    expect(timeAgo(null)).toBe('never');
   });
 });

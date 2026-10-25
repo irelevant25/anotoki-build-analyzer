@@ -3,11 +3,11 @@ import { signal } from '@angular/core';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { provideRouter } from '@angular/router';
 import { provideTestTranslations } from '@anotoki/lib/translations/testing';
+import { formatRelative } from '@anotoki/lib/ui/dates';
 import { ToastService } from '@anotoki/lib/ui/toast';
 import { Observable, Subject, of, throwError } from 'rxjs';
 import { Api } from '../../../api/api';
 import { AuthService } from '../../../shared/auth';
-import { timeAgo } from '../../../shared/format';
 import { provideKit } from '../../../shared/kit';
 import { MetaStore } from '../../../shared/meta-store';
 import { AdminBuildsGame, BuildImportChoices, BuildImportPlan, BuildQuestion, CatalogList, CatalogRefreshResult, EditorCatalog, GameKey } from '../../../api/models';
@@ -27,6 +27,9 @@ const CHECKED = '2026-10-19T10:00:00+00:00';
 const CHANGED = '2026-10-18T10:00:00+00:00';
 const IMPORTED = '2026-10-19T10:30:00+00:00';
 const REFRESHED = '2026-10-19T08:00:00+00:00';
+
+/** How long ago, as the page writes it: the family's dates in English, never a date in place of a count. */
+const timeAgo = (iso: string): string => formatRelative(iso, { locale: 'en-GB', dateAfter: null });
 
 /** What GET /api/admin/builds says of Genshin Impact. */
 function game(overrides: Partial<AdminBuildsGame> = {}): AdminBuildsGame {

@@ -99,10 +99,10 @@
                             <p class="build-origin muted small">
                                 {{ origin(b) }}
                                 @if (b.checkedAt) {
-                                    · carried by a file {{ b.checkedAt | timeAgo }}
+                                    · carried by a file {{ b.checkedAt | anotokiAgo: { dateAfter: null } }}
                                 }
                                 @if (b.editedAt) {
-                                    · last saved here {{ b.editedAt | timeAgo }}
+                                    · last saved here {{ b.editedAt | anotokiAgo: { dateAfter: null } }}
                                 }
                             </p>
                             <div class="build-actions">

@@ -6,6 +6,7 @@ import { ANOTOKI_AUTH_CLIENT_FACTORY, AnotokiAuth, anotokiAuthInterceptor, provi
 import { provideAnotokiErrorReport } from '@anotoki/lib/error-report';
 import { SiteStatus, siteStatusInterceptor } from '@anotoki/lib/migrations';
 import { provideAnotokiPeople } from '@anotoki/lib/people';
+import { SiteSettings } from '@anotoki/lib/site-settings';
 
 import { routes } from './app.routes';
 import { AuthService } from './shared/auth';
@@ -20,6 +21,7 @@ import { provideTranslations } from './shared/i18n/translations.config';
 import { MetaStore } from './shared/meta-store';
 import { provideShell } from './shared/shell';
 import { signInKindClientFactory } from './shared/sign-in-kind';
+import { provideSiteSettings } from './shared/site-settings';
 import { MIGRATIONS_ROUTE, SITE_STATUS_URL, appliedAt, provideSiteStatus } from './shared/site-status';
 import { VisitorKey } from './shared/visitor-key';
 
@@ -58,8 +60,9 @@ export const appConfig: ApplicationConfig = {
         language: () => i18n.signInLanguage(),
         // An owner's rewording of the library's sign-in words (anotoki.signIn.*), from the database.
         translate: (key: string) => i18n.libraryWord(key),
-        // Read with no credentials at all: where the site stands, the strings of a language, the boot answer.
-        api: { skip: [SITE_STATUS_URL, '/api/translations/', '/api/meta'] },
+        // Read with no credentials at all: where the site stands, the strings of a language, the boot answer, what
+        // every page is told of the site settings.
+        api: { skip: [SITE_STATUS_URL, '/api/translations/', '/api/meta', '/api/site-settings'] },
         failureRoute: `/${SIGN_IN_FAILED_PATH}`,
         forbiddenRoute: '/admin/builds',
       };
@@ -75,8 +78,13 @@ export const appConfig: ApplicationConfig = {
     // The family's shell (@anotoki/lib/shell): the top bar's theme switch and language chooser - the account's
     // theme while it keeps one, else this device's; the translations module's languages (shared/shell.ts).
     provideShell(),
-    // Where the site stands, and what is shown while it is not ready (shared/site-status.ts).
+    // Where the site stands, and what is shown while it is not ready - the family's closed sign too, while the site's
+    // ADMIN has closed the site for maintenance (shared/site-status.ts).
     provideSiteStatus(),
+    // The family's site settings (anotoki-lib 0.11.0): the announcement above everybody's pages, the administrators'
+    // notice above a page, Page access's guard on the public pages - who the reader is from the token
+    // (shared/site-settings.ts).
+    provideSiteSettings(),
     // The People page (ADMIN; @anotoki/lib/people/page on /admin/people): everybody the IAM signed in here, with
     // their game accounts, imports and last import, and Delete - the site's game accounts and imports of the
     // person, behind the page's question; their anotoki account stays. Visitors are counted, never listed.
@@ -99,8 +107,9 @@ export const appConfig: ApplicationConfig = {
         formatDate: (iso: string) => appliedAt(iso, site.preferences(), i18n.locale()),
       };
     }),
-    // The admin tools' pages (ADMIN; @anotoki/lib/admin/errors, /audit, /feedback, /backups on /admin/...): a
-    // backup is made, downloaded, deleted or restored after a sign-in of the last ten minutes - "Sign in again".
+    // The admin tools' pages (ADMIN; @anotoki/lib/admin/errors, /audit, /feedback, /backups and /site-settings on
+    // /admin/...): a backup is made, downloaded, deleted or restored after a sign-in of the last ten minutes - "Sign in
+    // again"; the Site settings page writes a message in each language the site's pages are read in, by its own name.
     provideAnotokiAdmin(() => {
       const auth = inject(AnotokiAuth);
       const site = inject(AuthService);
@@ -110,6 +119,7 @@ export const appConfig: ApplicationConfig = {
         signInAgain: () => auth.signIn({ prompt: 'login' }),
         migrationsRoute: MIGRATIONS_ROUTE,
         formatDate: (iso: string) => appliedAt(iso, site.preferences(), i18n.locale()),
+        languages: () => i18n.languages().map((language) => ({ code: language.code, name: language.native_name })),
       };
     }),
     // The visitors' feedback form, opened from the foot of every page (shared/feedback.ts).
@@ -124,17 +134,21 @@ export const appConfig: ApplicationConfig = {
       const auth = inject(AnotokiAuth);
       const i18n = inject(TranslationService);
       const siteStatus = inject(SiteStatus);
+      const settings = inject(SiteSettings);
       const meta = inject(MetaStore);
       const changelog = inject(Changelog);
       // The visitor key, read from storage - and, once somebody is signed in with one held, the move of what
       // the visitor imported into their account (an effect there).
       inject(VisitorKey);
-      // Where the site stands (ready, not set up, an update waiting, out of reach), beside /api/meta - where
-      // this server's IAM is - and the changelog, which gives the version shown. Nothing here stops on an
-      // update that waits: /api/meta and the strings stay open then, so the sign-in (or its callback)
-      // completes before the first page is drawn, and the gate around the router outlet shows the page that
-      // says the site is being updated - with Sign in, how an administrator gets to the Migrations page.
-      await Promise.all([meta.load(), changelog.load(), siteStatus.check()]);
+      // Where the site stands (ready, not set up, an update waiting, closed for maintenance, out of reach), beside
+      // /api/meta - where this server's IAM is -, the site settings (the announcement, and the pages Page access
+      // governs: read before the router's first navigation, so its guard decides the first page with them; it never
+      // rejects - a read that fails leaves every page anybody's) and the changelog, which gives the version shown.
+      // Nothing here stops on an update that waits: /api/meta and the strings stay open then (and while the site is
+      // closed), so the sign-in (or its callback) completes before the first page is drawn, and the gate around the
+      // router outlet shows the page that says the site is being updated - with Sign in, how an administrator gets
+      // to the Migrations page - or the closed sign.
+      await Promise.all([meta.load(), changelog.load(), siteStatus.check(), settings.load()]);
       // The callback finished, a session restored and followed - or, for a visitor signed in at the IAM, the
       // hint's one silent hop (the page then leaves, and this never resolves).
       await auth.init();

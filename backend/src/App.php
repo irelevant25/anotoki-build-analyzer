@@ -12,6 +12,8 @@ use Anotoki\Lib\ErrorLog\ErrorLog;
 use Anotoki\Lib\Feedback\Feedback;
 use Anotoki\Lib\Migrations\Migrator;
 use Anotoki\Lib\People\People;
+use Anotoki\Lib\Robots\Robots;
+use Anotoki\Lib\SiteSettings\SiteSettings;
 use Anotoki\Lib\Translations\Translations;
 use App\Admin\AdminTools;
 use App\Auth\Iam;
@@ -22,6 +24,7 @@ use App\Http\Fetcher;
 use App\Http\HttpClient;
 use App\People\SitePeople;
 use App\Services\Translations\SiteTranslations;
+use App\Web\SitePages;
 use LogicException;
 use ReflectionClass;
 use ReflectionNamedType;
@@ -32,14 +35,14 @@ use ReflectionNamedType;
  * A service is made the first time it is asked for, from its constructor's type hints, and kept for the rest
  * of the request (or command). resetScope() starts the next request afresh - the catalog's in-memory rows, the
  * IAM's answer about signing in - except for what outlives requests on purpose:
- * the database connection, the HTTP client, and the anotoki library's people and admin tools, whose route
- * groups (made once with the API) hold the same objects. The tests replace a service with set(), which also
- * survives resetScope().
+ * the database connection, the HTTP client, and the anotoki library's people, admin tools, site settings and robots,
+ * whose route groups and middleware (made once with the API) hold the same objects. The tests replace a service with
+ * set(), which also survives resetScope().
  */
 final class App
 {
     /** Kept across resetScope(). */
-    private const LASTING = [Db::class, HttpClient::class, People::class, AdminContext::class, AuditLog::class, Feedback::class, Backups::class, ErrorLog::class];
+    private const LASTING = [Db::class, HttpClient::class, People::class, AdminContext::class, AuditLog::class, Feedback::class, Backups::class, ErrorLog::class, SiteSettings::class, Robots::class];
 
     /** @var array<string, object> */
     private array $instances = [];
@@ -151,6 +154,10 @@ final class App
             AuditLog::class => AdminTools::auditLog($this),
             Feedback::class => AdminTools::feedback($this),
             Backups::class => AdminTools::backups($this),
+            // The site settings and robots.txt and sitemap.xml (App\Web\SitePages): the site gate, the Page access gate,
+            // their routes and the sitemap hold the same objects, which read their tables afresh for every question.
+            SiteSettings::class => SitePages::settings($this),
+            Robots::class => SitePages::robots($this),
             default => $this->make($id),
         };
     }

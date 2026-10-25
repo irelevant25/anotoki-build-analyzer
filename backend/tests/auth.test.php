@@ -554,6 +554,10 @@ test('the development router serves the app for its own paths only', function ()
     file_put_contents($app . '/main-ABC123.js', 'console.log(1)');
 
     same('api', DevRouter::resolve('/api/meta', $app)[0], '/api');
+    // What robots read is the front controller's too (anotoki-lib 0.11.0), before any file of the build is looked for.
+    file_put_contents($app . '/robots.txt', "User-agent: *\n");
+    same(['api', 'api'], [DevRouter::resolve('/robots.txt', $app)[0], DevRouter::resolve('/sitemap.xml', $app)[0]], '/robots.txt and /sitemap.xml');
+    same('missing', DevRouter::resolve('/robots.txt.bak', $app)[0], 'nothing else like them');
     same('setup', DevRouter::resolve('/setup.php', $app)[0], '/setup.php');
     same('app', DevRouter::resolve('/', $app)[0], '/');
     same('app', DevRouter::resolve('/accounts/3', $app)[0], 'an app path');

@@ -4,6 +4,7 @@ import { Router, provideRouter } from '@angular/router';
 import { FeedbackUnread } from '@anotoki/lib/admin';
 import { AnotokiPreferences } from '@anotoki/lib/auth';
 import { SiteStatus } from '@anotoki/lib/migrations';
+import { SiteSettings } from '@anotoki/lib/site-settings';
 import { provideAnotokiTranslations } from '@anotoki/lib/translations';
 import { LocalizationDrafts } from '@anotoki/lib/translations/admin';
 import { provideTestTranslations } from '@anotoki/lib/translations/testing';
@@ -49,6 +50,8 @@ interface Who {
   unread?: number | null;
   /** A database update waits (the ADMIN on the Migrations page has the panel then). */
   updateWaits?: boolean;
+  /** The site's ADMIN has closed the site for maintenance (the site settings, as every page is told them). */
+  maintenance?: boolean;
   /** The page the panel opens on. */
   path?: string;
   /** The account's theme, dates and clock, as an IAM that keeps them sends them. */
@@ -125,7 +128,9 @@ async function open(who: Who) {
       { provide: AuthService, useValue: auth },
       { provide: FeedbackUnread, useValue: unread },
       { provide: Changelog, useValue: changelog },
-      { provide: SiteStatus, useValue: { blocked: signal(who.updateWaits ?? false) } },
+      { provide: SiteStatus, useValue: { blocked: signal(who.updateWaits ?? false), state: signal(who.updateWaits ? 'update-pending' : 'ready') } },
+      // What the administrators' notice reads (the family's site settings, as every page is told them).
+      { provide: SiteSettings, useValue: { isAdmin: () => roles.includes('ADMIN'), maintenance: signal(who.maintenance ?? false), noticeFor: () => null } },
     ],
   });
   // The admin panel reads English whatever the reader reads (the title strategy tells the service where it is).
@@ -211,21 +216,41 @@ describe("the admin panel: the anotoki family's admin frame, told what is this s
     expect(unread.refresh).not.toHaveBeenCalled();
   });
 
-  it("gives the ADMIN every page, as the bar had them - Languages, People, Migrations and the family's admin tools too - under their headings", async () => {
+  it("gives the ADMIN every page, in the one shape every anotoki admin panel has - Builds; Localization; System, the family's pages in the family's order and words", async () => {
     const { host } = await open({ roles: ['ADMIN'] });
 
     expect(pages(column(host))).toEqual([
       'Builds /admin/builds [page]',
       'Translations /admin/translations',
       'Languages /admin/languages',
+      'Site settings /admin/site-settings',
       'People /admin/people',
-      'Migrations /admin/migrations',
-      'Errors /admin/errors',
-      'Audit /admin/audit',
       'Feedback /admin/feedback',
+      'Error log /admin/errors',
+      'Audit log /admin/audit',
       'Backups /admin/backups',
+      'Migrations /admin/migrations',
     ]);
     expect(headings(column(host))).toEqual(['Localization', 'System']);
+  });
+
+  it('while a database update waits, links the ADMIN to Migrations alone - the one page of the site that works then - and asks nobody what feedback is new', async () => {
+    const { host, unread } = await open({ roles: ['ADMIN'], updateWaits: true, path: '/admin/migrations' });
+
+    expect(pages(column(host))).toEqual(['Migrations /admin/migrations [page]']);
+    expect(headings(column(host))).toEqual([]);
+    expect(unread.refresh).not.toHaveBeenCalled();
+  });
+
+  it("says above every page, while the ADMIN has closed the site for maintenance, that it is closed - the family's notice in the frame, nothing otherwise", async () => {
+    const notice = (host: HTMLElement) => clean(frame(host)!.querySelector('anotoki-page-notice')?.textContent);
+
+    expect(notice((await open({ roles: ['ADMIN'] })).host)).toBe('');
+    TestBed.resetTestingModule();
+    const { host } = await open({ roles: ['ADMIN'], maintenance: true });
+    expect(notice(host)).toContain('closed');
+    // Outside the page: above it, in the frame's page column.
+    expect(frame(host)!.querySelector('main#main anotoki-page-notice')).toBeNull();
   });
 
   it("marks the page's own: a character's builds editor is the Builds page's", async () => {
@@ -318,12 +343,13 @@ describe("the admin panel: the anotoki family's admin frame, told what is this s
       'Builds',
       'Translations',
       'Languages',
+      'Site settings',
       'People',
-      'Migrations',
-      'Errors',
-      'Audit',
       'Feedback',
+      'Error log',
+      'Audit log',
       'Backups',
+      'Migrations',
     ]);
   });
 

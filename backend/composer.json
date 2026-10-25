@@ -40,6 +40,11 @@
       "site": "build-analyzer",
       "remote": "/anotoki.eu/sub/builder",
       "url": "https://builder.anotoki.eu",
+      "routes": [
+        "api",
+        "robots.txt",
+        "sitemap.xml"
+      ],
       "frontendBuild": "npm run build && node ../backend/tools/check-release.mjs",
       "headers": {
         "Referrer-Policy": "strict-origin-when-cross-origin"

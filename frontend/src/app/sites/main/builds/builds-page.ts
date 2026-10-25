@@ -9,6 +9,7 @@ import { IconComponent } from '@anotoki/lib/ui/icon';
 import { LabelledGroupComponent } from '@anotoki/lib/ui/labelled-group';
 import { LinkCardComponent } from '@anotoki/lib/ui/link-card';
 import { PageHeaderComponent } from '@anotoki/lib/ui/page-header';
+import { matchesSearch } from '@anotoki/lib/ui/search';
 import { SegmentedComponent, SegmentedOption } from '@anotoki/lib/ui/segmented';
 import { SpinnerComponent } from '@anotoki/lib/ui/spinner';
 import { Api } from '../../../api/api';
@@ -150,14 +151,17 @@ export class BuildsPage {
     return [...names.keys()].sort(newestFirst).map((version) => ({ value: version, label: names.get(version) ? `${version} (${names.get(version)})` : version }));
   });
 
-  /** The characters the filters find, each with its builds' roles worded ("Main DPS, Support"). */
+  /**
+   * The characters the filters find, each with its builds' roles worded ("Main DPS, Support"). The name is found the
+   * family's way (@anotoki/lib/ui/search): each word typed anywhere in it, accents and case aside.
+   */
   protected readonly filtered = computed(() => {
-    const query = this.search().trim().toLowerCase();
+    const query = this.search();
     const [element, weapon, rarity, region, version] = [this.element(), this.weapon(), this.rarity(), this.region(), this.version()];
     return this.characters()
       .filter(
         (c) =>
-          (!query || c.name.toLowerCase().includes(query)) &&
+          matchesSearch(c.name, query) &&
           (element === ALL || c.element === element) &&
           (weapon === ALL || c.weapon_type === weapon) &&
           (rarity === ALL || String(c.rarity) === rarity) &&

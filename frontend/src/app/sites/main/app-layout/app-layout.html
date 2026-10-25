@@ -1,5 +1,9 @@
+<!-- The site settings' announcement, when the administrators have something to say: the site talking, above its bar (the family's, @anotoki/lib/site-settings - hidden in this browser until its words change). -->
+<anotoki-announcement />
 <anotoki-shell>
     <app-top-bar topBar />
+    <!-- What the site's administrators alone read above the page: the site is closed for maintenance, this page is switched off, or kept for some readers (nothing for anybody else). -->
+    <anotoki-page-notice class="page-notice" />
     <router-outlet />
     <anotoki-site-footer shellFooter [version]="changelog.current()" [whatsNew]="changelog.current() !== null" (whatsNew)="changelog.open()" [feedback]="feedback()" fan="hoyoverse" />
 </anotoki-shell>

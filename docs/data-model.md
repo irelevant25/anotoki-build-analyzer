@@ -252,10 +252,10 @@ A database adopted from the Laravel version gives every account and import run w
 Tests never assume which negative id a visitor gets: `TRUNCATE ... RESTART IDENTITY` does not reset
 `visitor_ids` (no column owns it).
 
-## The library's own tables (people and the admin tools)
+## The library's own tables (people, the admin tools, the site settings)
 
-Made by the anotoki library's sets, read and written by its modules only (anotoki-lib's README, "People" and
-"Admin tools", says what each column holds):
+Made by the anotoki library's sets, read and written by its modules only (anotoki-lib's README, "People",
+"Admin tools" and "Site settings", says what each column holds):
 
 | Table | Notes |
 | --- | --- |
@@ -263,6 +263,8 @@ Made by the anotoki library's sets, read and written by its modules only (anotok
 | `anotoki_people_anonymized` | the IAM ids the IAM deleted (whether a row was here or not), with when: a token naming one never makes a row again |
 | `anotoki_audit_log` | what was done in the admin panel: `actor_id` (the IAM id; NULL for the command line and the day's backup), `action` (`builds.imported`, `catalog.refreshed`, `translations.saved`, `person.data_deleted`, `backup.created` …), `target_type` / `target_id`, `details` (JSONB). No address is kept (`ip` stays NULL). Never restored by a backup's restore - a restore reads it: every `person.data_deleted` and `feedback.deleted` since the backup is done again, each written inside its delete's own transaction (its `details` name it, `_txid`; anotoki-lib 0.5.0); the scrub blanks a deleted person's name in the details |
 | `anotoki_feedback` | the visitors' messages: `kind`, `section`, `subject`, `message`, `details`, `contact_email` (only what the form sent: for a signed-in person the page writes their account's address in, to keep, change or clear; none when sent "without my name"), `user_id` (the token's, never the body's; NULL without a name), `page` (a path, no query), `language`, `user_agent`, `status` (`new` \| `read` \| `resolved` \| `spam`), `handled_by`. Nothing of where it came from (no address, no hash); the scrub blanks a deleted person's address and browser, the message stays |
+| `anotoki_site_settings` | the site settings' switches (anotoki-lib 0.11.0, `anotoki_admin/003`): `name` (`maintenance_mode`, `announcement_level`, ...), `value` (JSONB: true or false, a level, a text per language), `updated_at`, `updated_by` (the IAM id of who changed it last). Empty after the migration: the site open, no announcement. The People page's delete sets a person's `updated_by` to NULL here (`SitePeople::deleteData()`), the setting staying |
+| `anotoki_page_access` | Page access, a row per page (`path` as the router names it - `/`, `/accounts/:id`, `/builds/:game/:key` ...): `visibility` (the least a reader must be: `PUBLIC`, `USER`, `EDITOR`, `ADMIN`), `blocked` (off for everybody but the administrators), `api_paths` (what the page reads, refused alike: 423 `page_locked`), `sort_order`, `updated_at`, `updated_by` (NULLed by the People page's delete, as above). No row: the page as it always was |
 
 ## Catalog (reference data, filled by catalog refreshes)
 

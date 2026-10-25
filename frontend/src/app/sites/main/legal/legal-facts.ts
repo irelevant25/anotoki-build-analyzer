@@ -10,14 +10,15 @@ import { LANGUAGE_STORAGE } from '../../../shared/i18n/translations.config';
 import { MetaStore } from '../../../shared/meta-store';
 import { THEME_KEY } from '../../../shared/shell';
 import { SIGN_IN_KIND_STORAGE_KEY } from '../../../shared/sign-in-kind';
+import { ANNOUNCEMENT_KEY } from '../../../shared/site-settings';
 import { VISITOR_STORAGE_KEY } from '../../../shared/visitor-key';
 
 /**
  * The day this site's facts last changed: the pages show the later of it and the day the library's own words last
  * did. Move it with any change to what the site keeps or for how long - and the strings that say so (`legal.*`,
- * migration 011).
+ * migration 011; the site settings' part, 025).
  */
-export const SITE_LEGAL_UPDATED = '2026-10-23';
+export const SITE_LEGAL_UPDATED = '2026-10-25';
 
 /**
  * The anotoki account's cookie for every anotoki site (the IAM's hint_cookie_name, set under the IAM's parent
@@ -69,6 +70,10 @@ export function legalPagesConfig(): AnotokiLegalConfig {
  *   never a name - the Builds page names them by their row, which the scrub makes the IAM's placeholder; the People
  *   delete sets it NULL by the foreign key), translations.updated_by (the People delete forgets it:
  *   SiteTranslations::forgetWriter());
+ * - the site settings' changers (anotoki-lib 0.11.0, the library's anotoki_admin/003): anotoki_site_settings.updated_by
+ *   and anotoki_page_access.updated_by - who changed a switch or a page's row last (the IAM's sub, never a name: the
+ *   Site settings page names them by their row, which the scrub makes the IAM's placeholder), and when; until it is
+ *   changed again; the People delete sets it NULL (App\People\SitePeople::deleteData()) - migration 025's legal.settings.*;
  * - the limits: the cache table's counts (rate:{name}:user:{id} or :ip:{keyed hash}, a minute; visitors:new:{keyed
  *   hash}, an hour - App\Web\ClientAddress::countedKey()) and the library's feedback and error-report counts (a day
  *   of keyed hashes, in storage/cache); the cache table's expired rows go with the day's tidying up (App\Cache\Prune,
@@ -88,8 +93,9 @@ export function legalPagesConfig(): AnotokiLegalConfig {
  * - the error log: the library's words and its 30 days (AdminTools::errorLog() sets no `days`); never an address, a
  *   keyed hash of its bucket;
  * - the audit log: builds imported from a file or edited by hand (builds.imported, builds.edited - who saved which
- *   character's builds; no name is kept with a build), the catalog refreshed, the strings and languages, a person's
- *   data deleted, migrations applied, the tools' own - editors' too, so in this site's words;
+ *   character's builds; no name is kept with a build), the catalog refreshed, the strings and languages, the site
+ *   settings changed (site_settings.changed, page_access.added, .changed, .removed), a person's data deleted,
+ *   migrations applied, the tools' own - editors' too, so in this site's words;
  *   no address (AdminTools::auditLog() sets no recordAddress), never pruned;
  * - backups: the library's, plain (sealed, not encrypted), its keeping by count - 14 daily (made after an answer
  *   on a UTC day the site is used), 5 before an update, 5 before a restore, by hand until deleted
@@ -100,7 +106,8 @@ export function legalPagesConfig(): AnotokiLegalConfig {
  *   IAM's hint cookie (read here), how the present sign-in began (SIGN_IN_KIND_STORAGE_KEY), the theme (THEME_KEY),
  *   the language and its cached strings (LANGUAGE_STORAGE; a `?lang=` held for the tab under its language name in
  *   sessionStorage), the visitor's key (VISITOR_STORAGE_KEY), What's new seen (CHANGELOG_SEEN_KEY), the admin
- *   pages' unsaved words (LANGUAGE_STORAGE.drafts);
+ *   pages' unsaved words (LANGUAGE_STORAGE.drafts), the mark of the announcement its reader hid (ANNOUNCEMENT_KEY:
+ *   the library's preset - a mark of its words and kind, never the words);
  * - counting visits: the family's Umami (src/index.html: umami.anotoki.eu, the query and the fragment left out) -
  *   the library's words;
  * - who else handles data: the hosting company (HOSTING), Cloudflare, and the public showcase service a UID import
@@ -140,6 +147,12 @@ export function siteLegalFacts(i18n: TranslationService, auth: AnotokiAuth, visi
         what: i18n.t('legal.staff.what'),
         why: i18n.t('legal.staff.why'),
         kept: i18n.t('legal.staff.kept'),
+      },
+      {
+        name: i18n.t('legal.settings.name'),
+        what: i18n.t('legal.settings.what'),
+        why: i18n.t('legal.settings.why'),
+        kept: i18n.t('legal.settings.kept'),
       },
       {
         name: i18n.t('legal.limits.name'),
@@ -221,6 +234,8 @@ export function siteLegalFacts(i18n: TranslationService, auth: AnotokiAuth, visi
         purpose: i18n.t('legal.storage.wordDrafts.purpose'),
         kept: i18n.t('legal.storage.untilTabClosed'),
       },
+      // The announcement bar's mark of the announcement its reader hid (shared/site-settings.ts): the library's words.
+      { preset: 'announcement', name: ANNOUNCEMENT_KEY },
     ],
     processors: [
       { preset: 'hosting', name: HOSTING.name, url: HOSTING.url },

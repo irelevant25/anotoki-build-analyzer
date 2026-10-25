@@ -47,7 +47,15 @@ Setting it up, running, testing, building and deploying: **[DEV.md](DEV.md)**.
 - **The admin panel in the anotoki family's frame** (anotoki-lib 0.10.0, as on every anotoki site): no top bar - its
   pages in a column on the left, under the panel's name, who is signed in, Back to Build Analyzer, Sign out and the
   theme, and the page on the right; on a phone (up to 860 px) a row with the panel's name and Menu, the column in a
-  drawer.
+  drawer. Its menu has the family's one shape (anotoki-lib 0.11.0): Builds; Localization - Translations, Languages;
+  System - Site settings, People, Feedback, Error log, Audit log, Backups, Migrations.
+- **Site settings** (anotoki-lib 0.11.0, the ADMIN's, as on every anotoki site): close the site for maintenance (the
+  ADMIN uses it as it is; an administrator signed out signs in at `/staff`), put an announcement above every page,
+  and keep a page - the dashboard, the import, an account, a character, the builds - for people signed in, for editors,
+  for administrators, or switch it off, with the API paths it reads.
+- **robots.txt and sitemap.xml**, answered by the site's PHP: robots kept out of the admin panel, the API, the
+  sign-in's way back and a reader's own accounts; the sitemap lists the legal pages, and while visitors are welcome
+  the public pages and every character's builds - never what the site settings hide.
 - **One anotoki account, one look**: signed in, the theme (the admin panel's too), the language and how dates
   are written are the anotoki account's - the same on every anotoki site - and a choice in the bar is saved to
   it. Without signing in, each browser keeps its own.
@@ -242,7 +250,8 @@ backend/
   src/                  App (container), Config, Db/ (PDO; the site's migrations on anotoki-lib's engine), Auth/, Http/ (fetcher),
                         Cache/ (the cache table, the day's tidying up), Models/, Repositories/, Presenters/, Commands/,
                         Setup/, Support/ (stats, talents, keys, neutral text), People/ (the people module on this
-                        site's users), Admin/ (the admin tools), Web/ (the pipeline, the address, after the answer)
+                        site's users), Admin/ (the admin tools), Web/ (the pipeline, the address, after the answer,
+                        SitePages - the site settings' and robots' part of this site)
   src/Services/         Catalog/ (the game catalog from genshin.anotoki.eu, name resolution, the upkeep), Import/
                         (showcase + GOOD parsers, AccountImporter, ImportKinds), Builds/ (the builds file and its
                         import), Transfer/ (a person's accounts file), Analysis/ (scores, recommendations, the best
@@ -260,19 +269,21 @@ frontend/src/app/       the anotoki family's folders, the genshin site's: api/, 
   shared/               what both halves use: metadata store, changelog and its dialog, sign-in (on anotoki-lib's auth
                         module), the visitor key, i18n/ (the site's words on anotoki-lib's service: typed keys, pipes,
                         the compiled English, a variation's words), site-status (anotoki-lib's site gate and Migrations
-                        page, wired to this site), the one Sign out, the character avatar, ...
-  sites/main/           everybody's pages (main.routes.ts): app-layout (their frame, with the top bar), dashboard,
-                        import wizard, account, character analysis (a tab per variation), builds (the browser with
-                        its filters), legal/ (the legal pages' frame with the site's facts; About and Support, /about
+                        page, wired to this site), site-settings (anotoki-lib's site settings, wired to this site),
+                        the one Sign out, the character avatar, ...
+  sites/main/           everybody's pages (main.routes.ts): app-layout (their frame, with the announcement and the top
+                        bar), dashboard, import wizard, account, character analysis (a tab per variation), builds (the
+                        browser with its filters), not-open (a page the site settings closed, where the dashboard is
+                        closed too), legal/ (the legal pages' frame with the site's facts; About and Support, /about
                         and /support), common/ (the top bar, build detail, item card, grade badge, score bar, the
                         visitor notice, the ways in for somebody new, the "Your data" card, game terms, the filters
-                        kept in the address)
+                        kept in the address); /staff, where an administrator signs in while the site is closed
   sites/admin/          the admin panel (admin.routes.ts): app.ts (its frame - anotoki-lib's admin frame, the pages
                         in a column on the left, no top bar), builds, build-editor, translations, languages,
                         migrations - translations, languages and migrations are anotoki-lib's pages, and so are
-                        People and the admin tools, routed straight. Both frames with anotoki-lib's footer (version,
-                        What's new, Feedback; About · Support · Terms · Privacy · Contact)
-frontend/public/        changelog.json, favicon, robots.txt (keeps search engines off /auth/)
+                        Site settings, People and the admin tools, routed straight. Both frames with anotoki-lib's
+                        footer (version, What's new, Feedback; About · Support · Terms · Privacy · Contact)
+frontend/public/        changelog.json, favicon (robots.txt and sitemap.xml are the backend's: anotoki-lib's Robots)
 docs/                   knowledge base (start at docs/README.md)
 .claude/                project skills and agents for AI-assisted work
 local/                  (git-ignored, never in the repository) the owner's own tools that make the builds file

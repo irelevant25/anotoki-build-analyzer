@@ -8,13 +8,13 @@ import { IconComponent } from '@anotoki/lib/ui/icon';
 import { SpinnerComponent } from '@anotoki/lib/ui/spinner';
 import { TabItem, TabsComponent } from '@anotoki/lib/ui/tabs';
 import { TooltipDirective } from '@anotoki/lib/ui/tooltip';
+import { AnotokiAgoPipe } from '@anotoki/lib/ui/dates';
 import { Api } from '../../../api/api';
 import { AuthService } from '../../../shared/auth';
 import { titleCase } from '../../../shared/format';
 import { GAME_TERMS, level } from '../common/game-terms';
 import { TranslationKey } from '../../../shared/i18n/en';
 import { ErrorTextPipe, isSignInRefusal } from '../../../shared/i18n/error-text';
-import { LocalDatePipe } from '../../../shared/i18n/local-date';
 import { recommendationText } from '../../../shared/i18n/recommendation-words';
 import { TranslatePipe } from '../../../shared/i18n/translate';
 import { TranslatePluralPipe } from '../../../shared/i18n/translate-plural';
@@ -92,7 +92,7 @@ const SEVERITY_ICONS = new Map<string, string>([
     StatLabelPipe,
     StatValuePipe,
     ErrorTextPipe,
-    LocalDatePipe,
+    AnotokiAgoPipe,
     TranslatePipe,
     TranslatePluralPipe,
     VisitorHero,

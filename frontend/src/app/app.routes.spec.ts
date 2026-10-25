@@ -1,11 +1,13 @@
 import { ChangeDetectionStrategy, Component } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
-import { Route, Router, RouterOutlet, Routes, provideRouter } from '@angular/router';
+import { CanMatchFn, Route, Router, RouterOutlet, Routes, provideRouter } from '@angular/router';
 import { RouterTestingHarness } from '@angular/router/testing';
+import { pageAccessGuard } from '@anotoki/lib/site-settings';
 import { routes } from './app.routes';
 import { sitePagesGuard } from './shared/auth.guards';
 import { LEGAL_PAGE_PATHS } from './shared/legal';
 import { AppLayout } from './sites/main/app-layout/app-layout';
+import { staffRouteGuard } from './sites/main/main.routes';
 
 @Component({
   selector: 'app-test-frame',
@@ -22,10 +24,15 @@ class FrameStandIn {}
 })
 class PageStandIn {}
 
+/** The pages a test closes to the reader: Page access's guard stands in as one that refuses these addresses. */
+const closed = new Set<string>();
+const closedStandIn: CanMatchFn = (_route, segments) => !closed.has(`/${segments.map((segment) => segment.path).join('/')}`);
+
 /**
  * The app's routes as they are - their paths, their order, their nesting, their redirects - with a stand-in for
  * every frame and page and no guard, each knowing the route it stands for: what the router itself makes of an
- * address is what is checked.
+ * address is what is checked. Page access's guard (the family's pageAccessGuard, a canMatch) stands in as one that
+ * refuses the addresses a test closes.
  */
 function standIns(list: Routes): Routes {
   return list.map((route): Route => {
@@ -37,6 +44,7 @@ function standIns(list: Routes): Routes {
       pathMatch: route.pathMatch,
       matcher: route.matcher,
       data: { route },
+      ...(route.canMatch?.includes(pageAccessGuard) ? { canMatch: [closedStandIn] } : {}),
     };
     return route.children ? { ...standIn, component: FrameStandIn, children: standIns(route.children) } : { ...standIn, component: PageStandIn };
   });
@@ -60,6 +68,7 @@ function taken(): Route[] {
  */
 describe('the routes: what the router makes of an address', () => {
   beforeEach(() => {
+    closed.clear();
     TestBed.configureTestingModule({ providers: [provideRouter(standIns(routes))] });
   });
 
@@ -108,13 +117,52 @@ describe('the routes: what the router makes of an address', () => {
     }
   });
 
-  it("puts About, Support and the legal pages where the footer's links go - the library's paths - and before everybody's pages and the \"**\" at the end", () => {
+  it("puts About, Support and the legal pages where the footer's links go - the library's paths - and before everybody's pages, whose \"**\" comes last", () => {
     const top = routes.map((one) => one.path);
     expect(LEGAL_PAGE_PATHS).toEqual(['/about', '/support', '/terms', '/privacy', '/contact']);
     for (const path of LEGAL_PAGE_PATHS) {
       expect(top.indexOf(path.slice(1)), path).toBeGreaterThan(-1);
       expect(top.indexOf(path.slice(1)), path).toBeLessThan(top.indexOf(''));
-      expect(top.indexOf(path.slice(1)), path).toBeLessThan(top.indexOf('**'));
     }
+    // Everybody's pages come last, and their own last two routes are the "**": the dashboard, then the page that is not open.
+    expect(top.indexOf('')).toBe(top.length - 1);
+    const last = routes[routes.length - 1].children!.slice(-2);
+    expect(last.map((one) => [one.path, one.redirectTo, one.title])).toEqual([
+      ['**', '', undefined],
+      ['**', undefined, 'title.notOpen'],
+    ]);
+  });
+
+  it("puts Page access on every one of everybody's pages - the dashboard, the import, an account and a character of it, the builds and a character's builds - and on nothing else", () => {
+    const governed = routes[routes.length - 1].children!.filter((one) => one.canMatch?.includes(pageAccessGuard)).map((one) => one.path);
+    expect(governed).toEqual(['', 'import', 'accounts/:id', 'accounts/:id/characters/:key', 'builds/:game', 'builds/:game/:key']);
+    // Nobody's to govern: the sign-in's way back and its failure's screen, the legal pages, About, Support, the admin panel.
+    const all = (list: Routes): Route[] => list.flatMap((one) => [one, ...all(one.children ?? [])]);
+    const elsewhere = all(routes).filter((one) => one.canMatch?.includes(pageAccessGuard) && !routes[routes.length - 1].children!.includes(one));
+    expect(elsewhere).toEqual([]);
+  });
+
+  it('a page Page access closes to the reader falls through to the dashboard - never a redirect that says it exists; where the dashboard is closed too, the page that says it is not open', async () => {
+    const harness = await RouterTestingHarness.create();
+    closed.add('/import');
+    await harness.navigateByUrl('/import');
+    let [frame, page] = taken();
+    expect([TestBed.inject(Router).url, frame.component, page.path, page.pathMatch]).toEqual(['/', AppLayout, '', 'full']);
+
+    closed.add('/');
+    await harness.navigateByUrl('/import');
+    [frame, page] = taken();
+    expect([TestBed.inject(Router).url, frame.component, page.path, page.title]).toEqual(['/', AppLayout, '**', 'title.notOpen']);
+    expect(((await page.loadComponent!()) as { name: string }).name).toContain('NotOpen');
+    // An unknown address too: no second redirect.
+    await harness.navigateByUrl('/no-such-page');
+    expect(taken()[1].title).toBe('title.notOpen');
+  });
+
+  it('/staff - where an administrator signs in while the site is closed - is a route of its own, never the "**"\'s: its guard keeps it while the site is closed to the reader, and goes on to the dashboard otherwise', async () => {
+    const harness = await RouterTestingHarness.create();
+    await harness.navigateByUrl('/staff');
+    const [staff, ...more] = taken();
+    expect([TestBed.inject(Router).url, staff.path, staff.canActivate, more]).toEqual(['/staff', 'staff', [staffRouteGuard], []]);
   });
 });

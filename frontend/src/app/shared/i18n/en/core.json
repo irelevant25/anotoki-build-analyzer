@@ -6,6 +6,10 @@
   "title.buildCharacter": "Character builds",
   "title.signIn": "Sign in",
   "title.signingIn": "Signing in",
+  "title.notOpen": "Not open right now",
+
+  "notOpen.title": "This page is not open right now",
+  "notOpen.text": "The site's administrators have closed it for now, or opened it for some people only.",
 
   "error.offline": "Cannot reach the server. Check your connection and try again.",
   "error.sign_in_required": "Your sign-in has ended. Sign in again to continue.",

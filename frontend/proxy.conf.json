@@ -4,6 +4,16 @@
     "secure": false,
     "changeOrigin": false
   },
+  "/robots.txt": {
+    "target": "http://localhost:8400",
+    "secure": false,
+    "changeOrigin": false
+  },
+  "/sitemap.xml": {
+    "target": "http://localhost:8400",
+    "secure": false,
+    "changeOrigin": false
+  },
   "/setup.php": {
     "target": "http://localhost:8400",
     "secure": false,

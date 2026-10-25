@@ -7,7 +7,7 @@ these steps (configuration keys, sign-in and roles, the catalog, importing build
 | Part | Folder | Stack | Address in development |
 | --- | --- | --- | --- |
 | Backend (API, importers, the builds' import, the catalog, analysis) | `backend/` | PHP 8.4+, Slim 4, PostgreSQL | http://localhost:8400 |
-| Frontend | `frontend/` | Angular 21, the anotoki family's kit (`@anotoki/lib`) | http://localhost:4600 (proxies `/api` and `/setup.php` to :8400) |
+| Frontend | `frontend/` | Angular 21, the anotoki family's kit (`@anotoki/lib`) | http://localhost:4600 (proxies `/api`, `/setup.php`, `/robots.txt` and `/sitemap.xml` to :8400) |
 | Sign-in | the anotoki IAM (`../anotoki-iam`) | | pages http://localhost:4300, API :8100 |
 
 ## Prerequisites
@@ -133,8 +133,8 @@ ran on SQLite is not carried over: import the accounts again, and a builds file;
   and English in `frontend/src/app/shared/i18n/en/*.json` plus a new migration with the key, its description, the
   English and informal Slovak ("ty"). What the server says to a member (recommendations, import errors and
   warnings) is a kind with params that the page words. Game terms and the game's notation are never
-  translated. The admin panel (`/admin/`: Builds, Translations, Languages, People, Migrations and the admin tools)
-  stays English. See [docs/architecture.md](docs/architecture.md) ("The site's words").
+  translated. The admin panel (`/admin/`: Builds, Translations, Languages, Site settings, People, the admin tools
+  and Migrations) stays English. See [docs/architecture.md](docs/architecture.md) ("The site's words").
 - **A new release**: add an entry at the top of `frontend/public/changelog.json` (version, date, and what
   changed, in plain words for the people using the app) and raise `backend/src/Version.php` and
   `frontend/package.json`'s `version` to the same version (`tests/auth.test.php` holds the three together). A
@@ -146,23 +146,26 @@ ran on SQLite is not carried over: import the accounts again, and a builds file;
 
 What the anotoki sites share lives in one library, [irelevant25/anotoki-lib](https://github.com/irelevant25/anotoki-lib),
 in two halves with one version: the Composer package `anotoki/lib` (`backend/composer.json`: a `vcs` repository
-entry and `"anotoki/lib": "^0.10.0"`; installed into `backend/vendor/`, which the upload carries) and the npm
-package `@anotoki/lib` (`frontend/package.json`: the release's tarball). Both halves are 0.10.0 (0.6.0: the legal
+entry and `"anotoki/lib": "^0.11.0"`; installed into `backend/vendor/`, which the upload carries) and the npm
+package `@anotoki/lib` (`frontend/package.json`: the release's tarball). Both halves are 0.11.0 (0.6.0: the legal
 pages - Terms, Privacy, Contact - and the kit's newer pieces; 0.6.1 and 0.6.2: the Privacy page's sentences made
 true on every site; 0.6.3: the family's footer, this site's own made the library's; 0.7.0: the library's folders
 renamed - its PHP half's files are under `vendor/anotoki/lib/backend/`; 0.7.1: the footer's version written short,
 "v0.4.0"; 0.7.2: the feedback form saying itself whom its message is for, and the library's words in the reader's
 language while no bundle is in memory; 0.8.0: the About and Support pages on `/about` and `/support`, linked first
 in the footer; 0.10.0: the admin panel's frame, genshin's, for every anotoki site - `<anotoki-admin-frame>`, the
-panel's pages in a column on the left and no top bar). A minor version is taken by
+panel's pages in a column on the left and no top bar; 0.11.0: the site settings - closing the site for a while,
+an announcement above every page, who may see which page -, robots.txt and sitemap.xml from the site's PHP, the
+kit's dates and search, and one shape for every admin menu). A minor version is taken by
 hand while the version is 0.x: `^0.5.0` never took 0.6 by itself;
 never 0.4.0, whose Feedback page fails on PHP 8.2. Besides the translations
 module, the auth module (signing in through the anotoki IAM: the token check, the IAM's switch, the browser's
 client, interceptor, guards and the sign-in hint), the people module (the People page, the scrub of the accounts
 the IAM deleted, what a restore does again), the admin tools (the error log - the browser's errors too -, the
 audit log, feedback, sealed backups, one reading of a request's address), the legal pages (with this site's
-facts: `frontend/src/app/sites/main/legal/legal-facts.ts`), the footer (`<anotoki-site-footer>`, in both frames) and
-the admin panel's frame (`frontend/src/app/sites/admin/app.ts`) - each set
+facts: `frontend/src/app/sites/main/legal/legal-facts.ts`), the footer (`<anotoki-site-footer>`, in both frames),
+the admin panel's frame (`frontend/src/app/sites/admin/app.ts`), the site settings and robots.txt / sitemap.xml
+(this site's part in `backend/src/Web/SitePages.php` and `frontend/src/app/shared/site-settings.ts`) - each set
 up for this site where it is
 used - they hold the migrations module, one behaviour for every anotoki site while its database is not ready:
 
@@ -210,8 +213,8 @@ never from a local copy. Then run the tests, the production build and the browse
 ## Testing
 
 ```bash
-cd backend && php tests/run.php            # every backend test file: 24 files, 364 tests (or one: php tests/auth.test.php)
-cd frontend && npx ng test --watch=false   # frontend unit tests (Vitest): 56 spec files, 502 tests
+cd backend && php tests/run.php            # every backend test file: 25 files, 379 tests (or one: php tests/auth.test.php)
+cd frontend && npx ng test --watch=false   # frontend unit tests (Vitest): 56 spec files, 510 tests
 cd frontend && npx ng build                # the production build must pass too
 bun run format:check                       # Prettier on every file of both halves, at the root (bun install there first)
 php backend/tools/check-names.php          # from the root: no tracked file names a build site
@@ -242,7 +245,9 @@ English and Slovak, every part's form, a team with its note, read back on the me
 390 px with no key on the page, the account's theme, dates and language saved from the bar to the
 stand-in IAM, the automatic sign-in by the IAM's hint, the screen of a sign-in that failed, the feedback form,
 the admin panel's frame (its column, and its drawer on a phone), the People page and the admin tools (light and
-dark, 1280 and 390 px), Terms, Privacy and Contact from the
+dark, 1280 and 390 px), the site settings (the page; an announcement above everybody's pages in English and Slovak;
+a page kept for people signed in; the site closed for maintenance - the closed sign, the ADMIN using the site, Sign
+in at `/staff`) with robots.txt and sitemap.xml, Terms, Privacy and Contact from the
 footer (1280 and 390 px, light and dark, English and Slovak; read while sign-in is required too), and the site
 while an update waits and while it is not set up (the site gate's pages with no page made behind them, the
 Migrations page, Sign in from the waiting page):
@@ -394,6 +399,11 @@ one (the Backups page, "before an update"). `config/*.local.php` and `storage/` 
   pending** at once - no build changes, and nothing is imported again; a note saved to check it is seen by every
   member at once (a real one, or deleted again). [docs/operations.md](docs/operations.md), "Deploying 0.7.0".
 - **Version 0.7.1** (no migration): the release only. [docs/operations.md](docs/operations.md), "Deploying 0.7.1".
+- **The site settings, robots.txt and sitemap.xml** (anotoki-lib 0.11.0, both halves; migration 025 and the
+  library's `anotoki_admin/003`, `anotoki_translations/014` and `015`): Export each language, upload the release
+  with `vendor/`, **Apply pending** at once - the settings start empty (the site open, no announcement, every page
+  as before). Then `/robots.txt` ends with the Sitemap line and `/sitemap.xml` lists the pages.
+  [docs/operations.md](docs/operations.md), "Deploying anotoki-lib 0.11.0".
 - **The IAM's sign-in switch** (now the library's `SignInRule`): upload only once the IAM answers
   `https://iam.anotoki.eu/api/public/applications/build-analyzer` with 200 - before that the site requires
   sign-in (fail closed) and turns visitors away. [docs/operations.md](docs/operations.md), "Deploying".

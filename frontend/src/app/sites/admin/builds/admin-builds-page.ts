@@ -15,6 +15,8 @@ import { SpinnerComponent } from '@anotoki/lib/ui/spinner';
 import { StatTileComponent, StatTilesComponent } from '@anotoki/lib/ui/stat-tiles';
 import { ToastService } from '@anotoki/lib/ui/toast';
 import { TooltipDirective } from '@anotoki/lib/ui/tooltip';
+import { AnotokiAgoPipe } from '@anotoki/lib/ui/dates';
+import { filterBySearch } from '@anotoki/lib/ui/search';
 import { firstValueFrom } from 'rxjs';
 import { Api, errorMessage, fileErrorMessage } from '../../../api/api';
 import { AuthService } from '../../../shared/auth';
@@ -36,7 +38,6 @@ import {
   GameKey,
 } from '../../../api/models';
 import { Avatar } from '../../../shared/char-avatar';
-import { TimeAgoPipe } from '../../../shared/stat-pipes';
 import { EditorCatalogs } from '../build-editor/editor-catalogs';
 import {
   BUILD_FILE_MAX_BYTES,
@@ -110,11 +111,6 @@ export interface CharacterRow {
 /** A word of the game's as the admin panel writes it: "pyro" is "Pyro"; none is "—". */
 function gameWord(value: string | null): string {
   return value ? `${value.charAt(0).toUpperCase()}${value.slice(1)}` : '—';
-}
-
-/** Text as the table's search compares it: without its case and its accents ("Fúrina" finds "furina"). */
-function folded(text: string): string {
-  return text.normalize('NFD').replace(/\p{M}/gu, '').toLowerCase();
 }
 
 /** The badge after a change's line: its colour repeats the word. */
@@ -207,7 +203,7 @@ function idle(): GameState {
     TextFieldComponent,
     RouterLink,
     Avatar,
-    TimeAgoPipe,
+    AnotokiAgoPipe,
   ],
   templateUrl: './admin-builds-page.html',
   styleUrl: './admin-builds-page.scss',
@@ -241,15 +237,14 @@ export class AdminBuildsPage {
 
   /**
    * Each game's Edit builds table: every character of the catalog, in its order, with its builds and what was done to
-   * them here - those the words typed find (each word in its name, element or weapon), or those changed here.
+   * them here - those the words typed find (each word in its name, element or weapon, accents and case aside: the
+   * family's search, @anotoki/lib/ui/search - "furina" finds "Fúrina"), or those changed here.
    */
   protected readonly characterRows = computed(() => {
     const tables: Partial<Record<GameKey, { all: number; shown: CharacterRow[] }>> = {};
     for (const game of GAMES) {
       const overview = new Map((this.byGame()[game]?.editing ?? []).map((character) => [character.key, character]));
-      const words = folded(this.find()[game] ?? '')
-        .split(/\s+/)
-        .filter((word) => word !== '');
+      const query = this.find()[game] ?? '';
       const changedOnly = this.changedOnly()[game] ?? false;
       const all = (this.characters()[game] ?? []).map((character): CharacterRow => {
         const editing = overview.get(character.key) ?? null;
@@ -263,7 +258,11 @@ export class AdminBuildsPage {
           done: editingFacts(editing, true).join(' · '),
         };
       });
-      const shown = all.filter((row) => (!changedOnly || row.done !== '') && words.every((word) => folded(`${row.name} ${row.element} ${row.weapon}`).includes(word)));
+      const shown = filterBySearch(
+        all.filter((row) => !changedOnly || row.done !== ''),
+        query,
+        (row) => [row.name, row.element, row.weapon],
+      );
       tables[game] = { all: all.length, shown };
     }
     return tables;

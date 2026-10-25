@@ -207,7 +207,7 @@ describe('the account page', () => {
         { provide: MetaStore, useValue: meta },
         { provide: ToastService, useValue: toasts },
         // Somebody signed in: no visitor notice; one who is not is a case of its own.
-        { provide: AuthService, useValue: { signedIn: signal(options.signedIn ?? true), available: signal(true), user: signal(null), failure: signal(null) } },
+        { provide: AuthService, useValue: { signedIn: signal(options.signedIn ?? true), available: signal(true), user: signal(null), failure: signal(null), preferences: signal(null) } },
       ],
     });
     fixture = TestBed.createComponent(AccountPage);
