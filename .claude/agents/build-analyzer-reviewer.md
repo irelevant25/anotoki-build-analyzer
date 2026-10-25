@@ -114,8 +114,21 @@ Correctness first:
   (`held`, decided on the server under the rows' locks); a sign-in waits for the writes on their way; nobody's pages ask for no own data; admin pages live under
   `/admin/` (English) and hide what the server refuses (`adminGuard` on the ADMIN's, `personGuard` on the panel).
   The sign-in hint (the IAM's `anotoki_signed_in`) only ever starts one silent hop (`prompt=none`) and opens
-  nothing by itself; `/auth/` stays in `public/robots.txt`; a visitor's failed sign-in is said once on `/sign-in`
+  nothing by itself; `/auth` stays in robots.txt (the library's `Robots`, from the site's PHP); a visitor's failed sign-in is said once on `/sign-in`
   (the library's `SignInFailureComponent`, `sitePagesGuard`), never in a loop.
+- The site settings (anotoki-lib 0.11.0, `src/Web/SitePages.php`, `api/routes/site_settings.php`,
+  `shared/site-settings.ts`): while the site is closed for maintenance only the site's ADMIN passes the gate, known
+  by a verified token alone (`siteGate()`'s `exempt`, `AccessTokens::personOf()` - never a row of users, a header of
+  the site's own or a body), and a check that throws exempts nobody; the reserved API paths
+  (`SitePages::RESERVED_API_PATHS` - `/api/meta`, `/api/icons` - and the library's own) answer whatever a row says,
+  and a new one is the owner's decision; Page access (`pageAccess()`) sits in every route group right after the
+  group's own check, before anything is recorded or made (a visitor row, `last_seen_at`): 401 / 403 first, 423
+  `page_locked` only for a reader the row does not let in; the router's `pageAccessGuard` is a canMatch on each
+  governed page (a closed page falls through to the dashboard, or to `sites/main/not-open/`), and the top bar offers
+  only what `mayNavigate()` allows - both only hide. robots.txt and the sitemap name the site by
+  `Config::siteAddress()` (never a request's Host); the sitemap never lists an account's page or what a row hides,
+  and lists the public pages only while the IAM lets visitors in. A new public page joins `SitePages::GOVERNED`,
+  `main.routes.ts`' guard and (when public) the sitemap's entries.
 - People (the library's people module on this site's `users`, `src/People/SitePeople.php`): the scrub of an
   account the IAM deleted keeps the data and makes it nobody's (the name the IAM's placeholder, feedback's and the
   audit log's copies blanked; a builds import keeps its `imported_by` id and never a name, NULL once the person's
@@ -202,8 +215,8 @@ Correctness first:
   answer (`App\Web\AfterResponse`), the fetcher's waits short in a web request (one retry at most); no queue jobs,
   schedules, `proc_open` or background processes.
 - Configuration: only `backend/config/app.php` (committed) and `config/*.local.php` (the required ones written by
-  `setup.php`; `client_address`, `cloudflare` and `neutral` - the build sites' names, read through
-  `Config::readOptionalFile()` - by hand, never in the repository);
+  `setup.php`; `client_address`, `cloudflare`, `site` - the site's address for robots.txt and the sitemap - and
+  `neutral` - the build sites' names, read through `Config::readOptionalFile()` - by hand, never in the repository);
   no `.env`, no committed defaults for the database or the IAM; the one environment variable,
   `BUILD_ANALYZER_TEST_CONFIG` (the browser check's settings folder), is honoured only for a
   `build_analyzer_test_` database (`App\Config::load()`) and nothing on a host sets it. Every settings file -
@@ -237,8 +250,10 @@ Correctness first:
   new piece or longer words mean measuring the row again (`run.mjs --measure`) and keeping `PHONE_BAR_MAX` in step.
 - The admin panel has no bar: the family's admin frame (`sites/admin/app.ts`, `<anotoki-admin-frame>`, anotoki-lib
   0.10.0) - its column the panel's name, who is signed in, Back, the site's one Sign out (`shared/sign-out.ts`, the
-  bar's too), the theme and the pages (`PANEL_GROUPS`: the same pages and role checks as the bar had, English); its
-  layout, keys and drawer are the library's - never a copy here.
+  bar's too), the theme and the pages (`PANEL_GROUPS`, the family's one shape since 0.11.0 - Builds; Localization:
+  Translations, Languages; System: Site settings, People, Feedback, Error log, Audit log, Backups, Migrations -, the
+  same role checks: an editor's Builds and Translations; while an update waits the ADMIN's Migrations alone,
+  `UPDATE_GROUPS`; English); its layout, keys and drawer are the library's - never a copy here.
 - The builds editor's page (`sites/admin/build-editor/`, docs/builds.md "The editor"; English, the admin panel):
   `editor-draft.ts` stays plain functions over immutable data - a part nobody touched goes back as the very object the
   server sent, a part changed back is the loaded one again (`withPart()`, `asLoadedTeams()`: the Save bar never

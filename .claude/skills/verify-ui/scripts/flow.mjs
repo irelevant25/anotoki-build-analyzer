@@ -60,6 +60,11 @@ const FRAME_MENU = `${FRAME_COLUMN} button.anotoki-admin-frame__menu`;
 const FRAME_DRAWER = 'dialog[open]';
 /** Up to this width (px) the frame is a phone's: the library's default, which the site keeps. */
 const FRAME_PHONE_MAX = 860;
+/**
+ * The ADMIN's pages in the frame's column, by their words: the family's one shape for every admin panel (anotoki-lib
+ * 0.11.0) - Builds; Localization: Translations, Languages; System: the family's pages in the family's order.
+ */
+const ADMIN_PAGES = ['Builds', 'Translations', 'Languages', 'Site settings', 'People', 'Feedback', 'Error log', 'Audit log', 'Backups', 'Migrations'];
 /** What open() waits for: everybody's pages' bar, the admin panel's frame, or the closed panel's card. */
 const PAGE_FRAME = `${BAR}, ${ADMIN_FRAME}, app-admin-root .no-access`;
 /** The kit's dialog - What's new, feedback, a question - around a native <dialog>. */
@@ -104,6 +109,10 @@ function pageErrors() {
  */
 const THROWN = "A check of the pages' errors, for someone@example.test";
 const THROWN_SCRUBBED = "A check of the pages' errors, for {email}";
+
+/** The site settings' tour: an announcement, and what the maintenance page says - in English and informal Slovak. */
+const ANNOUNCED = { en: 'New builds are in: every character has fresh ones on their builds page.', sk: 'Prišli nové buildy: každá postava má čerstvé na svojej stránke buildov.' };
+const CLOSED = { en: 'We are moving the site to a new server. Back within the hour.', sk: 'Sťahujeme stránku na nový server. Do hodiny sme späť.' };
 
 /** How the stand-in IAM behaves from now on: deny, login_required, ... (its header lists them). */
 async function iamState(changes) {
@@ -248,8 +257,12 @@ async function gatePage(page) {
   });
 }
 
-/** What a page may ask the API for while the gate's page stands in its place: the open paths and nothing else. */
-const OPEN_WHILE_WAITING = /^\/api\/(meta|site-status|translations\/[a-z-]+)$/;
+/**
+ * What a page may ask the API for while the gate's page stands in its place: the open paths, and the site settings
+ * read once as the app starts (anotoki-lib 0.11.0: no open path - refused 503 while an update waits, which leaves
+ * nothing announced and every page anybody's, under the gate's page) - nothing else.
+ */
+const OPEN_WHILE_WAITING = /^\/api\/(meta|site-status|site-settings|translations\/[a-z-]+)$/;
 
 /**
  * Listens to the API paths a page asks for from now on; the function it returns stops listening and gives them.
@@ -445,9 +458,9 @@ try {
       await iamState({ interaction: false });
       await quiet.close();
 
-      // Search engines never get the cookie - and robots.txt keeps them off the callback.
+      // Search engines never get the cookie - and robots.txt (anotoki-lib's, from the site's PHP) keeps them off the callback.
       const robots = await (await fetch(`${SITE}/robots.txt`)).text();
-      check(/User-agent: \*/.test(robots) && robots.includes('Disallow: /auth/'), `robots.txt: ${robots.replace(/\s+/g, ' ').trim()}`);
+      check(/User-agent: \*/.test(robots) && robots.includes('\nDisallow: /auth\n'), `robots.txt keeps robots off /auth: ${robots.replace(/\s+/g, ' ').trim()}`);
     }
 
     // ── A visitor's first import ───────────────────────────────────────────────────────────────────────
@@ -789,14 +802,20 @@ try {
     check(new URL(ed.url()).pathname === '/admin/builds', 'People sends an editor to Builds');
     await open(ed, '/admin/migrations');
     check(new URL(ed.url()).pathname === '/admin/builds', 'Migrations sends an editor to Builds');
+    await open(ed, '/admin/site-settings');
+    check(new URL(ed.url()).pathname === '/admin/builds', 'Site settings sends an editor to Builds');
     const refused = await ed.evaluate(async () => {
       const token =
         JSON.parse(localStorage.getItem('anotoki-auth:build-analyzer') ?? '{}').access_token ?? JSON.parse(localStorage.getItem('anotoki-auth:build-analyzer') ?? '{}').tokens?.access_token;
       const people = await fetch('/api/admin/people', { headers: { Authorization: `Bearer ${token}` } });
       const migrations = await fetch('/api/admin/migrations', { headers: { Authorization: `Bearer ${token}` } });
-      return [people.status, (await people.json()).code, migrations.status];
+      const settings = await fetch('/api/admin/site-settings', { headers: { Authorization: `Bearer ${token}` } });
+      return [people.status, (await people.json()).code, migrations.status, settings.status, (await settings.json()).code];
     });
-    check(refused[0] === 403 && refused[1] === 'admin_only' && refused[2] === 403, `the server refuses an editor ADMIN's routes (${refused.join(', ')})`);
+    check(
+      refused[0] === 403 && refused[1] === 'admin_only' && refused[2] === 403 && refused[3] === 403 && refused[4] === 'admin_only',
+      `the server refuses an editor ADMIN's routes, the site settings too (${refused.join(', ')})`,
+    );
 
     // ── The Builds page: a game's builds out to a file and the same file back in ──────────────────────────
     step("The admin panel's Builds page: the builds exported, the same file imported - a preview that changes nothing, then the import, recorded by its editor - at 1280 and 390 px, light and dark");
@@ -1227,10 +1246,7 @@ try {
     // Each page by its own words (its label): a count beside one (Feedback's badge, and what it counts for the ear)
     // is not its name.
     const pages = await ad.locator(FRAME_LABEL).allInnerTexts();
-    check(
-      pages.join('|') === 'Builds|Translations|Languages|People|Migrations|Errors|Audit|Feedback|Backups',
-      `an admin's pages in the frame's column: all nine - the family's admin tools too (${pages.join(', ')})`,
-    );
+    check(pages.join('|') === ADMIN_PAGES.join('|'), `an admin's pages in the frame's column: all ten, in the family's one shape - Site settings and the admin tools too (${pages.join(', ')})`);
     const headings = await ad.locator(`${FRAME_COLUMN} nav .anotoki-side-nav__heading`).evaluateAll((all) => all.map((heading) => heading.textContent.trim()));
     check(headings.join('|') === 'Localization|System', `under their headings (${headings.join(', ')})`);
     // The panel's name as its bar said it, at the top of the column: a link to its first page.
@@ -1272,8 +1288,8 @@ try {
         await open(ad, '/admin/migrations');
         const phone = width <= FRAME_PHONE_MAX;
         check(
-          (await ad.locator(FRAME_MENU).count()) === (phone ? 1 : 0) && (await ad.locator(FRAME_LINK).count()) === (phone ? 0 : 9),
-          `admin panel, ${width} px, ${scheme}: ${phone ? "a phone's row with Menu" : 'the column with the nine pages'}`,
+          (await ad.locator(FRAME_MENU).count()) === (phone ? 1 : 0) && (await ad.locator(FRAME_LINK).count()) === (phone ? 0 : ADMIN_PAGES.length),
+          `admin panel, ${width} px, ${scheme}: ${phone ? "a phone's row with Menu" : `the column with the ${ADMIN_PAGES.length} pages`}`,
         );
         const scroll = await ad.evaluate(() => document.documentElement.scrollWidth);
         check(scroll <= width, `admin panel, ${width} px, ${scheme}: no sideways scroll (${scroll})`);
@@ -1557,6 +1573,249 @@ try {
       );
     }
 
+    // ── The site settings (anotoki-lib 0.11.0) ─────────────────────────────────────────────────────────
+    step("Site settings (ADMIN): the family's page in the admin panel - its three parts, at 1280 px light and 390 px dark, under System in the column and in the phone's menu");
+    {
+      /** The settings' own API with ada's token (what the page writes is pressed on the page; a row of Page access, and switching all off at the end, go straight). */
+      const adminApi = (method, path, body = null) =>
+        ad.evaluate(
+          async ([method, path, body]) => {
+            const stored = JSON.parse(localStorage.getItem('anotoki-auth:build-analyzer') ?? '{}');
+            const token = stored.access_token ?? stored.tokens?.access_token;
+            const answer = await fetch(path, {
+              method,
+              headers: { Authorization: `Bearer ${token}`, ...(body ? { 'Content-Type': 'application/json' } : {}) },
+              body: body ? JSON.stringify(body) : undefined,
+            });
+            return { status: answer.status, body: await answer.json().catch(() => null) };
+          },
+          [method, path, body],
+        );
+      /** The page's cards, read once they are drawn. */
+      const settingsPage = async () => {
+        await open(ad, '/admin/site-settings');
+        await ad.waitForSelector('anotoki-site-settings-page [data-card]', { timeout: 15000 });
+        await ad.waitForLoadState('networkidle');
+      };
+      /** A part's dialog opened from its card: its switch on, a message in English and Slovak - shot, then saved. */
+      const switchOn = async (part, words, name) => {
+        const dialog = `anotoki-dialog[data-switches="${part}"]`;
+        await ad.click(`anotoki-site-settings-page [data-card="${part}"]`);
+        await ad.waitForSelector(`${dialog} dialog[open]`, { timeout: 10000 });
+        // The kit's switch: its input is see-through under the track, so the press goes to its label, as a person's does.
+        await ad.click(`${dialog} anotoki-switch[data-enabled] label`);
+        check(await ad.isChecked(`${dialog} anotoki-switch[data-enabled] input[role=switch]`), `${part}: switched on`);
+        await ad.fill(`${dialog} anotoki-textarea[data-language="en"] textarea`, words.en);
+        await ad.fill(`${dialog} anotoki-textarea[data-language="sk"] textarea`, words.sk);
+        await shot(ad, name);
+        await ad.click(`${dialog} [data-save]`);
+        await ad.waitForSelector(dialog, { state: 'detached', timeout: 15000 });
+      };
+
+      await ad.setViewportSize({ width: 1280, height: 900 });
+      await ad.emulateMedia({ colorScheme: 'light' });
+      await settingsPage();
+      const cards = await ad.locator('anotoki-site-settings-page [data-card]').evaluateAll((all) => all.map((card) => card.getAttribute('data-card')));
+      check(cards.join('|') === 'getting_in|announcement|page_access', `its three parts, a card each (${cards.join(', ')})`);
+      check((await ad.title()) === 'Site settings · Admin panel · Build Analyzer', `its title: ${await ad.title()}`);
+      const marked = (await ad.locator(`${FRAME_COLUMN} nav a[aria-current="page"] .anotoki-side-nav__label`).innerText()).trim();
+      check(marked === 'Site settings', `the column marks it (${marked}), the first of System`);
+      await shot(ad, '20-admin-site-settings-1280-light', { fullPage: true });
+      await ad.setViewportSize({ width: 390, height: 844 });
+      await ad.emulateMedia({ colorScheme: 'dark' });
+      await settingsPage();
+      const narrow = await ad.evaluate(() => document.documentElement.scrollWidth);
+      check(narrow <= 390 && (await darkSurface(ad, 'body')), `390 px, dark: no sideways scroll (${narrow}), in the site's dark colours`);
+      await shot(ad, '20-admin-site-settings-390-dark', { fullPage: true });
+      await ad.click(FRAME_MENU);
+      await ad.waitForSelector(`${FRAME_DRAWER} nav .anotoki-side-nav__label`, { timeout: 10000 });
+      const drawerPages = await ad.locator(`${FRAME_DRAWER} nav .anotoki-side-nav__label`).allInnerTexts();
+      const drawerHeadings = await ad.locator(`${FRAME_DRAWER} nav .anotoki-side-nav__heading`).evaluateAll((all) => all.map((heading) => heading.textContent.trim()));
+      check(
+        drawerPages.join('|') === ADMIN_PAGES.join('|') && drawerHeadings.join('|') === 'Localization|System',
+        `the phone's menu: the same pages under the same headings (${drawerHeadings.join(', ')}: ${drawerPages.join(', ')})`,
+      );
+      await shot(ad, '20-admin-site-settings-390-dark-menu');
+      await ad.keyboard.press('Escape');
+      await ad.waitForSelector(FRAME_DRAWER, { state: 'detached', timeout: 5000 });
+
+      try {
+        step(
+          "Site settings: an announcement written in English and Slovak and saved on the page - above everybody's pages, at 1280 px light in English and 390 px dark in Slovak; hidden, it stays hidden in that browser",
+        );
+        await ad.setViewportSize({ width: 1280, height: 900 });
+        await ad.emulateMedia({ colorScheme: 'light' });
+        await settingsPage();
+        await switchOn('announcement', ANNOUNCED, '20-admin-site-settings-announcement');
+        const told = await (await fetch(`${SITE}/api/site-settings`)).json();
+        check(told.announcement?.message?.en === ANNOUNCED.en && told.announcement?.message?.sk === ANNOUNCED.sk, `saved: every page is told it (${JSON.stringify(told.announcement)})`);
+        check(Number(sql("SELECT count(*) AS n FROM anotoki_audit_log WHERE action = 'site_settings.changed' AND actor_id = 1")[0].n) >= 1, 'in the audit log, by ada');
+        for (const [language, scheme, width] of [
+          ['en', 'light', 1280],
+          ['sk', 'dark', 390],
+        ]) {
+          const context = await newContext({ width, scheme, height: width < 600 ? 844 : 900 });
+          const page = await context.newPage();
+          await open(page, `/builds/genshin?lang=${language}`);
+          await page.waitForSelector('anotoki-announcement [data-announcement]', { timeout: 15000 });
+          const bar = await page.evaluate(() => ({
+            text: document.querySelector('anotoki-announcement .anotoki-announcement__message')?.textContent?.trim() ?? null,
+            above:
+              document.querySelector('anotoki-announcement [data-announcement]').getBoundingClientRect().bottom <=
+              document.querySelector('app-top-bar .anotoki-top-bar__topbar').getBoundingClientRect().top + 1,
+            scroll: document.documentElement.scrollWidth,
+          }));
+          const label = `${language}, ${scheme}, ${width} px`;
+          check(
+            bar.text === ANNOUNCED[language] && bar.above && bar.scroll <= width,
+            `${label}: the announcement above the bar, in the reader's language, no sideways scroll (${JSON.stringify(bar)})`,
+          );
+          const keys = await keysShown(page);
+          check(keys.length === 0, `${label}: no key where a word should be${keys.length ? ` - ${keys.join(', ')}` : ''}`);
+          if (scheme === 'dark') {
+            check(await darkSurface(page, 'body'), `${label}: the dark theme`);
+          }
+          await shot(page, `21-announcement-${language}-${width}-${scheme}`);
+          if (language === 'sk') {
+            await page.click('anotoki-announcement [data-hide]');
+            await page.waitForSelector('anotoki-announcement [data-announcement]', { state: 'detached', timeout: 5000 });
+            await open(page, `/?lang=${language}`);
+            check((await page.locator('anotoki-announcement [data-announcement]').count()) === 0, `${label}: hidden, it stays hidden on the next page load in this browser`);
+          }
+          await context.close();
+        }
+        await adminApi('PUT', '/api/admin/site-settings', { settings: { announcement_enabled: false } });
+
+        step(
+          'Page access: the import kept for people signed in - a visitor at /import reads the dashboard, the bar offers no Import, its API refuses them (423 page_locked) and the sitemap leaves it out; the ADMIN reads it with a line saying so',
+        );
+        const added = await adminApi('POST', '/api/admin/site-settings/pages', { path: '/import', visibility: 'USER', blocked: false, api_paths: ['/api/imports'] });
+        const row = added.body?.pages?.find((page) => page.path === '/import');
+        check(added.status === 201 && row !== undefined, `a row: /import for people signed in, refusing /api/imports with it (${added.status})`);
+        try {
+          const context = await newContext();
+          const page = await context.newPage();
+          await open(page, '/import?lang=en');
+          check(
+            new URL(page.url()).pathname === '/' && (await page.locator('app-visitor-hero').count()) === 1,
+            `a visitor at /import: the dashboard, as for an address nobody has (${new URL(page.url()).pathname})`,
+          );
+          const links = await page.locator(BAR_LINK).allInnerTexts();
+          check(links.join('|') === 'Dashboard|Builds', `the bar offers no Import (${links.join(', ')})`);
+          const locked = await fetch(`${SITE}/api/imports/file`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ content: GOOD, file_name: 'good.json' }) });
+          check(locked.status === 423 && (await locked.json()).code === 'page_locked', `its API refuses a visitor: ${locked.status} page_locked`);
+          const hiddenMap = await (await fetch(`${SITE}/sitemap.xml`)).text();
+          check(!hiddenMap.includes('/import</loc>') && hiddenMap.includes('/builds/genshin</loc>'), 'the sitemap leaves /import out, and keeps the builds');
+          await context.close();
+          await ad.setViewportSize({ width: 1280, height: 900 });
+          await open(ad, '/import?lang=en');
+          check(
+            new URL(ad.url()).pathname === '/import' && (await ad.locator('anotoki-page-notice [data-notice="limited"]').count()) === 1,
+            'the ADMIN reads /import, with the line above it saying whom it is kept for',
+          );
+          await shot(ad, '21b-page-access-admin-notice');
+        } finally {
+          if (row) {
+            await adminApi('DELETE', `/api/admin/site-settings/pages/${row.id}`);
+          }
+        }
+
+        step(
+          "Getting in: the site closed for maintenance on the page, with a message in English and Slovak - the closed sign at 1280 px light in English and 390 px dark in Slovak, the API's 503; the ADMIN uses the site as it is; signed out, an administrator signs in at /staff",
+        );
+        await settingsPage();
+        await switchOn('getting_in', CLOSED, '22-admin-site-settings-maintenance');
+        const closedStatus = await (await fetch(`${SITE}/api/site-status`)).json();
+        check(
+          closedStatus.state === 'maintenance' && closedStatus.maintenance_message?.sk === CLOSED.sk,
+          `the site says it is closed, with the administrators' words (${JSON.stringify(closedStatus)})`,
+        );
+        const closed = await fetch(`${SITE}/api/builds/genshin`);
+        check(
+          closed.status === 503 && (await closed.json()).code === 'maintenance' && closed.headers.get('retry-after') === '300',
+          'every other path answers anybody 503 maintenance, Retry-After 300',
+        );
+        check(
+          (await fetch(`${SITE}/api/meta`)).status === 200 && (await fetch(`${SITE}/api/site-settings`)).status === 200,
+          '/api/meta and the settings still answer: the pages start, and sign-in works',
+        );
+        for (const [language, scheme, width, path] of [
+          ['en', 'light', 1280, '/'],
+          ['sk', 'dark', 390, '/builds/genshin'],
+        ]) {
+          const context = await newContext({ width, scheme, height: width < 600 ? 844 : 900 });
+          const page = await context.newPage();
+          await openGated(page, `${path}?lang=${language}`);
+          const sign = await page.evaluate(() => ({
+            title: document.querySelector('anotoki-maintenance-page h1')?.textContent?.trim() ?? null,
+            message: document.querySelector('anotoki-maintenance-page [data-maintenance-message]')?.textContent?.trim() ?? null,
+            door: document.querySelectorAll('anotoki-maintenance-page [data-staff-sign-in]').length,
+            bar: document.querySelectorAll('app-top-bar').length,
+            scroll: document.documentElement.scrollWidth,
+          }));
+          const label = `${language}, ${scheme}, ${width} px`;
+          check(
+            sign.title === (language === 'sk' ? 'Hneď sme späť' : 'Back shortly') && sign.message === CLOSED[language] && sign.door === 0 && sign.bar === 0 && sign.scroll <= width,
+            `${label}: the closed sign - its heading, the administrators' words in the reader's language, no door, no page behind it (${JSON.stringify(sign)})`,
+          );
+          if (scheme === 'dark') {
+            check(await darkSurface(page, 'body'), `${label}: the dark theme`);
+          }
+          await shot(page, `22-maintenance-${language}-${width}-${scheme}`, { fullPage: true });
+          await context.close();
+        }
+        await open(ad, '/builds/genshin?lang=en');
+        check(
+          (await ad.locator('anotoki-site-status').count()) === 0 && (await ad.locator('anotoki-page-notice [data-notice="maintenance"]').count()) === 1,
+          'the ADMIN uses the site as it is, a line above the page saying it is closed',
+        );
+        await shot(ad, '22b-maintenance-admin-page');
+        await open(ad, '/admin/builds');
+        check((await ad.locator('app-admin-root anotoki-page-notice [data-notice="maintenance"]').count()) === 1, 'and in the admin panel, above its pages');
+        await shot(ad, '22c-maintenance-admin-panel');
+        const staff = await newContext();
+        const door = await staff.newPage();
+        await openGated(door, '/staff?lang=en');
+        const lead = await door.evaluate(() => document.querySelector('anotoki-maintenance-page [data-staff-sign-in]')?.textContent?.trim() ?? null);
+        check(new URL(door.url()).pathname === '/staff' && lead === 'Sign in', `/staff: the closed sign with Sign in for an administrator (${new URL(door.url()).pathname}, ${lead})`);
+        await shot(door, '22d-maintenance-staff');
+        await iamAs(ADA);
+        await door.click('anotoki-maintenance-page [data-staff-sign-in]');
+        await door.waitForURL((url) => url.href.startsWith(SITE) && !url.pathname.startsWith('/auth/callback'), { timeout: 15000 });
+        await door.waitForSelector(PERSON_BUTTON, { timeout: 15000 });
+        await door.waitForLoadState('networkidle');
+        check(
+          new URL(door.url()).pathname === '/' && (await door.locator('anotoki-page-notice [data-notice="maintenance"]').count()) === 1,
+          `signed in there: the ADMIN on the dashboard, the site as it is (${new URL(door.url()).pathname})`,
+        );
+        await staff.close();
+      } finally {
+        const off = await adminApi('PUT', '/api/admin/site-settings', { settings: { maintenance_mode: false, announcement_enabled: false } });
+        check(off.status === 200 && (await (await fetch(`${SITE}/api/site-status`)).json()).state === 'ready', `everything switched off again: the site open (${off.status})`);
+      }
+
+      step("robots.txt and sitemap.xml, answered by the site's PHP (anotoki-lib's Robots): what robots leave alone, and the public pages with every character's builds");
+      const robotsAnswer = await fetch(`${SITE}/robots.txt`);
+      const robotsText = await robotsAnswer.text();
+      console.log(`  ---- /robots.txt (${robotsAnswer.status}, ${robotsAnswer.headers.get('content-type')})\n${robotsText.replace(/^/gm, '  | ')}`);
+      check(
+        robotsAnswer.status === 200 &&
+          ['/admin', '/api', '/auth', '/accounts', '/sign-in', '/staff'].every((path) => robotsText.includes(`\nDisallow: ${path}\n`)) &&
+          robotsText.trimEnd().endsWith('Sitemap: http://localhost:4600/sitemap.xml'),
+        "robots.txt: the admin panel, the API, the sign-in's way back, a reader's accounts, the failed sign-in's screen and /staff left alone; the Sitemap line at the site's own address (a checkout's)",
+      );
+      const sitemapAnswer = await fetch(`${SITE}/sitemap.xml`);
+      const sitemapText = await sitemapAnswer.text();
+      console.log(`  ---- /sitemap.xml (${sitemapAnswer.status}, ${sitemapAnswer.headers.get('content-type')})\n${sitemapText.replace(/^/gm, '  | ')}`);
+      const locs = [...sitemapText.matchAll(/<loc>([^<]+)<\/loc>/g)].map((match) => match[1].replace('http://localhost:4600', ''));
+      check(
+        sitemapAnswer.status === 200 &&
+          locs.join('|') === '/terms|/privacy|/contact|/about|/support|/|/import|/builds/genshin|/builds/genshin/hutao|/builds/genshin/kaedeharakazuha' &&
+          (sitemapText.match(/<lastmod>/g) ?? []).length === 2,
+        `sitemap.xml: the legal pages, About, Support, the public pages, each character's builds with the day they changed (${locs.join(', ')})`,
+      );
+    }
+
     // ── The Migrations page, and the site while an update waits ────────────────────────────────────────
     step("Migrations (ADMIN): the family's page - every file applied, nothing waiting, a file's SQL");
     await ad.setViewportSize({ width: 1280, height: 900 });
@@ -1650,6 +1909,8 @@ try {
       const pendingFiles = (await ad.locator('[data-pending] .anotoki-migrations-page__files li').allInnerTexts()).map((line) => line.replace(/\s+/g, ' ').trim());
       check(pendingFiles.join('|') === '004_visitors_and_family_bar.sql pending', `Migrations: 004 pending (${pendingFiles.join(', ')})`);
       check((await ad.locator(ADMIN_FRAME).count()) === 1, "in the admin panel's frame");
+      const waitingPages = await ad.locator(FRAME_LABEL).allInnerTexts();
+      check(waitingPages.join('|') === 'Migrations', `its column links Migrations alone while the update waits (${waitingPages.join(', ')})`);
       await shot(ad, '13-admin-migrations-pending', { fullPage: true });
 
       step("An update waits: a signed-out ADMIN presses Sign in on the waiting page and comes back to it - now the ADMIN's");
@@ -2007,12 +2268,13 @@ try {
             check(facts.fan !== null && facts.fan.includes('Genshin Impact') && !facts.fan.includes('Star Rail'), `${label}: the library's fan clause, naming Genshin Impact - the one game here`);
           } else {
             check(
-              facts.kept === 11 &&
+              facts.kept === 12 &&
                 facts.stored.includes('build-analyzer-visitor') &&
+                facts.stored.includes('build-analyzer-announcement') &&
                 facts.recipients.length === 3 &&
                 facts.recipients[0] === 'WebSupport s.r.o.' &&
                 facts.accountPrivacy === `${IAM}/privacy`,
-              `${label}: the site's six parts with visitors, feedback and the three logs (${facts.kept}), its storage (${facts.stored.length}), ${facts.recipients.join(', ')}, the account's own Privacy page ${facts.accountPrivacy}`,
+              `${label}: the site's seven parts (the site settings' among them) with visitors, feedback and the three logs (${facts.kept}), its storage with the hidden announcement (${facts.stored.length}), ${facts.recipients.join(', ')}, the account's own Privacy page ${facts.accountPrivacy}`,
             );
           }
           if (scheme === 'dark') {
