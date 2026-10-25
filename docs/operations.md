@@ -698,8 +698,8 @@ upload map, are in [DEV.md](../DEV.md) ("Deploying"); in short:
      its own section, "Deploying 0.7.0" (below).
    - **The admin panel in the family's frame (anotoki-lib 0.10.0, both halves; migration 024)**: the release with
      `vendor/`, then Apply at once - its own section, "Deploying the admin panel's frame" (below).
-   - **The site settings, robots.txt and sitemap.xml (anotoki-lib 0.11.0, both halves; migration 025)**: the release
-     with `vendor/`, then Apply at once - its own section, "Deploying anotoki-lib 0.11.0" (below).
+   - **The site settings, robots.txt and sitemap.xml (anotoki-lib 0.11.1, both halves; migration 025)**: the release
+     with `vendor/`, then Apply at once - its own section, "Deploying anotoki-lib 0.11.1" (below).
    - **Version 0.3: visitors and the family's bar (migration 004, IAM migration 007)**, in this
      order: (1) before uploading, make sure an account that can sign in holds **ADMIN on `build-analyzer` now**
      (the IAM's admin panel; IAM 007 is what later gives every IAM administrator ADMIN here); (2) upload;
@@ -734,12 +734,14 @@ Check after an install: `https://builder.anotoki.eu/config/database.local.php`, 
 `/src/Config.php` must not download (403); `https://builder.anotoki.eu/api/meta` answers JSON with the IAM's
 `issuer`, `client_id` and `login_required` under `auth`; `/api/accounts` answers 401 without a token.
 
-### Deploying anotoki-lib 0.11.0
+### Deploying anotoki-lib 0.11.1
 
 The owner's requests of 2026-10-25 ([decisions.md](decisions.md)): the site settings (Getting in, the announcement,
 Page access), robots.txt and sitemap.xml from the site's PHP, the family's dates and search, and the admin menu in the
-family's one shape - anotoki-lib 0.11.0, both halves (`vendor/` from Composer's `^0.11.0`, the app's `@anotoki/lib`
-from the 0.11.0 tarball). The release's front controller takes `/robots.txt` and `/sitemap.xml` beside `/api`
+family's one shape - anotoki-lib 0.11.0's, on 0.11.1, both halves (`vendor/` from Composer's `^0.11.0`, its lock at
+v0.11.1; the app's `@anotoki/lib` from the 0.11.1 tarball). 0.11.1 adds nothing to Apply: the announcement bar and the
+administrators' notice come out of the first load, fetched only when there is something to draw. The release's front
+controller takes `/robots.txt` and `/sitemap.xml` beside `/api`
 (`composer.json`'s `extra["anotoki-deploy"]["routes"]`); the app keeps no `robots.txt` of its own.
 
 1. **The release**: `bun run anotoki-deploy deploy --backups <folder> --go`, `vendor/` with it. From then on the

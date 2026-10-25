@@ -147,7 +147,7 @@ ran on SQLite is not carried over: import the accounts again, and a builds file;
 What the anotoki sites share lives in one library, [irelevant25/anotoki-lib](https://github.com/irelevant25/anotoki-lib),
 in two halves with one version: the Composer package `anotoki/lib` (`backend/composer.json`: a `vcs` repository
 entry and `"anotoki/lib": "^0.11.0"`; installed into `backend/vendor/`, which the upload carries) and the npm
-package `@anotoki/lib` (`frontend/package.json`: the release's tarball). Both halves are 0.11.0 (0.6.0: the legal
+package `@anotoki/lib` (`frontend/package.json`: the release's tarball). Both halves are 0.11.1 (0.6.0: the legal
 pages - Terms, Privacy, Contact - and the kit's newer pieces; 0.6.1 and 0.6.2: the Privacy page's sentences made
 true on every site; 0.6.3: the family's footer, this site's own made the library's; 0.7.0: the library's folders
 renamed - its PHP half's files are under `vendor/anotoki/lib/backend/`; 0.7.1: the footer's version written short,
@@ -156,7 +156,8 @@ language while no bundle is in memory; 0.8.0: the About and Support pages on `/a
 in the footer; 0.10.0: the admin panel's frame, genshin's, for every anotoki site - `<anotoki-admin-frame>`, the
 panel's pages in a column on the left and no top bar; 0.11.0: the site settings - closing the site for a while,
 an announcement above every page, who may see which page -, robots.txt and sitemap.xml from the site's PHP, the
-kit's dates and search, and one shape for every admin menu). A minor version is taken by
+kit's dates and search, and one shape for every admin menu; 0.11.1: the announcement bar and the administrators'
+notice fetched only when there is something to draw, out of the first load). A minor version is taken by
 hand while the version is 0.x: `^0.5.0` never took 0.6 by itself;
 never 0.4.0, whose Feedback page fails on PHP 8.2. Besides the translations
 module, the auth module (signing in through the anotoki IAM: the token check, the IAM's switch, the browser's
@@ -399,11 +400,11 @@ one (the Backups page, "before an update"). `config/*.local.php` and `storage/` 
   pending** at once - no build changes, and nothing is imported again; a note saved to check it is seen by every
   member at once (a real one, or deleted again). [docs/operations.md](docs/operations.md), "Deploying 0.7.0".
 - **Version 0.7.1** (no migration): the release only. [docs/operations.md](docs/operations.md), "Deploying 0.7.1".
-- **The site settings, robots.txt and sitemap.xml** (anotoki-lib 0.11.0, both halves; migration 025 and the
+- **The site settings, robots.txt and sitemap.xml** (anotoki-lib 0.11.1, both halves; migration 025 and the
   library's `anotoki_admin/003`, `anotoki_translations/014` and `015`): Export each language, upload the release
   with `vendor/`, **Apply pending** at once - the settings start empty (the site open, no announcement, every page
   as before). Then `/robots.txt` ends with the Sitemap line and `/sitemap.xml` lists the pages.
-  [docs/operations.md](docs/operations.md), "Deploying anotoki-lib 0.11.0".
+  [docs/operations.md](docs/operations.md), "Deploying anotoki-lib 0.11.1".
 - **The IAM's sign-in switch** (now the library's `SignInRule`): upload only once the IAM answers
   `https://iam.anotoki.eu/api/public/applications/build-analyzer` with 200 - before that the site requires
   sign-in (fail closed) and turns visitors away. [docs/operations.md](docs/operations.md), "Deploying".

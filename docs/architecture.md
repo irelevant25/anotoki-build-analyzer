@@ -687,8 +687,10 @@ again). The Migrations page's API answers its own: 404 `not_found` (a file that 
   whether anybody is signed in, the announcement's mark under `build-analyzer-announcement`): read once at the start
   beside the site's status (`SiteSettings.load()` in `app.config.ts`, before the router's first navigation; with no
   credentials - `api.skip`), again after an administrator saves them. Everybody's pages' frame draws the announcement
-  above the bar and the administrators' notice above the page (`<anotoki-announcement>`, `<anotoki-page-notice>`); the
-  admin frame the notice alone (`adminFrameNotice`: the maintenance line). Page access is `pageAccessGuard` (a
+  above the bar and the administrators' notice above the page (`<anotoki-announcement>`, `<anotoki-page-notice>` -
+  since anotoki-lib 0.11.1 each fetches what it draws, `@anotoki/lib/site-settings/bar` and `/notice`, only when there
+  is something to draw: neither is in the first load); the admin frame the notice alone (`adminFrameNotice`: the
+  maintenance line). Page access is `pageAccessGuard` (a
   `canMatch`) on the six public pages (`sites/main/main.routes.ts`): a page closed to the reader falls through to the
   `**` and the dashboard - and where the dashboard is closed too, the last `**` draws "This page is not open right
   now" (`sites/main/not-open`); the bar leaves such a section out (`TopBar.links`). While the site is closed the gate

@@ -45,7 +45,8 @@ development) - the app keeps no file of its own at either path.
 The site settings are the family's (`@anotoki/lib/site-settings`, anotoki-lib 0.11.0, set up in
 `shared/site-settings.ts` and read once before the first page, `GET /api/site-settings`): the announcement above
 everybody's pages (`<anotoki-announcement>` in `sites/main/app-layout/`, dismissed per device under
-`build-analyzer-announcement`), a page's notice in both frames (`<anotoki-page-notice>`), Page access on
+`build-analyzer-announcement`), a page's notice in both frames (`<anotoki-page-notice>`) - each element fetching what
+it draws only when there is something to draw (0.11.1: neither is in the first load) -, Page access on
 everybody's routes (`pageAccessGuard` on the `canMatch` of each page it governs - `''`, `import`, `accounts/:id`,
 `accounts/:id/characters/:key`, `builds/:game`, `builds/:game/:key`: a closed page falls through to the dashboard,
 and to `sites/main/not-open/` where the dashboard is closed too), the top bar's links only to a page the reader
@@ -74,7 +75,7 @@ its page runs; the interceptor that hears the server say so; and the admin panel
 (`sites/admin/migrations/`, from `@anotoki/lib/migrations/page`). `shared/site-status.ts` wires them to this site
 (who is ADMIN, how to sign in, the language on the page, the account's dates).
 
-Every page is drawn with the family's kit (0.11.0): `src/styles.scss` takes `@anotoki/lib/styles` (the tokens,
+Every page is drawn with the family's kit (0.11.1): `src/styles.scss` takes `@anotoki/lib/styles` (the tokens,
 Manrope, the base, utilities and tables) and sets this site's colours over the family's `--anotoki-*` tokens,
 light and dark - never re-styling a kit piece; the pieces come each from its own entry point
 (`@anotoki/lib/ui/button`, `/ui/dialog`, `/ui/forms` ...), never the `@anotoki/lib/ui` barrel; `shared/kit.ts`
