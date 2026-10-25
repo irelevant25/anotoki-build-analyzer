@@ -1,6 +1,6 @@
 ---
 name: deploy-builder
-description: Build the build analyzer for the FTP-only hosting and ship it to builder.anotoki.eu with anotoki-deploy - a release of frontend/ and backend/, swapped in whole, a rollback, the setup page on a first install, a new migration's Apply, the catalog's refresh and the builds file's import after it, version 0.5.0's one-time steps (genshin.anotoki.eu first, the names file, Apply 014-019), 0.6.0's (Apply 020-021, then a version 3 builds file - the teams - before the next builds refresh), 0.6.1's (no migration; the builds file without the sites' notes) 0.7.0's (the builds editor: Apply 022-023 at once, nothing to import), 0.7.1's (no migration: the release only) and anotoki-lib 0.11.0's (the site settings, robots.txt and sitemap.xml: Apply 025 with the library's three files at once, the read-only checks after it). Use when the user asks to deploy, release, upload or publish the build analyzer, roll a release back, or asks what a new version needs on the hosting.
+description: Build the build analyzer for the FTP-only hosting and ship it to builder.anotoki.eu with anotoki-deploy - a release of frontend/ and backend/, swapped in whole, a rollback, the setup page on a first install, a new migration's Apply, the catalog's refresh and the builds file's import after it, version 0.5.0's one-time steps (genshin.anotoki.eu first, the names file, Apply 014-019), 0.6.0's (Apply 020-021, then a version 3 builds file - the teams - before the next builds refresh), 0.6.1's (no migration; the builds file without the sites' notes) 0.7.0's (the builds editor: Apply 022-023 at once, nothing to import), 0.7.1's (no migration: the release only) and anotoki-lib 0.11.1's (the site settings, robots.txt and sitemap.xml: Apply 025 with the library's three files at once, the read-only checks after it). Use when the user asks to deploy, release, upload or publish the build analyzer, roll a release back, or asks what a new version needs on the hosting.
 ---
 
 # Deploy the build analyzer
@@ -158,11 +158,12 @@ No migration, so nothing waits after the swap: the release (section 2) and the s
 "Deploying 0.7.1"). The owner's look at 0.7.0: Edit builds a table of every character, a build's name changeable
 (a file build renamed becomes the editor's own), a team's members side by side.
 
-## 10. Deploying anotoki-lib 0.11.0
+## 10. Deploying anotoki-lib 0.11.1
 
 The site settings (Getting in, the announcement, Page access), robots.txt and sitemap.xml from the site's PHP, the
 family's dates and search, the admin menu in the family's one shape (docs/decisions.md, 2026-10-25;
-docs/operations.md, "Deploying anotoki-lib 0.11.0"). Both halves are 0.11.0 - `vendor/` with the release. Before
+docs/operations.md, "Deploying anotoki-lib 0.11.1"). Both halves are 0.11.1 - `vendor/` with the release; 0.11.1
+adds nothing to Apply (the announcement bar and the administrators' notice out of the first load). Before
 uploading, Export each language on the Translations page. Then:
 
 1. **The release** (section 2). The release's front controller takes `/robots.txt` and `/sitemap.xml` beside
