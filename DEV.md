@@ -400,6 +400,13 @@ one (the Backups page, "before an update"). `config/*.local.php` and `storage/` 
   pending** at once - no build changes, and nothing is imported again; a note saved to check it is seen by every
   member at once (a real one, or deleted again). [docs/operations.md](docs/operations.md), "Deploying 0.7.0".
 - **Version 0.7.1** (no migration): the release only. [docs/operations.md](docs/operations.md), "Deploying 0.7.1".
+- **Version 0.8.0: the build a player chooses, and stat targets in three tiers** (migrations 026-027): the genshin
+  site's release first (its catalog lists carry the stats the tiers rest on), then this release, **Apply pending** at
+  once, then **Refresh catalog** on the Builds page (the tiers show once the catalog has the stats; the stated targets
+  stand alone until then). [docs/operations.md](docs/operations.md), "Deploying 0.8.0".
+- **Version 0.8.1** (no migration): the stats behind the tiers read from the genshin site's own phase lists while its
+  catalog lists carry none, and the Builds page's refresh in full - the release, then **Refresh catalog** once.
+  [docs/operations.md](docs/operations.md), "Deploying 0.8.1".
 - **The site settings, robots.txt and sitemap.xml** (anotoki-lib 0.11.1, both halves; migration 025 and the
   library's `anotoki_admin/003`, `anotoki_translations/014` and `015`): Export each language, upload the release
   with `vendor/`, **Apply pending** at once - the settings start empty (the site open, no announcement, every page

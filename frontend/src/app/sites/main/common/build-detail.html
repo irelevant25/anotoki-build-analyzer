@@ -159,23 +159,44 @@
 @if (targets().length > 0) {
   <section class="block">
     <h3>{{ 'buildDetail.statTargets' | translate }}</h3>
+    @if (targetsBasis(); as basis) {
+      <p class="muted small targets-basis">
+        @if (basis.sets) {
+          {{ 'buildDetail.targetsBasisSets' | translate: { weapon: basis.weapon, sets: basis.sets } }}
+        } @else {
+          {{ 'buildDetail.targetsBasis' | translate: { weapon: basis.weapon } }}
+        }
+      </p>
+    }
     <div class="targets">
       <!-- A stat can have a target from C0 and another from C1: in the builds' list both, each with its constellation. -->
       @for (target of targets(); track $index) {
-        <div class="target" [class.ok]="target.ok === true" [class.bad]="target.ok === false">
+        <div class="target" [class.ok]="target.ok === true" [class.bad]="target.ok === false" [class.tiered]="!!target.tiers">
           <!-- A space before the mark: it is read as a word of its own. -->
           <span class="t-stat"
-            >{{ stat(target.stat) }}@if (targetRank(target.from_rank); as rank) {
+            >{{ stat(target.stat) }}@if (targetRank(target.from_rank ?? 0); as rank) {
               {{ ' ' }}<anotoki-badge class="t-rank">{{ rank }}</anotoki-badge>
             }</span
           >
-          <!-- A range is the goal ("260.0% – 280.0%"); "+" only where there is no top ("70.0%+"). -->
-          <span class="t-goal">
-            {{ target.min | statValue: game() : target.stat
-            }}@if (target.max) {
-              – {{ target.max | statValue: game() : target.stat }}
-            } @else {+}
-          </span>
+          @if (target.tiers; as tiers) {
+            <!-- The three tiers, the ones reached marked. -->
+            <dl class="t-tiers">
+              @for (tier of tierNames; track tier) {
+                <div class="t-tier" [class.reached]="reached(target, tier)">
+                  <dt>{{ tierLabel(tier) }}</dt>
+                  <dd>{{ tiers[tier] | statValue: game() : target.stat }}</dd>
+                </div>
+              }
+            </dl>
+          } @else {
+            <!-- A range is the goal ("260.0% – 280.0%"); "+" only where there is no top ("70.0%+"). -->
+            <span class="t-goal">
+              {{ target.min | statValue: game() : target.stat
+              }}@if (target.max) {
+                – {{ target.max | statValue: game() : target.stat }}
+              } @else {+}
+            </span>
+          }
           @if (target.current !== undefined && target.current !== null) {
             <span class="t-current">{{
               'buildDetail.targetYours'

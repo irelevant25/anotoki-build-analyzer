@@ -3,6 +3,91 @@
 Short records of choices that shape the code. Add a new entry (newest first) when you make a similar call.
 Older entries describe the Laravel version as it was; where a setting has since moved, the entry says so.
 
+**2026-10-26 — stat targets for every build, in three tiers, worked out from the game's numbers (the owner's round
+of 2026-10-26, step 2).** The owner's words: "I really need a recommended target stats values for every build ...
+I would prefer 3 values like basic/intermediate/advanced target values", with progress bars beside the sets', main
+stats' and substats'. The build sites give a number for one build in four, nearly only Energy Recharge; the owner's
+other idea - a leaderboard site's top twenty per build, the best less 5, 15 and 25 % - was not taken: its API
+answers scripts with a bot check (the owner fetched a few answers themselves, as a calibration, never in the
+repository), a crit leaderboard says nothing of Energy Recharge or Elemental Mastery, its top twenty are whales (a
+set of 37-40 useful rolls; "best less 25 %" sat above what a strong non-whale set reaches), and a site in the
+pipeline is a site to depend on.
+- **Computed from the game's numbers** (`App\Services\Analysis\TargetTiers`; the method in [analysis.md](analysis.md),
+  "Stat targets"): the sheet's fixed sources - base, ascension stat, the weapon's secondary stat, the main stats, the
+  first set option's 2-piece bonuses -, then each tier a budget of useful substat rolls (16 / 24 / 32 at the average
+  roll) split by the build's substat priorities, CRIT Rate and CRIT DMG of one priority by the 1:2 rule, no stat
+  past what its pieces can roll. The same arithmetic is what step 3 needs to work out a character's totals from
+  its gear. The budgets were set against the owner's samples: advanced a set farmed for a long time, short of a
+  whale's; the split follows the file's priorities, which editors set in the builds editor.
+- **A stated target is a requirement**, paid first and shown as stated, never tiered: what Energy Recharge a build
+  needs is nobody's to compute. An editor who wants another Energy Recharge target writes it in the editor's targets
+  form; the tiers follow.
+- **The weapon in hand, the main stats and the set worn**: a target for a 5-star signature weapon misleads everybody
+  else, so an account's character page works the tiers out for the weapon the character wears (where the catalog
+  knows it), the main stats it wears where the build lists them and the set option it wears where it is one of the
+  build's; the builds page for the build's first weapon the catalog knows and its first option. The rows say which
+  (`targets_basis`). The owner's remark of the same day: the numbers change with the artifact set used - and with
+  C2 and C6 -; the set through its 2-piece on the sheet and its 4-piece in the crit balance, a constellation through
+  the stated requirements alone, as constellations change damage and energy, not the sheet.
+- **CRIT Rate and CRIT DMG are one share by the 1:2 rule whatever the file's priorities**, with the set's combat
+  CRIT Rate in the balance: the first cut split the pair by the priorities, and Ayaka on Blizzard Strayer came out
+  at 10 % CRIT Rate on the sheet - the file ranks it last because the 4-piece adds 40 % in combat - against the
+  owner's sample of 60 to 65 %. The 4-piece's CRIT Rate is read from its words (`SetBonus::fourPieceCritRate()`, a
+  narrow reading of the game's wording), the combat CRIT Rate stops at 85 %, and the sheet's for that build reads
+  45 % with CRIT DMG rising from there.
+- **Tuned against 36 samples** (the owner fetched the top twenty of 36 builds, C1, C2 and C6 variants among them):
+  the shares steepened to 1.0 / 0.35 / 0.2 / 0.12 (the top players put nearly every roll into the top stats; the
+  first cut's 0.5 / 0.3 / 0.2 left the computed CRIT DMG a quarter to a third under theirs) and Energy Recharge
+  given a ceiling by role - 140 / 180 / 200 % - where no requirement is stated (a priority-one Energy Recharge had
+  bought Yelan 310 % against the players' 190 %). The constellation variants read like their C0: nothing of a
+  constellation's is in the targets but through the stated requirements.
+- **The stats from the genshin site's own phase lists while its catalog lists carry none** (0.8.1, the same day):
+  the owner deferred that site's release ("I will do in the future. Not now") but wanted the tiers on every build,
+  so the provider reads the same numbers from the site's public `/characters`, `/characters-ascensions`,
+  `/weapons` and `/weapons-ascensions` (phase 0 and phase 6, as that site's catalog endpoint reads them), matched by
+  the game's id, only while a list carries no `stats` at all - dormant once that site is deployed. A list of the
+  site's own that cannot be read leaves the rows without stats and the list written. And the Builds page's
+  **Refresh catalog** reads every list in full (`?force=1`): a conditional request answers "unchanged" and would
+  keep the stats out until the lists change; the upkeep's refresh after an answer stays conditional.
+- **The stats come with the catalog** (genshin.anotoki.eu's catalog lists carry each character's and weapon's
+  level 1 and level 80 stats and the ascension stat since 2026-10-26, as its phases hold them; the analyzer keeps
+  them in the rows' `meta.stats` and takes them to level 90 with the game's few curve constants,
+  `App\Support\MaxLevelStats`), not with the builds file: they are the character's and the weapon's, not a build's.
+  No table changes; a catalog refresh after the update fills them, and until then the stated targets stand alone.
+- **A 4-star character is at C6 on the builds page** (the owner's rule: "Expect all 4* to be c6 automatically in the
+  builds on my website"): the stated targets held at C6, as nearly every player has them. On a character page the
+  character's own constellation.
+- **Scored by the tier reached** (advanced 100, intermediate 85, basic 65, in proportion between), the part weight
+  as before; a stat below basic is a recommendation of its own kind (`target_basic_below`), a requirement unmet
+  the one there was.
+
+**2026-10-26 — the build a player chooses for a character (the owner's round of 2026-10-26, step 1).** The owner's
+words: "ability to somehow select a build I wanna use for the selected character ... which I want to be used for
+calculations on dashboard ... the recommended one should display a recommended and the selected one should display
+selected". The automatic pick follows the gear, not the player's intent: a character half-geared for another role is
+graded and advised by the wrong build. The round's plan, approved the same day: 1 this choice; 2 stat targets for every
+build; 3 the totals worked out from the gear (a GOOD file has none); 4 target bars - each step with a pause.
+- **Per character of each game account, on the server** (`account_characters.chosen_build_id`, migration 026): the
+  account page is the server's overview, and a choice follows the person to every device. A column, not a table of its
+  own: an import updates characters in place, the move at sign-in takes accounts whole, and deleting an account takes
+  it along - nothing to keep in step.
+- **The best stays the closest match**, beside the choice: the character page marks both - "Selected" (a person, a
+  green badge) and "Closest match to your current setup" (a check) - on the tabs, above the build in hand and on its
+  sheet; the account page names the one it grades by ("Selected build: ..." / "Best build: ..."). Undone by "Choose
+  automatically". A build the constellation does not reach can be chosen (it keeps its "needs C2"): a player may build
+  ahead of a constellation.
+- **A build that goes takes the choice with it** (`ON DELETE SET NULL`): the character is judged by its closest match
+  again, as if never chosen - simpler than a "your build is gone" state, and an import or the editor removes builds
+  rarely. The route checks the build is the character's own in the statement that writes it (`Accounts::chooseBuild()`:
+  `UPDATE ... FROM builds`), a removal at that moment answering 422 like any other build: PostgreSQL 14 on the host
+  has no `ON DELETE SET NULL (column)`, which a key over (build, character) would need.
+- **The overview's `best` became `build`, with `chosen`**: the card's build is no longer always the best, and a name
+  that says "best" while it is the player's choice would mislead every later reader.
+- **The accounts file's version 2** carries the choice by the build's variation (role, qualifier, `min_rank` -
+  `BuildFile::identity()`), never its id, which another installation does not share; a newer copy replaces an
+  account's characters, so without it an import would undo choices. Version 1 is read as before (no choice); a
+  build the copy lacks leaves the closest match, uncounted.
+
 **2026-10-25 — anotoki-lib 0.11.0: the site settings, robots.txt and sitemap.xml, the family's dates and search, one
 admin menu.** The owner's requests for every anotoki site: "Projects should use the library primarily", genshin's site
 settings made general ("Getting in", "Announcement", "Page access"), "Every project should have robots.txt and

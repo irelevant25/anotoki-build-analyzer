@@ -17,6 +17,7 @@ require __DIR__ . '/lib.php';
 use App\Auth\Role;
 use App\Cache\Cache;
 use App\Cli;
+use App\Config;
 use App\Commands\SyncCatalog;
 use App\Enums\Game;
 use App\Models\GameCharacter;
@@ -69,7 +70,24 @@ function apiCharacter(array $fields = []): array
         'release_date' => '2021-03-02',
         'is_traveler' => false,
         'icon' => 'https://genshin.anotoki.eu/media/characters/hu-tao.avif',
+        'stats' => [
+            'base' => ['hp' => 1210.72, 'atk' => 8.29, 'def' => 68.21],
+            'lv80' => ['hp' => 14459.03, 'atk' => 98.95, 'def' => 814.56],
+            'ascension' => ['stat' => 'Crit DMG %', 'value' => 38.4],
+        ],
     ];
+}
+
+/**
+ * A meta with every whole number a float: a stat's "46" and "46.0" are one number, however PHP's JSON wrote it.
+ */
+function floats(mixed $value): mixed
+{
+    if (is_array($value)) {
+        return array_map(floats(...), $value);
+    }
+
+    return is_int($value) ? (float) $value : $value;
 }
 
 /**
@@ -80,6 +98,9 @@ function apiCharacter(array $fields = []): array
 function entry(string $list, string $key): ?array
 {
     $entry = T::$app->get(CatalogRows::class)->findByKey(Game::Genshin, $list, $key);
+    if ($entry !== null && isset($entry->meta['stats'])) {
+        $entry->meta['stats'] = floats($entry->meta['stats']);
+    }
 
     return match (true) {
         $entry instanceof GameCharacter => [
@@ -103,6 +124,7 @@ function entry(string $list, string $key): ?array
             'weapon_type' => $entry->weapon_type,
             'external_id' => $entry->external_id,
             'icon_url' => $entry->icon_url,
+            'meta' => $entry->meta,
         ],
         $entry instanceof GameSet => ['id' => $entry->id, 'name' => $entry->name, 'kind' => $entry->kind, 'external_id' => $entry->external_id, 'icon_url' => $entry->icon_url, 'meta' => $entry->meta],
         default => null,
@@ -130,6 +152,7 @@ test('the characters: element, weapon type, rarity, region, version, release and
         'release_date' => '2020-09-28',
         'is_traveler' => true,
         'icon' => 'https://genshin.anotoki.eu/media/characters/' . strtolower("{$twin}-{$element}") . '.avif',
+        'stats' => null,
     ]);
     T::$http->fake([
         API . '/characters' => FakeHttpClient::json(
@@ -144,6 +167,8 @@ test('the characters: element, weapon type, rarity, region, version, release and
                     'version_name' => 'Luna I',
                     'release_date' => '2025-09-10',
                     'icon' => 'https://genshin.anotoki.eu/media/characters/ineffa.avif',
+                    // Stats the catalog cannot read: a number missing, the ascension stat one the game has not.
+                    'stats' => ['base' => ['hp' => 1000, 'atk' => 20], 'lv80' => ['hp' => 12000, 'atk' => 300, 'def' => 700], 'ascension' => ['stat' => 'Nightsoul %', 'value' => 10]],
                 ]),
                 $traveler(10000007, 'Lumine', 'Anemo'),
                 $traveler(10000005, 'Aether', 'Anemo'),
@@ -187,10 +212,16 @@ test('the characters: element, weapon type, rarity, region, version, release and
             'released_at' => '2021-03-02T00:00:00+00:00',
             'external_id' => '10000046',
             'icon_url' => 'https://genshin.anotoki.eu/media/characters/hu-tao.avif',
-            'meta' => [],
+            'meta' => [
+                'stats' => [
+                    'base' => ['hp' => 1210.72, 'atk' => 8.29, 'def' => 68.21],
+                    'lv80' => ['hp' => 14459.03, 'atk' => 98.95, 'def' => 814.56],
+                    'ascension' => ['stat' => 'critDMG_', 'value' => 38.4],
+                ],
+            ],
         ],
         entry('characters', 'hutao'),
-        'Hu Tao\'s row, found by its in-game ID',
+        'Hu Tao\'s row, found by its in-game ID; its base stats kept, the ascension stat as the catalog\'s key',
     );
     same(
         [
@@ -207,7 +238,7 @@ test('the characters: element, weapon type, rarity, region, version, release and
             'meta' => [],
         ],
         array_diff_key((array) entry('characters', 'ineffa'), ['id' => true]),
-        'a character the catalog did not have',
+        'a character the catalog did not have; stats it cannot read are none',
     );
     same(
         [
@@ -256,6 +287,7 @@ test('weapons and artifact sets: of a weapon listed twice the lower in-game ID; 
                 'version_name' => null,
                 'release_date' => '2021-03-02',
                 'icon' => 'https://genshin.anotoki.eu/media/weapons/staff-of-homa.avif',
+                'stats' => ['base_atk' => 46, 'lv80_atk' => 563, 'secondary' => ['stat' => 'Crit DMG %', 'value' => 14.4]],
             ],
             [
                 'game_id' => 11511,
@@ -266,6 +298,8 @@ test('weapons and artifact sets: of a weapon listed twice the lower in-game ID; 
                 'version_name' => null,
                 'release_date' => '2021-09-01',
                 'icon' => 'https://genshin.anotoki.eu/media/weapons/prized-isshin-blade-2.avif',
+                // A secondary stat the game's stats do not answer to: the base ATK alone.
+                'stats' => ['base_atk' => 42, 'lv80_atk' => 475, 'secondary' => ['stat' => 'Sharpness', 'value' => 3]],
             ],
             [
                 'game_id' => 11510,
@@ -305,13 +339,26 @@ test('weapons and artifact sets: of a weapon listed twice the lower in-game ID; 
 
     same(['outcome' => 'changed', 'written' => 3, 'problem' => null], catalogSync()->refresh(Game::Genshin, 'weapons'), 'three weapons');
     same(
-        ['id' => $homa, 'name' => 'Staff of Homa', 'rarity' => 5, 'weapon_type' => 'polearm', 'external_id' => '13501', 'icon_url' => 'https://genshin.anotoki.eu/media/weapons/staff-of-homa.avif'],
+        [
+            'id' => $homa,
+            'name' => 'Staff of Homa',
+            'rarity' => 5,
+            'weapon_type' => 'polearm',
+            'external_id' => '13501',
+            'icon_url' => 'https://genshin.anotoki.eu/media/weapons/staff-of-homa.avif',
+            'meta' => ['stats' => ['base_atk' => 46.0, 'lv80_atk' => 563.0, 'secondary' => ['stat' => 'critDMG_', 'value' => 14.4]]],
+        ],
         entry('weapons', 'staffofhoma'),
-        'Homa\'s row',
+        'Homa\'s row, its base stats kept with the secondary stat as the catalog\'s key',
     );
     $isshin = (array) entry('weapons', 'prizedisshinblade');
     same(['11510', 'https://genshin.anotoki.eu/media/weapons/prized-isshin-blade.avif'], [$isshin['external_id'], $isshin['icon_url']], 'listed twice: the lower ID\'s, once');
-    same([null, null], [entry('weapons', 'notaweapontype')['weapon_type'], entry('weapons', 'notaweapontype')['rarity']], 'a type and a rarity the game does not have');
+    same([], $isshin['meta'], 'the copy kept is the one without stats (the lower ID\'s row)');
+    same(
+        [null, null, []],
+        [entry('weapons', 'notaweapontype')['weapon_type'], entry('weapons', 'notaweapontype')['rarity'], entry('weapons', 'notaweapontype')['meta']],
+        'a type and a rarity the game does not have; no stats',
+    );
 
     same(['outcome' => 'changed', 'written' => 2, 'problem' => null], catalogSync()->refresh(Game::Genshin, 'sets'), 'two sets');
     same(
@@ -589,5 +636,100 @@ test('the command line: a stale catalog refreshed list by list, a fresh one left
     same([1, ['The list is characters, weapons, sets.']], $run('--list=relics'), 'a list there is not');
     same([1, ['The game is genshin.']], $run('chess'), 'a game there is not');
 });
+
+test(
+    'a list from before the stats: the same numbers from the site\'s own phase lists, by the game\'s id; a phase list that cannot be read leaves the rows without them; none asked while the site\'s API is not named',
+    function () {
+        $huTao = idOf('game_characters', 'hutao');
+        $homa = idOf('game_weapons', 'staffofhoma');
+        $site = 'https://genshin.anotoki.eu/api';
+        $withoutStats = fn(array $fields = []) => array_diff_key(apiCharacter($fields), ['stats' => true]);
+        $phase = fn(int $set, int $phase, string $stat, float $value, float $hp, float $atk, float $def, array $more = []) => $more + [
+            'id' => $set * 10 + $phase,
+            'ascension_set_id' => $set,
+            'phase' => $phase,
+            'primary_stat' => $stat,
+            'primary_stat_value' => $value,
+            'start_level_hp' => $hp,
+            'start_level_atk' => $atk,
+            'start_level_def' => $def,
+            'deleted' => false,
+        ];
+        T::$http->fake([
+            API . '/characters' => FakeHttpClient::json([$withoutStats(), $withoutStats(['game_id' => 10000125, 'name' => 'Ineffa', 'element' => 'Electro'])], 200, ['ETag' => '"c2"']),
+            // Hu Tao's set 40 with phases 0, 3 and 6 (and a deleted 6 with other numbers, and a second 0 with a higher
+            // id); Ineffa's set has no phase 6; a deleted row of Hu Tao's game id points at another set.
+            $site . '/characters' => FakeHttpClient::json([
+                ['id' => 19, 'game_id' => 10000046, 'name' => 'Hu Tao', 'ascension_set_id' => 40, 'deleted' => false, 'created_by' => 1],
+                ['id' => 20, 'game_id' => 10000046, 'name' => 'Hu Tao (old)', 'ascension_set_id' => 41, 'deleted' => true],
+                ['id' => 21, 'game_id' => 10000125, 'name' => 'Ineffa', 'ascension_set_id' => 42, 'deleted' => false],
+                ['id' => 22, 'game_id' => null, 'name' => 'Not Numbered', 'ascension_set_id' => 40, 'deleted' => false],
+            ]),
+            $site . '/characters-ascensions' => FakeHttpClient::json([
+                $phase(40, 0, 'Crit DMG %', 0, 1210.72, 8.29, 68.21),
+                $phase(40, 0, 'Crit DMG %', 0, 1, 1, 1, ['id' => 999]),
+                $phase(40, 3, 'Crit DMG %', 19.2, 7000, 50, 400),
+                $phase(40, 6, 'Crit DMG %', 38.4, 14459.03, 98.95, 814.56),
+                $phase(40, 6, 'Crit DMG %', 99, 1, 1, 1, ['id' => 998, 'deleted' => true]),
+                $phase(41, 0, 'Crit DMG %', 0, 2, 2, 2),
+                $phase(41, 6, 'Crit DMG %', 1, 2, 2, 2),
+                $phase(42, 0, 'ATK %', 0, 900, 20, 50),
+                'not a row',
+            ]),
+            API . '/weapons' => FakeHttpClient::json(
+                [
+                    ['game_id' => 13501, 'name' => 'Staff of Homa', 'type' => 'Polearm', 'rarity' => 5, 'icon' => null],
+                    ['game_id' => 13415, 'name' => '"The Catch"', 'type' => 'Polearm', 'rarity' => 4, 'icon' => null],
+                ],
+                200,
+                ['ETag' => '"w2"'],
+            ),
+            $site . '/weapons' => FakeHttpClient::json([
+                ['id' => 31, 'game_id' => 13501, 'name' => 'Staff of Homa', 'secondary_stat' => 'Crit DMG %', 'deleted' => false],
+                ['id' => 32, 'game_id' => 13415, 'name' => '"The Catch"', 'secondary_stat' => null, 'deleted' => false],
+            ]),
+            $site . '/weapons-ascensions' => FakeHttpClient::json([
+                ['id' => 1, 'weapon_id' => 31, 'phase' => 0, 'primary_stat_value' => 46, 'secondary_stat_value' => 14.4, 'deleted' => false],
+                ['id' => 2, 'weapon_id' => 31, 'phase' => 6, 'primary_stat_value' => 563, 'secondary_stat_value' => 60.3, 'deleted' => false],
+                ['id' => 3, 'weapon_id' => 32, 'phase' => 0, 'primary_stat_value' => 42, 'secondary_stat_value' => 0, 'deleted' => false],
+                ['id' => 4, 'weapon_id' => 32, 'phase' => 6, 'primary_stat_value' => 475, 'secondary_stat_value' => 0, 'deleted' => false],
+            ]),
+        ]);
+
+        same(['outcome' => 'changed', 'written' => 2, 'problem' => null], catalogSync()->refresh(Game::Genshin, 'characters'), 'the characters written');
+        same(
+            [
+                'stats' => [
+                    'base' => ['hp' => 1210.72, 'atk' => 8.29, 'def' => 68.21],
+                    'lv80' => ['hp' => 14459.03, 'atk' => 98.95, 'def' => 814.56],
+                    'ascension' => ['stat' => 'critDMG_', 'value' => 38.4],
+                ],
+            ],
+            entry('characters', 'hutao')['meta'],
+            'Hu Tao\'s stats from her set\'s phases 0 and 6, the lowest id of each, the deleted ones left out',
+        );
+        same([], entry('characters', 'ineffa')['meta'], 'a set without its phase 6: none');
+        same(['outcome' => 'changed', 'written' => 2, 'problem' => null], catalogSync()->refresh(Game::Genshin, 'weapons'), 'the weapons written');
+        same(
+            ['stats' => ['base_atk' => 46.0, 'lv80_atk' => 563.0, 'secondary' => ['stat' => 'critDMG_', 'value' => 14.4]]],
+            entry('weapons', 'staffofhoma')['meta'],
+            'Homa\'s stats, the secondary stat by the row\'s label',
+        );
+        same(['stats' => ['base_atk' => 42.0, 'lv80_atk' => 475.0, 'secondary' => null]], entry('weapons', 'thecatch')['meta'], 'a weapon without a secondary stat');
+        same($huTao, entry('characters', 'hutao')['id'], 'the rows found again');
+        same($homa, entry('weapons', 'staffofhoma')['id'], 'the weapons too');
+
+        // A phase list that cannot be read: the list written all the same, without stats.
+        T::$http->fake([API . '/characters' => FakeHttpClient::json([$withoutStats()], 200, ['ETag' => '"c3"']), $site . '/characters-ascensions' => FakeHttpClient::status(500)]);
+        same(['outcome' => 'changed', 'written' => 1, 'problem' => null], catalogSync()->refresh(Game::Genshin, 'characters'), 'written');
+        same([], entry('characters', 'hutao')['meta'], 'no stats this time');
+
+        // The site's API not named: no phase list asked (the fake would refuse an unknown address).
+        T::$app->get(Config::class)->set('catalog.genshin.site_api', null);
+        T::$http->fake([API . '/characters' => FakeHttpClient::json([$withoutStats()], 200, ['ETag' => '"c4"'])]);
+        same(['outcome' => 'changed', 'written' => 1, 'problem' => null], catalogSync()->refresh(Game::Genshin, 'characters'), 'written without asking');
+        T::$app->get(Config::class)->set('catalog.genshin.site_api', $site);
+    },
+);
 
 finishTests();

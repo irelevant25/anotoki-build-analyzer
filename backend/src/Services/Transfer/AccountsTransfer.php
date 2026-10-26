@@ -10,6 +10,7 @@ use App\Models\User;
 use App\Repositories\CatalogRows;
 use App\Repositories\Users;
 use App\Services\Analysis\CharacterAnalyzer;
+use App\Services\Builds\BuildFile;
 use App\Services\Catalog\Catalog;
 use App\Support\Clock;
 use App\Support\Json;
@@ -37,7 +38,10 @@ use DateTimeImmutable;
  *     the file does not carry stay. Otherwise nothing of it changes (kept);
  *   - a character, weapon or set this copy's catalog does not know is left out and counted (skipped):
  *     imports never create catalog rows; a weapon or item equipped on a character it does not know is kept,
- *     equipped on nobody.
+ *     equipped on nobody;
+ *   - the build chosen for a character is found again by its variation (BuildFile::identity()); one this copy
+ *     does not have leaves the character judged by its closest match, without a count - nothing of the file
+ *     was left out.
  *
  * A dry run answers the same counts and changes nothing. The import itself runs in one transaction that
  * first takes the person's users row FOR UPDATE, so two imports of files - or one and the person's own game
@@ -82,9 +86,11 @@ final class AccountsTransfer
 
             return $grouped;
         };
-        $characters = $byAccount('SELECT ac.*, c.key AS character_key
+        $characters = $this->withChosenBuilds(
+            $byAccount('SELECT ac.*, c.key AS character_key
               FROM account_characters ac JOIN accounts a ON a.id = ac.account_id JOIN game_characters c ON c.id = ac.game_character_id
-             WHERE a.user_id = ? ORDER BY ac.account_id, ac.id');
+             WHERE a.user_id = ? ORDER BY ac.account_id, ac.id'),
+        );
         $weapons = $byAccount('SELECT aw.*, w.key AS weapon_key, e.key AS equipped_key
               FROM account_weapons aw JOIN accounts a ON a.id = aw.account_id JOIN game_weapons w ON w.id = aw.game_weapon_id
               LEFT JOIN game_characters e ON e.id = aw.equipped_character_id
@@ -293,6 +299,9 @@ final class AccountsTransfer
             if ($step['outcome'] === 'kept') {
                 continue;
             }
+            // The builds the characters chose, held until the import ends - before any row of the account is
+            // touched, so a builds import removing one waits for this one rather than meet it halfway.
+            $builds = $this->chosenBuilds($step['characters']);
             $account = $step['account'];
             /** @var Game $game */
             $game = $account['game'];
@@ -345,6 +354,7 @@ final class AccountsTransfer
                         'final_stats' => Json::column($character['final_stats']),
                         'source' => self::stored($game, $character['source']),
                         'synced_at' => $character['synced_at'],
+                        'chosen_build_id' => $character['build'] === null ? null : $builds[self::identity($character['catalog_id'], $character['build'])] ?? null,
                         'created_at' => $now,
                         'updated_at' => $now,
                     ],
@@ -444,6 +454,69 @@ final class AccountsTransfer
                 $plan,
             ),
         ];
+    }
+
+    /**
+     * The characters' rows (by account), each with the variation of the build chosen for it - `build_role`,
+     * `build_qualifier`, `build_min_rank` - where one is. Asked apart, and only for builds a row names: behind the site
+     * gate a database older than migration 026 has no chosen build to ask for, and its accounts file goes out all the
+     * same (tests/before_apply.test.php).
+     *
+     * @param  array<int, list<array<string, mixed>>>  $characters
+     * @return array<int, list<array<string, mixed>>>
+     */
+    private function withChosenBuilds(array $characters): array
+    {
+        $ids = [];
+        foreach ($characters as $rows) {
+            foreach ($rows as $row) {
+                if (isset($row['chosen_build_id'])) {
+                    $ids[] = (int) $row['chosen_build_id'];
+                }
+            }
+        }
+        if ($ids === []) {
+            return $characters;
+        }
+
+        [$in, $params] = Db::in(array_values(array_unique($ids)));
+        $builds = [];
+        foreach ($this->db->all("SELECT id, role, qualifier, min_rank FROM builds WHERE id IN ({$in})", $params) as $build) {
+            $builds[(int) $build['id']] = ['build_role' => $build['role'], 'build_qualifier' => $build['qualifier'], 'build_min_rank' => $build['min_rank']];
+        }
+
+        return array_map(fn(array $rows) => array_map(fn(array $row) => $row + ($builds[(int) ($row['chosen_build_id'] ?? 0)] ?? []), $rows), $characters);
+    }
+
+    /**
+     * The builds of this installation the file's characters chose, by identity (identity() => build id): each found
+     * by the character and its variation, as an import of builds finds one again (BuildFile::identity()). A build
+     * this installation lacks is not here: the character is judged by its closest match. Their rows are held (FOR KEY
+     * SHARE) until the import ends: the foreign key of the rows written then always finds them.
+     *
+     * @param  list<array<string, mixed>>  $characters  resolved ones (catalog_id), with their `build`
+     * @return array<string, int>
+     */
+    private function chosenBuilds(array $characters): array
+    {
+        $ids = array_values(array_unique(array_map(fn(array $character) => $character['catalog_id'], array_filter($characters, fn(array $character) => $character['build'] !== null))));
+        if ($ids === []) {
+            return [];
+        }
+        [$in, $params] = Db::in($ids);
+        $builds = [];
+        foreach ($this->db->all("SELECT id, game_character_id, role, qualifier, min_rank FROM builds WHERE game_character_id IN ({$in}) FOR KEY SHARE", $params) as $row) {
+            $builds[self::identity((int) $row['game_character_id'], ['role' => (string) $row['role'], 'qualifier' => (string) $row['qualifier'], 'min_rank' => (int) $row['min_rank']])] =
+                (int) $row['id'];
+        }
+
+        return $builds;
+    }
+
+    /** A character's build by its variation, as the builds' unique index compares them (BuildFile::identity()). */
+    private static function identity(int $characterId, array $build): string
+    {
+        return BuildFile::identity((string) $characterId, $build['role'], $build['qualifier'], $build['min_rank']);
     }
 
     /** What the database calls a source: the showcase service's name, or the game's file format. */

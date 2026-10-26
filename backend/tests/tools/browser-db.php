@@ -123,6 +123,17 @@ function db(): Db
 require __DIR__ . '/../support/seed.php';
 seedGenshinCatalog();
 $db->run("UPDATE game_characters SET region = 'Liyue', version = '1.3', released_at = '2021-03-02 00:00:00+00' WHERE key = 'hutao'");
+// The stats behind the stat targets' tiers (meta.stats, as a catalog refresh keeps them since 2026-10-26): Hu Tao's and
+// her two weapons', so the builds page and her character page show the three tiers; Kazuha's builds, without, show
+// the stated targets alone.
+$db->run('UPDATE game_characters SET meta = ? WHERE key = ?', [
+    json_encode([
+        'stats' => ['base' => ['hp' => 1210.72, 'atk' => 8.29, 'def' => 68.21], 'lv80' => ['hp' => 14459.03, 'atk' => 98.95, 'def' => 814.56], 'ascension' => ['stat' => 'critDMG_', 'value' => 38.4]],
+    ]),
+    'hutao',
+]);
+$db->run('UPDATE game_weapons SET meta = ? WHERE key = ?', [json_encode(['stats' => ['base_atk' => 46, 'lv80_atk' => 563, 'secondary' => ['stat' => 'critDMG_', 'value' => 14.4]]]), 'staffofhoma']);
+$db->run('UPDATE game_weapons SET meta = ? WHERE key = ?', [json_encode(['stats' => ['base_atk' => 41, 'lv80_atk' => 427, 'secondary' => ['stat' => 'eleMas', 'value' => 48]]]), 'dragonsbane']);
 $db->run("UPDATE game_characters SET region = 'Inazuma', version = '1.6', released_at = '2021-06-29 00:00:00+00', weapon_type = 'sword' WHERE key = 'kaedeharakazuha'");
 $hutao = static fn(array $fields) => $fields + [
     'character' => 'hutao',

@@ -180,6 +180,22 @@ test('importing a full inventory again replaces the items', function () use ($ow
     same(1, (int) db()->value('SELECT count(*) FROM accounts'), 'accounts');
 });
 
+test('importing again keeps the build chosen for a character', function () use ($owner) {
+    $service = T::$app->get(ImportService::class);
+    $first = $service->fromFile(goodFile(), $owner());
+    $account = T::$app->get(Accounts::class)->findOwned(1, (int) $first->account_id);
+    $support = seedCharacterBuild(idOf('game_characters', 'hutao'), ['role' => 'support']);
+    check(T::$app->get(Accounts::class)->chooseBuild(T::$app->get(Accounts::class)->character($account->id, 'hutao'), $support), 'chosen');
+
+    $service->fromFile(goodFile(), $owner(), $account);
+
+    same(
+        $support,
+        (int) db()->value('SELECT chosen_build_id FROM account_characters WHERE account_id = ? AND game_character_id = ?', [$account->id, idOf('game_characters', 'hutao')]),
+        'still chosen',
+    );
+});
+
 test('a showcase import can complete an account made from a file', function () use ($owner) {
     $fromFile = T::$app->get(ImportService::class)->fromFile(goodFile(), $owner());
     $accountId = (int) $fromFile->account_id;

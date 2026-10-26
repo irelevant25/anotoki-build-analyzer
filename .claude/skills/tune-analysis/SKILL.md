@@ -23,9 +23,13 @@ constellation (`AccountCharacter::$rank`):
   is judged all the same and says so (`applies: false`); the page shows it locked ("needs C4").
 - **The best build** (`CharacterAnalyzer::best()`): of the builds that apply, the highest overall score, a tie to the
   lower `position`; when none applies, the one with the lowest `min_rank` (`applies: false`) - never one the
-  character does not reach while another applies.
-- **Stat targets**: per stat, the target with the highest `from_rank` the character has reached
-  (`BuildEvaluator::targetsFor()`); a stat whose targets all start later has none.
+  character does not reach while another applies. The account page grades by the build the player chose instead,
+  where they chose one (`CharacterAnalyzer::chosen()`, `account_characters.chosen_build_id`); the best is unchanged by it.
+- **Stat targets**: the requirements a build states - per stat, the target with the highest `from_rank` the
+  character has reached (`BuildEvaluator::targetsFor()`); a stat whose targets all start later has none - and every
+  substat in three tiers worked out from the game's numbers (`TargetTiers`: the fixed sources of the sheet, budgets
+  of 16 / 24 / 32 useful rolls split by priority, the crit pair's 1:2 rule, caps per piece; `docs/analysis.md`,
+  "Stat targets"); scored by the tier reached (`BuildEvaluator::tierScore()`, `TIER_SCORES`).
 - **Substats**: the build's own, or - when it lists none - `ItemScorer::fallbackSubstats()` from its own main stats.
   Never another build's (there is no consensus of builds any more).
 
@@ -57,9 +61,9 @@ $db = $app->db();
 $row = $db->one('SELECT id, user_id FROM accounts ORDER BY id LIMIT 1');   // or the account in question
 $account = $app->get(App\Repositories\Accounts::class)->findOwned((int) $row['user_id'], (int) $row['id']);
 foreach ($app->get(App\Services\Analysis\CharacterAnalyzer::class)->overview($account) as $r) {
-    if ($r['best'] && $r['items_count'] > 0) {
-        $b = $r['best'];   // the best of its variations: role, qualifier, min_rank, applies
-        $variation = $b['role'] . ($b['qualifier'] !== '' ? " {$b['qualifier']}" : '') . ($b['min_rank'] > 0 ? " C{$b['min_rank']}+" : '') . ($b['applies'] ? '' : ' (not reached)');
+    if ($r['build'] && $r['items_count'] > 0) {
+        $b = $r['build'];   // the build it is judged by - the player's choice (chosen) or the best of its variations
+        $variation = $b['role'] . ($b['qualifier'] !== '' ? " {$b['qualifier']}" : '') . ($b['min_rank'] > 0 ? " C{$b['min_rank']}+" : '') . ($b['applies'] ? '' : ' (not reached)') . ($b['chosen'] ? ' (chosen)' : '');
         echo str_pad($r['name'], 26), str_pad("C{$r['rank']}", 4), str_pad($variation, 28), str_pad($b['grade'], 3), str_pad((string) $b['overall'], 5), json_encode($b['parts']), "\n";
     }
 }
@@ -67,8 +71,10 @@ foreach ($app->get(App\Services\Analysis\CharacterAnalyzer::class)->overview($ac
 
 The database may have no accounts; import one first (the user's UID via the app, or a sample file with
 `cd backend && php import-account.php genshin <file> --user=<IAM id>`). Remove sample accounts you imported once
-you're done. Without builds there is nothing to score against (`best` is null): they come from a builds file an
-editor imports on the admin panel's Builds page - ask the user rather than writing builds yourself.
+you're done. Without builds there is nothing to score against (`build` is null): they come from a builds file an
+editor imports on the admin panel's Builds page - ask the user rather than writing builds yourself. A character a
+player chose a build for is graded by that one (`chosen`): compare it before and after as it is, or look at the
+best in `detail()`'s `best_build_id`.
 
 ## 2. Change the rule
 

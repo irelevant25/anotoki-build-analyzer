@@ -23,6 +23,10 @@ return [
         'genshin' => [
             'provider' => GenshinCatalog::class,
             'api' => 'https://genshin.anotoki.eu/api/catalog',
+            // That site's own API, read for the characters' and weapons' ascension phases - the base stats behind
+            // the stat targets - while its catalog lists carry no `stats` of their own (a release of that site
+            // from before 2026-10-26); null: never. Four more requests per refresh of those two lists.
+            'site_api' => 'https://genshin.anotoki.eu/api',
         ],
         'refresh_days' => 3,
         'retry_minutes' => 60,

@@ -49,7 +49,9 @@ outside the repository.
 - Whether the best build (`best_build_id`) is the variation the player is clearly going for. The rule
   (`CharacterAnalyzer::best()`): of the builds the constellation reaches (`min_rank`, `applies`), the highest
   overall score, a tie to the earlier build (`position`); a build not reached is never the best while another
-  applies, and is the best only when none does (the lowest `min_rank`, `applies: false`, shown locked).
+  applies, and is the best only when none does (the lowest `min_rank`, `applies: false`, shown locked). Where the
+  player chose a build (`chosen_build_id`, `account_characters.chosen_build_id`), the account page grades by that one
+  instead - reached or not -; the best stays the closest match. A choice is the player's word, not a finding.
 - Recommendations: correct slot/stat named, sensible severity, nothing contradictory between builds or with
   the suggestions.
 - Suggestions and set plans: never worse set bonuses, pieces taken from other characters flagged.

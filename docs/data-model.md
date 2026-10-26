@@ -221,6 +221,21 @@ the site is closed to everybody but its ADMIN on the Migrations page (the site g
   Gated: the new key in both languages, the reworded and described ones there with their English (not their Slovak:
   an editor may have deleted it), no description calling the notes the file's English any more, and the site's own
   keys (439 + 1 = 440).
+- `024_admin_frame.sql` (anotoki-lib 0.10.0's admin frame) retires the name the old top bar gave the admin panel's
+  home (`topbar.homeAdmin`, with every string of it, a reworded one too) and describes the frame's words anew
+  (`brand.admin`, `topbar.backToApp`: the frame's column, not a top bar). The site's own keys 440 - 1 = 439.
+- `025_site_settings_words.sql` (anotoki-lib 0.11.0's site settings) adds the Privacy page's part about the settings
+  (`legal.settings.*`), the page that is not open (`title.notOpen`, `notOpen.*`), and names the settings in the audit
+  log's sentence (`legal.auditLog.what`, where it reads as 023 left it). The site's own keys 439 + 7 = 446.
+- `026_chosen_build.sql` (the owner's round of 2026-10-26): `account_characters.chosen_build_id` - the build a player
+  chose to judge the character by, null for the closest match ([analysis.md](analysis.md), "Flow") -, a foreign key to
+  `builds` that sets it null when the build goes (`account_characters_chosen_build_id_foreign`, `ON DELETE SET NULL`),
+  with a partial index for it; that the build is the character's own is the route's to check (the host's PostgreSQL 14
+  has no `ON DELETE SET NULL (column)` a composite key would need). Its six words (`character.useBuild`,
+  `.chooseAutomatically`, `.chosen`, `.chosenSaved`, `.automaticSaved`, `account.chosenBuild`), and the Privacy
+  page's sentence on the game accounts names the build chosen (`legal.accounts.what`, where it reads as 015 left it).
+  Gated: the column and its foreign key, the new keys in both languages, the reworded one with its English, and the
+  site's own keys (446 + 6 = 452).
 
 Rules: never edit a migration that has run somewhere; add `NNN_what.sql`. A migration runs in one transaction
 (PostgreSQL DDL is transactional), so a failing one leaves nothing behind. A migration that changes data ends
@@ -270,9 +285,9 @@ Made by the anotoki library's sets, read and written by its modules only (anotok
 
 | Table | Key columns | Notes |
 | --- | --- | --- |
-| `game_characters` | `game`, `key` (unique per game), `name`, `element`, `rarity`, `weapon_type`, `region`, `version`, `version_name` (migration 018), `external_id`, `icon_url`, `released_at`, `meta.ids` | The Travelers are one entry per element (`traveler{element}`, "Traveler (Anemo)"), `external_id` `{lowest in-game ID}-{element}` and both twins' IDs in `meta.ids` - the way imports have always named them. `version` as the game numbers it (`game_characters_version_check`: `^[0-9]{1,2}\.[0-9]{1,2}$`, "6.1"), `version_name` the name the game gave it ("Luna II"); `region`, `version` and `version_name` NULL where the provider has none - the builds browser filters by them |
-| `game_weapons` | `game`, `key`, `name`, `rarity`, `weapon_type`, `external_id`, `icon_url` | Genshin Impact's weapons; of two the provider lists under one key (a quest copy), the lower in-game ID's |
-| `game_sets` | `game`, `key`, `name`, `kind` (`artifact`, the one kind since 014), `external_id`, `icon_url`, `meta.rarities`, `meta.bonuses` | `meta.bonuses` the 2-piece and 4-piece texts, as the provider gives them |
+| `game_characters` | `game`, `key` (unique per game), `name`, `element`, `rarity`, `weapon_type`, `region`, `version`, `version_name` (migration 018), `external_id`, `icon_url`, `released_at`, `meta.ids`, `meta.stats` | The Travelers are one entry per element (`traveler{element}`, "Traveler (Anemo)"), `external_id` `{lowest in-game ID}-{element}` and both twins' IDs in `meta.ids` - the way imports have always named them. `version` as the game numbers it (`game_characters_version_check`: `^[0-9]{1,2}\.[0-9]{1,2}$`, "6.1"), `version_name` the name the game gave it ("Luna II"); `region`, `version` and `version_name` NULL where the provider has none - the builds browser filters by them. `meta.stats` (since the round of 2026-10-26, the stat targets): what the provider's phases hold - `base` and `lv80` each `{hp, atk, def}` (level 1; level 80 ascended) and `ascension` `{stat, value}` (the catalog's key, the whole value) -, from which `MaxLevelStats` works out level 90; absent where the provider has none or the catalog could not read them |
+| `game_weapons` | `game`, `key`, `name`, `rarity`, `weapon_type`, `external_id`, `icon_url`, `meta.stats` | Genshin Impact's weapons; of two the provider lists under one key (a quest copy), the lower in-game ID's. `meta.stats`: `{base_atk, lv80_atk, secondary: {stat, value} \| null}` at level 1 and level 80 ascended, likewise |
+| `game_sets` | `game`, `key`, `name`, `kind` (`artifact`, the one kind since 014), `external_id`, `icon_url`, `meta.rarities`, `meta.bonuses` | `meta.bonuses` the 2-piece and 4-piece texts, as the provider gives them (`SetBonus` reads the 2-piece's sheet stat from the first, for the stat targets) |
 
 The catalog is shared by every user. Only a catalog refresh writes it (`CatalogSync::refresh()`, one list at a
 time, from the game's provider - Genshin Impact's the owner's genshin.anotoki.eu; [architecture.md](architecture.md),
@@ -292,7 +307,7 @@ locks").
 | --- | --- |
 | `accounts` | `user_id` → `users` (cascade), `game`, `uid` (nullable: file imports have none), unique (`user_id`, `game`, `uid`) so two people can import the same UID, `nickname`, `level`, `world_level`, `has_full_inventory`, `last_import_at`, `meta` (region, tool…; the API sends only neutral keys) |
 | `import_runs` | `user_id` → `users`, `account_id` (null for a failed attempt without an account), `source` (`enka` \| `good`, or `file` for a file that could not be read; the API says `showcase` or `file`), `status` (`success` \| `partial` \| `failed`), `summary` {characters, weapons, items, full_inventory, tool, warnings[], warning_kinds[{code, params}], unmatched{bucket: names[]}} (the API leaves out `tool`) - on a failed run `{error: {code, params}}` instead, `error` (the English sentence) |
-| `account_characters` | unique (account, character); `level`, `ascension`, `rank` (the constellation: which builds the character reaches, and which stat targets hold it), `talents`, `final_stats`, `source`, `synced_at` |
+| `account_characters` | unique (account, character); `level`, `ascension`, `rank` (the constellation: which builds the character reaches, and which stat targets hold it), `talents`, `final_stats`, `source`, `synced_at`, `chosen_build_id` → `builds` (set null when the build goes; migration 026: the build the player chose to judge the character by, null for the closest match - written by `Accounts::chooseBuild()` and by an accounts file's import (`AccountsTransfer`), each taking one of the character's own builds) |
 | `account_weapons` | `refinement`, `equipped_character_id` → `game_characters`, `external_uid` |
 | `account_items` | artifacts: `slot`, `rarity`, `level`, `main_stat`, `main_value` (nullable), `substats` JSON, `equipped_character_id`, `game_set_id` |
 
@@ -319,7 +334,7 @@ Import semantics (`AccountImporter`):
 - Full inventory files (GOOD) **replace all** weapons and items of the account.
 - A showcase import replaces only the gear equipped on the imported characters.
 - Characters are upserted, never deleted. `final_stats` are kept when a file import has none (the UI shows
-  their source and date).
+  their source and date); the build chosen for a character (`chosen_build_id`) is never touched by an import.
 - Every import is for one user (`$owner`): the target is their explicit `account_id` (checked against their
   accounts), else their account with that (game, uid), else a new account of theirs. A target with a different
   UID, or of another user, is refused. A failed attempt is recorded for the user, on their account when there is one.
@@ -474,12 +489,14 @@ which gave builds their teams):
 A signed-in person's own game accounts, exported (`GET /api/me/export`) and imported on this or another
 installation (`POST /api/me/import`, the file as the body; `?dry_run=1` only says what would happen):
 `Services/Transfer/AccountsFile` is the format, `AccountsTransfer` the export and import. Never a visitor's
-(401 `sign_in_required`): a visitor's accounts become a person's by the move at sign-in. Format version 1,
-written as compact JSON (one line), saved as `build-analyzer-accounts-YYYY-MM-DD.json`:
+(401 `sign_in_required`): a visitor's accounts become a person's by the move at sign-in. Format version 2 (since
+0.8.0: a character carries the build chosen for it; a version 1 file - the same without it - is read too, its
+characters judged by their closest match), written as compact JSON (one line), saved as
+`build-analyzer-accounts-YYYY-MM-DD.json`:
 
 ```jsonc
 {
-  "format": "build-analyzer.accounts", "format_version": 1,
+  "format": "build-analyzer.accounts", "format_version": 2,
   "exported_at": "2026-10-04T08:15:00Z",             // UTC, to the second, like every time in the file
   "app_version": "0.4.0",                            // Version::CURRENT where it was written
   "accounts": [{                                     // by game, then when they were made
@@ -489,7 +506,8 @@ written as compact JSON (one line), saved as `build-analyzer-accounts-YYYY-MM-DD
     "meta": {"region": "EU"},                        // AccountPresenter::META_KEYS only (never the tool)
     "characters": [{"key": "hutao", "level": 90, "ascension": 6, "rank": 1,
       "talents": {"normal": 10, "skill": 9, "burst": 9, "bonus": {"skill": 3}}, "final_stats": {"hp": 30512},
-      "source": "showcase", "synced_at": "2026-09-20T08:00:00Z"}],
+      "source": "showcase", "synced_at": "2026-09-20T08:00:00Z",
+      "build": {"role": "main_dps", "qualifier": "Vape", "min_rank": 1}}],   // the build chosen, by its variation; null for none
     "weapons": [{"key": "staffofhoma", "level": 90, "ascension": 6, "refinement": 1, "equipped": "hutao",
       "locked": true, "external_uid": "…", "source": "file"}],
     "items": [{"set": "crimsonwitchofflames", "slot": "flower", "rarity": 5, "level": 20, "main_stat": "hp",
@@ -503,7 +521,9 @@ written as compact JSON (one line), saved as `build-analyzer-accounts-YYYY-MM-DD
 ```
 
 - Nothing in it only makes sense here: catalog entries by key (`game_characters.key` …, matched by (game,
-  key)), never an internal id; no user id, no account id; a source is `showcase` or `file` (`enka` comes back
+  key)), never an internal id; a chosen build by its variation (`role`, `qualifier`, `min_rank` - found again by
+  the character and `BuildFile::identity()`, the qualifier in any case; one this copy lacks leaves the character
+  judged by its closest match, uncounted), never its id; no user id, no account id; a source is `showcase` or `file` (`enka` comes back
   as `enka`, a file as the game's file format: `good`); a run's summary without `tool`; every
   text through `Neutral::text()` and within its column. Import runs without an account (a failed attempt that
   found none) are not in it.
@@ -518,7 +538,9 @@ written as compact JSON (one line), saved as `build-analyzer-accounts-YYYY-MM-DD
   a field missing or unknown, a wrong type, a game this site does not offer - a Star Rail account's among
   them, since 0.5.0 -, a slot the game does not have, a stat or catalog key of the wrong form, a
   time without its offset, a meta key the account page does not show, one UID twice, a character twice, a text
-  longer than its column), `too_many_accounts` `{max}` (the import would leave more than 500 accounts). Caps
+  longer than its column, a chosen build of a role the game lacks, with a qualifier of more than one line or 40
+  characters, or past the game's constellations - and a `build` in a version 1 file), `too_many_accounts` `{max}`
+  (the import would leave more than 500 accounts). Caps
   well above a game's own: 500 accounts, 1000 characters, 10000 weapons and 10000 items an account, 200 import
   runs, 10 substats.
 - **The export always imports**: it writes only what the reader accepts (a stored value of another shape stays

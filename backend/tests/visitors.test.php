@@ -271,11 +271,13 @@ test('visitors and members each reach their own accounts and nobody else\'s', fu
     $as = (int) $alice->get('/api/accounts')->json('0.id');
     $bs = (int) $bob->get('/api/accounts')->json('0.id');
     check($as !== $bs, 'two accounts');
+    $build = seedCharacterBuild(idOf('game_characters', 'hutao'));
 
     foreach ([[$alice, $bs, 'A, B\'s'], [$alice, $persons, 'A, the person\'s'], [$bob, $as, 'B, A\'s'], [$bob, $persons, 'B, the person\'s']] as [$client, $account, $what]) {
         refusedAs($client->get("/api/accounts/{$account}"), 404, 'not_found', $what);
         refusedAs($client->get("/api/accounts/{$account}/imports"), 404, 'not_found', "{$what} imports");
         refusedAs($client->patch("/api/accounts/{$account}", ['nickname' => 'x']), 404, 'not_found', "{$what} rename");
+        refusedAs($client->put("/api/accounts/{$account}/characters/hutao/build", ['build_id' => $build]), 404, 'not_found', "{$what} build chosen");
         refusedAs($client->delete("/api/accounts/{$account}"), 404, 'not_found', "{$what} delete");
         $client
             ->post('/api/imports/file', ['content' => goodFile(), 'account_id' => $account])
@@ -283,6 +285,13 @@ test('visitors and members each reach their own accounts and nobody else\'s', fu
             ->path('errors.account_id.0', 'The selected account does not exist.');
     }
     same([$as], array_column($alice->get('/api/accounts')->json(), 'id'), 'A lists its own');
+    same(0, (int) db()->value('SELECT count(*) FROM account_characters WHERE chosen_build_id IS NOT NULL'), 'nobody\'s build chosen');
+    // ... and chooses the build of its own Hu Tao.
+    $alice
+        ->put("/api/accounts/{$as}/characters/hutao/build", ['build_id' => $build])
+        ->status(200)
+        ->path('chosen_build_id', $build);
+    same($build, (int) db()->value('SELECT chosen_build_id FROM account_characters WHERE account_id = ?', [$as]), 'A\'s choice, in A\'s account');
     $member = (new Client())->asIam(PERSON);
     same([$persons], array_column($member->get('/api/accounts')->json(), 'id'), 'the person lists theirs');
     refusedAs($member->get("/api/accounts/{$as}"), 404, 'not_found', 'the person, A\'s');

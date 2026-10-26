@@ -97,6 +97,9 @@ test('another person\'s account is not found, whatever is asked', function () us
     $bob->get("/api/accounts/{$id}/imports")->status(404);
     $bob->get("/api/accounts/{$id}/characters/hutao")->status(404);
     $bob->patch("/api/accounts/{$id}", ['nickname' => 'Mine now'])->status(404);
+    $build = seedCharacterBuild(idOf('game_characters', 'hutao'));
+    $bob->put("/api/accounts/{$id}/characters/hutao/build", ['build_id' => $build])->status(404);
+    same(null, db()->value('SELECT chosen_build_id FROM account_characters WHERE account_id = ?', [$id]), 'no build chosen for Alice\'s Hu Tao');
     $bob->delete("/api/accounts/{$id}")->status(404);
 
     same('Alice main', db()->value('SELECT nickname FROM accounts WHERE id = ?', [$id]), 'unchanged');

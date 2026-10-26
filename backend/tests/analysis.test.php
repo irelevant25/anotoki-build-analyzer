@@ -187,7 +187,7 @@ function checkKinds(array $recommendations, stdClass $state): void
         foreach ($recommendation['params'] as $name => $value) {
             if ($name === 'best_choose') {
                 check($value === null || is_int($value), "{$kind}.best_choose is a number or null");
-            } elseif (in_array($name, $numbers, true) || ($kind === 'target_below' && $name === 'current')) {
+            } elseif (in_array($name, $numbers, true) || (in_array($kind, ['target_below', 'target_basic_below'], true) && $name === 'current')) {
                 check(is_int($value) || is_float($value), "{$kind}.{$name} is a number, got " . json_encode($value));
             } else {
                 check(is_string($value) && $value !== '', "{$kind}.{$name} is a string, got " . json_encode($value));
@@ -335,19 +335,19 @@ test('the account overview and the character API: the build as a variation, and 
     $overview = T::$app->make(CharacterAnalyzer::class)->overview($accounts->findOwned(1, $state->account));
     same('Hu Tao', $overview[0]['name'], 'name');
     same(
-        ['build_id' => $state->build, 'role' => 'main_dps', 'qualifier' => '', 'min_rank' => 0, 'applies' => true],
-        array_intersect_key($overview[0]['best'], array_flip(['build_id', 'role', 'qualifier', 'min_rank', 'applies'])),
-        'the best build by its variation',
+        ['build_id' => $state->build, 'chosen' => false, 'role' => 'main_dps', 'qualifier' => '', 'min_rank' => 0, 'applies' => true],
+        array_intersect_key($overview[0]['build'], array_flip(['build_id', 'chosen', 'role', 'qualifier', 'min_rank', 'applies'])),
+        'the best build by its variation, nobody\'s choice',
     );
-    check(!array_key_exists('source', $overview[0]['best']) && !array_key_exists('variant', $overview[0]['best']), 'no source, no variant');
-    check($overview[0]['best']['overall'] > 0, 'a score');
+    check(!array_key_exists('source', $overview[0]['build']) && !array_key_exists('variant', $overview[0]['build']), 'no source, no variant');
+    check($overview[0]['build']['overall'] > 0, 'a score');
 
     // The top issue is the first recommendation: its sentence, and its kind with its parameters.
     $goblet = ['slot_label' => 'Goblet of Eonothem', 'stat' => 'ATK%', 'wanted' => 'Pyro DMG Bonus'];
-    same('Goblet of Eonothem has ATK% as main stat; this build wants Pyro DMG Bonus.', $overview[0]['best']['top_issue'], 'the top issue, in English');
-    same('main_stat_wrong', $overview[0]['best']['top_issue_kind'], 'the top issue, its kind');
-    same($goblet, $overview[0]['best']['top_issue_params'], 'the top issue, its params');
-    $best = $overview[0]['best'];
+    same('Goblet of Eonothem has ATK% as main stat; this build wants Pyro DMG Bonus.', $overview[0]['build']['top_issue'], 'the top issue, in English');
+    same('main_stat_wrong', $overview[0]['build']['top_issue_kind'], 'the top issue, its kind');
+    same($goblet, $overview[0]['build']['top_issue_params'], 'the top issue, its params');
+    $best = $overview[0]['build'];
     checkKinds([['kind' => $best['top_issue_kind'], 'params' => $best['top_issue_params'], 'message' => $best['top_issue']]], $state);
 
     $client = (new Client())->asIam(1);
@@ -355,9 +355,9 @@ test('the account overview and the character API: the build as a variation, and 
         ->get("/api/accounts/{$state->account}")
         ->status(200)
         ->path('characters.0.key', 'hutao')
-        ->path('characters.0.best.top_issue', 'Goblet of Eonothem has ATK% as main stat; this build wants Pyro DMG Bonus.')
-        ->path('characters.0.best.top_issue_kind', 'main_stat_wrong')
-        ->path('characters.0.best.top_issue_params', $goblet);
+        ->path('characters.0.build.top_issue', 'Goblet of Eonothem has ATK% as main stat; this build wants Pyro DMG Bonus.')
+        ->path('characters.0.build.top_issue_kind', 'main_stat_wrong')
+        ->path('characters.0.build.top_issue_params', $goblet);
 
     // The site's own note on the build, as no editor's save would let it be written: straight into the table.
     db()->run('UPDATE builds SET site_notes = ? WHERE id = ?', [Json::encode(['build' => ['en' => 'Enka lists none of these.', 'sk' => 'Enka nič z toho neuvádza.']]), $state->build]);
@@ -502,13 +502,13 @@ test('a character with nothing to recommend has no top issue, no kind and no par
 
     $accounts = T::$app->get(Accounts::class);
     $overview = array_column(T::$app->make(CharacterAnalyzer::class)->overview($accounts->findOwned(1, $state->account)), null, 'key');
-    $best = $overview['kaedeharakazuha']['best'];
+    $best = $overview['kaedeharakazuha']['build'];
     check(is_array($best), 'the build is still the best one');
     foreach (['top_issue', 'top_issue_kind', 'top_issue_params'] as $field) {
         check(array_key_exists($field, $best) && $best[$field] === null, "{$field} is there and null");
     }
     same(0, $best['issues'], 'no issues');
-    same('main_stat_wrong', $overview['hutao']['best']['top_issue_kind'], 'Hu Tao keeps hers');
+    same('main_stat_wrong', $overview['hutao']['build']['top_issue_kind'], 'Hu Tao keeps hers');
 
     $characters = array_column(
         (new Client())
@@ -519,8 +519,8 @@ test('a character with nothing to recommend has no top issue, no kind and no par
         null,
         'key',
     );
-    check(array_key_exists('top_issue_kind', $characters['kaedeharakazuha']['best']) && $characters['kaedeharakazuha']['best']['top_issue_kind'] === null, 'sent as null');
-    check(array_key_exists('top_issue_params', $characters['kaedeharakazuha']['best']) && $characters['kaedeharakazuha']['best']['top_issue_params'] === null, 'sent as null');
+    check(array_key_exists('top_issue_kind', $characters['kaedeharakazuha']['build']) && $characters['kaedeharakazuha']['build']['top_issue_kind'] === null, 'sent as null');
+    check(array_key_exists('top_issue_params', $characters['kaedeharakazuha']['build']) && $characters['kaedeharakazuha']['build']['top_issue_params'] === null, 'sent as null');
 });
 
 test('a better weapon that another character holds is a kind of its own', function () use ($detail, $state) {
@@ -809,7 +809,7 @@ test('a build the character\'s constellation does not reach is judged and marked
     same([true, true], array_map(fn($e) => $e['build']['applies'], $result['evaluations']), 'both apply at C2');
     same($vape, $result['best_build_id'], 'the better one is the best');
     $accounts = T::$app->get(Accounts::class);
-    $best = T::$app->make(CharacterAnalyzer::class)->overview($accounts->findOwned(1, $state->account))[0]['best'];
+    $best = T::$app->make(CharacterAnalyzer::class)->overview($accounts->findOwned(1, $state->account))[0]['build'];
     same(
         ['build_id' => $vape, 'role' => 'main_dps', 'qualifier' => 'Vape', 'min_rank' => 2, 'applies' => true],
         array_intersect_key($best, array_flip(['build_id', 'role', 'qualifier', 'min_rank', 'applies'])),
@@ -836,8 +836,103 @@ test('a character below every build\'s constellation: the build that needs the l
     same($c2, $result['best_build_id'], 'the one needing C2');
     same([false, false], array_map(fn($e) => $e['build']['applies'], $result['evaluations']), 'neither applies');
     $accounts = T::$app->get(Accounts::class);
-    $best = T::$app->make(CharacterAnalyzer::class)->overview($accounts->findOwned(1, $state->account))[0]['best'];
+    $best = T::$app->make(CharacterAnalyzer::class)->overview($accounts->findOwned(1, $state->account))[0]['build'];
     same([$c2, false, 2], [$best['build_id'], $best['applies'], $best['min_rank']], 'the overview says it does not apply');
+});
+
+test('the build the player chose is the one the account page shows and the character page opens on; the best stays the closest match', function () use ($detail, $state) {
+    // A support build like her main one: the same score, so the main one (the earlier) stays the best.
+    $support = anotherHuTaoBuild($state->build, ['role' => 'support', 'position' => 1]);
+    $client = (new Client())->asIam(1);
+    $url = "/api/accounts/{$state->account}/characters/hutao/build";
+
+    $client
+        ->put($url, ['build_id' => $support])
+        ->status(200)
+        ->path('chosen_build_id', $support);
+    $result = $detail();
+    same([$state->build, $support, $support], [$result['best_build_id'], $result['chosen_build_id'], $result['focus_build_id']], 'the best, the choice, and the build in hand');
+
+    $accounts = T::$app->get(Accounts::class);
+    $build = T::$app->make(CharacterAnalyzer::class)->overview($accounts->findOwned(1, $state->account))[0]['build'];
+    same([$support, true, 'support'], [$build['build_id'], $build['chosen'], $build['role']], 'the account page shows the build chosen, said so');
+    $client
+        ->get("/api/accounts/{$state->account}")
+        ->status(200)
+        ->path('characters.0.build.build_id', $support)
+        ->path('characters.0.build.chosen', true);
+
+    // Another build asked for is the one in hand; the choice stays.
+    $other = T::$app->make(CharacterAnalyzer::class)->detail($accounts->findOwned(1, $state->account), $accounts->character($state->account, 'hutao'), $state->build);
+    same([$state->build, $support], [$other['focus_build_id'], $other['chosen_build_id']], 'another build in hand, the choice kept');
+    $client
+        ->get("/api/accounts/{$state->account}/characters/hutao")
+        ->status(200)
+        ->path('chosen_build_id', $support)
+        ->path('best_build_id', $state->build);
+
+    // Back to the closest match.
+    $client
+        ->put($url, ['build_id' => null])
+        ->status(200)
+        ->path('chosen_build_id', null);
+    $result = $detail();
+    same([null, $state->build], [$result['chosen_build_id'], $result['focus_build_id']], 'chosen automatically again');
+    same(false, T::$app->make(CharacterAnalyzer::class)->overview($accounts->findOwned(1, $state->account))[0]['build']['chosen'], 'the account page\'s too');
+});
+
+test('a chosen build the constellation does not reach is shown all the same, said so; one that goes takes the choice with it', function () use ($detail, $state) {
+    $c2 = anotherHuTaoBuild($state->build, ['qualifier' => 'Vape', 'min_rank' => 2, 'position' => 1]);
+    (new Client())
+        ->asIam(1)
+        ->put("/api/accounts/{$state->account}/characters/hutao/build", ['build_id' => $c2])
+        ->status(200);
+
+    $accounts = T::$app->get(Accounts::class);
+    $build = T::$app->make(CharacterAnalyzer::class)->overview($accounts->findOwned(1, $state->account))[0]['build'];
+    same([$c2, true, false, 2], [$build['build_id'], $build['chosen'], $build['applies'], $build['min_rank']], 'chosen, not reached, and said so');
+    same([$state->build, $c2], [$detail()['best_build_id'], $detail()['chosen_build_id']], 'the best is still the one she reaches');
+
+    // What an import or an editor does to a build: it goes, and the character is judged by the closest match again.
+    db()->delete('builds', ['id' => $c2]);
+    same(null, db()->value('SELECT chosen_build_id FROM account_characters WHERE account_id = ? AND game_character_id = ?', [$state->account, $state->character]), 'the choice went with the build');
+    $result = $detail();
+    same([null, $state->build], [$result['chosen_build_id'], $result['focus_build_id']], 'the closest match again');
+});
+
+test('choosing a build: only one of the character\'s own, and only for a character the account has', function () use ($state) {
+    $kazuha = idOf('game_characters', 'kaedeharakazuha');
+    $kazuhas = seedBuild($kazuha, ['role' => 'support', 'content_hash' => 'y']);
+    $client = (new Client())->asIam(1);
+    $url = "/api/accounts/{$state->account}/characters/hutao/build";
+    $chosen = fn() => db()->value('SELECT chosen_build_id FROM account_characters WHERE account_id = ? AND game_character_id = ?', [$state->account, $state->character]);
+
+    $client
+        ->put($url, ['build_id' => $kazuhas])
+        ->status(422)
+        ->path('code', 'invalid');
+    $client
+        ->put($url, ['build_id' => 999999])
+        ->status(422)
+        ->path('code', 'invalid');
+    $client
+        ->put($url, ['build_id' => 'main_dps'])
+        ->status(422)
+        ->path('code', 'invalid');
+    $client
+        ->put($url, ['build_id' => ''])
+        ->status(422)
+        ->path('code', 'invalid');
+    $client->put($url, [])->status(422)->path('code', 'invalid');
+    same(null, $chosen(), 'nothing chosen');
+
+    // Kazuha has builds, but the account has no Kazuha.
+    $client->put("/api/accounts/{$state->account}/characters/kaedeharakazuha/build", ['build_id' => $kazuhas])->status(404);
+    $client
+        ->put($url, ['build_id' => (string) $state->build])
+        ->status(200)
+        ->path('chosen_build_id', $state->build);
+    same($state->build, (int) $chosen(), 'a number written as text is a number too');
 });
 
 test('stat targets by constellation: of a stat\'s targets, the one from the highest constellation reached', function () use ($detail, $state) {
@@ -883,10 +978,75 @@ test('a build that lists no substats is scored by what its own main stats ask fo
     same(['critRate_', 'critDMG_', 'hp_', 'eleMas', 'enerRech_'], array_values(array_diff(array_keys($weights), ['hp'])), 'the stats its main stats ask for');
 });
 
+test(
+    'stat targets in tiers: with the catalog\'s stats the rows carry three tiers for the weapon in hand, scored by the tier reached; a stat below the basic tier is a recommendation',
+    function () use ($detail, $state) {
+        // Hu Tao's and Dragon's Bane's stats, as a catalog refresh keeps them (the seed has none: the cases above saw
+        // the stated targets alone).
+        db()->update(
+            'game_characters',
+            [
+                'meta' => Json::encode([
+                    'stats' => [
+                        'base' => ['hp' => 1210.72, 'atk' => 8.29, 'def' => 68.21],
+                        'lv80' => ['hp' => 14459.03, 'atk' => 98.95, 'def' => 814.56],
+                        'ascension' => ['stat' => 'critDMG_', 'value' => 38.4],
+                    ],
+                ]),
+            ],
+            ['key' => 'hutao'],
+        );
+        db()->update('game_weapons', ['meta' => Json::encode(['stats' => ['base_atk' => 41, 'lv80_atk' => 427, 'secondary' => ['stat' => 'eleMas', 'value' => 48]]])], ['key' => 'dragonsbane']);
+        // In-game totals: CRIT DMG far below what the build reaches, HP a basic set's worth, no Elemental Mastery.
+        db()->update(
+            'account_characters',
+            ['final_stats' => Json::encode(['critRate_' => 62.0, 'critDMG_' => 90.0, 'hp' => 29000])],
+            ['account_id' => $state->account, 'game_character_id' => $state->character],
+        );
+
+        $evaluation = $detail()['evaluations'][0];
+        same(
+            ['weapon' => "Dragon's Bane", 'sets' => '4pc Crimson Witch of Flames', 'main_stats' => ['sands' => 'hp_', 'goblet' => 'pyro_dmg_', 'circlet' => 'critRate_']],
+            $evaluation['targets_basis'],
+            'the weapon in hand; the build\'s top main stats, nothing worn',
+        );
+        $rows = [];
+        foreach ($evaluation['targets'] as $row) {
+            $rows[$row['stat']] = $row;
+        }
+        same(['critRate_', 'critDMG_', 'eleMas', 'hp'], array_keys($rows), 'the stated CRIT Rate first, then the substats by priority, HP% as the sheet\'s HP');
+        same(
+            [null, 70, 62, false, null],
+            [$rows['critRate_']['tiers'], $rows['critRate_']['min'], $rows['critRate_']['current'], $rows['critRate_']['ok'], $rows['critRate_']['tier']],
+            'the requirement: untiered, unmet',
+        );
+        $tiers = $rows['critDMG_']['tiers'];
+        check($tiers['basic'] > 88.4 && $tiers['basic'] < $tiers['intermediate'] && $tiers['intermediate'] < $tiers['advanced'], 'three rising tiers above the fixed sources: ' . json_encode($tiers));
+        same([90, false, null], [$rows['critDMG_']['current'], $rows['critDMG_']['ok'], $rows['critDMG_']['tier']], 'CRIT DMG 90: below basic');
+        same([null, null, null], [$rows['eleMas']['current'], $rows['eleMas']['ok'], $rows['eleMas']['tier']], 'no in-game Elemental Mastery: unscored');
+        check(in_array($rows['hp']['tier'], ['basic', 'intermediate', 'advanced'], true) && $rows['hp']['ok'] === true, 'HP 29000 reaches a tier: ' . json_encode($rows['hp']));
+        same(
+            ['stat' => 'CRIT DMG', 'stat_key' => 'critDMG_', 'current' => 90, 'min' => $tiers['basic']],
+            recommendationOf($evaluation, 'target_basic_below', 'critDMG_')['params'],
+            'below basic: a recommendation naming the basic target',
+        );
+        $score = $evaluation['score']['parts']['targets'];
+        check(is_int($score) && $score > 0 && $score < 100, "the part scored by the rows with totals: {$score}");
+
+        // The tier scores themselves: TIER_SCORES at a tier, in proportion between two, below basic in proportion to it.
+        $tiers = ['basic' => 100, 'intermediate' => 200, 'advanced' => 300];
+        same(
+            [[100, 'advanced'], [93, 'intermediate'], [75, 'basic'], [33, null]],
+            [BuildEvaluator::tierScore(300, $tiers), BuildEvaluator::tierScore(250, $tiers), BuildEvaluator::tierScore(150, $tiers), BuildEvaluator::tierScore(50, $tiers)],
+            'the tier scores',
+        );
+    },
+);
+
 test('every kind of recommendation is one the cases above produce', function () use ($state) {
     // checkKinds() held every one of them to KINDS[kind]; a kind missing here is one no data of this file reaches.
     same([], array_values(array_diff(array_keys(BuildEvaluator::KINDS), array_keys($state->seen))), 'kinds no case produced');
-    same(18, count(BuildEvaluator::KINDS), 'the kinds');
+    same(19, count(BuildEvaluator::KINDS), 'the kinds');
 
     // A kind is a key's tail and a parameter a placeholder: the shapes both must keep.
     foreach (BuildEvaluator::KINDS as $kind => $params) {

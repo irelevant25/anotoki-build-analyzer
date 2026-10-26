@@ -29,6 +29,7 @@ const SLOVAK: Record<string, string> = {
   'recommendation.item_level': '{slot_label}: zvýš level (+{level} → +{max_level}).',
   'recommendation.substats_weak': '{slot_label}: substats majú len {percent} % hodnoty ideálneho kusu. Vymeň tento kus za taký, ktorý má substats: {stats}.',
   'recommendation.target_below': '{stat}: máš {current}, build mieri na {min} a viac.',
+  'recommendation.target_basic_below': '{stat}: máš {current}, základný cieľ pre túto zostavu je {min}.',
   'recommendation.talent_level': '{talent}: zvýš level prednostne (priorita č. 1, teraz {level}).',
   'recommendation.character_level': 'Zvýš level postavy (teraz {level}); väčšina jej hodnôt vychádza z levelu postavy.',
 };
@@ -157,6 +158,13 @@ const CASES: { kind: string; game?: GameKey; params: KindParams; english: string
     slovak: 'HP: máš 28,512, build mieri na 30,000 a viac.',
   },
   {
+    // A stat below the basic tier of a target worked out from the game's numbers: the tier's value, as the targets write it.
+    kind: 'target_basic_below',
+    params: { stat: 'CRIT DMG', stat_key: 'critDMG_', current: 90, min: 106.7 },
+    english: 'CRIT DMG is 90.0%; the basic target for this setup is 106.7%.',
+    slovak: 'CRIT DMG: máš 90.0%, základný cieľ pre túto zostavu je 106.7%.',
+  },
+  {
     kind: 'talent_level',
     params: { talent: 'Elemental Skill', level: 6 },
     english: 'Level Elemental Skill first (priority #1, currently 6).',
@@ -214,7 +222,7 @@ describe('recommendationText(): what a build recommends, in the reader’s words
 
   it('words exactly the kinds the key scan is told about - the server’s KINDS - and each has its English', () => {
     expect([...RECOMMENDATION_KINDS]).toEqual([...DYNAMIC_KEYS['recommendation.']]);
-    expect(RECOMMENDATION_KINDS).toHaveLength(18);
+    expect(RECOMMENDATION_KINDS).toHaveLength(19);
     expect(RECOMMENDATION_KINDS.filter((kind) => !Object.hasOwn(en, `recommendation.${kind}`))).toEqual([]);
     expect(
       Object.keys(en)

@@ -31,6 +31,7 @@ export const DYNAMIC_KEYS: Record<string, readonly string[]> = {
     'item_level',
     'substats_weak',
     'target_below',
+    'target_basic_below',
     'talent_level',
     'character_level',
   ],

@@ -1,5 +1,22 @@
 [
   {
+    "version": "0.8.1",
+    "date": "2026-10-26",
+    "changes": {
+      "fixed": ["The stat targets' three tiers show on every build: the numbers behind them are read even where the catalog's source has not got them yet"]
+    }
+  },
+  {
+    "version": "0.8.0",
+    "date": "2026-10-26",
+    "changes": {
+      "added": [
+        "Choose the build a character is graded by: \"Use this build\" on its page - the dashboard follows it, and the closest match to what the character wears stays marked beside it",
+        "Every build has stat targets in three tiers - basic, intermediate and advanced -, worked out for the weapon and the artifact set in hand, with your in-game totals beside them where the character came in by UID"
+      ]
+    }
+  },
+  {
     "version": "0.7.1",
     "date": "2026-10-23",
     "changes": {

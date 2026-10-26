@@ -56,6 +56,7 @@ final class BuildEvaluator
         'item_level' => ['slot_label', 'level', 'max_level'],
         'substats_weak' => ['slot_label', 'percent', 'stats'],
         'target_below' => ['stat', 'stat_key', 'current', 'min'],
+        'target_basic_below' => ['stat', 'stat_key', 'current', 'min'],
         'talent_level' => ['talent', 'level'],
         'character_level' => ['level'],
     ];
@@ -86,7 +87,9 @@ final class BuildEvaluator
         $setPart = $this->setPart($build, $items);
         $mainPart = $this->mainStatPart($mainStats, $items);
         [$substatPart, $itemResults] = $this->substatPart($scorer, $items, $mainStats);
-        $targetPart = $this->targetPart($build, $owned);
+        // The set option worn, where it is one of the build's (the artifact group's matched rank, 1-based).
+        $wornOption = isset($setPart['groups'][0]['matched_rank']) ? $setPart['groups'][0]['matched_rank'] - 1 : null;
+        $targetPart = $this->targetPart($build, $owned, $wornOption);
         $this->talentAdvice($build, $owned);
         $this->levelAdvice($owned);
 
@@ -107,8 +110,9 @@ final class BuildEvaluator
             'sets' => $setPart,
             'main_stats' => $mainPart,
             'items' => $itemResults,
-            // Without a target's text, which the builds file carries and the site no longer shows (BuildPresenter).
-            'targets' => Neutral::deep(array_map(fn(array $row) => array_diff_key($row, ['text' => true]), $targetPart['rows'] ?? [])),
+            'targets' => Neutral::deep($targetPart['rows'] ?? []),
+            // What the tiers rest on - the weapon and the main stats -, null while they are the stated targets alone.
+            'targets_basis' => Neutral::deep($targetPart['basis'] ?? null),
             'substat_weights' => $scorer->weights(),
             'recommendations' => $this->sortedRecommendations(),
         ];
@@ -540,43 +544,118 @@ final class BuildEvaluator
         return array_values($chosen);
     }
 
-    private function targetPart(Build $build, AccountCharacter $owned): ?array
+    /**
+     * The stat targets: the build's rows as TargetTiers works them out for this character - with the weapon in hand
+     * and the main stats worn where the build lists them - or, while the catalog lacks the stats behind them, the
+     * stated targets of the character's constellation alone. With in-game totals (a showcase import) each row gets
+     * the sheet's value and is scored: a requirement met or not, a tiered stat by how far along the tiers it is
+     * (TIER_SCORES); the part is their mean. A stat below a requirement, or below the basic tier, is a
+     * recommendation.
+     */
+    private function targetPart(Build $build, AccountCharacter $owned, ?int $wornOption): ?array
     {
-        $targets = self::targetsFor($build->stat_targets ?? [], $owned->rank);
-        $final = $owned->final_stats ?? [];
-        if ($targets === [] || $final === []) {
-            return $targets === [] ? null : ['score' => null, 'rows' => array_map(fn($t) => $t + ['current' => null, 'ok' => null], $targets)];
+        $character = $owned->character;
+        $items = $this->context->equippedItems($character->id);
+        $computed = TargetTiers::forBuild(
+            $build,
+            $character,
+            $this->context->catalogWeapons(array_column($build->weapons, 'key')),
+            $this->context->catalogSets(TargetTiers::setKeys($build)),
+            $this->context->equippedWeapon($character->id)?->weapon,
+            array_map(fn(AccountItem $item) => $item->main_stat, $items),
+            $owned->rank,
+            $wornOption,
+        );
+        $rows =
+            $computed['rows'] ??
+            array_map(
+                fn(array $target) => [
+                    'stat' => Stats::resolveElemental($target['stat'], $character->element),
+                    'tiers' => null,
+                    'min' => $target['min'] === null ? null : $target['min'] + 0,
+                    'max' => $target['max'] === null ? null : $target['max'] + 0,
+                    'from_rank' => (int) ($target['from_rank'] ?? 0),
+                ],
+                self::targetsFor($build->stat_targets ?? [], $owned->rank),
+            );
+        if ($rows === []) {
+            return null;
         }
 
-        $rows = [];
+        $final = $owned->final_stats ?? [];
         $scores = [];
-        foreach ($targets as $target) {
-            $current = $final[$target['stat']] ?? null;
-            if ($current === null || empty($target['min'])) {
-                $rows[] = $target + ['current' => null, 'ok' => null];
+        foreach ($rows as &$row) {
+            $current = $final[$row['stat']] ?? null;
+            $row += ['current' => $current, 'ok' => null, 'tier' => null];
+            if ($current === null) {
+                continue;
+            }
+            $label = Stats::label($row['stat'], $this->game);
+            $unit = Stats::isPercent($row['stat']) ? '%' : '';
+            if ($row['tiers'] === null) {
+                if (empty($row['min'])) {
+                    continue;
+                }
+                $row['ok'] = $current >= $row['min'];
+                $scores[] = $row['ok'] ? 100 : max(0, (int) round(($current / $row['min']) * 100) - 10);
+                if (!$row['ok']) {
+                    // The two values go out as numbers ("+ 0": whatever the stored JSON held); the page writes
+                    // them in the game's notation for the stat, which is why it gets the stat's key too.
+                    $this->recommend(
+                        'medium',
+                        'targets',
+                        'target_below',
+                        ['stat' => $label, 'stat_key' => $row['stat'], 'current' => $current + 0, 'min' => $row['min'] + 0],
+                        sprintf('%s is %s%s; the build aims for %s%s+.', $label, $this->number($current), $unit, $this->number($row['min']), $unit),
+                    );
+                }
 
                 continue;
             }
 
-            $ok = $current >= $target['min'];
-            $scores[] = $ok ? 100 : max(0, (int) round(($current / $target['min']) * 100) - 10);
-            $rows[] = $target + ['current' => $current, 'ok' => $ok];
-
-            if (!$ok) {
-                $unit = Stats::isPercent($target['stat']) ? '%' : '';
-                // The two values go out as numbers ("+ 0": whatever the stored JSON held); the page writes
-                // them in the game's notation for the stat, which is why it gets the stat's key too.
+            [$score, $tier] = self::tierScore((float) $current, $row['tiers']);
+            $scores[] = $score;
+            $row['ok'] = $tier !== null;
+            $row['tier'] = $tier;
+            if ($tier === null) {
                 $this->recommend(
                     'medium',
                     'targets',
-                    'target_below',
-                    ['stat' => Stats::label($target['stat'], $this->game), 'stat_key' => $target['stat'], 'current' => $current + 0, 'min' => $target['min'] + 0],
-                    sprintf('%s is %s%s; the build aims for %s%s+.', Stats::label($target['stat'], $this->game), $this->number($current), $unit, $this->number($target['min']), $unit),
+                    'target_basic_below',
+                    ['stat' => $label, 'stat_key' => $row['stat'], 'current' => $current + 0, 'min' => $row['tiers']['basic'] + 0],
+                    sprintf('%s is %s%s; the basic target for this setup is %s%s.', $label, $this->number($current), $unit, $this->number($row['tiers']['basic']), $unit),
                 );
             }
         }
+        unset($row);
 
-        return ['score' => $scores ? (int) round(array_sum($scores) / count($scores)) : null, 'rows' => $rows];
+        return ['score' => $scores ? (int) round(array_sum($scores) / count($scores)) : null, 'rows' => $rows, 'basis' => $computed['basis'] ?? null];
+    }
+
+    /** The score a tiered stat reaches at each tier; between two, in proportion. */
+    public const TIER_SCORES = ['basic' => 65, 'intermediate' => 85, 'advanced' => 100];
+
+    /**
+     * A tiered stat's score and the tier it has reached (null below basic): TIER_SCORES at a tier, in proportion
+     * between two, and below basic the basic score in proportion to it.
+     *
+     * @param  array{basic: float, intermediate: float, advanced: float}  $tiers
+     * @return array{int, string|null}
+     */
+    public static function tierScore(float $current, array $tiers): array
+    {
+        $between = fn(float $from, float $to, int $low, int $high): int => $to <= $from ? $high : (int) round($low + (($high - $low) * ($current - $from)) / ($to - $from));
+        if ($current >= $tiers['advanced']) {
+            return [self::TIER_SCORES['advanced'], 'advanced'];
+        }
+        if ($current >= $tiers['intermediate']) {
+            return [$between($tiers['intermediate'], $tiers['advanced'], self::TIER_SCORES['intermediate'], self::TIER_SCORES['advanced']), 'intermediate'];
+        }
+        if ($current >= $tiers['basic']) {
+            return [$between($tiers['basic'], $tiers['intermediate'], self::TIER_SCORES['basic'], self::TIER_SCORES['intermediate']), 'basic'];
+        }
+
+        return [$tiers['basic'] <= 0 ? self::TIER_SCORES['basic'] : max(0, (int) round((self::TIER_SCORES['basic'] * $current) / $tiers['basic'])), null];
     }
 
     // ---------------------------------------------------------------- talents & levels

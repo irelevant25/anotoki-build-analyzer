@@ -49,7 +49,11 @@ file's message says `main_dps "Melt" C4+` (`BuildFile::variation()`).
   target from the highest constellation the character has reached (`BuildEvaluator::targetsFor()`): of a build's
   Energy Recharge targets from C0 (200%) and from C1 (160%), a C2 character is held to the C1 one; a stat whose
   targets all start later than the character's constellation has none. A build has each (stat, `from_rank`) once;
-  the page marks a target from a constellation "C1+".
+  the page marks a target from a constellation "C1+". Since the round of 2026-10-26 a stated target is a
+  **requirement** among the stat targets the site works out for every build in three tiers
+  ([analysis.md](analysis.md), "Stat targets"): paid first, shown as stated, never tiered - the place to say what
+  Energy Recharge a build needs, which no number of the game's gives. On the builds page the stated targets are held
+  at the constellation the build is for, a 4-star character's at C6 (the owner's rule of 2026-10-26).
 
 ## Teams (since 0.6.0)
 
@@ -520,7 +524,7 @@ signed in does.
 | --- | --- |
 | `GET /api/builds` | per game: how many characters have builds, how many builds, `checked_at`, `changed_at` (the dashboard) |
 | `GET /api/builds/{game}` | the characters with builds, newest release first: `key`, `name`, `element`, `rarity`, `weapon_type`, `icon_url`, `released_at`, `region`, `version`, `version_name`, `builds` (how many), `roles` (in the game's order), `changed_at` - the builds browser and what it filters by |
-| `GET /api/builds/{game}/{key}` | a character and its builds in their order (`BuildPresenter`: every text neutral once more, weapon and set icons from the catalog; each team's members and stand-ins with `known`, `icon_url`, `rarity`, `element` and `has_builds` looked up as the build is shown, a member with `own` - the build's character; the build's `notes` and each team's `note` the site's own, `{en, sk?}` or null; no weapon's or set option's note, no target's text) |
+| `GET /api/builds/{game}/{key}` | a character and its builds in their order (`BuildPresenter`: every text neutral once more, weapon and set icons from the catalog; each team's members and stand-ins with `known`, `icon_url`, `rarity`, `element` and `has_builds` looked up as the build is shown, a member with `own` - the build's character; the build's `notes` and each team's `note` the site's own, `{en, sk?}` or null; no weapon's or set option's note, no target's text; `targets` - the stat targets in three tiers for the first weapon the catalog has the stats of, `{rows, basis}`, null while it lacks them - [analysis.md](analysis.md), "Stat targets") |
 
 ## The tables (migrations 016, 020, 022)
 
@@ -553,10 +557,13 @@ over: the builds come back with the first import. Data model: [data-model.md](da
   element, weapon type, rarity, region and version, the filters kept in the address (`sites/main/common/query-filters.ts`); a
   character's builds in their order on `/builds/genshin/{key}`, each with its teams and the site's notes; an editor or
   an admin finds **Edit builds** there, the way to the character's builds editor.
-- An account's character page: a tab per variation with its score, the closest build marked, one the character's
-  constellation does not reach locked; the build's detail - the site's notes, "derived" substats, a target from a
-  constellation marked "C2+" ([analysis.md](analysis.md)), its teams with the teammates the account has marked. The
-  account page shows each character's best build.
+- An account's character page: a tab per variation with its score, the build the player chose ("Use this build") and
+  the closest build marked, one the character's constellation does not reach locked; the build's detail - the site's
+  notes, "derived" substats, a target from a constellation marked "C2+" ([analysis.md](analysis.md)), its teams with
+  the teammates the account has marked. The account page grades each character by the build chosen for it, else by
+  its best. A build an import or an editor removes takes a player's choice of it along: the character is judged by its
+  closest match again (`account_characters.chosen_build_id`, `ON DELETE SET NULL`) - a build renamed in the editor
+  is a build of its own, so a choice of the file's build goes too.
 - The dashboard: how many builds there are and when they last changed (`GET /api/builds`).
 
 ## The local tools (the owner's computer)

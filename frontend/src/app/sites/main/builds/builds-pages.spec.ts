@@ -104,6 +104,7 @@ function builds(count: number): CharacterBuilds {
       substats: [],
       talent_priority: null,
       stat_targets: null,
+      targets: null,
       teams: [],
       notes: null,
       game_version: null,

@@ -182,3 +182,37 @@ uploading, Export each language on the Translations page. Then:
 `config/site.local.php` is only for an address other than `https://builder.anotoki.eu`. No release from before
 025 goes on the host after it (its Privacy page would not say what the settings keep). Make a backup by hand once
 applied (the earlier ones restore offline only).
+
+## 11. Deploying 0.8.0
+
+Version 0.8.0 - the build a player chooses for a character (migration 026) and stat targets for every build in
+three tiers, worked out from the game's numbers (migration 027; docs/decisions.md, 2026-10-26; docs/operations.md,
+"Deploying 0.8.0"). The tiers rest on each character's and weapon's base stats, which genshin.anotoki.eu's catalog
+lists carry since the same day, so:
+
+1. **genshin.anotoki.eu first**: its release with the catalog change (no migration there). Its
+   `https://genshin.anotoki.eu/api/catalog/characters` must answer each character with a `stats` field (`base`,
+   `lv80`, `ascension`), `/weapons` each weapon with `stats` (`base_atk`, `lv80_atk`, `secondary`).
+2. **The release** (section 2). From then on the site is closed until the Apply.
+3. **Apply pending at once** on `/admin/migrations` (one Apply, after its backup): **026**
+   (`account_characters.chosen_build_id`, the choice's words, the Privacy page's sentence) and **027** (the tiers'
+   six words). No build changes, nothing to import.
+4. **Refresh catalog** on `/admin/builds`: the characters and the weapons lists (the sets' texts were there before)
+   - a conditional request answers "changed" once the genshin site's release is up; a list refreshed before it
+   answers "unchanged" and keeps no stats: refresh again after.
+5. **Check**: `/builds/genshin/kamisatoayaka` shows "Stat targets" with "Worked out for Mistsplitter Reforged
+   with 4pc Blizzard Strayer." and three tiers on CRIT DMG; on an account's character page "Use this build" and
+   the tiers for the weapon worn; the account page says "Selected build: ..." once one is chosen.
+
+Until step 4 the targets are the stated ones alone, as before. Make a backup by hand once applied (the earlier
+ones restore offline only).
+
+## 12. Deploying 0.8.1
+
+No migration: the release goes up (section 2) and the site stays open. The owner deferred the genshin site's
+release, so 0.8.1 reads the stats behind the tiers from that site's own phase lists while its catalog lists carry
+none (`catalog.genshin.site_api`, docs/operations.md "The catalog"), and the Builds page's **Refresh catalog**
+reads every list in full. After the swap the owner presses **Refresh catalog** on `/admin/builds` once: the
+characters and the weapons lists come back "changed" with their stats, and every build shows its three tiers.
+Check: `/builds/genshin/kamisatoayaka` shows "Worked out for Mistsplitter Reforged with 4pc Blizzard Strayer."
+and three tiers on CRIT DMG.

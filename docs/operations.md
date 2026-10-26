@@ -321,9 +321,17 @@ and builds files are matched against it ([name-matching.md](name-matching.md)), 
   (a claim of two minutes at most; another meanwhile is told "This list is being refreshed", 409). Where each list
   stands - its tag, when the provider last confirmed it, when it last changed, the last failure and why - is kept in
   the `cache` table (`catalog-state:{game}:{list}`), which a restore leaves as it is.
+- **The stats behind the stat targets** (since 0.8.0, [analysis.md](analysis.md), "Stat targets"): each character's
+  and weapon's base stats at level 1 and level 80 ascended, kept in the rows' `meta.stats` - from the lists'
+  `stats` field, which that site's catalog carries since 2026-10-26; while a list carries none (a release of that
+  site from before), the same numbers are read from the site's own API (`catalog.genshin.site_api`: its
+  `/characters` and `/characters-ascensions`, `/weapons` and `/weapons-ascensions` - phase 0 and phase 6 of each,
+  as that site's catalog endpoint reads them), matched by the game's id, four more requests per refresh of those
+  two lists; a phase list that cannot be read leaves the rows without stats, and the list is written all the same.
 - **Who refreshes it**: an editor, on the admin panel's Builds page - **Refresh catalog** asks the three lists one
-  after another, with a progress bar, and stops at the first that fails (each in the audit log,
-  `catalog.refreshed`); `php sync-catalog.php [genshin] [--list=characters|weapons|sets] [--force]` (without
+  after another, each in full (`?force=1`, since 0.8.1: a conditional request would answer "unchanged" and keep a
+  list's stats out until it changes), with a progress bar, and stops at the first that fails (each in the audit
+  log, `catalog.refreshed`); `php sync-catalog.php [genshin] [--list=characters|weapons|sets] [--force]` (without
   `--force` a catalog whose lists were all confirmed within `refresh_days` is left alone; `--force` asks every list
   in full, without its tag); and the upkeep after an answer (`App\Services\Catalog\CatalogUpkeep`,
   `upkeep.catalog`): at most every five minutes an answer looks for a list not confirmed within
@@ -733,6 +741,42 @@ upload map, are in [DEV.md](../DEV.md) ("Deploying"); in short:
 Check after an install: `https://builder.anotoki.eu/config/database.local.php`, `/storage/logs/app.log` and
 `/src/Config.php` must not download (403); `https://builder.anotoki.eu/api/meta` answers JSON with the IAM's
 `issuer`, `client_id` and `login_required` under `auth`; `/api/accounts` answers 401 without a token.
+
+### Deploying 0.8.1
+
+No migration: the release goes up (`bun run anotoki-deploy deploy --backups <folder> --go`) and the site stays open.
+The owner deferred the genshin site's release, so the stats behind the tiers are read from that site's own phase
+lists while its catalog lists carry none ("The catalog" above), and the Builds page's **Refresh catalog** reads every
+list in full. After the swap: **Refresh catalog** once on `/admin/builds` - the characters and the weapons lists
+answer "changed" with their stats -, and `/builds/genshin/kamisatoayaka` shows "Worked out for Mistsplitter Reforged
+with 4pc Blizzard Strayer." with three tiers on CRIT DMG.
+
+### Deploying 0.8.0
+
+The owner's round of 2026-10-26 ([decisions.md](decisions.md)): a player chooses the build a character is graded by
+(migration 026: `account_characters.chosen_build_id`, the choice's words, the Privacy page's game-accounts sentence
+where it reads as 015 left it), and every build has stat targets in three tiers, worked out from the game's numbers
+([analysis.md](analysis.md), "Stat targets"; migration 027: the tiers' six words, no table). The tiers rest on each
+character's and weapon's base stats, which the catalog keeps in its rows' `meta.stats` from genshin.anotoki.eu's
+catalog lists - a field those lists carry since 2026-10-26 - so that site's release goes up first.
+
+1. **genshin.anotoki.eu first**: its release with the catalog change (no migration there); its catalog lists answer
+   each character and weapon with `stats` (`GET /api/catalog/characters`, `/weapons`).
+2. **The release**: `bun run anotoki-deploy deploy --backups <folder> --go`. From then on the site is closed until
+   the Apply.
+3. **Apply pending at once** (signed in as the ADMIN, on the Migrations page), after a backup of the database as it
+   was ("before-migration"): **026** (its gate refuses unless the site's own keys are 452) and **027** (458). No build
+   changes, nothing to import.
+4. **Refresh catalog** on `/admin/builds` - the characters and the weapons lists: a conditional request answers
+   "changed" once the genshin site's release is up (its lists' ETag moved) and the rows gain their stats; refreshed
+   before it, a list answers "unchanged" and keeps none - refresh again after. Until then the targets are the stated
+   ones alone, as before.
+
+Then check: `/builds/genshin/kamisatoayaka` shows "Stat targets" with "Worked out for Mistsplitter Reforged with
+4pc Blizzard Strayer." and three tiers on CRIT DMG (in Slovak with `?lang=sk`: "Vypočítané pre ... so setom ...",
+Základná / Stredná / Pokročilá); an account's character page shows "Use this build" and, chosen, "Selected" with
+the tiers for the weapon worn; the account page says "Selected build: ...". **The backups made before this Apply
+are restored offline only** (`409 schema_differs`, as after every Apply): make a backup by hand once it is applied.
 
 ### Deploying anotoki-lib 0.11.1
 

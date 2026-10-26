@@ -36,7 +36,8 @@ Setting it up, running, testing, building and deploying: **[DEV.md](DEV.md)**.
   graded against the build, stat targets checked against your in-game totals, and (with a full inventory) the
   best replacement you already own for each slot. Your best build follows your constellation: a build that needs
   one your character does not have shows a lock ("needs C4") and is never counted as your best, and a stat target
-  that depends on the constellation is the one for yours.
+  that depends on the constellation is the one for yours. Or choose the build a character is judged by yourself
+  ("Use this build"): the account page then grades it by that one.
 - **English and Slovak**: the member pages read in either, chosen in the top bar (or taken from the
   browser). The words live in the database, so editors reword them, and admins add or hide languages, in the
   browser (the admin panel's Translations and Languages pages, in English like the rest of `/admin/`). The game's own words -
@@ -146,11 +147,13 @@ Every owned character is compared with each of its builds. Each part is scored f
 | Set bonuses | first satisfied option (4pc, 2+2, "any two" 2pc groups, 2pc stat groups) |
 | Main stats | per variable slot: first choice 100, alternatives 85 / 75, anything else 0 |
 | Substats | rolls (value ÷ max roll) weighted by the build's priority order (1.0 / 0.8 / 0.6 / 0.45 / 0.3; flat stats about 0.35 of their % version), compared with an ideal piece (all upgrades in the best stat). 70 % of ideal already counts as full marks. A build that lists no substats is scored by substats derived from its own main stats. |
-| Stat targets | in-game totals (showcase imports) against the build's targets - Energy Recharge requirements, CRIT goals; of a stat's targets, the one from the highest constellation the character has |
+| Stat targets | in-game totals (showcase imports) against the build's targets: the requirements the build states (Energy Recharge mostly; of a stat's targets, the one from the highest constellation the character has) and every substat in three tiers - basic, intermediate, advanced - worked out from the game's numbers for the weapon in hand (`docs/analysis.md`, "Stat targets") |
 
 The overall score weights the parts 20 / 25 / 20 / 25 / 10 (parts without data are skipped). Grades are
 S ≥ 90, A ≥ 80, B ≥ 65 and C ≥ 50. A character's best build is the best scored of those its constellation reaches
-(a tie goes to the earlier one); a build it does not reach shows a lock and "needs C4", and is never its best. With
+(a tie goes to the earlier one); a build it does not reach shows a lock and "needs C4", and is never its best. The
+account page grades a character by its best - the closest match - unless you chose another for it ("Use this build"
+on the character page; "Choose automatically" undoes it). With
 a full inventory, the app suggests the best replacement you own for each slot; a suggestion never makes your set
 bonus worse. Details: [docs/analysis.md](docs/analysis.md).
 

@@ -26,6 +26,8 @@ final class AccountCharacter
         public ?array $final_stats = null,
         public string $source = 'enka',
         public ?DateTimeImmutable $synced_at = null,
+        /** The build the player chose to judge the character by (migration 026); null: the closest match. */
+        public ?int $chosen_build_id = null,
     ) {}
 
     /**
@@ -47,6 +49,7 @@ final class AccountCharacter
             final_stats: Json::decode($row['final_stats'] ?? null),
             source: (string) $row['source'],
             synced_at: Db::time($row['synced_at'] ?? null),
+            chosen_build_id: isset($row['chosen_build_id']) ? (int) $row['chosen_build_id'] : null,
         );
     }
 

@@ -1,4 +1,5 @@
-import { Component, DestroyRef, computed, effect, inject, input, signal } from '@angular/core';
+import { HttpErrorResponse } from '@angular/common/http';
+import { Component, DestroyRef, computed, effect, inject, input, signal, untracked } from '@angular/core';
 import { RouterLink } from '@angular/router';
 import { AlertComponent } from '@anotoki/lib/ui/alert';
 import { BadgeComponent } from '@anotoki/lib/ui/badge';
@@ -7,6 +8,7 @@ import { CardComponent } from '@anotoki/lib/ui/card';
 import { IconComponent } from '@anotoki/lib/ui/icon';
 import { SpinnerComponent } from '@anotoki/lib/ui/spinner';
 import { TabItem, TabsComponent } from '@anotoki/lib/ui/tabs';
+import { ToastService } from '@anotoki/lib/ui/toast';
 import { TooltipDirective } from '@anotoki/lib/ui/tooltip';
 import { AnotokiAgoPipe } from '@anotoki/lib/ui/dates';
 import { Api } from '../../../api/api';
@@ -14,7 +16,7 @@ import { AuthService } from '../../../shared/auth';
 import { titleCase } from '../../../shared/format';
 import { GAME_TERMS, level } from '../common/game-terms';
 import { TranslationKey } from '../../../shared/i18n/en';
-import { ErrorTextPipe, isSignInRefusal } from '../../../shared/i18n/error-text';
+import { ErrorTextPipe, errorText, isSignInRefusal } from '../../../shared/i18n/error-text';
 import { recommendationText } from '../../../shared/i18n/recommendation-words';
 import { TranslatePipe } from '../../../shared/i18n/translate';
 import { TranslatePluralPipe } from '../../../shared/i18n/translate-plural';
@@ -65,11 +67,12 @@ const SEVERITY_ICONS = new Map<string, string>([
 
 /**
  * One character of an account, against the recommended builds: its head (the game's facts, the grade against the
- * build in hand), a tab a build (named by its variation, its score the tab's badge, the closest build marked, a
- * build the character's constellation does not reach locked and said so), what to improve, the gear it wears and
- * the better pieces the account already owns, the build itself (the site's own build sheet) and the stats. Drawn
- * with the anotoki family's kit - cards, tabs, badges, progress bars (the score bars), alerts, tooltips, icons -
- * around the site's own pieces: the grade badge and the item cards.
+ * build in hand), a tab a build (named by its variation, its score the tab's badge, the build the player chose and
+ * the closest build marked, a build the character's constellation does not reach locked and said so), the choice of
+ * the build the account page grades the character by ("Use this build", "Choose automatically"), what to improve,
+ * the gear it wears and the better pieces the account already owns, the build itself (the site's own build sheet)
+ * and the stats. Drawn with the anotoki family's kit - cards, tabs, badges, buttons, progress bars (the score bars),
+ * alerts, toasts, tooltips, icons - around the site's own pieces: the grade badge and the item cards.
  */
 @Component({
   selector: 'app-character-page',
@@ -105,13 +108,19 @@ export class CharacterPage {
   private readonly api = inject(Api);
   private readonly meta = inject(MetaStore);
   private readonly i18n = inject(TranslationService);
+  private readonly toasts = inject(ToastService);
   protected readonly auth = inject(AuthService);
 
   readonly id = input.required<string>();
   readonly key = input.required<string>();
 
   protected readonly data = signal<CharacterAnalysis | null>(null);
+  /** The build in hand: its tab is the open one. */
   protected readonly selectedBuildId = signal<number | null>(null);
+  /** A choice of build on its way to the server: its buttons wait. */
+  protected readonly choosing = signal(false);
+  /** How many choices were saved: an analysis asked for before the latest one keeps that choice, newer than its own word. */
+  private choicesSaved = 0;
   protected readonly loading = signal(true);
   /** The analysis on its way: the newest asked wins (load()). */
   private request: Subscription | null = null;
@@ -144,28 +153,32 @@ export class CharacterPage {
 
   /**
    * A tab a build (the kit's tabs, anotoki-lib 0.6.0's icon and badge): its variation ("Main DPS · Melt · C2+"), its
-   * score beside it as the kit's badge - heard after the name, "Main DPS, score 87" -; the build closest to the
-   * character's setup marked by an icon and a filled badge, and heard so ("..., score 87, Closest match to your
-   * current setup"); a build whose constellation the character does not reach locked, and heard so ("..., needs C2").
+   * score beside it as the kit's badge - heard after the name, "Main DPS, score 87" -; the build the player chose
+   * marked by a person and a green badge, the build closest to the character's setup by a check and a filled badge,
+   * and heard so ("..., score 87, Selected, Closest match to your current setup"); a build whose constellation the
+   * character does not reach locked, and heard so ("..., needs C2"). One icon a tab: the choice's before the closest
+   * match's, either before the lock.
    */
   protected readonly buildTabs = computed<TabItem[]>(() => {
     const data = this.data();
     return (data?.evaluations ?? []).map((evaluation): TabItem => {
+      const chosen = evaluation.build.id === data?.chosen_build_id;
       const closest = evaluation.build.id === data?.best_build_id;
       const overall = evaluation.score.overall;
       // A build that could not be judged has no score: no badge (as the bare number was none before).
       const score = overall === null ? null : this.i18n.t('character.tabScore', { score: this.i18n.number(overall) });
       const heard = [
         score,
+        chosen ? this.i18n.t('character.chosen') : null,
         closest ? this.i18n.t('character.closestMatch') : null,
         evaluation.build.applies ? null : this.i18n.t('character.needsRank', { rank: `${this.rankPrefix()}${evaluation.build.min_rank}` }),
       ].filter((part): part is string => !!part);
       return {
         id: String(evaluation.build.id),
         label: variationLabel(this.i18n, evaluation.build, this.rankPrefix()),
-        icon: closest ? 'checkCircle' : evaluation.build.applies ? null : 'lock',
+        icon: chosen ? 'user' : closest ? 'checkCircle' : evaluation.build.applies ? null : 'lock',
         badge: overall,
-        badgeTone: closest ? 'primary' : 'neutral',
+        badgeTone: chosen ? 'success' : closest ? 'primary' : 'neutral',
         badgeLabel: heard.length > 0 ? heard.join(', ') : null,
       };
     });
@@ -249,8 +262,12 @@ export class CharacterPage {
   protected readonly legend = computed(() => this.i18n.around('character.legend', 'color'));
 
   constructor() {
+    // The address alone asks for the analysis: whatever load() reads - the page's state, when an answer comes at
+    // once - is no reason to ask again.
     effect(() => {
-      this.load(Number(this.id()), this.key(), null);
+      const id = Number(this.id());
+      const key = this.key();
+      untracked(() => this.load(id, key, null));
     });
     inject(DestroyRef).onDestroy(() => this.request?.unsubscribe());
   }
@@ -266,6 +283,38 @@ export class CharacterPage {
     if (this.data()?.has_full_inventory && this.data()?.focus_build_id !== evaluation.build.id) {
       this.load(Number(this.id()), this.key(), evaluation.build.id);
     }
+  }
+
+  /**
+   * The build the account page grades the character by: one of its builds ("Use this build"), or null - the closest
+   * match again ("Choose automatically"). Said in a toast; a refusal too, and a build that is gone by now (422) has the
+   * analysis asked again, so the tabs are what the server has.
+   */
+  protected choose(buildId: number | null): void {
+    const data = this.data();
+    if (!data || this.choosing()) {
+      return;
+    }
+    this.choosing.set(true);
+    this.api.chooseBuild(data.account.id, data.character.key, buildId).subscribe({
+      next: (answer) => {
+        this.choosing.set(false);
+        this.choicesSaved++;
+        const current = this.data();
+        if (current?.character.key === data.character.key && current.account.id === data.account.id) {
+          this.data.set({ ...current, chosen_build_id: answer.chosen_build_id });
+        }
+        this.toasts.success(this.i18n.t(answer.chosen_build_id === null ? 'character.automaticSaved' : 'character.chosenSaved', { name: data.character.name }));
+      },
+      // A message takes a finished sentence: worded now, in the language the page is in.
+      error: (err: unknown) => {
+        this.choosing.set(false);
+        this.toasts.error(errorText(this.i18n, err));
+        if (err instanceof HttpErrorResponse && err.status === 422 && this.data() === data) {
+          this.load(data.account.id, data.character.key, this.selectedBuildId());
+        }
+      },
+    });
   }
 
   protected severityIcon(recommendation: Recommendation): string {
@@ -306,8 +355,14 @@ export class CharacterPage {
   private load(accountId: number, key: string, buildId: number | null): void {
     this.request?.unsubscribe();
     this.loading.set(true);
+    const choicesSaved = this.choicesSaved;
     this.request = this.api.character(accountId, key, buildId).subscribe({
-      next: (data) => {
+      next: (answer) => {
+        // A choice saved while this was on its way (a tab opened, then "Use this build" at once) is newer than the
+        // choice the answer read: the page keeps it.
+        const current = this.data();
+        const choiceSince = choicesSaved !== this.choicesSaved && current?.account.id === answer.account.id && current.character.key === answer.character.key;
+        const data = choiceSince ? { ...answer, chosen_build_id: current.chosen_build_id } : answer;
         this.data.set(data);
         this.selectedBuildId.set(data.focus_build_id ?? data.best_build_id);
         this.error.set(null);

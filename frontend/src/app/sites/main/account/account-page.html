@@ -149,8 +149,8 @@
                 <!-- "Lv. 90 · C2": the game's notation. -->
                 <div class="muted small">{{ level(c.level) }} · {{ rankLabel(c) }}</div>
               </div>
-              @if (c.best) {
-                <app-grade-badge [grade]="c.best.grade" [score]="c.best.overall" />
+              @if (c.build) {
+                <app-grade-badge [grade]="c.build.grade" [score]="c.build.overall" />
               }
             </div>
 
@@ -168,15 +168,14 @@
               }
             </div>
 
-            @if (c.best; as best) {
+            @if (c.build; as build) {
               <div class="parts">
-                <app-score-bar [label]="'account.partSets' | translate" [value]="best.parts.sets" />
-                <app-score-bar [label]="buildTerms.mainStats" [value]="best.parts.main_stats" />
-                <app-score-bar [label]="buildTerms.substats" [value]="best.parts.substats" />
+                <app-score-bar [label]="'account.partSets' | translate" [value]="build.parts.sets" />
+                <app-score-bar [label]="buildTerms.mainStats" [value]="build.parts.main_stats" />
+                <app-score-bar [label]="buildTerms.substats" [value]="build.parts.substats" />
               </div>
-              <div class="muted small best-line">
-                {{ 'account.bestBuild' | translate: { build: bestBuilds().get(c.id) } }}
-              </div>
+              <!-- The build the card is for: the one the player chose ("Selected build: ..."), else the closest match. -->
+              <div class="muted small best-line">{{ buildLines().get(c.id) }}</div>
               <!-- The first thing the build recommends: worded from its kind, or the stored English sentence, saying so. -->
               @if (issues().get(c.id); as issue) {
                 <div class="issue small">

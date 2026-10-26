@@ -114,7 +114,7 @@ describe('the compiled English (en.ts and its parts)', () => {
         prefix,
       ).toEqual([]);
     }
-    expect(DYNAMIC_KEYS['recommendation.']).toHaveLength(18);
+    expect(DYNAMIC_KEYS['recommendation.']).toHaveLength(19);
     expect(DYNAMIC_KEYS['import.error.']).toHaveLength(18);
     expect(DYNAMIC_KEYS['import.warning.']).toHaveLength(7);
   });

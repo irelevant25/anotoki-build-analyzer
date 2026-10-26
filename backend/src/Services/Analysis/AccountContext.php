@@ -5,7 +5,10 @@ namespace App\Services\Analysis;
 use App\Models\Account;
 use App\Models\AccountItem;
 use App\Models\AccountWeapon;
+use App\Models\CatalogEntry;
 use App\Models\GameCharacter;
+use App\Models\GameSet;
+use App\Models\GameWeapon;
 use App\Repositories\Accounts;
 use App\Repositories\CatalogRows;
 use App\Services\Catalog\Catalog;
@@ -30,7 +33,13 @@ final class AccountContext
     /** @var array<int, string> character id => name */
     private array $characterNames = [];
 
-    public function __construct(public readonly Account $account, Accounts $accounts, CatalogRows $rows)
+    /** @var array<string, GameWeapon|null> weapon key => the catalog's weapon, null for one it lacks */
+    private array $catalogWeapons = [];
+
+    /** @var array<string, GameSet|null> set key => the catalog's set, null for one it lacks */
+    private array $catalogSets = [];
+
+    public function __construct(public readonly Account $account, Accounts $accounts, private readonly CatalogRows $rows)
     {
         $characterIds = [];
 
@@ -93,6 +102,55 @@ final class AccountContext
     public function characterName(?int $characterId): ?string
     {
         return $characterId ? $this->characterNames[$characterId] ?? null : null;
+    }
+
+    /**
+     * The catalog's weapons of these keys, by key - the ones it knows -, each asked for once per account (the
+     * stat targets of every build need the build's weapons' stats).
+     *
+     * @param  list<string>  $keys
+     * @return array<string, GameWeapon>
+     */
+    public function catalogWeapons(array $keys): array
+    {
+        return $this->catalogEntries(Catalog::WEAPON, $this->catalogWeapons, $keys);
+    }
+
+    /**
+     * The catalog's sets of these keys, by key - the ones it knows.
+     *
+     * @param  list<string>  $keys
+     * @return array<string, GameSet>
+     */
+    public function catalogSets(array $keys): array
+    {
+        return $this->catalogEntries(Catalog::SET, $this->catalogSets, $keys);
+    }
+
+    /**
+     * @param  array<string, CatalogEntry|null>  $cache
+     * @param  list<string>  $keys
+     * @return array<string, CatalogEntry>
+     */
+    private function catalogEntries(string $type, array &$cache, array $keys): array
+    {
+        $keys = array_values(array_unique($keys));
+        $missing = array_values(array_filter($keys, fn(string $key) => !array_key_exists($key, $cache)));
+        if ($missing !== []) {
+            $found = $this->rows->byKeys($this->account->game, $type, $missing);
+            foreach ($missing as $key) {
+                $cache[$key] = $found[$key] ?? null;
+            }
+        }
+
+        $entries = [];
+        foreach ($keys as $key) {
+            if ($cache[$key] !== null) {
+                $entries[$key] = $cache[$key];
+            }
+        }
+
+        return $entries;
     }
 
     /**

@@ -2458,6 +2458,81 @@ try {
         await fits('the character');
         await shot(page, `24-kit-character-${language}-${width}-${scheme}`, { fullPage: true });
 
+        // The build she is graded by: above the build in hand "Use this build" - the closest match's mark beside it -;
+        // chosen, the build a person and a green badge on its tab, "Selected" and "Choose automatically" above it, a
+        // toast; the account page then names it on her card; chosen automatically again, as it was.
+        const choiceWords =
+          language === 'sk'
+            ? {
+                use: 'Použiť tento build',
+                auto: 'Vyberať automaticky',
+                chosen: 'Vybraný',
+                closest: 'Najbližšie k tomu, čo máš teraz nasadené',
+                line: 'Vybraný build: Vedľajší DPS · C2+',
+                best: 'Najlepší build: Hlavný DPS',
+              }
+            : {
+                use: 'Use this build',
+                auto: 'Choose automatically',
+                chosen: 'Selected',
+                closest: 'Closest match to your current setup',
+                line: 'Selected build: Sub DPS · C2+',
+                best: 'Best build: Main DPS',
+              };
+        const choice = () => page.evaluate(() => [...document.querySelectorAll('.choice > *')].map((element) => element.textContent.replace(/\s+/g, ' ').trim()));
+        const choiceShown = (words) =>
+          page
+            .waitForFunction((words) => [...document.querySelectorAll('.choice > *')].map((element) => element.textContent.replace(/\s+/g, ' ').trim()).join('|') === words.join('|'), words, {
+              timeout: 10000,
+            })
+            .then(
+              () => true,
+              () => false,
+            );
+        check(
+          (await choice()).join('|') === `${choiceWords.use}|${choiceWords.closest}`,
+          `the character, ${label}: "${choiceWords.use}" above the closest match, its mark beside it (${(await choice()).join(', ')})`,
+        );
+        await page.locator('[role=tab]').nth(1).click();
+        check(await choiceShown([choiceWords.use]), `the character, ${label}: the build needing C2 in hand, "${choiceWords.use}" alone (${(await choice()).join(', ')})`);
+        await page.locator('.choice button').click();
+        const chosenNow = await choiceShown([choiceWords.chosen, choiceWords.auto]);
+        const toast = await page
+          .locator('.anotoki-toast-host__message')
+          .last()
+          .textContent({ timeout: 5000 })
+          .catch(() => null);
+        const chosenTabs = await page.evaluate(() =>
+          [...document.querySelectorAll('[role=tab]')].map((tab) => ({
+            tone: tab.querySelector('.anotoki-tabs__badge')?.getAttribute('data-tone') ?? null,
+            heard: tab.querySelector('.anotoki-visually-hidden')?.textContent?.trim() ?? null,
+          })),
+        );
+        check(
+          chosenNow && (toast ?? '').includes('Hu Tao') && chosenTabs[1]?.tone === 'success' && (chosenTabs[1]?.heard ?? '').includes(choiceWords.chosen) && chosenTabs[0]?.tone === 'primary',
+          `the character, ${label}: chosen - "${choiceWords.chosen}" and "${choiceWords.auto}" above it, its tab green and heard so, the closest match's still marked, a toast "${toast}" (${JSON.stringify(chosenTabs)})`,
+        );
+        await fits('the character, a build chosen');
+        await shot(page, `25-chosen-character-${language}-${width}-${scheme}`, { fullPage: true });
+
+        await open(page, `/accounts/${monaAccount}?lang=${language}`);
+        await page.waitForSelector('.char-card', { timeout: 15000 });
+        const line = (await page.locator('a.char-card[href$="/characters/hutao"] .best-line').textContent())?.replace(/\s+/g, ' ').trim();
+        check(line === choiceWords.line, `the account, ${label}: Hu Tao's card names the build chosen - "${line}"`);
+        await fits('the account, a build chosen');
+        await shot(page, `25-chosen-account-${language}-${width}-${scheme}`, { fullPage: true });
+
+        await open(page, `/accounts/${monaAccount}/characters/hutao?lang=${language}`);
+        await page.waitForSelector('[role=tab]', { timeout: 15000 });
+        const openedOn = await page.locator('[role=tab][aria-selected=true] .anotoki-tabs__label').textContent();
+        check(openedOn?.trim() === variations[1], `the character, ${label}: the page opens on the build chosen (${openedOn})`);
+        await page.locator('.choice button').click();
+        check(await choiceShown([choiceWords.use]), `the character, ${label}: chosen automatically again - "${choiceWords.use}" (${(await choice()).join(', ')})`);
+        await open(page, `/accounts/${monaAccount}?lang=${language}`);
+        await page.waitForSelector('.char-card', { timeout: 15000 });
+        const again = (await page.locator('a.char-card[href$="/characters/hutao"] .best-line').textContent())?.replace(/\s+/g, ' ').trim() ?? '';
+        check(again.startsWith(choiceWords.best), `the account, ${label}: the card names the closest match again - "${again}"`);
+
         // The same team on the builds' own page, which is anybody's: nothing marked as anybody's, Kazuha a link to his builds.
         await open(page, `/builds/genshin/hutao?lang=${language}`);
         await page.waitForSelector('app-build-teams .member', { timeout: 15000 });
@@ -2471,6 +2546,27 @@ try {
             publicTeam.members[1].standIns.length === 0 &&
             publicTeam.rows === 1,
           `the builds' page, ${label}: the team, nothing marked as anybody's, Kazuha a link to his builds (${JSON.stringify(publicTeam)})`,
+        );
+        // The stat targets in three tiers (the check's database keeps Hu Tao's and her weapons' stats): the line naming
+        // the build's first weapon and set, the three tiers' names on a tiered row with a value each, the stated
+        // Energy Recharge as it was stated, and nothing of anybody's on the builds' own page.
+        const tierWords =
+          language === 'sk'
+            ? { basis: 'Vypočítané pre Staff of Homa so setom 4pc Crimson Witch of Flames.', names: 'Základná|Stredná|Pokročilá' }
+            : { basis: 'Worked out for Staff of Homa with 4pc Crimson Witch of Flames.', names: 'Basic|Intermediate|Advanced' };
+        const basisLine = (await page.locator('.targets-basis').first().textContent())?.replace(/\s+/g, ' ').trim() ?? '';
+        const tiered = page.locator('.target.tiered').first();
+        const tierNames = (await tiered.locator('dt').allTextContents()).map((name) => name.trim()).join('|');
+        const tierValues = (await tiered.locator('dd').allTextContents()).map((value) => value.trim());
+        const stated = (await page.locator('.target:not(.tiered) .t-goal').allTextContents()).map((goal) => goal.replace(/\s+/g, ' ').trim());
+        check(
+          basisLine === tierWords.basis &&
+            tierNames === tierWords.names &&
+            tierValues.length === 3 &&
+            tierValues.every((value) => /^[\d,.]+%?$/.test(value)) &&
+            stated.join('|') === '120.0%+' &&
+            (await page.locator('.t-current').count()) === 0,
+          `the builds' page, ${label}: the stat targets in three tiers for the build's first weapon and set, the stated one as stated, nothing of anybody's (${basisLine}; ${tierNames}; ${tierValues.join(', ')}; ${stated.join('|')})`,
         );
         await fits("the builds' page");
         await shot(page, `24-kit-build-page-${language}-${width}-${scheme}`, { fullPage: true });

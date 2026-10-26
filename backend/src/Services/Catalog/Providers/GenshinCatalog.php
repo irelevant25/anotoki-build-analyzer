@@ -10,6 +10,7 @@ use App\Services\Catalog\CatalogAnswer;
 use App\Services\Catalog\CatalogProvider;
 use App\Support\Clock;
 use App\Support\Key;
+use App\Support\Stats;
 use DateTimeImmutable;
 use JsonException;
 use Throwable;
@@ -27,7 +28,15 @@ use Throwable;
  *   both twins' in meta.ids, the way imports have always named them;
  * - weapons: the key from the name, the type lowercased, rarity; of two with one key (a quest copy) the lowest
  *   in-game ID;
- * - artifact sets: the key from the name, kind "artifact", meta.rarities and meta.bonuses [2-piece, 4-piece].
+ * - artifact sets: the key from the name, kind "artifact", meta.rarities and meta.bonuses [2-piece, 4-piece];
+ * - a character's and a weapon's base stats (that site's `stats`, since 2026-10-26: HP, ATK and DEF at level 1 and
+ *   at level 80 ascended with the ascension stat, a weapon's base ATK at both with its secondary stat) in
+ *   meta.stats, the stats' labels read as the catalog's keys - what the stat targets are worked out from
+ *   (App\Support\MaxLevelStats takes them to level 90); none where a number or the stat is missing. While a list
+ *   carries no `stats` at all (that site's release from before 2026-10-26), the same numbers are read from the
+ *   site's own API ("catalog.genshin.site_api": its characters and weapons with their ascension phases, phase 0
+ *   and phase 6 of each - the way its catalog endpoint reads them) and matched by the game's id; a phase list
+ *   that cannot be read leaves the rows without stats, the list written all the same.
  * An icon is kept only on the API's own host: the icon route (api/routes/icons.php) fetches nothing else. A row the
  * catalog cannot read (no name) is left out; an answer larger than MAX_BYTES, or of more than MAX_ITEMS rows, is
  * refused as a whole.
@@ -81,6 +90,15 @@ final class GenshinCatalog implements CatalogProvider
             return CatalogAnswer::none(CatalogAnswer::FAILED, 'The game data provider answered with more than ' . self::MAX_ITEMS . ' entries.');
         }
         $items = array_values(array_filter($items, fn($item) => is_array($item) && self::text($item['name'] ?? null) !== null));
+        // A list from before the stats: the same numbers from the site's own phase lists, by the game's id.
+        if ($list !== Catalog::SET && $items !== [] && !array_any($items, fn(array $item) => array_key_exists('stats', $item))) {
+            $stats = $this->phaseStats($list);
+            foreach ($items as &$item) {
+                $gameId = self::gameId($item['game_id'] ?? null);
+                $item['stats'] = $gameId === null ? null : $stats[$gameId] ?? null;
+            }
+            unset($item);
+        }
 
         return CatalogAnswer::changed(
             match ($list) {
@@ -90,6 +108,95 @@ final class GenshinCatalog implements CatalogProvider
             },
             $etag,
         );
+    }
+
+    /**
+     * The base stats of a list's rows from the site's own API, by the game's id, shaped as its catalog lists shape
+     * them since 2026-10-26 (characters: base, lv80, ascension; weapons: base_atk, lv80_atk, secondary): the live
+     * rows (`/characters` with their ascension set, `/weapons` with their secondary stat's label) and their
+     * phases (`/characters-ascensions` by set, `/weapons-ascensions` by weapon), phase 0 (level 1) and phase 6
+     * (level 80 ascended), the lowest id of each. Nothing while the site's API is not named, and none for a list
+     * that cannot be read.
+     *
+     * @return array<int, array<string, mixed>>
+     */
+    private function phaseStats(string $list): array
+    {
+        $site = $this->config->get('catalog.genshin.site_api');
+        if (!is_string($site) || $site === '') {
+            return [];
+        }
+        $site = rtrim($site, '/');
+        $rows = $this->siteList("{$site}/" . ($list === Catalog::CHARACTER ? 'characters' : 'weapons'));
+        $phases = $this->siteList("{$site}/" . ($list === Catalog::CHARACTER ? 'characters-ascensions' : 'weapons-ascensions'));
+        if ($rows === null || $phases === null) {
+            return [];
+        }
+
+        // Phase 0 and 6 per set (or weapon), the lowest id of each, deleted rows left out.
+        $owner = $list === Catalog::CHARACTER ? 'ascension_set_id' : 'weapon_id';
+        $byOwner = [];
+        foreach ($phases as $phase) {
+            if (($phase['deleted'] ?? false) === true || !in_array((int) ($phase['phase'] ?? -1), [0, 6], true) || self::gameId($phase[$owner] ?? null) === null) {
+                continue;
+            }
+            $byOwner[(int) $phase[$owner]][(int) $phase['phase']] ??= $phase;
+        }
+        $number = fn(mixed $value) => is_int($value) || is_float($value) ? round((float) $value, 2) : null;
+
+        $stats = [];
+        foreach ($rows as $row) {
+            $gameId = self::gameId($row['game_id'] ?? null);
+            $ownerId = self::gameId($row[$list === Catalog::CHARACTER ? 'ascension_set_id' : 'id'] ?? null);
+            if (($row['deleted'] ?? false) === true || $gameId === null || $ownerId === null || !isset($byOwner[$ownerId][0], $byOwner[$ownerId][6]) || isset($stats[$gameId])) {
+                continue;
+            }
+            [$first, $last] = [$byOwner[$ownerId][0], $byOwner[$ownerId][6]];
+            if ($list === Catalog::CHARACTER) {
+                $level = fn(array $phase) => [
+                    'hp' => $number($phase['start_level_hp'] ?? null),
+                    'atk' => $number($phase['start_level_atk'] ?? null),
+                    'def' => $number($phase['start_level_def'] ?? null),
+                ];
+                $stats[$gameId] = [
+                    'base' => $level($first),
+                    'lv80' => $level($last),
+                    'ascension' => ['stat' => $last['primary_stat'] ?? null, 'value' => $number($last['primary_stat_value'] ?? null)],
+                ];
+            } else {
+                $secondary = $number($first['secondary_stat_value'] ?? null);
+                $stats[$gameId] = [
+                    'base_atk' => $number($first['primary_stat_value'] ?? null),
+                    'lv80_atk' => $number($last['primary_stat_value'] ?? null),
+                    'secondary' => is_string($row['secondary_stat'] ?? null) && $secondary !== null && $secondary > 0 ? ['stat' => $row['secondary_stat'], 'value' => $secondary] : null,
+                ];
+            }
+        }
+
+        return $stats;
+    }
+
+    /**
+     * A list of the site's own API, read as its catalog lists are read (the same limits); null when it cannot be.
+     *
+     * @return list<array<string, mixed>>|null
+     */
+    private function siteList(string $url): ?array
+    {
+        try {
+            $response = $this->fetcher->request($url, ['headers' => ['Accept' => 'application/json']]);
+            if ($response->status !== 200 || strlen($response->body) > self::MAX_BYTES) {
+                return null;
+            }
+            $items = json_decode($response->body, true, 32, JSON_THROW_ON_ERROR);
+        } catch (Throwable) {
+            return null;
+        }
+        if (!is_array($items) || !array_is_list($items) || count($items) > self::MAX_ITEMS) {
+            return null;
+        }
+
+        return array_values(array_filter($items, 'is_array'));
     }
 
     /**
@@ -115,6 +222,7 @@ final class GenshinCatalog implements CatalogProvider
                 'released_at' => self::date($item['release_date'] ?? null),
                 'icon_url' => self::icon($item['icon'] ?? null, $host),
                 'external_id' => $gameId === null ? null : (string) $gameId,
+                'meta' => self::withStats([], self::characterStats($item['stats'] ?? null)),
             ];
             if (($item['is_traveler'] ?? false) === true) {
                 // The twins are one entry per element; one with no element of the game's is none.
@@ -132,11 +240,98 @@ final class GenshinCatalog implements CatalogProvider
             $ids = array_values(array_unique(array_map(fn(array $twin) => "{$twin['id']}-{$element}", array_filter($twins, fn(array $twin) => $twin['id'] !== null))));
             $rows[] = [
                 'key' => 'traveler' . $element,
-                'row' => ['name' => 'Traveler (' . ucfirst($element) . ')', 'external_id' => $ids[0] ?? null, 'meta' => ['ids' => $ids]] + $twins[0]['row'],
+                'row' =>
+                    ['name' => 'Traveler (' . ucfirst($element) . ')', 'external_id' => $ids[0] ?? null, 'meta' => self::withStats(['ids' => $ids], $twins[0]['row']['meta']['stats'] ?? null)] +
+                    $twins[0]['row'],
             ];
         }
 
         return $rows;
+    }
+
+    /**
+     * The row's meta with its stats, where the provider gave some the catalog can read; without the key otherwise.
+     *
+     * @param  array<string, mixed>  $meta
+     * @param  array<string, mixed>|null  $stats
+     * @return array<string, mixed>
+     */
+    private static function withStats(array $meta, ?array $stats): array
+    {
+        return $stats === null ? $meta : $meta + ['stats' => $stats];
+    }
+
+    /**
+     * A character's base stats as that site's phases hold them (its `stats`): HP, ATK and DEF at level 1 and at
+     * level 80 ascended, and the ascension stat - its label read as the catalog's key - with its whole value.
+     * MaxLevelStats takes them to level 90. None unless every number is there and the ascension stat is one the
+     * game has.
+     *
+     * @return array{base: array{hp: float, atk: float, def: float}, lv80: array{hp: float, atk: float, def: float}, ascension: array{stat: string, value: float}}|null
+     */
+    private static function characterStats(mixed $stats): ?array
+    {
+        if (!is_array($stats)) {
+            return null;
+        }
+        $base = self::levelStats($stats['base'] ?? null);
+        $lv80 = self::levelStats($stats['lv80'] ?? null);
+        $ascension = self::statValue($stats['ascension'] ?? null);
+
+        return $base === null || $lv80 === null || $ascension === null ? null : ['base' => $base, 'lv80' => $lv80, 'ascension' => $ascension];
+    }
+
+    /**
+     * A weapon's base ATK at level 1 and at level 80 ascended, and its secondary stat at level 1 - its label read
+     * as the catalog's key; none for a weapon without one, or with one the game does not have.
+     *
+     * @return array{base_atk: float, lv80_atk: float, secondary: array{stat: string, value: float}|null}|null
+     */
+    private static function weaponStats(mixed $stats): ?array
+    {
+        if (!is_array($stats)) {
+            return null;
+        }
+        $base = self::number($stats['base_atk'] ?? null);
+        $lv80 = self::number($stats['lv80_atk'] ?? null);
+
+        return $base === null || $lv80 === null ? null : ['base_atk' => $base, 'lv80_atk' => $lv80, 'secondary' => self::statValue($stats['secondary'] ?? null)];
+    }
+
+    /** @return array{hp: float, atk: float, def: float}|null */
+    private static function levelStats(mixed $level): ?array
+    {
+        if (!is_array($level)) {
+            return null;
+        }
+        $hp = self::number($level['hp'] ?? null);
+        $atk = self::number($level['atk'] ?? null);
+        $def = self::number($level['def'] ?? null);
+
+        return $hp === null || $atk === null || $def === null ? null : ['hp' => $hp, 'atk' => $atk, 'def' => $def];
+    }
+
+    /**
+     * A stat under that site's label ("Crit DMG %", "Elemental Mastery") with its value, as the catalog's key; none
+     * for a label the game's stats do not answer to, or no value.
+     *
+     * @return array{stat: string, value: float}|null
+     */
+    private static function statValue(mixed $stat): ?array
+    {
+        if (!is_array($stat) || !is_string($stat['stat'] ?? null)) {
+            return null;
+        }
+        $keys = Stats::parse(Game::Genshin, str_replace('%', '', $stat['stat']));
+        $value = self::number($stat['value'] ?? null);
+
+        return count($keys) !== 1 || $value === null ? null : ['stat' => $keys[0], 'value' => $value];
+    }
+
+    /** A number of the stats, nought or more, as a float; null for anything else. */
+    private static function number(mixed $value): ?float
+    {
+        return (is_int($value) || is_float($value)) && is_finite($value) && $value >= 0 && $value <= 1_000_000 ? round((float) $value, 2) : null;
     }
 
     /**
@@ -163,6 +358,7 @@ final class GenshinCatalog implements CatalogProvider
                     'weapon_type' => self::oneOf($item['type'] ?? null, Game::Genshin->weaponTypes()),
                     'external_id' => $gameId === null ? null : (string) $gameId,
                     'icon_url' => self::icon($item['icon'] ?? null, $host),
+                    'meta' => self::withStats([], self::weaponStats($item['stats'] ?? null)),
                 ],
             ];
         }

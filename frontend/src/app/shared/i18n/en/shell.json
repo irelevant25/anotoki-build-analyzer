@@ -128,6 +128,7 @@
   "account.noItemsEquipped": "{items}: none equipped",
   "account.partSets": "Sets",
   "account.bestBuild": "Best build: {build}",
+  "account.chosenBuild": "Selected build: {build}",
   "account.noBuildsForCharacter": "No builds for this character yet.",
   "account.noMatches": "No characters match the filters.",
   "account.withoutBuilds.one": "{count} character has no builds yet.",

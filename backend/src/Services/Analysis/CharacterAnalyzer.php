@@ -19,14 +19,16 @@ use App\Support\Stats;
  *
  * A character's best build is the best scored of those its constellation reaches (min_rank), the earlier one on a
  * tie - the first build is the main one; when it reaches none, the one needing the lowest constellation, said so
- * (applies: false).
+ * (applies: false). The player may choose the build a character is judged by instead (account_characters.
+ * chosen_build_id, the owner's round of 2026-10-26): the account page then shows that one - reached or not -, and
+ * the character page opens on it; the best stays what it is, the closest match.
  */
 class CharacterAnalyzer
 {
     public function __construct(private readonly Accounts $accounts, private readonly Builds $builds, private readonly CatalogRows $rows) {}
 
     /**
-     * One row per owned character with its best-matching build.
+     * One row per owned character with the build it is judged by: the one the player chose, else its best.
      *
      * @return list<array>
      */
@@ -40,27 +42,30 @@ class CharacterAnalyzer
         foreach ($owned as $character) {
             $characterBuilds = $builds[$character->game_character_id] ?? [];
             $evaluations = $this->evaluateAll($context, $character, $characterBuilds);
-            $best = $this->best($evaluations);
+            $chosen = self::chosen($evaluations, $character->chosen_build_id);
+            $shown = $chosen ?? $this->best($evaluations);
 
             $rows[] = $this->characterSummary($context, $character) + [
                 'builds_count' => count($characterBuilds),
-                'best' => $best
+                'build' => $shown
                     ? [
-                        'build_id' => $best['build']['id'],
+                        'build_id' => $shown['build']['id'],
+                        // Whether the player chose it; false: it is the closest match.
+                        'chosen' => $chosen !== null,
                         // The build's variation, for a page to word: its role, qualifier and the constellation it needs.
-                        'role' => $best['build']['role'],
-                        'qualifier' => $best['build']['qualifier'],
-                        'min_rank' => $best['build']['min_rank'],
-                        'applies' => $best['build']['applies'],
-                        'overall' => $best['score']['overall'],
-                        'grade' => $best['score']['grade'],
-                        'parts' => $best['score']['parts'],
-                        'top_issue' => $best['recommendations'][0]['message'] ?? null,
+                        'role' => $shown['build']['role'],
+                        'qualifier' => $shown['build']['qualifier'],
+                        'min_rank' => $shown['build']['min_rank'],
+                        'applies' => $shown['build']['applies'],
+                        'overall' => $shown['score']['overall'],
+                        'grade' => $shown['score']['grade'],
+                        'parts' => $shown['score']['parts'],
+                        'top_issue' => $shown['recommendations'][0]['message'] ?? null,
                         // The same recommendation as a kind with its parameters (BuildEvaluator::KINDS), for a
                         // page to word; both null when there is nothing to recommend.
-                        'top_issue_kind' => $best['recommendations'][0]['kind'] ?? null,
-                        'top_issue_params' => $best['recommendations'][0]['params'] ?? null,
-                        'issues' => count(array_filter($best['recommendations'], fn($r) => $r['severity'] !== 'low')),
+                        'top_issue_kind' => $shown['recommendations'][0]['kind'] ?? null,
+                        'top_issue_params' => $shown['recommendations'][0]['params'] ?? null,
+                        'issues' => count(array_filter($shown['recommendations'], fn($r) => $r['severity'] !== 'low')),
                     ]
                     : null,
             ];
@@ -71,7 +76,7 @@ class CharacterAnalyzer
 
     /**
      * Full analysis of one character: every build evaluated and (with a full inventory) better pieces the player
-     * already owns.
+     * already owns - for the build asked for, else the one the player chose, else the best.
      */
     public function detail(Account $account, AccountCharacter $character, ?int $focusBuildId = null): array
     {
@@ -80,7 +85,8 @@ class CharacterAnalyzer
 
         $evaluations = $this->evaluateAll($context, $character, $builds);
         $best = $this->best($evaluations);
-        $focus = $best;
+        $chosen = self::chosen($evaluations, $character->chosen_build_id);
+        $focus = $chosen ?? $best;
         if ($focusBuildId) {
             $focus = null;
             foreach ($evaluations as $evaluation) {
@@ -113,6 +119,8 @@ class CharacterAnalyzer
             'equipment' => $this->equipment($context, $character),
             'evaluations' => $evaluations,
             'best_build_id' => $best['build']['id'] ?? null,
+            // The build the player chose for the character; null: the closest match (best_build_id) judges it.
+            'chosen_build_id' => $chosen['build']['id'] ?? null,
             'focus_build_id' => $focus['build']['id'] ?? null,
             'suggestions' => $suggestions['items'],
             'set_plans' => $suggestions['set_plans'],
@@ -164,6 +172,21 @@ class CharacterAnalyzer
         }
 
         return $best;
+    }
+
+    /** The evaluation of the build the player chose, when it is among them; null: none chosen. */
+    public static function chosen(array $evaluations, ?int $buildId): ?array
+    {
+        if ($buildId === null) {
+            return null;
+        }
+        foreach ($evaluations as $evaluation) {
+            if ($evaluation['build']['id'] === $buildId) {
+                return $evaluation;
+            }
+        }
+
+        return null;
     }
 
     /** Whether $a is a better pick than $b (see best()). */

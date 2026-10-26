@@ -270,7 +270,9 @@ describe("the builds editor: a character's builds changed by hand, saved in one 
     await chooseTab(2);
     expect(control<HTMLInputElement>('qualifier').disabled).toBe(false);
     expect(host.querySelector('.fixed-name')).toBeNull();
-  });
+    // The file's first case draws the page and every part's form for the first time: in the whole suite, the spec files
+    // run side by side, that took 5.2-5.4 s on the owner's computer (2026-10-26) - past Vitest's 5 s.
+  }, 15_000);
 
   it('saves a change - the build as changed, every part nobody touched as it came - and takes the answer', async () => {
     await setup();

@@ -31,6 +31,11 @@ const SLOVAK: Record<string, string> = {
   'buildDetail.talentPriority': '{talents}: priorita',
   'buildDetail.statTargets': 'Cieľové hodnoty',
   'buildDetail.targetYours': 'máš: {value}',
+  'buildDetail.targetsBasis': 'Vypočítané pre {weapon}.',
+  'buildDetail.targetsBasisSets': 'Vypočítané pre {weapon} so setom {sets}.',
+  'buildDetail.tierBasic': 'Základná',
+  'buildDetail.tierIntermediate': 'Stredná',
+  'buildDetail.tierAdvanced': 'Pokročilá',
   'buildDetail.notes': 'Poznámky',
   'buildDetail.version': 'Verzia {version}',
   'buildDetail.checked': 'Skontrolované {when}',
@@ -54,8 +59,10 @@ function gameMeta(key: GameKey): GameMeta {
     weapon_types: [],
     stats: {
       critRate_: { label: 'CRIT Rate', short: 'CR', percent: true },
+      critDMG_: { label: 'CRIT DMG', short: 'CD', percent: true },
       atk_: { label: 'ATK%', short: 'ATK%', percent: true },
       hp_: { label: 'HP%', short: 'HP%', percent: true },
+      hp: { label: 'HP', short: 'HP', percent: false },
       pyro_dmg_: { label: 'Pyro DMG Bonus', short: 'Pyro', percent: true },
     },
     talents: { skill: 'Elemental Skill', burst: 'Elemental Burst' },
@@ -109,6 +116,7 @@ function build(change: Partial<Build> = {}): Build {
       { talent: 'burst', priority: 2 },
     ],
     stat_targets: [{ stat: 'critRate_', min: 70, max: null, from_rank: 0 }],
+    targets: null,
     teams: [],
     notes: { en: 'Keep her HP below half.', sk: 'Drž jej HP pod polovicou.' },
     game_version: '5.2',
@@ -138,8 +146,20 @@ const EVALUATION: Evaluation = {
   },
   items: {},
   targets: [{ stat: 'critRate_', min: 70, max: null, current: 62, ok: false }],
+  targets_basis: null,
   substat_weights: {},
   recommendations: [],
+};
+
+/** The targets worked out in tiers: a requirement as stated, then CRIT DMG and the sheet's HP in three tiers. */
+const TIERED: Evaluation = {
+  ...EVALUATION,
+  targets: [
+    { stat: 'critRate_', tiers: null, min: 70, max: null, from_rank: 0, current: 62, ok: false, tier: null },
+    { stat: 'critDMG_', tiers: { basic: 106.7, intermediate: 136, advanced: 165.4 }, min: null, max: null, from_rank: null, current: 140.2, ok: true, tier: 'intermediate' },
+    { stat: 'hp', tiers: { basic: 28200, intermediate: 29500, advanced: 30800 }, min: null, max: null, from_rank: null, current: null, ok: null, tier: null },
+  ],
+  targets_basis: { weapon: "Dragon's Bane", sets: '4pc Crimson Witch of Flames', main_stats: { sands: 'hp_', goblet: 'pyro_dmg_', circlet: 'critRate_' } },
 };
 
 describe('BuildDetail: a recommended build in the reader’s words, the game’s and the build’s own as they are', () => {
@@ -210,6 +230,40 @@ describe('BuildDetail: a recommended build in the reader’s words, the game’s
     expect(text('.target > span')).toEqual(['CRIT Rate', '70.0%+', 'máš: 62.0%']);
     expect(text('.notes .anotoki-disclosure__button')).toEqual(['Poznámky']);
     expect(text('footer')).toEqual(['Verzia 5.2 · Skontrolované pred 2 hodinami']);
+    expect(warn).not.toHaveBeenCalled();
+  });
+
+  it('shows a tiered target with its three values, the tiers reached marked, and what the tiers rest on; a requirement as before', async () => {
+    await show('en', 'genshin', build(), TIERED);
+
+    expect(text('.targets-basis')).toEqual(["Worked out for Dragon's Bane with 4pc Crimson Witch of Flames."]);
+    expect(text('.target:nth-child(1) > span')).toEqual(['CRIT Rate', '70.0%+', 'you: 62.0%']);
+    expect(text('.target:nth-child(2) .t-stat')).toEqual(['CRIT DMG']);
+    expect(text('.target:nth-child(2) dt')).toEqual(['Basic', 'Intermediate', 'Advanced']);
+    expect(text('.target:nth-child(2) dd')).toEqual(['106.7%', '136.0%', '165.4%']);
+    expect([...host.querySelectorAll('.target:nth-child(2) .t-tier')].map((tier) => tier.classList.contains('reached'))).toEqual([true, true, false]);
+    expect(text('.target:nth-child(2) .t-current')).toEqual(['you: 140.2%']);
+    // HP as the sheet's total; no in-game total, no tier reached.
+    expect(text('.target:nth-child(3) dd')).toEqual(['28,200', '29,500', '30,800']);
+    expect([...host.querySelectorAll('.target:nth-child(3) .t-tier')].map((tier) => tier.classList.contains('reached'))).toEqual([false, false, false]);
+    expect(text('.target:nth-child(3) .t-current')).toEqual([]);
+    expect(warn).not.toHaveBeenCalled();
+  });
+
+  it('shows the build’s own tiered rows in the builds browser, in Slovak, for the build’s first weapon - nothing of anybody’s', async () => {
+    await show(
+      'sk',
+      'genshin',
+      build({ targets: { rows: TIERED.targets.slice(0, 2).map((row) => ({ ...row, current: null, ok: null, tier: null })), basis: { ...TIERED.targets_basis!, sets: null } } }),
+    );
+
+    // A build that lists no sets: the weapon alone.
+    expect(text('.targets-basis')).toEqual(["Vypočítané pre Dragon's Bane."]);
+    expect(text('.target:nth-child(1) > span')).toEqual(['CRIT Rate', '70.0%+']);
+    expect(text('.target:nth-child(2) dt')).toEqual(['Základná', 'Stredná', 'Pokročilá']);
+    expect(text('.target:nth-child(2) dd')).toEqual(['106.7%', '136.0%', '165.4%']);
+    expect([...host.querySelectorAll('.t-tier')].map((tier) => tier.classList.contains('reached'))).toEqual([false, false, false]);
+    expect(text('.t-current')).toEqual([]);
     expect(warn).not.toHaveBeenCalled();
   });
 

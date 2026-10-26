@@ -5,6 +5,7 @@ namespace App\Services\Transfer;
 use App\Enums\Game;
 use App\Presenters\AccountPresenter;
 use App\Services\Analysis\CharacterAnalyzer;
+use App\Services\Builds\BuildFile;
 use App\Support\Clock;
 use App\Support\Json;
 use App\Support\Neutral;
@@ -13,12 +14,13 @@ use DateTimeInterface;
 
 /**
  * The file a signed-in person's own data is exported to and imported from: format "build-analyzer.accounts",
- * version 1 (docs/data-model.md, "Accounts files"). It carries their game accounts - each with its
+ * version 2 (docs/data-model.md, "Accounts files"). It carries their game accounts - each with its
  * characters, weapons, artifacts and import history - from one installation to another, or keeps
- * them as a backup.
+ * them as a backup. Version 1 - a character without the build chosen for it, before 0.8.0 - is read too.
  *
  * It holds nothing that only makes sense here: catalog entries by their key ("hutao"), never an internal
- * id; no user id and no account id; a source as "showcase" or "file", never the service or tool behind it;
+ * id; a build chosen for a character by its variation (role, qualifier, min_rank - BuildFile::identity()),
+ * never its id; no user id and no account id; a source as "showcase" or "file", never the service or tool behind it;
  * an account's meta only the keys the account page shows (AccountPresenter::META_KEYS); every time in UTC,
  * to the second ("2026-09-29T14:03:12Z"), because an account without a UID is matched by when it was made,
  * and two installations must spell that time alike. Like every answer of the API it names no other site:
@@ -33,7 +35,10 @@ final class AccountsFile
 {
     public const FORMAT = 'build-analyzer.accounts';
 
-    public const VERSION = 1;
+    public const VERSION = 2;
+
+    /** The oldest version the reader takes: 1, whose characters carry no chosen build. */
+    public const OLDEST_VERSION = 1;
 
     public const MAX_ACCOUNTS = 500;
 
@@ -100,7 +105,13 @@ final class AccountsFile
         'imports',
     ];
 
-    private const CHARACTER_FIELDS = ['key', 'level', 'ascension', 'rank', 'talents', 'final_stats', 'source', 'synced_at'];
+    private const CHARACTER_FIELDS = ['key', 'level', 'ascension', 'rank', 'talents', 'final_stats', 'source', 'synced_at', 'build'];
+
+    /** A character of version 1: no chosen build. */
+    private const CHARACTER_FIELDS_V1 = ['key', 'level', 'ascension', 'rank', 'talents', 'final_stats', 'source', 'synced_at'];
+
+    /** The build chosen for a character, by its variation. */
+    private const BUILD_FIELDS = ['role', 'qualifier', 'min_rank'];
 
     private const WEAPON_FIELDS = ['key', 'level', 'ascension', 'refinement', 'equipped', 'locked', 'external_uid', 'source'];
 
@@ -131,7 +142,13 @@ final class AccountsFile
 
     private const UID = '/^[\x21-\x7e]{1,20}$/';
 
+    /** A control character: a build's qualifier is one line (BuildFile). */
+    private const CONTROL = '/[\x00-\x1f\x7f]/';
+
     private const SMALLINT = 32767;
+
+    /** The version of the file being read (check()). */
+    private int $version = self::VERSION;
 
     // ── writing ──────────────────────────────────────────────────────────────────────────────────
 
@@ -154,7 +171,8 @@ final class AccountsFile
 
     /**
      * One account as the file holds it, from its database rows: the account's, and those of its characters
-     * (with `character_key`), weapons (`weapon_key`, `equipped_key`), items (`set_key`, `equipped_key`) and
+     * (with `character_key`, and the chosen build's `build_role`, `build_qualifier`, `build_min_rank` - null
+     * for none), weapons (`weapon_key`, `equipped_key`), items (`set_key`, `equipped_key`) and
      * import runs (oldest first; the newest MAX_IMPORTS are kept). Whatever a stored value holds that the
      * reader would refuse - a talent that is not a whole number, a stat key of another shape - stays behind,
      * so the file always imports.
@@ -191,6 +209,7 @@ final class AccountsFile
                     'final_stats' => self::writeNumbers(Json::decode($row['final_stats'] ?? null), wholeOnly: false),
                     'source' => CharacterAnalyzer::importKind((string) $row['source']),
                     'synced_at' => self::time(Clock::parse($row['synced_at'] ?? null)),
+                    'build' => self::writeBuild($game, $row),
                 ],
                 $characters,
             ),
@@ -267,6 +286,31 @@ final class AccountsFile
         $number = is_int($value) || is_float($value) ? $value : (float) $value;
 
         return is_float($number) && !is_finite($number) ? 0 : $number;
+    }
+
+    /**
+     * The build chosen for a character, by its variation; null for none - and for a stored one the reader would
+     * refuse, which no build of this installation is.
+     *
+     * @return array{role: string, qualifier: string, min_rank: int}|null
+     */
+    private static function writeBuild(Game $game, array $row): ?array
+    {
+        $role = $row['build_role'] ?? null;
+        $qualifier = self::neutral(isset($row['build_qualifier']) ? (string) $row['build_qualifier'] : null, BuildFile::MAX_QUALIFIER);
+        $minRank = $row['build_min_rank'] ?? null;
+        if (
+            !in_array($role, $game->roles(), true) ||
+            $qualifier === null ||
+            preg_match(self::CONTROL, $qualifier) === 1 ||
+            !is_numeric($minRank) ||
+            (int) $minRank < 0 ||
+            (int) $minRank > $game->maxRank()
+        ) {
+            return null;
+        }
+
+        return ['role' => $role, 'qualifier' => $qualifier, 'min_rank' => (int) $minRank];
     }
 
     /** @return array<string, mixed> */
@@ -426,9 +470,10 @@ final class AccountsFile
             );
         }
         $this->fields($file, '(file)', self::FIELDS);
-        if ($version !== self::VERSION) {
+        if (!is_int($version) || $version < self::OLDEST_VERSION) {
             $this->fail('format_version', 'not a format version');
         }
+        $this->version = $version;
         $exportedAt = $this->checkTime($file['exported_at'], 'exported_at') ?? $this->fail('exported_at', 'missing');
         $this->text($file['app_version'], 'app_version', self::MAX_APP_VERSION);
 
@@ -466,7 +511,7 @@ final class AccountsFile
         $keys = [];
         foreach ($this->list($entry['characters'], "{$path}.characters", self::MAX_CHARACTERS) as $index => $character) {
             $at = "{$path}.characters[{$index}]";
-            $this->fields($character, $at, self::CHARACTER_FIELDS);
+            $this->fields($character, $at, $this->version === 1 ? self::CHARACTER_FIELDS_V1 : self::CHARACTER_FIELDS);
             $key = $this->catalogKey($character['key'], "{$at}.key");
             if (isset($keys[$key])) {
                 $this->fail("{$at}.key", 'a character listed twice');
@@ -481,6 +526,7 @@ final class AccountsFile
                 'final_stats' => $this->numbers($character['final_stats'], "{$at}.final_stats", wholeOnly: false),
                 'source' => $this->source($character['source'], "{$at}.source"),
                 'synced_at' => $this->checkTime($character['synced_at'], "{$at}.synced_at"),
+                'build' => $this->version === 1 ? null : $this->build($character['build'], "{$at}.build", $game),
             ];
         }
 
@@ -563,6 +609,33 @@ final class AccountsFile
             'weapons' => $weapons,
             'items' => $items,
             'imports' => $imports,
+        ];
+    }
+
+    /**
+     * The build chosen for a character, by its variation as BuildFile names one: a role of the game's, a qualifier
+     * of one line ('' for none), the constellation the build needs. Null: none chosen.
+     *
+     * @return array{role: string, qualifier: string, min_rank: int}|null
+     */
+    private function build(mixed $build, string $path, Game $game): ?array
+    {
+        if ($build === null) {
+            return null;
+        }
+        $this->fields($build, $path, self::BUILD_FIELDS);
+        if (!in_array($build['role'], $game->roles(), true)) {
+            $this->fail("{$path}.role", 'not a role of ' . $game->label());
+        }
+        $qualifier = $build['qualifier'];
+        if (!is_string($qualifier) || mb_strlen($qualifier) > BuildFile::MAX_QUALIFIER || preg_match(self::CONTROL, $qualifier) === 1) {
+            $this->fail("{$path}.qualifier", 'not a text of one line of at most ' . BuildFile::MAX_QUALIFIER . ' characters');
+        }
+
+        return [
+            'role' => $build['role'],
+            'qualifier' => (string) self::neutral($qualifier, BuildFile::MAX_QUALIFIER),
+            'min_rank' => $this->int($build['min_rank'], "{$path}.min_rank", 0, $game->maxRank()),
         ];
     }
 

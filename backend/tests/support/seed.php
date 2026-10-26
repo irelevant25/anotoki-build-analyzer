@@ -69,6 +69,37 @@ function seedAccount(int $userId, string $game, array $attributes = []): int
     return (int) db()->insert('accounts', ['user_id' => $userId, 'game' => $game] + $attributes + ['created_at' => $now, 'updated_at' => $now]);
 }
 
+/**
+ * A build of a character's that says nothing - a main DPS build, as an import stores one -, unless $fields says
+ * more (its role, qualifier, min_rank...). Its id.
+ *
+ * @param  array<string, mixed>  $fields
+ */
+function seedCharacterBuild(int $character, array $fields = []): int
+{
+    $now = Clock::now();
+
+    return (int) db()->insert(
+        'builds',
+        $fields + [
+            'game_character_id' => $character,
+            'role' => 'main_dps',
+            'qualifier' => '',
+            'min_rank' => 0,
+            'position' => 0,
+            'weapons' => '[]',
+            'sets' => '[]',
+            'main_stats' => '{}',
+            'substats' => '[]',
+            'content_hash' => 'x',
+            'checked_at' => $now,
+            'changed_at' => $now,
+            'created_at' => $now,
+            'updated_at' => $now,
+        ],
+    );
+}
+
 function idOf(string $table, string $key): int
 {
     return (int) db()->value("SELECT id FROM {$table} WHERE key = ?", [$key]);

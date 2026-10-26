@@ -457,10 +457,11 @@ name or address either:
   is no match; replaced when the file's `last_import_at` is newer (its details, characters, weapons and items; the
   file's import runs it lacks added; meta keys the file does not carry kept); kept otherwise. Never deletes an
   account. Catalog keys this copy lacks are skipped and counted. A dry run answers the same and writes nothing.
-- **Analysis**: `GET /api/accounts/{id}` → `CharacterAnalyzer::overview()` (each character's best build: its
-  variation - role, qualifier, `min_rank` -, whether it applies, its score and grade, the top issue);
+- **Analysis**: `GET /api/accounts/{id}` → `CharacterAnalyzer::overview()` (each character's `build` - the one
+  the player chose, else its best, `chosen` saying which -: its variation - role, qualifier, `min_rank` -, whether it
+  applies, its score and grade, the top issue);
   `GET /api/accounts/{id}/characters/{key}?build=ID` → `CharacterAnalyzer::detail()` (every build of the
-  character evaluated, the best and the one in focus, suggestions, set plans) + full builds via
+  character evaluated, the best, the one chosen and the one in focus, suggestions, set plans) + full builds via
   `BuildPresenter` (each team's members with what the catalog says of them, looked up as they are shown) + the
   teammates the account has (`owned_teammates`: `{key: constellation}` of the account's characters among the
   builds' teammates and stand-ins, the character itself left out - `Accounts::characterRanks()`; `{}` for none; the
@@ -473,7 +474,10 @@ name or address either:
   `BuildEvaluator::evaluate()` judges a build the character does not reach all the same; a build's substats are
   its own, or - when it lists none - what its own main stats ask for (`ItemScorer::fallbackSubstats()`, never
   another build's); of its stat targets, per stat, the one from the highest `from_rank` the character has reached
-  (`BuildEvaluator::targetsFor()`). See [analysis.md](analysis.md).
+  (`BuildEvaluator::targetsFor()`). The build the player chose (`PUT /api/accounts/{id}/characters/{key}/build`
+  `{build_id}`, `Accounts::chooseBuild()`: one of the character's own builds, reached or not, or null; kept in
+  `account_characters.chosen_build_id`) is the one the account page grades the character by and the character page
+  opens on; the best stays the closest match. See [analysis.md](analysis.md).
 
 ### The upkeep after an answer
 
@@ -591,8 +595,9 @@ bar took the place of the site's own), each with every rewording.
 | --- | --- | --- |
 | `GET /api/meta` | anyone (also while sign-in is required) | slots, stat labels, talent names, elements, weapon types and the game's labels per game (one, Genshin Impact); `version`; `auth {issuer, client_id, login_required, sign_in_available}` (whether the IAM requires sign-in here, and whether it knows the site); `visitors {keep_days}` |
 | `GET /api/icons/{c\|w\|s}/{id}` | anyone (also while sign-in is required) | a character / weapon / set icon, served from `storage/icons/` |
-| `GET /api/accounts`, `GET/PATCH/DELETE /api/accounts/{id}` | signed in or visitor (own) | list / overview (+ characters with best build) / rename / delete |
-| `GET /api/accounts/{id}/characters/{key}?build=ID` | signed in or visitor (own) | full analysis of one character (key = catalog key, e.g. `hutao`), its builds in full, and `owned_teammates` (`{key: constellation}`: the account's characters among the builds' teammates; `{}` for none; a Traveler of another element than the account's `null`) |
+| `GET /api/accounts`, `GET/PATCH/DELETE /api/accounts/{id}` | signed in or visitor (own) | list / overview (+ characters with the build each is judged by: the one chosen, else the best) / rename / delete |
+| `GET /api/accounts/{id}/characters/{key}?build=ID` | signed in or visitor (own) | full analysis of one character (key = catalog key, e.g. `hutao`), its builds in full, `best_build_id`, `chosen_build_id`, and `owned_teammates` (`{key: constellation}`: the account's characters among the builds' teammates; `{}` for none; a Traveler of another element than the account's `null`) |
+| `PUT /api/accounts/{id}/characters/{key}/build` (`{build_id}`) | signed in or visitor (own) | the build the account page grades the character by: one of the character's own builds, reached or not, or null for the closest match; answers `{chosen_build_id}`; another build, or no `build_id`, 422 `invalid`; a character the account lacks 404 |
 | `GET /api/accounts/{id}/imports` | signed in or visitor (own) | import history |
 | `POST /api/imports/showcase` `{game, uid, account_id?}` | signed in or visitor (own); nobody: makes a visitor (JSON only: else 415) | Character Showcase import (10 a minute per person; a visitor's per address, all visitors' 20 together) |
 | `POST /api/imports/file` `{content \| file, game?, account_id?, file_name?}` | signed in or visitor (own); nobody: makes a visitor (JSON only: else 415) | GOOD import - the game is the file's, a `game` sent along is not read (20 a minute per person; a visitor's per address); a person or a visitor may upload `file` as multipart |
@@ -904,10 +909,13 @@ again). The Migrations page's API answers its own: 404 `not_found` (a file that 
   date; for staff a link to the admin panel's Builds page); it loads the accounts again when the state changes and
   after a move. `import` (wizard + `import-guides.ts`, whose texts are keys; four steps - the game is Genshin
   Impact, no step asks for it; the notice for somebody not signed in; nobody's wizard asks for no accounts),
-  `account` (each character's best build, as its variation reads; its import history wraps a row under 600 px, so
+  `account` (each character graded by its build - the one the player chose, "Selected build: ...", else the closest
+  match, "Best build: ..." -, as its variation reads; its import history wraps a row under 600 px, so
   the last column is never cut) and `character` (a tab per build, named by its variation, its score the kit's badge,
-  the closest build marked, a build the character's constellation does not reach locked and said so, "needs C4"; the
-  notice for a visitor; on a 401 for somebody not signed in, `visitor-hero` instead of an error), `builds` (the
+  the build the player chose marked with a person and a green badge, the closest build with a check, a build the
+  character's constellation does not reach locked and said so, "needs C4"; above the build in hand **Use this build**,
+  or "Selected" and **Choose automatically** on the one chosen, a toast after either; the notice for a visitor; on a
+  401 for somebody not signed in, `visitor-hero` instead of an error), `builds` (the
   builds browser on `/builds/genshin`, no game switch: each character a link card with its builds' roles, the newest
   release first; above them the filters - the name; the element, the weapon type and the rarity, each the kit's
   segmented control, All first and then what the characters here have, an element's colour mark before its name; the

@@ -48,6 +48,7 @@
   "recommendation.item_level": "Level up your {slot_label} (+{level} → +{max_level}).",
   "recommendation.substats_weak": "Your {slot_label} has weak substats ({percent}% of an ideal piece). Replace it with one rolling {stats}.",
   "recommendation.target_below": "{stat} is {current}; the build aims for {min}+.",
+  "recommendation.target_basic_below": "{stat} is {current}; the basic target for this setup is {min}.",
   "recommendation.talent_level": "Level {talent} first (priority #1, currently {level}).",
   "recommendation.character_level": "Level the character up (level {level}); most of their stats come from character level.",
 

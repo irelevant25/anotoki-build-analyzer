@@ -11,6 +11,7 @@ use App\Services\Analysis\CharacterAnalyzer;
 use App\Web\HttpError;
 use App\Web\Input;
 use App\Web\Json;
+use App\Web\ValidationError;
 use Psr\Http\Message\ResponseInterface as Response;
 use Psr\Http\Message\ServerRequestInterface as Request;
 use Slim\Routing\RouteCollectorProxy;
@@ -21,7 +22,8 @@ use Slim\Routing\RouteCollectorProxy;
  * account - another person's, another visitor's - answers 404, exactly like one that does not exist.
  *
  *   GET    /api/accounts                              list, with counts
- *   GET    /api/accounts/{id}                         overview: every character with its best build
+ *   GET    /api/accounts/{id}                         overview: every character with the build it is judged by - the one
+ *                                                     the player chose, else its best (the closest match)
  *   PATCH  /api/accounts/{id}  {nickname}             rename
  *   DELETE /api/accounts/{id}                         delete, with everything imported into it
  *   GET    /api/accounts/{id}/imports                 import history (50 newest)
@@ -29,6 +31,9 @@ use Slim\Routing\RouteCollectorProxy;
  *                                                     which of the builds' teammates the account has, with each one's
  *                                                     constellation ({key: rank}; the character itself left out; a
  *                                                     Traveler of another element than the account's null - unknown)
+ *   PUT    /api/accounts/{id}/characters/{key}/build  {build_id}: the build the character is judged by - one of its
+ *                                                     own builds, reached or not -, or null for the closest match;
+ *                                                     answers {chosen_build_id}. Another build: 422 invalid
  */
 return function (Slim\App $slim, App $app): void {
     $own = function (Request $request, array $args) use ($app): Account {
@@ -114,6 +119,28 @@ return function (Slim\App $slim, App $app): void {
                             'owned_teammates' => (object) $ranks,
                         ],
                 );
+            });
+
+            $group->put('/{account:[0-9]+}/characters/{key}/build', function (Request $request, Response $response, array $args) use ($app, $own): Response {
+                $account = $own($request, $args);
+                $accounts = $app->get(Accounts::class);
+                $owned = $accounts->character($account->id, (string) $args['key']) ?? throw HttpError::notFound();
+
+                $input = Input::of($request);
+                // A whole number, or null - "choose automatically"; anything else, an empty text too, is no build.
+                $buildId = null;
+                if (!$input->has('build_id')) {
+                    $input->fail('build_id', 'The build id field is required; null chooses automatically.');
+                } elseif ($input->data['build_id'] !== null) {
+                    $buildId = $input->integer('build_id', required: true);
+                }
+                $input->valid();
+
+                if (!$accounts->chooseBuild($owned, $buildId)) {
+                    throw new ValidationError(['build_id' => ["That is not one of this character's builds."]]);
+                }
+
+                return Json::send($response, ['chosen_build_id' => $buildId]);
             });
         })
         ->add(requireOwner($app));

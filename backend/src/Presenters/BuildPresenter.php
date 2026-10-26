@@ -4,8 +4,11 @@ namespace App\Presenters;
 
 use App\Models\Build;
 use App\Models\GameCharacter;
+use App\Models\GameSet;
+use App\Models\GameWeapon;
 use App\Repositories\Builds;
 use App\Repositories\CatalogRows;
+use App\Services\Analysis\TargetTiers;
 use App\Services\Builds\BuildFile;
 use App\Services\Builds\BuildNotes;
 use App\Services\Catalog\Catalog;
@@ -88,6 +91,24 @@ final class BuildPresenter
     }
 
     /**
+     * The build's stat targets as the builds browser shows them (App\Services\Analysis\TargetTiers): for the first
+     * of the build's weapons the catalog knows the stats of and the build's own main stats, the stated targets
+     * held at the constellation the build is for - a 4-star character's at C6 (the owner's rule of 2026-10-26:
+     * nearly every player has them there) -; null while the catalog lacks the stats behind them.
+     *
+     * @param  array<string, GameWeapon>  $weapons
+     * @param  array<string, GameSet>  $sets
+     * @return array{rows: list<array<string, mixed>>, basis: array<string, mixed>}|null
+     */
+    private static function targets(Build $build, array $weapons, array $sets): ?array
+    {
+        $rank = $build->character->rarity === 4 ? max($build->min_rank, $build->character->game->maxRank()) : $build->min_rank;
+        $computed = TargetTiers::forBuild($build, $build->character, $weapons, $sets, null, [], $rank);
+
+        return $computed === null ? null : Neutral::deep($computed);
+    }
+
+    /**
      * @param  array<string, GameCharacter>  $teammates
      * @param  array<string, true>  $withBuilds
      */
@@ -126,6 +147,7 @@ final class BuildPresenter
             'substats' => $build->substats,
             'talent_priority' => $build->talent_priority,
             'stat_targets' => $build->stat_targets === null ? null : Neutral::deep(array_map(fn(array $target) => $without($target, 'text'), $build->stat_targets)),
+            'targets' => self::targets($build, $weapons, $sets),
             'teams' => array_map(
                 fn(array $team, int $t) => [
                     'name' => (string) Neutral::text((string) ($team['name'] ?? '')),

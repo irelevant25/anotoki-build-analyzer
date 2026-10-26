@@ -11,7 +11,7 @@ import { TranslatePluralPipe } from '../../../shared/i18n/translate-plural';
 import { TranslationService, Worded } from '../../../shared/i18n/translation';
 import { rankMark } from '../../../shared/i18n/variation-words';
 import { MetaStore } from '../../../shared/meta-store';
-import { Build, Evaluation, GameKey, SetOption, SetPiece, SiteNote, StatPriority, TalentPriority } from '../../../api/models';
+import { Build, Evaluation, GameKey, SetOption, SetPiece, SiteNote, StatPriority, StatTarget, TARGET_TIERS, TalentPriority, TargetTier, TargetsBasis } from '../../../api/models';
 import { BUILD_TERMS } from './build-terms';
 import { BuildTeams } from './build-teams';
 import { Avatar } from '../../../shared/char-avatar';
@@ -99,13 +99,41 @@ export class BuildDetail {
   });
 
   /**
-   * The stat targets: with an evaluation those of the character's constellation (the server keeps, per stat, the one
-   * from the highest constellation reached), else every one the build has - a stat's from C0 and from C1 both.
+   * The stat targets: with an evaluation the character's own (the stated targets of its constellation, and every
+   * substat in three tiers for the weapon in hand where the catalog knows the stats), else the build's as the builds
+   * browser shows them, else - while the catalog lacks the stats - the stated ones alone, a stat's from C0 and from
+   * C1 both.
    */
-  protected readonly targets = computed(() => {
+  protected readonly targets = computed<StatTarget[]>(() => {
     const evaluated = this.evaluation()?.targets;
-    return evaluated && evaluated.length > 0 ? evaluated : (this.build().stat_targets ?? []);
+    if (evaluated && evaluated.length > 0) {
+      return evaluated;
+    }
+    const own = this.build().targets?.rows;
+    return own && own.length > 0 ? own : (this.build().stat_targets ?? []);
   });
+
+  /** What the tiers rest on - the weapon and the set -, for the line under the heading; null while the targets are the stated ones alone. */
+  protected readonly targetsBasis = computed<TargetsBasis | null>(() => {
+    const evaluation = this.evaluation();
+    if (evaluation && evaluation.targets.length > 0) {
+      return evaluation.targets_basis;
+    }
+    const own = this.build().targets;
+    return own && own.rows.length > 0 ? own.basis : null;
+  });
+
+  protected readonly tierNames = TARGET_TIERS;
+
+  /** A tier's name in the reader's language. */
+  protected tierLabel(tier: TargetTier): string {
+    return this.i18n.t(tier === 'basic' ? 'buildDetail.tierBasic' : tier === 'intermediate' ? 'buildDetail.tierIntermediate' : 'buildDetail.tierAdvanced');
+  }
+
+  /** Whether the character has reached a tier of a target: the tier reached and every one below it. */
+  protected reached(target: StatTarget, tier: TargetTier): boolean {
+    return target.tier != null && TARGET_TIERS.indexOf(tier) <= TARGET_TIERS.indexOf(target.tier);
+  }
 
   /** The build's note in the language on the page where it is written, else in English; null for none. */
   protected note(note: SiteNote | null): Worded | null {

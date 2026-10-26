@@ -10,6 +10,7 @@ use App\Models\AccountItem;
 use App\Models\AccountWeapon;
 use App\Support\Clock;
 use App\Support\Json;
+use PDOException;
 
 /**
  * Game accounts and what was imported into them.
@@ -163,6 +164,36 @@ final class Accounts
     public function characterKeys(int $accountId): array
     {
         return array_map('strval', $this->db->column('SELECT c.key FROM account_characters ac JOIN game_characters c ON c.id = ac.game_character_id WHERE ac.account_id = ?', [$accountId]));
+    }
+
+    /**
+     * The build the account's character is judged by: one of the character's own builds, or null for the closest
+     * match. False when $buildId is no build of the character's - or went while this was being saved. The character
+     * is one the caller found in an account of its owner's (findOwned(), character()).
+     */
+    public function chooseBuild(AccountCharacter $owned, ?int $buildId): bool
+    {
+        if ($buildId === null) {
+            $this->db->run('UPDATE account_characters SET chosen_build_id = NULL WHERE id = ? AND account_id = ?', [$owned->id, $owned->account_id]);
+
+            return true;
+        }
+
+        try {
+            // One statement: the build must be the character's at the moment it is written.
+            return $this->db->run(
+                'UPDATE account_characters ac SET chosen_build_id = b.id
+                   FROM builds b
+                  WHERE ac.id = ? AND ac.account_id = ? AND b.id = ? AND b.game_character_id = ac.game_character_id',
+                [$owned->id, $owned->account_id, $buildId],
+            ) === 1;
+        } catch (PDOException $e) {
+            // An import or an editor removed the build between the statement's read and its foreign key's check.
+            if ((string) $e->getCode() === '23503') {
+                return false;
+            }
+            throw $e;
+        }
     }
 
     public function characterRow(int $accountId, int $gameCharacterId): ?array

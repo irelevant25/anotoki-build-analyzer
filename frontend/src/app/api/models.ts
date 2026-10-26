@@ -148,8 +148,11 @@ export interface ScoreParts {
 
 export interface CharacterOverview extends CharacterSummary {
   builds_count: number;
-  best: {
+  /** The build the character is judged by: the one the player chose, else its best - the closest match. */
+  build: {
     build_id: number;
+    /** Whether the player chose it ("Use this build"); false: it is the closest match. */
+    chosen: boolean;
     /** The build's variation: its role, a qualifier telling two builds of one role apart, the constellation it needs. */
     role: string;
     qualifier: string;
@@ -270,14 +273,36 @@ export interface TalentPriority {
   priority: number;
 }
 
+export type TargetTier = 'basic' | 'intermediate' | 'advanced';
+
+export const TARGET_TIERS: readonly TargetTier[] = ['basic', 'intermediate', 'advanced'];
+
+/**
+ * A stat target: a requirement the build states (`tiers` null: its `min` and `max` as stated, `from_rank` the
+ * constellation it holds from) or a stat worked out in three tiers from the game's numbers (`tiers`). With an
+ * evaluation on a character that has in-game totals: `current`, `ok` (a requirement met, or the basic tier
+ * reached) and the tier reached.
+ */
 export interface StatTarget {
   stat: string;
+  tiers?: Record<TargetTier, number> | null;
   min: number | null;
   max: number | null;
-  /** The constellation the target holds from (0: from the start). */
-  from_rank?: number;
+  /** The constellation the target holds from (0: from the start); null on a tiered stat. */
+  from_rank?: number | null;
   current?: number | null;
   ok?: boolean | null;
+  tier?: TargetTier | null;
+}
+
+/**
+ * What a build's tiered targets rest on: the weapon, the set option in the game's notation ("4pc Blizzard Strayer";
+ * null for a build that lists no sets) and the main stats of the three variable slots.
+ */
+export interface TargetsBasis {
+  weapon: string;
+  sets: string | null;
+  main_stats: Record<string, string>;
 }
 
 export interface BuildWeapon {
@@ -325,7 +350,13 @@ export interface Build {
   main_stats: Record<string, StatPriority[]>;
   substats: StatPriority[];
   talent_priority: TalentPriority[] | null;
+  /** The targets the build states, as stated. */
   stat_targets: StatTarget[] | null;
+  /**
+   * The build's targets as the builds browser shows them: the stated ones and every substat in three tiers, for the
+   * first weapon the catalog knows and the build's own main stats; null while the catalog lacks the stats behind them.
+   */
+  targets: { rows: StatTarget[]; basis: TargetsBasis } | null;
   /** The teams the build is played in, best first; [] for none. */
   teams: BuildTeam[];
   /** The site's own note on the build; null for none. */
@@ -528,7 +559,10 @@ export interface Evaluation {
     slots: Record<string, { current: string | null; recommended: string[]; score: number; ok: boolean }>;
   } | null;
   items: Record<string, AnalyzedItem>;
+  /** The targets for this character: tiered for the weapon in hand where the catalog knows the stats, else the stated ones. */
   targets: StatTarget[];
+  /** What the tiers rest on; null while the targets are the stated ones alone. */
+  targets_basis: TargetsBasis | null;
   substat_weights: Record<string, number>;
   recommendations: Recommendation[];
 }
@@ -568,7 +602,11 @@ export interface CharacterAnalysis {
   };
   equipment: { totals: Record<string, number>; crit_value: number; slots: string[] };
   evaluations: Evaluation[];
+  /** The closest match: of the builds the character's constellation reaches, the best scored. */
   best_build_id: number | null;
+  /** The build the player chose to judge the character by; null: the closest match judges it. */
+  chosen_build_id: number | null;
+  /** The build the suggestions are for: the one asked for, else the chosen one, else the closest match. */
   focus_build_id: number | null;
   suggestions: Suggestion[];
   set_plans: SetPlan[];

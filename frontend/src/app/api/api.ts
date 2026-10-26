@@ -83,6 +83,11 @@ export class Api {
     return this.http.get<CharacterAnalysis>(`${this.base}/accounts/${accountId}/characters/${key}`, { params, context: this.asCaller() });
   }
 
+  /** The build the account's character is judged by - one of its builds, or null for the closest match. */
+  chooseBuild(accountId: number, key: string, buildId: number | null): Observable<{ chosen_build_id: number | null }> {
+    return this.http.put<{ chosen_build_id: number | null }>(`${this.base}/accounts/${accountId}/characters/${key}/build`, { build_id: buildId }, { context: this.asCaller() });
+  }
+
   /** The characters of a public in-game Character Showcase, by UID. */
   importShowcase(game: GameKey, uid: string, accountId: number | null = null): Observable<ImportRun> {
     return this.http.post<ImportRun>(`${this.base}/imports/showcase`, { game, uid, account_id: accountId }, { context: this.asCaller() });
@@ -160,9 +165,12 @@ export class Api {
     return this.http.put<CharacterEditing>(`${this.base}/admin/builds/${game}/characters/${encodeURIComponent(key)}`, save, { context: this.asPerson() });
   }
 
-  /** One list of the game catalog, refreshed from the game data provider. */
+  /**
+   * One list of the game catalog, refreshed from the game data provider - in full, not by its version tag: an
+   * editor pressing the button wants every row read again (the upkeep's refresh after an answer stays conditional).
+   */
   refreshCatalog(game: GameKey, list: CatalogList): Observable<CatalogRefreshResult> {
-    return this.http.post<CatalogRefreshResult>(`${this.base}/admin/catalog/${game}/${list}`, {}, { context: this.asPerson() });
+    return this.http.post<CatalogRefreshResult>(`${this.base}/admin/catalog/${game}/${list}`, {}, { context: this.asPerson(), params: { force: '1' } });
   }
 
   // The People page, the error log, the audit log, feedback and backups (/api/admin/people, /errors, /audit,

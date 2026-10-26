@@ -92,6 +92,22 @@
           [id]="tabs.panelId(activeTab())"
           [attr.aria-labelledby]="tabs.tabId(activeTab())"
         >
+          <!-- The build the account page grades the character by: the player's choice, else the closest match. -->
+          <div class="cluster choice">
+            @if (e.build.id === d.chosen_build_id) {
+              <anotoki-badge tone="success"><anotoki-icon name="user" [size]="16" />{{ 'character.chosen' | translate }}</anotoki-badge>
+              <button anotokiButton variant="ghost" size="sm" [disabled]="choosing()" (click)="choose(null)">
+                {{ 'character.chooseAutomatically' | translate }}
+              </button>
+            } @else {
+              <button anotokiButton size="sm" [disabled]="choosing()" (click)="choose(e.build.id)">
+                <anotoki-icon name="user" [size]="16" />{{ 'character.useBuild' | translate }}
+              </button>
+            }
+            @if (e.build.id === d.best_build_id) {
+              <anotoki-badge tone="primary"><anotoki-icon name="checkCircle" [size]="16" />{{ 'character.closestMatch' | translate }}</anotoki-badge>
+            }
+          </div>
           @if (notReached(); as notice) {
             <anotoki-alert class="not-reached" tone="info">{{ notice }}</anotoki-alert>
           }
@@ -263,9 +279,14 @@
           <!-- Recommended build -->
           @if (build(); as b) {
             <anotoki-card class="build-card" [heading]="variation()">
-              @if (e.build.id === d.best_build_id) {
+              @if (e.build.id === d.chosen_build_id || e.build.id === d.best_build_id) {
                 <div cardActions class="cluster">
-                  <anotoki-badge tone="primary">{{ 'character.closestMatch' | translate }}</anotoki-badge>
+                  @if (e.build.id === d.chosen_build_id) {
+                    <anotoki-badge tone="success">{{ 'character.chosen' | translate }}</anotoki-badge>
+                  }
+                  @if (e.build.id === d.best_build_id) {
+                    <anotoki-badge tone="primary">{{ 'character.closestMatch' | translate }}</anotoki-badge>
+                  }
                 </div>
               }
               <app-build-detail

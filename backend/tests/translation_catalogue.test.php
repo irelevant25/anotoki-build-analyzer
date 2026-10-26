@@ -296,7 +296,7 @@ test('every key the frontend uses is in the database, and every key of the site\
 
 test('what the server says as a kind is a key the frontend declares: recommendations, import errors, import warnings', function () {
     $kinds = ['recommendation.' => BuildEvaluator::KINDS, 'import.error.' => ImportKinds::ERRORS, 'import.warning.' => ImportKinds::WARNINGS];
-    same([18, 18, 7], array_map('count', array_values($kinds)), 'how many kinds there are');
+    same([19, 18, 7], array_map('count', array_values($kinds)), 'how many kinds there are');
 
     $declared = KeyScanner::dynamic((string) file_get_contents(SiteTranslations::frontendRoot() . '/' . SiteTranslations::DYNAMIC_KEYS));
     same([], $declared['problems'], SiteTranslations::DYNAMIC_KEYS . ' can be read');

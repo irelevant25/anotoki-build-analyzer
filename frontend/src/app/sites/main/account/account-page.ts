@@ -183,7 +183,7 @@ export class AccountPage {
       (c) => matchesSearch(c.name, query) && (element === 'all' || c.element === element) && (!this.onlyWithBuilds() || c.builds_count > 0) && (!this.hideUnbuilt() || c.items_count > 0),
     );
 
-    const score = (c: CharacterOverview) => c.best?.overall ?? -1;
+    const score = (c: CharacterOverview) => c.build?.overall ?? -1;
     // Characters without builds or without any equipment go last; the built ones needing most work come first.
     const last = (c: CharacterOverview) => (score(c) < 0 || c.items_count === 0 ? 1 : 0);
     switch (this.sort()) {
@@ -207,7 +207,7 @@ export class AccountPage {
   protected readonly averageScore = computed(() => {
     const scores = (this.account()?.characters ?? [])
       .filter((c) => c.items_count > 0)
-      .map((c) => c.best?.overall)
+      .map((c) => c.build?.overall)
       .filter((s): s is number => typeof s === 'number');
     return scores.length ? Math.round(scores.reduce((a, b) => a + b, 0) / scores.length) : null;
   });
@@ -216,20 +216,24 @@ export class AccountPage {
 
   protected readonly unbuiltCount = computed(() => (this.account()?.characters ?? []).filter((c) => c.items_count === 0).length);
 
-  /** Each character's best build as its variation reads ("Main DPS · Melt · C2+"), by character id. */
-  protected readonly bestBuilds = computed(() => {
+  /**
+   * The line under each character's bars, by character id: the build it is judged by, as its variation reads ("Main
+   * DPS · Melt · C2+") - "Selected build: ..." where the player chose it, "Best build: ..." where it is the closest match.
+   */
+  protected readonly buildLines = computed(() => {
     const prefix = this.gameMeta()?.rank_prefix ?? this.fallbackTerms().rankPrefix;
-    const builds = new Map<number, string>();
+    const lines = new Map<number, string>();
     for (const character of this.account()?.characters ?? []) {
-      if (character.best) {
-        builds.set(character.id, variationLabel(this.i18n, character.best, prefix));
+      const build = character.build;
+      if (build) {
+        lines.set(character.id, this.i18n.t(build.chosen ? 'account.chosenBuild' : 'account.bestBuild', { build: variationLabel(this.i18n, build, prefix) }));
       }
     }
-    return builds;
+    return lines;
   });
 
   /**
-   * The first thing each character's best build recommends, by character id - worded from its kind and
+   * The first thing the build each character is judged by recommends, by character id - worded from its kind and
    * parameters in the language on the page. Where there is no kind to word it with (a newer server's, or
    * none at all) it is the server's English sentence, and `lang` says so.
    */
@@ -237,11 +241,11 @@ export class AccountPage {
     const account = this.account();
     const issues = new Map<number, Worded>();
     for (const character of account?.characters ?? []) {
-      const best = character.best;
-      if (!account || !best || (!best.top_issue && !best.top_issue_kind)) {
+      const build = character.build;
+      if (!account || !build || (!build.top_issue && !build.top_issue_kind)) {
         continue;
       }
-      const issue = recommendationText(this.i18n, this.meta, account.game, { kind: best.top_issue_kind, params: best.top_issue_params, message: best.top_issue });
+      const issue = recommendationText(this.i18n, this.meta, account.game, { kind: build.top_issue_kind, params: build.top_issue_params, message: build.top_issue });
       if (issue.text !== '') {
         issues.set(character.id, issue);
       }

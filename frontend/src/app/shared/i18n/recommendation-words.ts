@@ -15,8 +15,8 @@ import { TranslationParams, TranslationService, Worded } from './translation';
  * Three things the page adds:
  *   - the sets kinds' `{best}` is the option with its "(any N)" when `best_choose` is a number: a whole
  *     phrase from the plural family `buildDetail.optionAny`, the one the build detail shows beside a set;
- *   - `target_below`'s two numbers are written by MetaStore.formatStat() with `stat_key` - the notation
- *     the page's own targets have ("62.0%", "4,780");
+ *   - the two numbers of `target_below` and `target_basic_below` are written by MetaStore.formatStat() with
+ *     `stat_key` - the notation the page's own targets have ("62.0%", "4,780");
  *   - a kind this table does not know (a newer server's), a row without one (a top issue from before kinds
  *     were sent) or one that lacks a parameter is shown as its stored English `message`, marked `lang="en"`
  *     - never worded with a key made from the kind, never a sentence with a hole in it.
@@ -47,6 +47,7 @@ const KINDS = new Map<string, KindWording>([
   ['item_level', { key: 'recommendation.item_level', needs: ['slot_label', 'level', 'max_level'] }],
   ['substats_weak', { key: 'recommendation.substats_weak', needs: ['slot_label', 'percent', 'stats'] }],
   ['target_below', { key: 'recommendation.target_below', needs: ['stat', 'stat_key', 'current', 'min'] }],
+  ['target_basic_below', { key: 'recommendation.target_basic_below', needs: ['stat', 'stat_key', 'current', 'min'] }],
   ['talent_level', { key: 'recommendation.talent_level', needs: ['talent', 'level'] }],
   ['character_level', { key: 'recommendation.character_level', needs: ['level'] }],
 ]);
@@ -83,7 +84,7 @@ export function recommendationText(i18n: RecommendationWords, meta: StatNotation
     params[name] = given[name];
   }
 
-  if (kind === 'target_below') {
+  if (kind === 'target_below' || kind === 'target_basic_below') {
     const { stat_key, current, min } = given;
     if (typeof stat_key !== 'string' || typeof current !== 'number' || typeof min !== 'number') {
       return stored(i18n, recommendation.message);

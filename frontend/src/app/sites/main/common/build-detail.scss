@@ -116,9 +116,11 @@ ol li.matched {
   color: var(--anotoki-danger-text);
 }
 
+// A card a target: wide enough for three tiers side by side ("Intermediate" with its value), never wider than the
+// page on a phone.
 .targets {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 300px), 1fr));
   gap: 8px;
 }
 
@@ -158,6 +160,46 @@ ol li.matched {
 .t-current {
   grid-column: 1 / -1;
   font-size: 0.85rem;
+}
+
+.targets-basis {
+  margin: -4px 0 10px;
+}
+
+// A tiered stat: its name on a line, the three tiers side by side under it.
+.target.tiered {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.t-tiers {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 4px;
+  margin: 0;
+}
+
+.t-tier {
+  padding: 4px 6px;
+  border-radius: 6px;
+  background: var(--anotoki-surface);
+  border: 1px solid var(--anotoki-border);
+
+  dt {
+    font-size: 0.75rem;
+    color: var(--anotoki-muted);
+  }
+
+  dd {
+    margin: 0;
+    font-weight: 500;
+    font-variant-numeric: tabular-nums;
+  }
+}
+
+// A tier the character has reached.
+.t-tier.reached {
+  border-color: color-mix(in srgb, var(--grade-a) 55%, transparent);
+  background: color-mix(in srgb, var(--grade-a) 12%, var(--anotoki-surface));
 }
 
 .notes-text {

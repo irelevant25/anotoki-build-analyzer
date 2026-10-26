@@ -18,11 +18,12 @@ const HOUR = 3_600_000;
 /** A moment that reads "N hours ago" for as long as the spec runs. */
 const hoursAgo = (hours: number) => new Date(Date.now() - hours * HOUR - 5000).toISOString();
 
-type Best = NonNullable<CharacterOverview['best']>;
+type JudgedBuild = NonNullable<CharacterOverview['build']>;
 
-function best(overrides: Partial<Best> = {}): Best {
+function build(overrides: Partial<JudgedBuild> = {}): JudgedBuild {
   return {
     build_id: 7,
+    chosen: false,
     role: 'main_dps',
     qualifier: 'Burst',
     min_rank: 2,
@@ -53,7 +54,7 @@ function character(id: number, overrides: Partial<CharacterOverview> = {}): Char
     sets: [{ key: 'crimson', name: 'Crimson Witch of Flames', count: 4 }],
     items_count: 5,
     builds_count: 2,
-    best: best(),
+    build: build(),
     ...overrides,
   };
 }
@@ -125,6 +126,7 @@ const SLOVAK = {
   'account.noItemsEquipped': '{items}: nič nasadené',
   'account.partSets': 'Sety',
   'account.bestBuild': 'Najlepší build: {build}',
+  'account.chosenBuild': 'Vybraný build: {build}',
   'builds.role.main_dps': 'Hlavný DPS',
   'builds.role.sub_dps': 'Vedľajší DPS',
   'builds.role.support': 'Podpora',
@@ -302,6 +304,23 @@ describe('the account page', () => {
       expect(text(cards()[0].querySelector('.sets'))).toBe('4× Crimson Witch of Flames');
     });
 
+    it('names the build the player chose as chosen, and grades, sorts and averages by it', async () => {
+      await setup({
+        account: account({
+          characters: [
+            character(1, { build: build({ chosen: true, role: 'support', qualifier: '', min_rank: 0, overall: 40, grade: 'D' }) }),
+            character(2, { build: build({ overall: 90, grade: 'S' }) }),
+          ],
+        }),
+      });
+
+      expect(text(cards()[0].querySelector('.best-line'))).toBe('Vybraný build: Podpora');
+      expect(text(cards()[1].querySelector('.best-line'))).toBe('Najlepší build: Hlavný DPS · Burst · C2+');
+      // The one needing most work first: the chosen build's score is the character's.
+      expect(texts('.char-name')).toEqual(['Character 1', 'Character 2']);
+      expect(tiles()[1]).toEqual(['Priemerné skóre buildov', '65']);
+    });
+
     it('words the top issue from its kind, in the reader’s language', async () => {
       await setup();
 
@@ -316,10 +335,10 @@ describe('the account page', () => {
         account: account({
           characters: [
             // A kind a newer server added, and a top issue from before kinds were sent.
-            character(1, { best: best({ top_issue: 'Swap the goblet for a better one.', top_issue_kind: 'goblet_swap', top_issue_params: { slot: 'goblet' } }) }),
-            character(2, { best: best({ top_issue: 'An older sentence.', top_issue_kind: null, top_issue_params: null }) }),
+            character(1, { build: build({ top_issue: 'Swap the goblet for a better one.', top_issue_kind: 'goblet_swap', top_issue_params: { slot: 'goblet' } }) }),
+            character(2, { build: build({ top_issue: 'An older sentence.', top_issue_kind: null, top_issue_params: null }) }),
             // A known kind that lacks a parameter is not worded with a hole in it.
-            character(3, { best: best({ top_issue_params: { name: 'Staff of Homa', level: 80 } }) }),
+            character(3, { build: build({ top_issue_params: { name: 'Staff of Homa', level: 80 } }) }),
           ],
         }),
       });
@@ -330,7 +349,7 @@ describe('the account page', () => {
     });
 
     it('marks nothing on an English page, and follows the page when its language changes', async () => {
-      await setup({ account: account({ characters: [character(1), character(2, { best: best({ top_issue: 'An older sentence.', top_issue_kind: null, top_issue_params: null }) })] }) });
+      await setup({ account: account({ characters: [character(1), character(2, { build: build({ top_issue: 'An older sentence.', top_issue_kind: null, top_issue_params: null }) })] }) });
       expect(cards().map((card) => text(card.querySelector('.issue span')))).toEqual(['Zvýš level: Staff of Homa (level 80/90).', 'An older sentence.']);
 
       expect(await TestBed.inject(TranslationService).setLanguage('en', { remember: false })).toBe(true);
@@ -344,7 +363,7 @@ describe('the account page', () => {
     it('draws no issue where the best build recommends nothing, and says so where there is no build', async () => {
       await setup({
         account: account({
-          characters: [character(1, { best: best({ top_issue: null, top_issue_kind: null, top_issue_params: null }) }), character(2, { best: null, builds_count: 0 })],
+          characters: [character(1, { build: build({ top_issue: null, top_issue_kind: null, top_issue_params: null }) }), character(2, { build: null, builds_count: 0 })],
         }),
       });
 
@@ -354,7 +373,7 @@ describe('the account page', () => {
   });
 
   it('counts the characters without builds the way Slovak counts', async () => {
-    const without = (count: number) => account({ characters: [character(1), ...Array.from({ length: count }, (_, index) => character(10 + index, { best: null, builds_count: 0 }))] });
+    const without = (count: number) => account({ characters: [character(1), ...Array.from({ length: count }, (_, index) => character(10 + index, { build: null, builds_count: 0 }))] });
     const sentence = () => text(host.querySelector('.without-builds'));
 
     await setup({ account: without(1) });

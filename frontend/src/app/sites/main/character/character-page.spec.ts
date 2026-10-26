@@ -3,9 +3,10 @@ import { signal } from '@angular/core';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { By } from '@angular/platform-browser';
 import { provideRouter } from '@angular/router';
-import { Observable, of, throwError } from 'rxjs';
+import { Observable, Subject, of, throwError } from 'rxjs';
 import { provideTestTranslations } from '@anotoki/lib/translations/testing';
 import { IconComponent } from '@anotoki/lib/ui/icon';
+import { ToastService } from '@anotoki/lib/ui/toast';
 import { TooltipDirective } from '@anotoki/lib/ui/tooltip';
 import { Api } from '../../../api/api';
 import { AuthService } from '../../../shared/auth';
@@ -167,6 +168,7 @@ function build(id: number, variation: Variation): Build {
     substats: [],
     talent_priority: null,
     stat_targets: null,
+    targets: null,
     teams: [],
     notes: null,
     game_version: null,
@@ -191,6 +193,7 @@ function evaluation(id: number, variation: Variation, recommendations: Recommend
     main_stats: null,
     items: { sands: item('sands') },
     targets: [{ stat: 'critRate_', min: 70, max: null, current: 62, ok: false }],
+    targets_basis: null,
     substat_weights: {},
     recommendations,
   };
@@ -247,6 +250,7 @@ function analysis(game: GameKey = 'genshin', change: Partial<CharacterAnalysis> 
     equipment: { totals: { critRate_: 7.8 }, crit_value: 182.4, slots: ['sands'] },
     evaluations: [evaluation(11, MAIN, RECOMMENDATIONS), evaluation(12, SUPPORT_C2, [])],
     best_build_id: 11,
+    chosen_build_id: null,
     focus_build_id: null,
     suggestions: [suggestion('flower', 'better_substats', 3, 'Xiangling'), suggestion('sands', 'completes_set', 0, null), suggestion('goblet', 'sparkles', 0, null)],
     set_plans: [plan('artifact', 4, 2)],
@@ -533,5 +537,106 @@ describe('CharacterPage: the site’s words are keys, the game’s words stay', 
     expect(text('.suggestion-head anotoki-badge')[0]).toBe('+3 points of substat quality');
     expect(text('[role="tab"] .anotoki-tabs__label')).toEqual(['Main DPS', 'Support · Melt · C2+']);
     expect(host.querySelectorAll('.rec [lang]')).toHaveLength(0);
+  });
+});
+
+describe('CharacterPage: the build the player chooses for the account page', () => {
+  let fixture: ComponentFixture<CharacterPage>;
+  let host: HTMLElement;
+  let api: { meta: () => Observable<Meta>; character: ReturnType<typeof vi.fn>; chooseBuild: ReturnType<typeof vi.fn> };
+
+  const text = (selector: string) => [...host.querySelectorAll<HTMLElement>(selector)].map((element) => element.textContent?.replace(/\s+/g, ' ').trim() ?? '');
+  const icons = (selector: string) => fixture.debugElement.queryAll(By.css(selector)).map((icon) => (icon.componentInstance as IconComponent).name());
+  const toasts = () =>
+    TestBed.inject(ToastService)
+      .toasts()
+      .map((toast) => [toast.tone, toast.message]);
+  const button = (words: string) => [...host.querySelectorAll<HTMLButtonElement>('.choice button')].find((element) => element.textContent?.trim() === words);
+
+  async function open(answer: CharacterAnalysis, choose: () => Observable<{ chosen_build_id: number | null }>): Promise<void> {
+    api = { meta: () => of(META), character: vi.fn(() => of(answer)), chooseBuild: vi.fn(choose) };
+    TestBed.configureTestingModule({
+      providers: [
+        provideRouter([]),
+        provideTestTranslations(en),
+        provideKit(),
+        { provide: Api, useValue: api },
+        { provide: AuthService, useValue: { signedIn: signal(true), isStaff: signal(false), available: signal(true), failure: signal(null), user: signal(null), preferences: signal(null) } },
+      ],
+    });
+    await TestBed.inject(MetaStore).load();
+    fixture = TestBed.createComponent(CharacterPage);
+    fixture.componentRef.setInput('id', '3');
+    fixture.componentRef.setInput('key', 'hutao');
+    host = fixture.nativeElement;
+    await fixture.whenStable();
+  }
+
+  afterEach(() => vi.restoreAllMocks());
+
+  it('offers the build in hand, and marks the one chosen - on its tab, above it and on its sheet - beside the closest match', async () => {
+    await open(analysis(), () => of({ chosen_build_id: 11 }));
+
+    // Nothing chosen: the closest match in hand, its mark beside the button.
+    expect(text('.choice > *')).toEqual(['Use this build', 'Closest match to your current setup']);
+    button('Use this build')!.click();
+    await fixture.whenStable();
+
+    expect(api.chooseBuild).toHaveBeenCalledWith(3, 'hutao', 11);
+    expect(toasts()).toEqual([['success', 'Hu Tao is now graded by this build.']]);
+    expect(text('.choice > *')).toEqual(['Selected', 'Choose automatically', 'Closest match to your current setup']);
+    expect(icons('[role="tab"] anotoki-icon')).toEqual(['user', 'lock']);
+    expect(text('[role="tab"] .anotoki-visually-hidden')).toEqual([', score 71, Selected, Closest match to your current setup', ', score 71, needs C2']);
+    expect([...host.querySelectorAll('[role="tab"] .anotoki-tabs__badge')].map((badge) => badge.getAttribute('data-tone'))).toEqual(['success', 'neutral']);
+    expect(text('.build-card [cardActions] anotoki-badge')).toEqual(['Selected', 'Closest match to your current setup']);
+  });
+
+  it('opens on the build chosen, a build not reached too, and chooses automatically again', async () => {
+    await open(analysis('genshin', { chosen_build_id: 12, focus_build_id: 12 }), () => of({ chosen_build_id: null }));
+
+    expect(text('[role="tab"][aria-selected="true"] .anotoki-tabs__label')).toEqual(['Support · Melt · C2+']);
+    expect(icons('[role="tab"] anotoki-icon')).toEqual(['checkCircle', 'user']);
+    expect(text('.not-reached .anotoki-alert__text')).toEqual(['This build needs C2; Hu Tao is C1.']);
+    expect(text('.choice > *')).toEqual(['Selected', 'Choose automatically']);
+
+    button('Choose automatically')!.click();
+    await fixture.whenStable();
+
+    expect(api.chooseBuild).toHaveBeenCalledWith(3, 'hutao', null);
+    expect(toasts()).toEqual([['success', 'Hu Tao is graded by the closest match again.']]);
+    expect(text('.choice > *')).toEqual(['Use this build']);
+    expect(icons('[role="tab"] anotoki-icon')).toEqual(['checkCircle', 'lock']);
+  });
+
+  it('keeps a choice saved while the analysis of another tab was on its way - the late answer read the old one', async () => {
+    const late = new Subject<CharacterAnalysis>();
+    await open(analysis(), () => of({ chosen_build_id: 12 }));
+    api.character.mockReturnValueOnce(late);
+
+    // The tab of the build needing C2: its suggestions are asked for (a full inventory), and the answer is slow.
+    host.querySelectorAll<HTMLElement>('[role="tab"]')[1].click();
+    await fixture.whenStable();
+    expect(api.character).toHaveBeenLastCalledWith(3, 'hutao', 12);
+    button('Use this build')!.click();
+    await fixture.whenStable();
+    expect(text('.choice > *')).toEqual(['Selected', 'Choose automatically']);
+
+    late.next(analysis('genshin', { focus_build_id: 12, chosen_build_id: null }));
+    late.complete();
+    await fixture.whenStable();
+    expect(text('.choice > *')).toEqual(['Selected', 'Choose automatically']);
+    expect(icons('[role="tab"] anotoki-icon')).toEqual(['checkCircle', 'user']);
+  });
+
+  it('says why a choice failed, and asks for the analysis again when the build is gone (422)', async () => {
+    await open(analysis(), () => throwError(() => new HttpErrorResponse({ status: 422, error: { message: "That is not one of this character's builds.", code: 'invalid' } })));
+    expect(api.character).toHaveBeenCalledTimes(1);
+
+    button('Use this build')!.click();
+    await fixture.whenStable();
+
+    expect(toasts()).toEqual([['danger', 'Some of what was sent is not valid. Check it and try again.']]);
+    expect(api.character).toHaveBeenCalledTimes(2);
+    expect(text('.choice > *')).toEqual(['Use this build', 'Closest match to your current setup']);
   });
 });

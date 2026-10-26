@@ -78,3 +78,27 @@ sites' labels with them ([builds.md](builds.md)); a build site's own typos are t
 - `Talents::parse/parsePriority/ordered`: `normal` ("NA", "Auto"), `skill` ("E"), `burst` ("Q").
 - A numeric goal written in prose ("125-145% Energy Recharge") is the local tools' to read; it reaches the site as
   a stat target `{stat, min, max, text, from_rank}`.
+- A set's 2-piece bonus, as the catalog keeps its words (`meta.bonuses[0]`), is read by `SetBonus::parse()` for the
+  stat targets: "ATK +18%.", "ATK increased by 18%.", "Increases Elemental Mastery by 80.", "Cryo DMG Bonus +15%",
+  "Energy Recharge + 20%.", "Healing Bonus +15%." ("Character Healing Effectiveness" too), "Max HP increased by
+  1000." (flat). A bonus that is no sheet stat - a skill's DMG, a resistance, shield strength - is none.
+  `SetBonus::parseCritRate()` reads a 4-piece's CRIT Rate in combat from its words for the crit pair's balance
+  ([analysis.md](analysis.md)): every "CRIT Rate ... N%" added up (Blizzard Strayer's 20 and 20 more), the first
+  number where two are offered ("15%/30%"), times the stacks where the text says "Max 3 stacks" (Marechaussee
+  Hunter's 36); a 4-piece worded another way counts as nought.
+
+## Level 90 (`MaxLevelStats`)
+
+The stat targets are compared on the character sheet at level 90; the catalog keeps what genshin.anotoki.eu's
+ascension phases hold ([data-model.md](data-model.md), `meta.stats`: level 1 and level 80 ascended), and the game's
+growth curves enter as the few constants the top level needs:
+
+| Constant | Value | What it says |
+| --- | --- | --- |
+| `CHARACTER_STEP` | 5★ 0.9028, 4★ 0.826 | a character's base HP, ATK and DEF at 90 = the level 80 value + the level 1 value × this (one curve per rarity for all three; the ascension bonus is in the level 80 value and unchanged after it) |
+| `WEAPON_ATK_90` | by rarity and level 1 base ATK: 5★ 44/46/48/49 → 542/608/674/741, 4★ 39/41/42/44/45 → 440/454/510/565/620, 3★ 38/39/40 → 354/401/448 | a weapon's base ATK at 90 (a dozen curves, told apart by the pair); a pair the table lacks keeps its level 80 value |
+| `WEAPON_SECONDARY_90` | 4.59375 | a weapon's secondary stat at 90 in level 1 values, one curve whatever the weapon (9.6% CRIT DMG at level 1 is 44.1% at 90) |
+
+Checked against the game's own level 90 values for twenty characters and the common weapons (within a point:
+`tests/stat_targets.test.php`). A character of another rarity, or one the catalog has no stats of, has no level 90
+and no tiered targets.
