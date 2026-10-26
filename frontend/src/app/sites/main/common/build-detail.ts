@@ -111,7 +111,8 @@ export class BuildDetail {
       return evaluated;
     }
     const own = this.build().targets?.rows;
-    return own && own.length > 0 ? own : (this.build().stat_targets ?? []);
+    // The stated targets alone: a stat an editor switched off is no target to show.
+    return own && own.length > 0 ? own : (this.build().stat_targets ?? []).filter((target) => target.off !== true);
   });
 
   /** What the tiers rest on - the weapon and the set -, for the line under the heading; null while the targets are the stated ones alone. */

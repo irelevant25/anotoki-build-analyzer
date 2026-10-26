@@ -3,6 +3,30 @@
 Short records of choices that shape the code. Add a new entry (newest first) when you make a similar call.
 Older entries describe the Laravel version as it was; where a setting has since moved, the entry says so.
 
+**2026-10-26 — the editor's stat targets: the tiers in the form, set by hand or switched off.** The owner's words,
+after step 4: "In admin panel of character build, I do not see the stats target. I mean, only the original one ...
+Varesa has the Energy recharge without tiers and other crit rate, crit dmg and atk with tier but no in admin panel. I
+would like to be able to edit it if needed. Of course it would be nice to have checkbox for auto, then it is not
+editable and calculated automatically. Also I would like to be able to delete or add the target stat."
+- **Two optional fields on a stat target, not a new format**: `tiers` (the three set by hand) and `off`. The local
+  tools' files never carry them, an export writes them only where they are set, and an import keeps them like every
+  other hand edit (`BuildParts` compares them). A format version 4 would have refused every file the tools make today.
+- **An editor's value stands in the arithmetic** (`TargetTiers::rows()`): the hand-set tiers pay their rolls tier by
+  tier, so the other stats' tiers shrink as they would for a requirement; a stat switched off is out of the split. One
+  number for every weapon, though: the form says so.
+- **The editor sees what Auto gives** (`BuildEditor::load()`'s `computed` per build, the pure computation with the
+  hand-set and switched-off entries left out), so unticking Auto starts from the values worked out and ticking it
+  again shows them at once - without a second request.
+- **No new words**: the admin panel is English in code, and the member pages show a hand-set tier like a worked-out
+  one. So no migration.
+- **CRIT Rate capped on its own too** (the browser check's first run of the round: CRIT DMG set by hand left CRIT
+  Rate alone in the split, and its advanced tier ran to 102 %): the cap the crit pair kept - 85 % in combat, the
+  set's CRIT Rate counted - holds for CRIT Rate on its own, with a CRIT DMG requirement as much as with one set by
+  hand.
+- **One target a stat from each constellation, whatever the kinds** (the reviewer's catch): the form keeps Auto and
+  Switch off disabled on a stat a requirement names from the start, switches a stat off from the constellation its
+  row held from, and matches HP% set by hand to the HP row worked out, as `TargetTiers` reads it.
+
 **2026-10-26 — target bars on both pages (the owner's round of 2026-10-26, step 4).** The owner's original words:
 "progress bars beside sets/main stats/substats" - the three bars of a character card on the dashboard -, confirmed
 when asked what "both pages" meant: the dashboard's cards and the character page's Stat targets.

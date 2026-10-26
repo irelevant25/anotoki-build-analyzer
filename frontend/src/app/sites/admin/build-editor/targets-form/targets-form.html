@@ -1,61 +1,153 @@
-@if (targets().length === 0) {
+<h4 class="section">Requirements</h4>
+@if (requirements().length === 0) {
     <p class="muted small none">None listed.</p>
 } @else {
-    <p class="muted small hint">A minimum, a maximum or both; a target can hold from a constellation on.</p>
+    <p class="muted small hint">A minimum, a maximum or both; a target can hold from a constellation on. Paid first out of the tiers' rolls, shown as stated.</p>
 }
 <ol class="rows">
-    @for (target of targets(); track rowId(target); let i = $index) {
+    @for (row of requirements(); track rowId(row.target); let i = $index) {
         <li class="target">
             <!-- A group of its own inside the list's item: the item stays the list's. -->
-            <div class="target-row" role="group" [attr.aria-label]="targetName(target, i)">
+            <div class="target-row" role="group" [attr.aria-label]="targetName(row, i)">
                 <anotoki-select
                     class="stat"
                     label="Stat"
                     [options]="stats()"
-                    [value]="target.stat"
-                    (valueChange)="setStat(i, $event)"
-                    [error]="error(i, 'stat')"
-                    [attr.data-path]="'stat_targets[' + i + '].stat'" />
+                    [value]="row.target.stat"
+                    (valueChange)="setStat(row.index, $event)"
+                    [error]="error(row.index, 'stat')"
+                    [attr.data-path]="path(row.index, 'stat')" />
                 <anotoki-select
                     class="from"
                     label="From"
                     [options]="fromOptions()"
-                    [value]="'' + target.from_rank"
-                    (valueChange)="setFrom(i, $event)"
-                    [error]="error(i, 'from_rank')"
-                    [attr.data-path]="'stat_targets[' + i + '].from_rank'" />
+                    [value]="'' + row.target.from_rank"
+                    (valueChange)="setFrom(row.index, $event)"
+                    [error]="error(row.index, 'from_rank')"
+                    [attr.data-path]="path(row.index, 'from_rank')" />
                 <anotoki-text-field
                     class="bound bound-min"
                     inputmode="decimal"
-                    [label]="boundName(target, 'min')"
-                    [value]="textOf(target, 'min')"
-                    (valueChange)="type(i, 'min', $event)"
-                    (blurred)="leave(target, 'min')"
-                    [error]="boundError(target, i, 'min')"
-                    [attr.data-path]="'stat_targets[' + i + '].min'">
-                    @if (percent(target.stat)) {
+                    [label]="fieldName(row.target.stat, 'min')"
+                    [value]="textOf(row.target, 'min')"
+                    (valueChange)="type(row.index, 'min', $event)"
+                    (blurred)="leave(row.target, 'min')"
+                    [error]="numberError(row.target, row.index, 'min')"
+                    [attr.data-path]="path(row.index, 'min')">
+                    @if (percent(row.target.stat)) {
                         <span fieldSuffix>%</span>
                     }
                 </anotoki-text-field>
                 <anotoki-text-field
                     class="bound bound-max"
                     inputmode="decimal"
-                    [label]="boundName(target, 'max')"
-                    [value]="textOf(target, 'max')"
-                    (valueChange)="type(i, 'max', $event)"
-                    (blurred)="leave(target, 'max')"
-                    [error]="boundError(target, i, 'max')"
-                    [attr.data-path]="'stat_targets[' + i + '].max'">
-                    @if (percent(target.stat)) {
+                    [label]="fieldName(row.target.stat, 'max')"
+                    [value]="textOf(row.target, 'max')"
+                    (valueChange)="type(row.index, 'max', $event)"
+                    (blurred)="leave(row.target, 'max')"
+                    [error]="numberError(row.target, row.index, 'max')"
+                    [attr.data-path]="path(row.index, 'max')">
+                    @if (percent(row.target.stat)) {
                         <span fieldSuffix>%</span>
                     }
                 </anotoki-text-field>
-                <app-move-buttons class="buttons" [index]="i" [count]="targets().length" [name]="buttonName(target, i)" (move)="move(i, $event)" (remove)="remove(i)" />
+                <app-move-buttons class="buttons" [index]="i" [count]="requirements().length" [name]="buttonName(row, i)" (move)="move(i, $event)" (remove)="remove(row, i)" />
             </div>
         </li>
     }
 </ol>
 <button anotokiButton size="sm" class="add-target" (click)="add()" [disabled]="targets().length >= maxTargets()">
     <anotoki-icon name="plus" [size]="16" />
-    Add target
+    Add requirement
+</button>
+
+<h4 class="section tiered-head">Tiered targets</h4>
+<p class="muted small hint">
+    Worked out from the build's substats for its first weapon, as last saved: a basic, an intermediate and an advanced tier each. Untick Auto to set the three by hand - the same for every weapon then
+    -; remove a stat to show nothing for it.
+</p>
+@if (tierRows().length === 0) {
+    <p class="muted small none">
+        @if (computed() === null) {
+            Nothing worked out yet: the catalog has no stats for this character or its weapons, or the build is not saved yet.
+        } @else {
+            None.
+        }
+    </p>
+}
+<ol class="rows tiered">
+    @for (row of tierRows(); track trackTier(row); let i = $index) {
+        <li class="target">
+            <div class="tier-row" role="group" [attr.aria-label]="tierName(row, i)" [attr.data-stat]="row.stat" [class.off]="row.kind === 'off'">
+                @if (row.kind === "off") {
+                    <span class="stat-name">{{ statName(row.stat) }}</span>
+                    <span class="muted small note">
+                        Switched off: nothing is worked out or shown for it.
+                        <!-- A problem with the entry (another target of the stat from the same constellation): said here, the row having no field. -->
+                        @if (error(row.index, "stat"); as problem) {
+                            <span class="problem" [attr.data-path]="rowPath(row, 'stat')">{{ problem }}</span>
+                        }
+                    </span>
+                    <button anotokiButton size="sm" variant="ghost" class="switch-on" [attr.aria-label]="'Switch on ' + statName(row.stat)" (click)="switchOn(row)">Switch on</button>
+                } @else {
+                    <anotoki-select
+                        class="stat"
+                        label="Stat"
+                        [options]="stats()"
+                        [value]="row.stat"
+                        [disabled]="row.kind === 'auto'"
+                        (valueChange)="setTierStat(row, $event)"
+                        [error]="error(row.index, 'stat')"
+                        [attr.data-path]="rowPath(row, 'stat')" />
+                    <!-- Auto: the values the site works out; unticked, the three set by hand. Disabled, said why: nothing worked out for the stat, or a requirement for it from the start. -->
+                    <anotoki-checkbox class="auto" [checked]="row.kind === 'auto'" [disabled]="row.computed === null || row.locked" (checkedChange)="setAuto(row, $event)" [hint]="autoHint(row)">
+                        Auto
+                    </anotoki-checkbox>
+                    @if (row.kind === "hand") {
+                        <anotoki-select
+                            class="from"
+                            label="From"
+                            [options]="fromOptions()"
+                            [value]="'' + row.from_rank"
+                            (valueChange)="setTierFrom(row, $event)"
+                            [error]="error(row.index, 'from_rank')"
+                            [attr.data-path]="rowPath(row, 'from_rank')" />
+                    }
+                    @for (tier of tierNames; track tier) {
+                        <anotoki-text-field
+                            class="tier"
+                            inputmode="decimal"
+                            [attr.data-tier]="tier"
+                            [label]="fieldName(row.stat, tier)"
+                            [value]="tierText(row, tier)"
+                            [readonly]="row.kind === 'auto'"
+                            (valueChange)="typeTier(row, tier, $event)"
+                            (blurred)="leaveTier(row, tier)"
+                            [error]="tierError(row, tier)"
+                            [attr.data-path]="rowPath(row, tier)">
+                            @if (percent(row.stat)) {
+                                <span fieldSuffix>%</span>
+                            }
+                        </anotoki-text-field>
+                    }
+                    <button
+                        anotokiButton
+                        class="remove"
+                        variant="danger-ghost"
+                        size="sm"
+                        iconOnly
+                        [disabled]="row.locked"
+                        [attr.aria-label]="(row.computed !== null ? 'Switch off ' : 'Remove ') + tierName(row, i)"
+                        [anotokiTooltip]="row.computed !== null ? 'Switch off' : 'Remove'"
+                        (click)="removeTier(row, i)">
+                        <anotoki-icon name="trash" [size]="18" />
+                    </button>
+                }
+            </div>
+        </li>
+    }
+</ol>
+<button anotokiButton size="sm" class="add-tiered" (click)="addTier()" [disabled]="targets().length >= maxTargets()">
+    <anotoki-icon name="plus" [size]="16" />
+    Add tiered target
 </button>

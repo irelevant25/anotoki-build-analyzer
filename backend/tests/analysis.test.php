@@ -1048,6 +1048,62 @@ test(
     },
 );
 
+test('an editor\'s targets on a character: the tiers set by hand scored like the ones worked out, a stat switched off nowhere - with the catalog\'s stats and without', function () use (
+    $detail,
+    $state,
+) {
+    db()->update(
+        'game_characters',
+        [
+            'meta' => Json::encode([
+                'stats' => [
+                    'base' => ['hp' => 1210.72, 'atk' => 8.29, 'def' => 68.21],
+                    'lv80' => ['hp' => 14459.03, 'atk' => 98.95, 'def' => 814.56],
+                    'ascension' => ['stat' => 'critDMG_', 'value' => 38.4],
+                ],
+            ]),
+        ],
+        ['key' => 'hutao'],
+    );
+    db()->update('game_weapons', ['meta' => Json::encode(['stats' => ['base_atk' => 41, 'lv80_atk' => 427, 'secondary' => ['stat' => 'eleMas', 'value' => 48]]])], ['key' => 'dragonsbane']);
+    db()->update(
+        'account_characters',
+        ['final_stats' => Json::encode(['critRate_' => 62.0, 'critDMG_' => 190.0, 'hp' => 29000])],
+        ['account_id' => $state->account, 'game_character_id' => $state->character],
+    );
+    db()->update(
+        'builds',
+        [
+            'stat_targets' => Json::encode([
+                ['stat' => 'critRate_', 'min' => 70, 'max' => null, 'text' => '', 'from_rank' => 0],
+                ['stat' => 'critDMG_', 'min' => null, 'max' => null, 'text' => '', 'from_rank' => 0, 'tiers' => ['basic' => 180, 'intermediate' => 210, 'advanced' => 240]],
+                ['stat' => 'hp', 'min' => null, 'max' => null, 'text' => '', 'from_rank' => 0, 'off' => true],
+            ]),
+        ],
+        ['id' => $state->build],
+    );
+    $rowsOf = function () use ($detail): array {
+        $rows = [];
+        foreach ($detail()['evaluations'][0]['targets'] as $row) {
+            $rows[$row['stat']] = $row;
+        }
+
+        return $rows;
+    };
+    $rows = $rowsOf();
+    same(['critRate_', 'critDMG_', 'eleMas'], array_keys($rows), 'the stated CRIT Rate, the CRIT DMG set by hand, Elemental Mastery worked out; no HP');
+    same(
+        [['basic' => 180.0, 'intermediate' => 210.0, 'advanced' => 240.0], 190, true, 'basic', 88.4],
+        [$rows['critDMG_']['tiers'], $rows['critDMG_']['current'], $rows['critDMG_']['ok'], $rows['critDMG_']['tier'], $rows['critDMG_']['floor']],
+        'the tiers as set, scored by the one reached, from where the sheet starts',
+    );
+
+    db()->update('game_characters', ['meta' => '{}'], ['key' => 'hutao']);
+    $rows = $rowsOf();
+    same(['critRate_', 'critDMG_'], array_keys($rows), 'without the catalog\'s stats: the stated target and the tiers set by hand, nothing switched off');
+    same([180, 'basic', null], [$rows['critDMG_']['tiers']['basic'], $rows['critDMG_']['tier'], $rows['critDMG_']['floor']], 'the tiers set by hand stand on their own');
+});
+
 test(
     'the totals worked out from the gear: a character without in-game totals has its stat targets checked against them, and the page gets them; the game\'s own stand first; none without the catalog\'s stats',
     function () use ($detail, $state) {

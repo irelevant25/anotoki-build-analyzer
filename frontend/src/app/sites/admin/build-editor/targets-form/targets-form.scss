@@ -11,6 +11,17 @@
   margin: 0;
 }
 
+// The two lists' names: the requirements, then the tiered targets, with room above the second.
+.section {
+  margin: 0;
+  font-size: 0.95rem;
+  font-weight: 600;
+}
+
+.tiered-head {
+  margin-top: 0.5rem;
+}
+
 // The rows are laid out by the room their card gives them, not by the window: the cards stand two to a line on a wide
 // screen.
 .rows {
@@ -36,8 +47,8 @@
   }
 }
 
-// A target: its stat, where it holds from, its two bounds and its buttons - in a narrow card (a phone) the stat a line
-// of its own, then two fields to a line; with more room the stat and where it holds from over the bounds and the
+// A requirement: its stat, where it holds from, its two bounds and its buttons - in a narrow card (a phone) the stat a
+// line of its own, then two fields to a line; with more room the stat and where it holds from over the bounds and the
 // buttons; with room enough, all on one line.
 .target-row {
   display: grid;
@@ -73,6 +84,72 @@
   padding-bottom: 0.25rem;
 }
 
+// A tiered target: its stat and Auto, where it holds from (set by hand), the three tiers and its remove button - laid
+// out like a requirement's row, the three tiers one line each in a narrow card, side by side with more room.
+.tier-row {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-areas:
+    "stat stat"
+    "auto from"
+    "basic intermediate"
+    "advanced remove";
+  align-items: end;
+  gap: 0.5rem 0.75rem;
+  min-width: 0;
+
+  &.off {
+    grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-areas:
+      "name button"
+      "note note";
+    align-items: center;
+  }
+}
+
+.auto {
+  grid-area: auto;
+  padding-bottom: 0.25rem;
+}
+
+.tier[data-tier="basic"] {
+  grid-area: basic;
+}
+
+.tier[data-tier="intermediate"] {
+  grid-area: intermediate;
+}
+
+.tier[data-tier="advanced"] {
+  grid-area: advanced;
+}
+
+.tier-row > .remove {
+  grid-area: remove;
+  justify-self: start;
+  margin-bottom: 0.25rem;
+}
+
+.stat-name {
+  grid-area: name;
+  font-weight: 500;
+}
+
+.note {
+  grid-area: note;
+  margin: 0;
+}
+
+// A problem with a stat switched off, said in its row: the site's red, 4.5:1 on every ground.
+.problem {
+  display: block;
+  color: var(--sev-high);
+}
+
+.switch-on {
+  grid-area: button;
+}
+
 @container (min-width: 30rem) {
   .target-row {
     grid-template-columns: repeat(3, minmax(0, 1fr));
@@ -80,11 +157,25 @@
       "stat stat from"
       "min max buttons";
   }
+
+  .tier-row:not(.off) {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    grid-template-areas:
+      "stat auto from"
+      "basic intermediate advanced"
+      "remove . .";
+  }
 }
 
 @container (min-width: 52rem) {
   .target-row {
     grid-template-columns: minmax(0, 2fr) minmax(0, 1.25fr) minmax(0, 1fr) minmax(0, 1fr) auto;
     grid-template-areas: "stat from min max buttons";
+  }
+
+  // "From the start" needs its room: the From column never narrower than its longest option.
+  .tier-row:not(.off) {
+    grid-template-columns: minmax(0, 1.5fr) auto minmax(10rem, 1.1fr) minmax(0, 1fr) minmax(0, 1fr) minmax(0, 1fr) auto;
+    grid-template-areas: "stat auto from basic intermediate advanced remove";
   }
 }

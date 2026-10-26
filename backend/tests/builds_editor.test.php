@@ -712,6 +712,64 @@ test('a note opening a sentence with "the source" names nobody; each build and e
     same([0], array_column($answer['removed'], 'file_position'), 'and a removed one\'s, to bring it back where it was');
 });
 
+test(
+    'the targets the site works out come with each build - what Auto gives; the tiers an editor sets by hand and a stat switched off are saved, shown to members, left out of what is worked out, and kept by an import',
+    function () {
+        importFile()->status(200);
+        // Hu Tao's and Staff of Homa's stats, as a catalog refresh keeps them.
+        db()->update(
+            'game_characters',
+            [
+                'meta' => Json::encode([
+                    'stats' => [
+                        'base' => ['hp' => 1210.72, 'atk' => 8.29, 'def' => 68.21],
+                        'lv80' => ['hp' => 14459.03, 'atk' => 98.95, 'def' => 814.56],
+                        'ascension' => ['stat' => 'critDMG_', 'value' => 38.4],
+                    ],
+                ]),
+            ],
+            ['key' => 'hutao'],
+        );
+        db()->update('game_weapons', ['meta' => Json::encode(['stats' => ['base_atk' => 46, 'lv80_atk' => 563, 'secondary' => ['stat' => 'critDMG_', 'value' => 14.4]]])], ['key' => 'staffofhoma']);
+        $loaded = load();
+        $computed = $loaded['builds'][0]['computed'];
+        same('Staff of Homa', $computed['basis']['weapon'], 'worked out for the build\'s first weapon');
+        same(['critRate_', 'critDMG_', 'hp'], array_column($computed['rows'], 'stat'), 'the stated CRIT Rate, then the substats in tiers');
+        same(null, load('kaedeharakazuha')['builds'][0]['computed'], 'none for a character the catalog has no stats of');
+
+        $payload = payloadOf($loaded, function (array $item, int $i) {
+            if ($i === 0) {
+                $item['build']['stat_targets'][] = ['stat' => 'critDMG_', 'min' => null, 'max' => null, 'from_rank' => 0, 'tiers' => ['basic' => 180, 'intermediate' => 210, 'advanced' => 240]];
+                $item['build']['stat_targets'][] = ['stat' => 'hp', 'min' => null, 'max' => null, 'from_rank' => 0, 'off' => true];
+            }
+
+            return $item;
+        });
+        $answer = save($payload)->status(200)->json();
+        same(['stat_targets'], $answer['builds'][0]['edited'], 'the part edited');
+        same(['critRate_', 'critDMG_', 'hp'], array_column($answer['builds'][0]['computed']['rows'], 'stat'), 'what is worked out stays whole: Auto\'s values for every stat');
+        same(
+            [
+                ['stat' => 'critRate_', 'min' => 70, 'max' => null, 'from_rank' => 0],
+                ['stat' => 'critDMG_', 'min' => null, 'max' => null, 'from_rank' => 0, 'tiers' => ['basic' => 180, 'intermediate' => 210, 'advanced' => 240]],
+                ['stat' => 'hp', 'min' => null, 'max' => null, 'from_rank' => 0, 'off' => true],
+            ],
+            $answer['builds'][0]['build']['stat_targets'],
+            'the targets as the editor left them, each of its kind',
+        );
+        $members = (new Client())->get('/api/builds/genshin/hutao')->status(200)->json('builds.0.targets.rows');
+        same(
+            [['critRate_', null], ['critDMG_', ['basic' => 180, 'intermediate' => 210, 'advanced' => 240]]],
+            array_map(fn(array $row) => [$row['stat'], $row['tiers']], $members),
+            'members see the tiers set by hand, and no HP',
+        );
+
+        $import = importFile()->status(200)->json();
+        same([[], 1], [$import['questions'], $import['edits_kept']], 'the tools\' file again: nothing asked, the edit kept');
+        same(3, count(Json::decode(row()['stat_targets'])), 'still the editor\'s three');
+    },
+);
+
 test('the Builds page lists every character with builds, with what the editors did to them', function () {
     importFile()->status(200);
     $loaded = load();

@@ -21,9 +21,13 @@ use DateTimeInterface;
  * A build is a variation of a character's: its role (Game::roles()), a short qualifier telling two builds of one
  * role apart, and the constellation it needs (min_rank). (character, role, qualifier without regard to case,
  * min_rank) is its identity, once in a file. A character's builds come in the order of preference: the first is
- * the main one. A stat target can start from a constellation (from_rank), each (stat, from_rank) once in a build.
- * A build lists the teams it is played in (version 3): each a name, its members - the build's own character
- * among them - with the constellation the team asks of each and who can take a member's place, and a note.
+ * the main one. A stat target can start from a constellation (from_rank), each (stat, from_rank) once in a build,
+ * and is one of three (the editor's round of 2026-10-26): a requirement - its min and/or max as stated -, the three
+ * tiers an editor set by hand in place of the ones the site works out for the stat (`tiers`), or the stat switched
+ * off (`off`: none worked out for it) - the last two optional fields, which a file without them reads as before and
+ * the export writes only where they are set. A build lists the teams it is played in (version 3): each a name, its
+ * members - the build's own character among them - with the constellation the team asks of each and who can take a
+ * member's place, and a note.
  *
  * Like every answer of the API the file names no site: every text passes through Neutral - on the way out, and
  * again on the way in, so a file edited by hand cannot bring a site's name into what the API sends or the
@@ -204,13 +208,24 @@ final class BuildFile
                 $build->stat_targets === null
                     ? null
                     : array_map(
+                        // The tiers set by hand and a stat switched off only where they are: a file from before reads the same.
                         fn(array $target) => [
                             'stat' => $target['stat'] ?? null,
                             'min' => $target['min'] ?? null,
                             'max' => $target['max'] ?? null,
                             'text' => self::neutral((string) ($target['text'] ?? ''), self::MAX_NOTE),
                             'from_rank' => $target['from_rank'] ?? 0,
-                        ],
+                        ] +
+                            (is_array($target['tiers'] ?? null)
+                                ? [
+                                    'tiers' => [
+                                        'basic' => $target['tiers']['basic'] ?? null,
+                                        'intermediate' => $target['tiers']['intermediate'] ?? null,
+                                        'advanced' => $target['tiers']['advanced'] ?? null,
+                                    ],
+                                ]
+                                : []) +
+                            (($target['off'] ?? false) === true ? ['off' => true] : []),
                         $build->stat_targets,
                     ),
             'teams' => self::teamsEntry($build->teams),
@@ -621,7 +636,12 @@ final class BuildFile
     }
 
     /**
-     * @return list<array{stat: string, min: int|float|null, max: int|float|null, text: string, from_rank: int}>
+     * A stat target is one of three (the class comment): a requirement - its min and/or max as stated -, the three
+     * tiers set by hand (`tiers`: basic, intermediate and advanced, numbers nought or more that rise or stay, in
+     * place of min and max) or the stat switched off (`off`: true, with no min, max or tiers). `tiers` and `off` are
+     * optional fields; `text` is a requirement's, kept as it is on the others.
+     *
+     * @return list<array{stat: string, min: int|float|null, max: int|float|null, text: string, from_rank: int, tiers?: array{basic: int|float, intermediate: int|float, advanced: int|float}, off?: true}>
      */
     private function targets(mixed $value): array
     {
@@ -630,7 +650,7 @@ final class BuildFile
         foreach ($this->list($value, 'stat_targets', self::MAX_TARGETS, nullable: true) ?? [] as $i => $target) {
             $at = "stat_targets[{$i}]";
             $target = $this->object($target, $at);
-            $this->fields($target, $at, ['stat', 'min', 'max', 'text', 'from_rank']);
+            $this->fields($target, $at, ['stat', 'min', 'max', 'text', 'from_rank'], ['tiers', 'off']);
             $stat = $this->stat($target['stat'], "{$at}.stat");
             $min = $this->number($target['min'], "{$at}.min");
             $max = $this->number($target['max'], "{$at}.max");
@@ -639,12 +659,40 @@ final class BuildFile
             }
             $text = $this->text($target['text'], "{$at}.text", self::MAX_NOTE);
             $fromRank = $this->integer($target['from_rank'], "{$at}.from_rank", 0, $this->game->maxRank());
+            $entry = ['stat' => $stat, 'min' => $min, 'max' => $max, 'text' => $text, 'from_rank' => $fromRank];
+            if (array_key_exists('off', $target)) {
+                if ($target['off'] !== true) {
+                    $this->fail("{$at}.off", 'must be true, or left out');
+                }
+                if ($min !== null || $max !== null || array_key_exists('tiers', $target)) {
+                    $this->fail("{$at}.off", 'switches the stat off: no min, max or tiers go with it');
+                }
+                $entry['off'] = true;
+            } elseif (array_key_exists('tiers', $target)) {
+                $tiers = $this->object($target['tiers'], "{$at}.tiers");
+                $this->fields($tiers, "{$at}.tiers", ['basic', 'intermediate', 'advanced']);
+                $values = [];
+                foreach (['basic', 'intermediate', 'advanced'] as $tier) {
+                    $number = $tiers[$tier];
+                    if (!(is_int($number) || is_float($number)) || !is_finite((float) $number) || $number < 0 || $number > self::MAX_BOUND) {
+                        $this->fail("{$at}.tiers.{$tier}", 'must be a number from 0 to ' . self::MAX_BOUND);
+                    }
+                    $values[$tier] = $number;
+                }
+                if ($values['basic'] > $values['intermediate'] || $values['intermediate'] > $values['advanced']) {
+                    $this->fail("{$at}.tiers", 'must rise or stay from basic to intermediate to advanced');
+                }
+                if ($min !== null || $max !== null) {
+                    $this->fail("{$at}.tiers", 'stands in place of min and max: leave those null');
+                }
+                $entry['tiers'] = $values;
+            }
             // From each constellation on, one target a stat: the analysis keeps the highest one a player has reached.
             if (isset($seen["{$stat}\n{$fromRank}"])) {
                 $this->fail("{$at}.stat", "repeats stat_targets[{$seen["{$stat}\n{$fromRank}"]}] from the same from_rank");
             }
             $seen["{$stat}\n{$fromRank}"] = $i;
-            $targets[] = ['stat' => $stat, 'min' => $min, 'max' => $max, 'text' => $text, 'from_rank' => $fromRank];
+            $targets[] = $entry;
         }
 
         return $targets;
@@ -758,12 +806,13 @@ final class BuildFile
     }
 
     /**
-     * Exactly these fields: none missing, and none the format does not have.
+     * Exactly these fields: none missing, and none the format does not have - the $optional ones there or not.
      *
      * @param  array<array-key, mixed>  $object
      * @param  list<string>  $fields
+     * @param  list<string>  $optional
      */
-    private function fields(array $object, ?string $where, array $fields): void
+    private function fields(array $object, ?string $where, array $fields, array $optional = []): void
     {
         foreach ($fields as $field) {
             if (!array_key_exists($field, $object)) {
@@ -771,7 +820,7 @@ final class BuildFile
             }
         }
         foreach (array_keys($object) as $field) {
-            if (!in_array($field, $fields, true)) {
+            if (!in_array($field, $fields, true) && !in_array($field, $optional, true)) {
                 $this->fail($where === null ? (string) $field : "{$where}.{$field}", 'is not a field of this format');
             }
         }

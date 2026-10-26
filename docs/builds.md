@@ -136,7 +136,7 @@ Every field is required - null where null is allowed - and a field the format la
 | `main_stats` | an object of the variable slots (`sands`, `goblet`, `circlet`), each a list of at least one `{stat, priority}` among what the slot can roll (`Game::mainStatOptions()`), `elemental_dmg_` on the goblet; `{}` for none |
 | `substats` | at most 30 `{stat, priority}` among the substat keys (`Stats::substatKeys()`); `[]` when the build lists none - the analysis then derives them from its main stats |
 | `talent_priority` | at most 10 `{talent, priority}` (`normal`, `skill`, `burst`), or null |
-| `stat_targets` | at most 30 `{stat, min, max, text, from_rank}`, or null: any stat key of the game (`Stats::keys()`); `min` and `max` numbers within ±1,000,000 or null, `min` ≤ `max`; the goal as it was written; `from_rank` 0-6 |
+| `stat_targets` | at most 30 `{stat, min, max, text, from_rank}`, or null: any stat key of the game (`Stats::keys()`); `min` and `max` numbers within ±1,000,000 or null, `min` ≤ `max`; the goal as it was written; `from_rank` 0-6. Two optional fields make a target one of two more kinds (the editor's round of 2026-10-26): `tiers` `{basic, intermediate, advanced}` - numbers, nought or more, each no higher than the next; `min` and `max` null -, the three tiers set by hand in place of the ones the site works out for the stat; or `off: true` (no `min`, `max` or `tiers`), the stat switched off: nothing worked out or shown for it. A file without them reads as before; the export writes them only where they are set |
 | `teams` | at most 20 `{name, members, note}`, the best first; `[]` for none (never null): a name - one line, not empty, at most 60 once trimmed; 2-4 `members`; a note or null |
 | a member | `{key, name, role, min_rank, alternatives}` - the catalog's key of a character (lowercase letters and digits), each once in its team, the build's own character exactly once; a name, not empty; `role` one of `Game::roles()` or null; `min_rank` 0-6; at most 5 `alternatives` `{key, name}`, each once, none a member of the team - and none for the build's own character |
 | `notes`, `game_version` | text or null |
@@ -156,7 +156,8 @@ weapons[0].refinement must be a whole number from 1 to 5, or null."), unless
   it again from this installation"), a later version with "Update this installation, then import again.";
 - its `game` is the game imported;
 - every field is there and none the format lacks, at the top and in every build, weapon, set option, piece,
-  ranked entry and target;
+  ranked entry and target (a target's `tiers` and `off` may be there or not; one with `off` carries no bound or tiers,
+  one with `tiers` no bound, and its three tiers rise or stay);
 - every value has the shape above: lists and objects where they belong, whole numbers where the app counts, the
   game's roles, set kinds, slots, stats and talents;
 - no identity is there twice ("its character, role, qualifier and min_rank are those of builds[2] too"), and no
@@ -284,7 +285,8 @@ changed the same part (the owner's decision of 2026-10-20, "Hand edits later, so
   version - each compared in a canonical form: without a weapon's or set option's `rank`, a weapon's `known`, and the
   texts the format still carries but the site no longer shows (a weapon's, set option's and team's `note`, a target's
   `text`; the build's own `notes` are no part); priorities, names and every list's order as they are; a target's
-  bounds as floats; main stats' slots in one order. Notes and a character's order of builds are no parts.
+  bounds as floats, its tiers set by hand as floats and whether it is switched off; main stats' slots in one order.
+  Notes and a character's order of builds are no parts.
 - **R1, a build of the file's found again**, per part: nobody edited it - the file's version; the file did not change
   it - the edit; the file now says what the edit says - the edit, and what the file said before stays beside it, so it
   stays an edit (an export of this site imported again changes nothing); both changed it - a **question** for that
@@ -373,13 +375,27 @@ there):
     to its place (ties as they stood, the focus with it, the move said to a screen reader) - priorities stay numbers,
     never renumbered; a slot with no row is left out of the build (any main stat does), talents with none are none
     (`null`);
-  - **Stat targets** (`targets-form`): each row a group inside its list item, named by its place ("Target 2: Energy
-    Recharge, from C1"), laid out by the room its card gives it -
+  - **Stat targets** (`targets-form`), in two lists. The **requirements**: each row a group inside its list item,
+    named by its place ("Target 2: Energy Recharge, from C1"), laid out by the room its card gives it -
     its stat, where it holds from ("From the start", "From C1"...), its minimum and maximum (typed; a percent stat's
     named "Minimum (%)" with "%" beside the field, a "%" typed after the number taken; what is typed stays as typed
     while it is no number - said wrong once the field is left, holding the save back at once, and a change of the
     page's: Save is offered, and says it) -, moved and removed; a target needs a minimum or a maximum, the minimum no
-    higher than the maximum, one target a stat from each constellation; a target keeps its numbers alone;
+    higher than the maximum, one target a stat from each constellation; a target keeps its numbers alone. The
+    **tiered targets** (the editor's round of 2026-10-26; [analysis.md](analysis.md), "Stat targets"): what the site
+    works out for the build - a row per stat, its three tiers for the build's first weapon as last saved (the load's
+    `computed`, below) - each with **Auto** ticked and the values read-only; Auto unticked makes the stat one set by
+    hand (a stored target with `tiers`, the three values typed as the bounds are, the same for every weapon then,
+    holding from a constellation if asked), ticked again hands it back to the site; its remove button switches the
+    stat off (a stored target with `off`, from the constellation the row held from: nothing worked out or shown for
+    it, said so in its row with **Switch on**), and takes a hand-set stat with nothing worked out behind it (no
+    substat of the build rolls it; Auto disabled, said why) off the list; **Add tiered target** adds a hand-set row
+    for a stat with no row and no target from the start, its three values to type (a save waits until all three are
+    numbers, none above the next). A stat the site works out that a requirement from the start already names (one
+    with a maximum alone keeps the stat in the split) keeps Auto and its remove button disabled until that
+    requirement goes: one target a stat from each constellation, whatever their kinds. HP% set by hand stands where
+    the sheet's HP is worked out, as the pages read it. The list reads "Nothing worked out yet" while the catalog
+    lacks the character's or every weapon's stats, or the build is not saved yet;
   - **Teams** (`teams-form`, the card across the page's width): best first, each a box of its name (one line, 60
     characters at most, required - as members read it), its members side by side - a column each, four to a row where
     there is room (two on a narrower screen, one on a phone), moved left and right - and, under them, the site's note on
@@ -514,7 +530,7 @@ The admin panel's, behind `requireRole($app, ...Role::STAFF)` (EDITOR or ADMIN; 
 | `GET /api/admin/builds/{game}/export` | the file, as a download |
 | `POST /api/admin/builds/{game}/import[?dry_run=1][&file=<ids>\|all&plan=<hash>]` | the body is the file's JSON; the answer above; `file` and `plan` as in "Hand edits" |
 | `GET /api/admin/builds/{game}/catalog` | what the editor picks from ("The editor") |
-| `GET`, `PUT /api/admin/builds/{game}/characters/{key}` | a character's builds, loaded and saved ("The editor"); 404 for a character the catalog lacks |
+| `GET`, `PUT /api/admin/builds/{game}/characters/{key}` | a character's builds, loaded and saved ("The editor"), each - and each removed one - with `computed`: the stat targets the site works out for it as the builds page shows them (`{rows, basis}`, the tiers set by hand and the stats switched off left out, so the form knows what Auto gives; null while the catalog lacks the stats); 404 for a character the catalog lacks |
 | `POST /api/admin/catalog/{game}/{list}[?force=1]` | one catalog list (`characters`, `weapons`, `sets`) refreshed - a conditional request unless forced: `{outcome: changed \| unchanged, written, list, entries, refreshed_at, problem}`; 409 while another refresh of it runs, 502 with the reason when the provider is closed, lacks the list or cannot be read; audited `catalog.refreshed`. The page's **Refresh catalog** asks for the three one after another, unforced |
 
 Public, behind `optionalSignIn($app)`: everybody reads the same, and while the IAM requires sign-in only a person

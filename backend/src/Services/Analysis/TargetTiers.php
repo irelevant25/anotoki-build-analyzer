@@ -30,10 +30,13 @@ use App\Support\Stats;
  *   rolls than the pieces that can roll it allow (ROLLS_PER_PIECE each), CRIT Rate and CRIT DMG as one share
  *   whatever their priorities, split so CRIT DMG is twice the CRIT Rate in combat - the sheet's plus what the set
  *   option's 4-piece adds, Blizzard Strayer's 40 % (SetBonus::fourPieceCritRate()) - with the combat CRIT Rate
- *   never past CRIT_RATE_CAP;
+ *   never past CRIT_RATE_CAP, on its own in the split (its partner a requirement, or set by hand) neither;
  * - HP, ATK and DEF go out as the sheet's totals, every other stat as its percentage or points; every row says where
  *   the sheet starts (`floor`: the fixed sources alone, not one useful roll yet), which the page's target bar
- *   measures the rolls' worth from (step 4 of the round).
+ *   measures the rolls' worth from (step 4 of the round);
+ * - an editor's word stands (the editor's round of 2026-10-26, docs/builds.md): a stat whose three tiers an editor
+ *   set by hand shows those - its rolls paid tier by tier, so the others share what is left - in its substat's place,
+ *   and a stat switched off is left out of the split and the rows.
  *
  * Nothing conditional is in the sources - a 4-piece bonus, a weapon's passive, a buff -, as nothing conditional is
  * on the sheet, which is what the targets are compared with (an account's `final_stats`); a 4-piece's CRIT Rate
@@ -109,7 +112,20 @@ final class TargetTiers
         $element = $character->element;
         $mainStats = self::mainStats($game, $build, $wornMainStats, $element);
         $substats = self::resolve($build->substats ?: ItemScorer::fallbackSubstats($game, self::wantedMainStats($build, $element)), $element);
-        $requirements = self::resolve(BuildEvaluator::targetsFor($build->stat_targets ?? [], $rank), $element);
+        // The stated targets that hold at the constellation, each of its kind (docs/builds.md): a requirement, the
+        // tiers an editor set by hand in place of the ones worked out, or a stat switched off.
+        $requirements = [];
+        $handSet = [];
+        $off = [];
+        foreach (self::resolve(BuildEvaluator::targetsFor($build->stat_targets ?? [], $rank), $element) as $target) {
+            if (($target['off'] ?? false) === true) {
+                $off[] = $target['stat'];
+            } elseif (is_array($target['tiers'] ?? null)) {
+                $handSet[$target['stat']] = $target;
+            } else {
+                $requirements[] = $target;
+            }
+        }
         // The set option worn where it is one of the build's, else the build's first: its bonuses are the sheet's.
         $option = $build->sets[$wornOption ?? 0] ?? ($build->sets[0] ?? null);
 
@@ -124,6 +140,8 @@ final class TargetTiers
                 $requirements,
                 self::conditionalCritRate($option, $sets),
                 self::ENERGY_RECHARGE_MOST[$build->role] ?? self::ENERGY_RECHARGE_MOST['sub_dps'],
+                $handSet,
+                $off,
             ),
             'basis' => [
                 'weapon' => $weapon->name,
@@ -189,6 +207,8 @@ final class TargetTiers
      * @param  list<array{stat: string, min: int|float|null, max: int|float|null, from_rank?: int}>  $requirements  the stated targets that hold
      * @param  float  $critRateBonus  the CRIT Rate the set adds in combat, for the pair's balance
      * @param  float|null  $energyMost  the Energy Recharge the split stops at where no requirement states one; null: no stop
+     * @param  array<string, array{stat: string, tiers: array{basic: int|float, intermediate: int|float, advanced: int|float}, from_rank?: int}>  $handSet  the tiers an editor set by hand, by stat
+     * @param  list<string>  $off  the stats switched off
      * @return list<array{stat: string, tiers: array{basic: float, intermediate: float, advanced: float}|null, min: float|null, max: float|null, from_rank: int|null, floor: float}> each with where the sheet starts (`floor`: the fixed sources alone)
      */
     public static function rows(
@@ -201,6 +221,8 @@ final class TargetTiers
         array $requirements,
         float $critRateBonus = 0.0,
         ?float $energyMost = null,
+        array $handSet = [],
+        array $off = [],
     ): array {
         $fixed = self::fixedSources($game, $character, $weapon, $mainStats, $bonuses);
         $base = ['hp' => $character['hp'], 'atk' => $character['atk'] + $weapon['atk'], 'def' => $character['def']];
@@ -208,6 +230,15 @@ final class TargetTiers
         $caps = [];
         foreach (Stats::substatKeys($game) as $stat) {
             $caps[$stat] = self::ROLLS_PER_PIECE * count(array_filter($mainStats, fn(string $main) => $main !== $stat));
+        }
+        // The stats switched off and the ones set by hand, by the substat that rolls each: out of the split.
+        $offRolling = array_values(array_filter(array_map(fn(string $stat) => self::rolling($game, $stat), $off)));
+        $handRolling = [];
+        foreach (array_keys($handSet) as $stat) {
+            $rolling = self::rolling($game, (string) $stat);
+            if ($rolling !== null) {
+                $handRolling[$rolling] = (string) $stat;
+            }
         }
 
         // 1. The requirements, paid first: the rolls each one needs, in its stat's rolling substat.
@@ -235,6 +266,22 @@ final class TargetTiers
         }
         $spent = array_sum($paid);
 
+        // The tiers set by hand pay their rolls too, tier by tier - what each tier's value takes from where the sheet
+        // starts -, so the other stats share what is left of each tier's budget.
+        $paidByTier = array_fill_keys(array_keys(self::TIERS), []);
+        foreach ($handSet as $stat => $target) {
+            $stat = (string) $stat;
+            $rolling = self::rolling($game, $stat);
+            if ($rolling === null || isset($paid[$rolling])) {
+                continue;
+            }
+            $floor = isset($base[$stat]) ? self::total($stat, $base, $fixed) : $fixed[$stat] ?? 0.0;
+            $perRoll = isset($base[$stat]) ? ($base[$stat] * $roll($rolling)) / 100 : $roll($rolling);
+            foreach (self::TIERS as $tier => $budget) {
+                $paidByTier[$tier][$rolling] = min($caps[$rolling], (int) ceil(max(0.0, ((float) $target['tiers'][$tier] - $floor) / $perRoll - 1e-9)));
+            }
+        }
+
         // In the split, Energy Recharge's rolls stop at the role's ceiling (the fixed sources may be past it already);
         // a requirement above paid its own rolls before, unbounded by it.
         $splitCaps = $caps;
@@ -242,26 +289,29 @@ final class TargetTiers
             $splitCaps['enerRech_'] = (int) min($splitCaps['enerRech_'], max(0.0, ceil(($energyMost - ($fixed['enerRech_'] ?? 0.0)) / $roll('enerRech_') - 1e-9)));
         }
 
-        // 2. The build's substats that no requirement already fills, each with its share.
+        // 2. The build's substats that no requirement already fills, none set by hand or switched off, each with its share.
         $weights = [];
-        $order = [];
         foreach ($substats as $entry) {
             $stat = self::rolling($game, $entry['stat']);
-            if ($stat === null || isset($paid[$stat]) || isset($weights[$stat])) {
+            if ($stat === null || isset($paid[$stat]) || isset($weights[$stat]) || isset($handRolling[$stat]) || in_array($stat, $offRolling, true)) {
                 continue;
             }
             $weights[$stat] = self::PRIORITY_SHARES[$entry['priority']] ?? self::LOWEST_SHARE;
-            $order[$stat] = [$entry['priority'], count($order)];
         }
         // CRIT Rate and CRIT DMG, both in the split, are one share balanced by the 1:2 rule whatever their
         // priorities: a build that ranks CRIT Rate last because its set adds it in combat still needs a sheet a
         // player can read, and the set's CRIT Rate is in the balance.
         $critPair = isset($weights['critRate_'], $weights['critDMG_']);
+        // CRIT Rate on its own in the split - its partner a requirement, or set by hand - stops at the cap all the
+        // same, the set's CRIT Rate counted: the pair's rule, kept without the pair.
+        if (!$critPair && isset($weights['critRate_'], $splitCaps['critRate_'])) {
+            $splitCaps['critRate_'] = (int) min($splitCaps['critRate_'], max(0.0, floor((self::CRIT_RATE_CAP - $critRateBonus - ($fixed['critRate_'] ?? 0.0)) / $roll('critRate_') + 1e-9)));
+        }
 
         // 3. Each tier: what is left of its budget, split and added to the fixed sources.
         $values = [];
         foreach (self::TIERS as $tier => $budget) {
-            $rolls = self::split(max(0.0, $budget - $spent), $weights, $splitCaps, $critPair, $fixed, $roll, $critRateBonus);
+            $rolls = self::split(max(0.0, $budget - $spent - array_sum($paidByTier[$tier])), $weights, $splitCaps, $critPair, $fixed, $roll, $critRateBonus);
             foreach ($paid as $stat => $count) {
                 $rolls[$stat] = ($rolls[$stat] ?? 0) + $count;
             }
@@ -272,21 +322,43 @@ final class TargetTiers
             $values[$tier] = $sheet;
         }
 
-        uksort($order, fn(string $a, string $b) => $order[$a] <=> $order[$b]);
-        foreach (array_keys($order) as $stat) {
-            // HP%, ATK% and DEF% go out as the sheet's totals, under the flat key.
-            $shown = array_search($stat, Stats::FLAT_TO_PERCENT, true) ?: $stat;
+        // 4. The tiered rows in the build's order of priority - a stat set by hand in its substat's place, the ones set
+        // by hand that no substat of the build rolls after them, as they were set -, each with where the sheet starts.
+        $sequence = [];
+        foreach ($substats as $i => $entry) {
+            $rolling = self::rolling($game, $entry['stat']);
+            if ($rolling === null || in_array($rolling, $offRolling, true)) {
+                continue;
+            }
+            if (isset($handRolling[$rolling])) {
+                $sequence[$handRolling[$rolling]] ??= [$entry['priority'], $i, 'hand'];
+            } elseif (isset($weights[$rolling])) {
+                // HP%, ATK% and DEF% go out as the sheet's totals, under the flat key.
+                $sequence[array_search($rolling, Stats::FLAT_TO_PERCENT, true) ?: $rolling] ??= [$entry['priority'], $i, 'computed'];
+            }
+        }
+        $next = count($substats);
+        foreach (array_keys($handSet) as $stat) {
+            if (!in_array(self::rolling($game, (string) $stat), $offRolling, true)) {
+                $sequence[(string) $stat] ??= [PHP_INT_MAX, $next++, 'hand'];
+            }
+        }
+        uasort($sequence, fn(array $a, array $b) => [$a[0], $a[1]] <=> [$b[0], $b[1]]);
+        foreach ($sequence as $shown => [, , $kind]) {
+            $shown = (string) $shown;
+            $rolling = self::rolling($game, $shown) ?? $shown;
             $tiers = [];
             foreach (self::TIERS as $tier => $budget) {
-                $tiers[$tier] = isset($base[$shown]) ? round(self::total($shown, $base, $values[$tier])) : round($values[$tier][$stat] ?? 0.0, 1);
+                $value = $kind === 'hand' ? (float) $handSet[$shown]['tiers'][$tier] : (isset($base[$shown]) ? self::total($shown, $base, $values[$tier]) : $values[$tier][$rolling] ?? 0.0);
+                $tiers[$tier] = isset($base[$shown]) ? round($value) : round($value, 1);
             }
             $rows[] = [
                 'stat' => $shown,
                 'tiers' => $tiers,
                 'min' => null,
                 'max' => null,
-                'from_rank' => null,
-                'floor' => isset($base[$shown]) ? round(self::total($shown, $base, $fixed)) : round($fixed[$stat] ?? 0.0, 1),
+                'from_rank' => $kind === 'hand' ? (int) ($handSet[$shown]['from_rank'] ?? 0) : null,
+                'floor' => isset($base[$shown]) ? round(self::total($shown, $base, $fixed)) : round($fixed[$rolling] ?? ($fixed[$shown] ?? 0.0), 1),
             ];
         }
 

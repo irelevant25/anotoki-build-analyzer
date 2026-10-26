@@ -300,6 +300,19 @@ test('a dry run says what an import would do and writes nothing', function () {
     );
 });
 
+test('a stat target of each kind - a requirement, the tiers set by hand, a stat switched off - is read, stored and exported as written; the export imports as itself', function () {
+    $targets = [
+        ['stat' => 'enerRech_', 'min' => 160, 'max' => null, 'text' => '', 'from_rank' => 0],
+        ['stat' => 'critDMG_', 'min' => null, 'max' => null, 'text' => '', 'from_rank' => 0, 'tiers' => ['basic' => 180, 'intermediate' => 210.5, 'advanced' => 240]],
+        ['stat' => 'hp', 'min' => null, 'max' => null, 'text' => '', 'from_rank' => 2, 'off' => true],
+    ];
+    same([1, 0, 0, 0], counts(import(buildsFile([fileBuild(['stat_targets' => $targets])]))->status(200)->json()), 'imported');
+    same($targets, Json::decode(db()->value('SELECT stat_targets FROM builds')), 'stored as written: the tiers and the switch only where they are');
+    $exported = editor()->get('/api/admin/builds/genshin/export')->status(200)->json();
+    same($targets, $exported['builds'][0]['stat_targets'], 'exported as written');
+    same([0, 0, 1, 0], counts(import($exported)->status(200)->json()), 'the export imports as itself');
+});
+
 test('files the import refuses, each with its first problem - and nothing written', function () {
     $without = function (string $field): array {
         $build = fileBuild();
@@ -353,6 +366,51 @@ test('files the import refuses, each with its first problem - and nothing writte
         'a target above its own max' => [
             buildsFile([fileBuild(['stat_targets' => [['stat' => 'enerRech_', 'min' => 280, 'max' => 260, 'text' => '', 'from_rank' => 0]]])]),
             'stat_targets[0].min must not be greater than its max.',
+        ],
+        // The editor's kinds of target (the round of 2026-10-26): the tiers set by hand, a stat switched off.
+        'a target switched off with a bound' => [
+            buildsFile([fileBuild(['stat_targets' => [['stat' => 'critDMG_', 'min' => 200, 'max' => null, 'text' => '', 'from_rank' => 0, 'off' => true]]])]),
+            'stat_targets[0].off switches the stat off: no min, max or tiers go with it.',
+        ],
+        'a target switched off by anything but true' => [
+            buildsFile([fileBuild(['stat_targets' => [['stat' => 'critDMG_', 'min' => null, 'max' => null, 'text' => '', 'from_rank' => 0, 'off' => false]]])]),
+            'stat_targets[0].off must be true, or left out.',
+        ],
+        'tiers that fall' => [
+            buildsFile([
+                fileBuild([
+                    'stat_targets' => [['stat' => 'critDMG_', 'min' => null, 'max' => null, 'text' => '', 'from_rank' => 0, 'tiers' => ['basic' => 200, 'intermediate' => 190, 'advanced' => 260]]],
+                ]),
+            ]),
+            'stat_targets[0].tiers must rise or stay from basic to intermediate to advanced.',
+        ],
+        'tiers beside a bound' => [
+            buildsFile([
+                fileBuild([
+                    'stat_targets' => [['stat' => 'critDMG_', 'min' => 100, 'max' => null, 'text' => '', 'from_rank' => 0, 'tiers' => ['basic' => 200, 'intermediate' => 230, 'advanced' => 260]]],
+                ]),
+            ]),
+            'stat_targets[0].tiers stands in place of min and max: leave those null.',
+        ],
+        'tiers missing one' => [
+            buildsFile([fileBuild(['stat_targets' => [['stat' => 'critDMG_', 'min' => null, 'max' => null, 'text' => '', 'from_rank' => 0, 'tiers' => ['basic' => 200, 'advanced' => 260]]]])]),
+            'stat_targets[0].tiers.intermediate is missing.',
+        ],
+        'a tier left null' => [
+            buildsFile([
+                fileBuild([
+                    'stat_targets' => [['stat' => 'critDMG_', 'min' => null, 'max' => null, 'text' => '', 'from_rank' => 0, 'tiers' => ['basic' => null, 'intermediate' => 230, 'advanced' => 260]]],
+                ]),
+            ]),
+            'stat_targets[0].tiers.basic must be a number from 0 to 1000000.',
+        ],
+        'a tier over the bound' => [
+            buildsFile([
+                fileBuild([
+                    'stat_targets' => [['stat' => 'critDMG_', 'min' => null, 'max' => null, 'text' => '', 'from_rank' => 0, 'tiers' => ['basic' => 200, 'intermediate' => 230, 'advanced' => 1000001]]],
+                ]),
+            ]),
+            'stat_targets[0].tiers.advanced must be a number from 0 to 1000000.',
         ],
         'the same build twice' => [
             buildsFile([fileBuild(), fileBuild()]),

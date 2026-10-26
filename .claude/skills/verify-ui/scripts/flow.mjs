@@ -1182,6 +1182,57 @@ try {
       await ed.click(`${DIALOG} [data-answer="yes"]`);
       await ed.waitForSelector('.save-bar', { state: 'detached', timeout: 5000 });
       check((await ed.locator('[data-part="teams"] .team').count()) === 1 && (await ed.locator('[data-part="teams"] .waiting').count()) === 0, 'Discard: the team back as saved, nothing waiting');
+      // The tiered targets in the editor (the editor's round of 2026-10-26): Hu Tao's main build - the check's database
+      // keeps her stats - lists what the site works out with Auto ticked and the values read-only; CRIT DMG set by hand
+      // from those values and typed over, HP switched off, saved: the builds' page shows the hand-set tiers and no HP;
+      // Auto again and Switch on put both back, so the pages read as before.
+      await open(ed, '/admin/builds/genshin/hutao');
+      await ed.waitForSelector('.tier-row[data-stat="critDMG_"] .auto input', { timeout: 15000 });
+      const tierRows = await ed.evaluate(() =>
+        [...document.querySelectorAll('.tier-row')].map((row) => ({
+          stat: row.getAttribute('data-stat'),
+          auto: row.querySelector('.auto input')?.checked ?? null,
+          values: [...row.querySelectorAll('.tier input')].map((input) => `${input.value}${input.readOnly ? ' (read-only)' : ''}`),
+        })),
+      );
+      check(
+        tierRows.length >= 2 && tierRows.every((row) => row.auto === true && row.values.length === 3 && row.values.every((value) => /^[\d.]+ \(read-only\)$/.test(value))),
+        `the editor's tiered targets: what the site works out, Auto ticked, the three values read-only (${JSON.stringify(tierRows)})`,
+      );
+      const storedTargets = () =>
+        JSON.parse(sql("SELECT stat_targets FROM builds WHERE role = 'main_dps' AND game_character_id = (SELECT id FROM game_characters WHERE key = 'hutao')")[0].stat_targets);
+      const targetsBefore = storedTargets().length;
+      await ed.click('.tier-row[data-stat="critDMG_"] .auto input');
+      await ed.fill(`[data-path="stat_targets[${targetsBefore}].tiers.basic"] input`, '150');
+      await ed.fill(`[data-path="stat_targets[${targetsBefore}].tiers.intermediate"] input`, '175');
+      await ed.fill(`[data-path="stat_targets[${targetsBefore}].tiers.advanced"] input`, '200');
+      await ed.click('.tier-row[data-stat="hp"] .remove');
+      await shot(ed, '26-build-editor-tiers-1280-light', { fullPage: true });
+      await ed.click('.save-bar button.save');
+      await ed.waitForSelector('.save-bar', { state: 'detached', timeout: 15000 });
+      const handSet = storedTargets()
+        .slice(targetsBefore)
+        .map((target) => `${target.stat} ${target.tiers ? [target.tiers.basic, target.tiers.intermediate, target.tiers.advanced].join('/') : ''}${target.off ? 'off' : ''}`);
+      check(handSet.join('|') === 'critDMG_ 150/175/200|hp off', `saved: CRIT DMG's tiers set by hand, HP switched off (${handSet.join(', ')})`);
+      await open(ed, '/builds/genshin/hutao?lang=en');
+      await ed.waitForSelector('app-build-detail .target', { timeout: 15000 });
+      const shownTiers = await ed.evaluate(() =>
+        [...document.querySelectorAll('app-build-detail .target.tiered')].map(
+          (card) => `${card.querySelector('.t-stat')?.textContent?.trim()} ${[...card.querySelectorAll('dd')].map((value) => value.textContent?.trim()).join('/')}`,
+        ),
+      );
+      check(
+        shownTiers.some((card) => card === 'CRIT DMG 150.0%/175.0%/200.0%') && !shownTiers.some((card) => card.startsWith('HP ')),
+        `the builds' page: the tiers set by hand, no HP (${shownTiers.join('; ')})`,
+      );
+      await open(ed, '/admin/builds/genshin/hutao');
+      await ed.waitForSelector('.tier-row[data-stat="hp"] .switch-on', { timeout: 15000 });
+      await ed.click('.tier-row[data-stat="critDMG_"] .auto input');
+      await ed.click('.tier-row[data-stat="hp"] .switch-on');
+      await ed.click('.save-bar button.save');
+      await ed.waitForSelector('.save-bar', { state: 'detached', timeout: 15000 });
+      check(storedTargets().length === targetsBefore, 'Auto again and Switch on: the two entries gone, the targets as the file had them');
+
       for (const scheme of ['light', 'dark']) {
         await ed.setViewportSize({ width: 390, height: 860 });
         await ed.emulateMedia({ colorScheme: scheme });

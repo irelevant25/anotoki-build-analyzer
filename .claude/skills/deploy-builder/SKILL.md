@@ -242,3 +242,12 @@ No migration, so nothing waits after the swap: the release (section 2) and the s
 page, the dashboard's fourth score bar, every bar in three colours. Check: an account's character page shows a bar
 under each stat target (a tiered one with two marks) and red, gold or green score bars; the account page's cards a
 fourth bar, "Stat targets".
+
+## 15. Deploying 0.11.0
+
+No migration, so nothing waits after the swap: the release (section 2) and the site stays open (docs/operations.md,
+"Deploying 0.11.0"). The editor's stat targets: the tiered targets in the builds editor with Auto, set by hand,
+switched off, added (docs/builds.md, "The editor"). Check: `/admin/builds/genshin/hutao` shows "Tiered targets" with
+Auto ticked on each stat worked out; a stat's tiers set by hand and saved show on `/builds/genshin/hutao`, a stat
+switched off does not; Auto ticked again puts the worked-out ones back. The builds file's format stays version 3:
+the owner's local tools write as before.

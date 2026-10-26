@@ -435,6 +435,43 @@ test('a stated target is a requirement: paid first from each budget, shown as st
     about(5 + rateRolls(16 * share([1, 4], [1, 2, 4]), 5, 194.7) * 3.3065, $rows['critRate_']['tiers']['basic'], 'the lower requirement takes no roll');
 });
 
+test(
+    'an editor\'s word stands: the tiers set by hand in the stat\'s place, their rolls paid tier by tier; a stat switched off out of the rows and the split; a hand-set stat no substat rolls, after the rest',
+    function () {
+        $forBuild = fn(Build $build, int $rank) => byStat(TargetTiers::forBuild($build, ayaka(), ['mistsplitterreforged' => mistsplitter()], ['blizzardstrayer' => blizzard()], null, [], $rank));
+        $plain = $forBuild(build(), 0);
+        $byHand = fn(array $tiers) => build([
+            'stat_targets' => [
+                ['stat' => 'critDMG_', 'min' => null, 'max' => null, 'text' => '', 'from_rank' => 0, 'tiers' => $tiers],
+                ['stat' => 'atk', 'min' => null, 'max' => null, 'text' => '', 'from_rank' => 0, 'off' => true],
+                ['stat' => 'eleMas', 'min' => null, 'max' => null, 'text' => '', 'from_rank' => 1, 'tiers' => ['basic' => 40, 'intermediate' => 80, 'advanced' => 120]],
+            ],
+        ]);
+        $rows = $forBuild($byHand(['basic' => 200, 'intermediate' => 230, 'advanced' => 260]), 1);
+        same(['critDMG_', 'enerRech_', 'critRate_', 'eleMas'], array_keys($rows), 'CRIT DMG in its place, ATK gone, Elemental Mastery - no substat of the build - last');
+        same(
+            [['basic' => 200.0, 'intermediate' => 230.0, 'advanced' => 260.0], 0, 194.7],
+            [$rows['critDMG_']['tiers'], $rows['critDMG_']['from_rank'], $rows['critDMG_']['floor']],
+            'as set, from where the sheet starts',
+        );
+        same(
+            [['basic' => 40.0, 'intermediate' => 80.0, 'advanced' => 120.0], 1, 0.0],
+            [$rows['eleMas']['tiers'], $rows['eleMas']['from_rank'], $rows['eleMas']['floor']],
+            'a stat set by hand from C1, nothing of it on the sheet',
+        );
+        check($rows['critRate_']['tiers']['basic'] !== $plain['critRate_']['tiers']['basic'], 'CRIT Rate split on its own, no longer the pair');
+        check(
+            $rows['critRate_']['tiers']['advanced'] <= 45.0 + 1e-9,
+            'CRIT Rate on its own stops at the cap all the same: 45 on the sheet with Blizzard Strayer\'s 40 (' . $rows['critRate_']['tiers']['advanced'] . ')',
+        );
+        // The rolls the hand-set tiers take are paid first: with CRIT DMG asking 10 rolls at advanced (65 over the 194.7
+        // the sheet starts at), CRIT Rate gets fewer of the tier's budget than with a CRIT DMG that asks none.
+        $cheap = $forBuild($byHand(['basic' => 194.7, 'intermediate' => 194.7, 'advanced' => 194.7]), 1);
+        check($cheap['critRate_']['tiers']['advanced'] > $rows['critRate_']['tiers']['advanced'], 'the rolls set by hand are paid: less for the others');
+        same(['critDMG_', 'enerRech_', 'critRate_'], array_keys($forBuild($byHand(['basic' => 200, 'intermediate' => 230, 'advanced' => 260]), 0)), 'the Elemental Mastery from C1: not at C0');
+    },
+);
+
 test('a requirement a tier cannot pay stands all the same; what is left goes to the others, nothing where nothing is left', function () {
     $build = build(['stat_targets' => [['stat' => 'enerRech_', 'min' => 270, 'max' => 300, 'text' => '', 'from_rank' => 0]]]);
     $rows = byStat(TargetTiers::forBuild($build, ayaka(), ['mistsplitterreforged' => mistsplitter()], [], null, [], 0));

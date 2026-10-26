@@ -1,4 +1,18 @@
-import { BuildPart, CharacterEditing, EditorBuild, EditorEntry, EditorFacts, EditorNotes, EditorSave, EditorSaveBuild, EditorTeam, RemovedBuild, SiteNote, WaitingNote } from '../../../api/models';
+import {
+  BuildPart,
+  CharacterEditing,
+  ComputedTargets,
+  EditorBuild,
+  EditorEntry,
+  EditorFacts,
+  EditorNotes,
+  EditorSave,
+  EditorSaveBuild,
+  EditorTeam,
+  RemovedBuild,
+  SiteNote,
+  WaitingNote,
+} from '../../../api/models';
 
 /*
  * The builds editor's state (docs/builds.md, "The editor"): a character's builds as the page holds them while an editor
@@ -47,6 +61,8 @@ export interface DraftBuild {
   editedAt: string | null;
   /** The build of the file's this one was renamed from on this page (its uid, set aside in the draft's `deleted`); null otherwise. */
   renamedFrom: string | null;
+  /** The stat targets the site works out for it, as loaded (what the targets form's Auto gives); null while the catalog lacks the stats. */
+  computed: ComputedTargets | null;
 }
 
 /** A stored build deleted on this page, and the place it had: put back there. */
@@ -121,6 +137,7 @@ function entryDraft(entry: EditorEntry): DraftBuild {
     changedAt: entry.changed_at,
     editedAt: entry.edited_at,
     renamedFrom: null,
+    computed: entry.computed,
   };
 }
 
@@ -183,7 +200,16 @@ export function partText(build: EditorBuild, part: BuildPart): string {
     case 'talent_priority':
       return JSON.stringify(ranked(build.talent_priority, 'talent'));
     case 'stat_targets':
-      return JSON.stringify((build.stat_targets ?? []).map((target) => [target.stat, target.min, target.max, target.from_rank]));
+      return JSON.stringify(
+        (build.stat_targets ?? []).map((target) => [
+          target.stat,
+          target.min,
+          target.max,
+          target.from_rank,
+          target.tiers ? [target.tiers.basic, target.tiers.intermediate, target.tiers.advanced] : null,
+          target.off === true,
+        ]),
+      );
     case 'teams':
       return JSON.stringify(
         build.teams.map((team) => [team.name, team.members.map((member) => [member.key, member.name, member.role, member.min_rank, member.alternatives.map((one) => [one.key, one.name])])]),
@@ -299,8 +325,8 @@ function freeQualifier(draft: Draft, role: string, minRank: number, base: string
   }
 }
 
-function newDraftBuild(build: EditorBuild, notes: DraftNotes): DraftBuild {
-  return { uid: newUid(), id: null, removal: null, build, file: null, filePosition: null, notes, checkedAt: null, changedAt: null, editedAt: null, renamedFrom: null };
+function newDraftBuild(build: EditorBuild, notes: DraftNotes, computed: ComputedTargets | null = null): DraftBuild {
+  return { uid: newUid(), id: null, removal: null, build, file: null, filePosition: null, notes, checkedAt: null, changedAt: null, editedAt: null, renamedFrom: null, computed };
 }
 
 /** A new, empty build of the editor's own, last: the first role with no build of its own yet, else "New" (to be renamed). */
@@ -322,7 +348,8 @@ export function addCopy(draft: Draft, uid: string, facts: EditorFacts): { draft:
   const own = source.build.qualifier.trim();
   const qualifier = freeQualifier(draft, source.build.role, source.build.min_rank, own === '' ? 'Copy' : `${own} copy`, facts.limits.qualifier);
   // Rows of its own: a copy's row is no row of the original's (rowId()).
-  const build = newDraftBuild({ ...structuredClone(source.build), qualifier }, structuredClone(source.notes));
+  // What the site works out for the original holds for its copy until the copy's parts change and it is saved.
+  const build = newDraftBuild({ ...structuredClone(source.build), qualifier }, structuredClone(source.notes), source.computed);
   return { draft: { ...draft, builds: [...draft.builds, build] }, uid: build.uid };
 }
 
@@ -345,6 +372,7 @@ export function bringBack(draft: Draft, removalId: number): { draft: Draft; uid:
     changedAt: null,
     editedAt: null,
     renamedFrom: null,
+    computed: removal.computed,
   };
   return { draft: { ...draft, builds: placed(draft.builds, build) }, uid: build.uid };
 }
@@ -720,21 +748,42 @@ function partProblems(uid: string, build: EditorBuild, facts: EditorFacts, chang
   const targets = new Map<string, number>();
   (build.stat_targets ?? []).forEach((target, i) => {
     const at = `stat_targets[${i}]`;
-    if (changed.has('stat_targets') && target.min === null && target.max === null) {
-      found.push({ uid, path: `${at}.min`, message: 'Give it a minimum, a maximum or both.' });
-    }
-    for (const bound of ['min', 'max'] as const) {
-      if (!withinBound(target[bound], limits.bound)) {
-        found.push({ uid, path: `${at}.${bound}`, message: `A number from -${limits.bound} to ${limits.bound}.` });
+    if (target.off === true) {
+      // A stat switched off: nothing of it to check.
+    } else if (target.tiers) {
+      // The three tiers set by hand: each a number, nought or more, none above the next.
+      const tiers = target.tiers;
+      for (const tier of ['basic', 'intermediate', 'advanced'] as const) {
+        const value = tiers[tier];
+        if (value === null) {
+          found.push({ uid, path: `${at}.tiers.${tier}`, message: 'Give all three tiers a number.' });
+        } else if (!Number.isFinite(value) || value < 0 || value > limits.bound) {
+          found.push({ uid, path: `${at}.tiers.${tier}`, message: `A number from 0 to ${limits.bound}.` });
+        }
       }
-    }
-    if (target.min !== null && target.max !== null && target.min > target.max) {
-      found.push({ uid, path: `${at}.min`, message: 'No higher than the maximum.' });
+      if (tiers.basic !== null && tiers.intermediate !== null && tiers.basic > tiers.intermediate) {
+        found.push({ uid, path: `${at}.tiers.basic`, message: 'No higher than the intermediate tier.' });
+      }
+      if (tiers.intermediate !== null && tiers.advanced !== null && tiers.intermediate > tiers.advanced) {
+        found.push({ uid, path: `${at}.tiers.intermediate`, message: 'No higher than the advanced tier.' });
+      }
+    } else {
+      if (changed.has('stat_targets') && target.min === null && target.max === null) {
+        found.push({ uid, path: `${at}.min`, message: 'Give it a minimum, a maximum or both.' });
+      }
+      for (const bound of ['min', 'max'] as const) {
+        if (!withinBound(target[bound], limits.bound)) {
+          found.push({ uid, path: `${at}.${bound}`, message: `A number from -${limits.bound} to ${limits.bound}.` });
+        }
+      }
+      if (target.min !== null && target.max !== null && target.min > target.max) {
+        found.push({ uid, path: `${at}.min`, message: 'No higher than the maximum.' });
+      }
     }
     const key = `${target.stat}\n${target.from_rank}`;
     const other = targets.get(key);
     if (other !== undefined) {
-      found.push({ uid, path: `${at}.stat`, message: `Target ${other + 1} is for this stat from the same constellation: one target a stat from each constellation.` });
+      found.push({ uid, path: `${at}.stat`, message: 'Another target is for this stat from the same constellation: one target a stat from each constellation.' });
     } else {
       targets.set(key, i);
     }
@@ -769,7 +818,18 @@ export function fieldsOf(build: EditorBuild, own: string | null = null): string[
   }
   build.substats.forEach((_, i) => fields.push(`substats[${i}].stat`, `substats[${i}].priority`));
   (build.talent_priority ?? []).forEach((_, i) => fields.push(`talent_priority[${i}].talent`, `talent_priority[${i}].priority`));
-  (build.stat_targets ?? []).forEach((_, i) => fields.push(`stat_targets[${i}].stat`, `stat_targets[${i}].from_rank`, `stat_targets[${i}].min`, `stat_targets[${i}].max`));
+  (build.stat_targets ?? []).forEach((target, i) =>
+    fields.push(
+      `stat_targets[${i}].stat`,
+      // A stat switched off has no field but its stat's place (the form says a problem there); the others theirs.
+      ...(target.off === true
+        ? []
+        : [
+            `stat_targets[${i}].from_rank`,
+            ...(target.tiers ? [`stat_targets[${i}].tiers.basic`, `stat_targets[${i}].tiers.intermediate`, `stat_targets[${i}].tiers.advanced`] : [`stat_targets[${i}].min`, `stat_targets[${i}].max`]),
+          ]),
+    ),
+  );
   build.teams.forEach((team, t) => {
     fields.push(`teams[${t}].name`);
     team.members.forEach((member, m) => {

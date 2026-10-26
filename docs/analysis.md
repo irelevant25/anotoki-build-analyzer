@@ -98,7 +98,8 @@ its words.
   CRIT DMG is twice the CRIT Rate in combat - the sheet's plus what the set option's 4-piece adds, read from its
   words (`SetBonus::fourPieceCritRate()`: Blizzard Strayer's 40 %, Marechaussee Hunter's 36 %, Obsidian Codex's
   40 %) - and the combat CRIT Rate never past 85 % (`CRIT_RATE_CAP`): a Blizzard Strayer build stops at 45 % on the
-  sheet and puts the rest into CRIT DMG. Each tier's value is the fixed sources plus the rolls:
+  sheet and puts the rest into CRIT DMG. CRIT Rate on its own in the split - its partner a requirement, or set by
+  hand - stops at the same cap. Each tier's value is the fixed sources plus the rolls:
   `{stat, tiers: {basic, intermediate, advanced}, min: null, max: null, floor}`. HP%, ATK% and DEF% go out as the
   sheet's totals under `hp`, `atk`, `def` (base × (1 + %) + flat); the rest as the percentage or points. Every row
   says where the sheet starts for its stat (`floor`: the fixed sources alone, not one useful roll yet).
@@ -114,9 +115,15 @@ its words.
   tier values and "you: ..." stay beside it; the builds browser, with no total, keeps the values alone. The account
   page's character cards carry the stat targets' part as a fourth score bar beside the sets', main stats' and
   substats'.
+- **An editor's word stands** (the editor's round of 2026-10-26; [builds.md](builds.md), "The editor"): a stat whose
+  three tiers an editor set by hand (`stat_targets` entry with `tiers`) shows those - in its substat's place, or after
+  the rest for a stat no substat of the build rolls -, its rolls paid tier by tier like a requirement's (what each
+  tier's value takes from the floor), so the other stats share what is left; a stat switched off (`off`) is out of the
+  split and the rows. Per stat the entry of the highest constellation reached holds, whatever its kind
+  (`BuildEvaluator::targetsFor()`). The same for every weapon: a hand-set tier does not follow the weapon in hand.
 - **Without the stats** - the catalog not refreshed since the genshin site hands them on, a character or weapon it
-  has none for - the rows are the stated targets alone (`tiers` null, `floor` null: a bar from nought), and
-  `targets_basis` is null.
+  has none for - the rows are the stated targets alone (`tiers` null, `floor` null: a bar from nought) and the tiers
+  set by hand, nothing switched off, and `targets_basis` is null.
 
 The budgets, the shares and the Energy Recharge ceilings were set against what the top players of 36 builds reach
 (the owner's samples of 2026-10-26, never in the repository): a whale's set holds 37-40 useful rolls, so advanced is

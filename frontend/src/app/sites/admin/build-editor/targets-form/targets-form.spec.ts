@@ -1,13 +1,25 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { provideTestTranslations } from '@anotoki/lib/translations/testing';
 import { provideKit } from '../../../../shared/kit';
-import { EditorTarget } from '../../../../api/models';
+import { EditorTarget, StatTarget } from '../../../../api/models';
 import { TargetsForm, readBound } from './targets-form';
 
 const STATS = [
   { value: 'critRate_', label: 'CRIT Rate' },
   { value: 'eleMas', label: 'Elemental Mastery' },
   { value: 'enerRech_', label: 'Energy Recharge' },
+  { value: 'critDMG_', label: 'CRIT DMG' },
+  { value: 'hp', label: 'HP' },
+  { value: 'hp_', label: 'HP%' },
+  { value: 'atk', label: 'ATK' },
+];
+
+/** What the site works out for the build: the stated CRIT Rate, then CRIT DMG, HP and ATK in tiers. */
+const COMPUTED: StatTarget[] = [
+  { stat: 'critRate_', tiers: null, min: 70, max: null, from_rank: 0, floor: 36.1 },
+  { stat: 'critDMG_', tiers: { basic: 106.7, intermediate: 136, advanced: 165.4 }, min: null, max: null, from_rank: null, floor: 88.4 },
+  { stat: 'hp', tiers: { basic: 28200, intermediate: 29500, advanced: 30800 }, min: null, max: null, from_rank: null, floor: 20332 },
+  { stat: 'atk', tiers: { basic: 1200, intermediate: 1300, advanced: 1400 }, min: null, max: null, from_rank: null, floor: 1100 },
 ];
 
 describe("the targets' form: a stat's minimum and maximum, from a constellation on", () => {
@@ -21,10 +33,11 @@ describe("the targets' form: a stat's minimum and maximum, from a constellation 
   const control = <T extends HTMLElement>(path: string) => field(path).querySelector<T>('input, select')!;
   const last = () => emitted.at(-1)!;
 
-  async function setup(targets: EditorTarget[]): Promise<void> {
+  async function setup(targets: EditorTarget[], computed: StatTarget[] | null = null): Promise<void> {
     TestBed.configureTestingModule({ providers: [provideTestTranslations({}), provideKit()] });
     fixture = TestBed.createComponent(TargetsForm);
     fixture.componentRef.setInput('targets', targets);
+    fixture.componentRef.setInput('computed', computed);
     fixture.componentRef.setInput('stats', STATS);
     emitted = [];
     unreadable = [];
@@ -155,5 +168,158 @@ describe("the targets' form: a stat's minimum and maximum, from a constellation 
     host.querySelectorAll<HTMLButtonElement>('button.remove')[0].click();
     await fixture.whenStable();
     expect(last().map((target) => target.stat)).toEqual(['critRate_']);
+  });
+
+  describe('the tiered targets', () => {
+    const tierRow = (stat: string) => host.querySelector<HTMLElement>(`.tier-row[data-stat="${stat}"]`);
+    const tierValues = (stat: string) => [...tierRow(stat)!.querySelectorAll<HTMLInputElement>('.tier input')].map((input) => [input.value, input.readOnly]);
+    const auto = (stat: string) => tierRow(stat)!.querySelector<HTMLInputElement>('.auto input')!;
+
+    it('lists what the site works out as Auto rows with their values read-only, a stat set by hand with its own, a stat switched off said so - each a group of its own', async () => {
+      await setup(
+        [
+          { stat: 'critRate_', min: 70, max: null, from_rank: 0 },
+          { stat: 'eleMas', min: null, max: null, from_rank: 1, tiers: { basic: 40, intermediate: 80, advanced: 120 } },
+          { stat: 'hp', min: null, max: null, from_rank: 0, off: true },
+        ],
+        COMPUTED,
+      );
+
+      // The requirements' list holds the requirement alone; the tiered list every stat worked out, then the one set by hand that is not.
+      expect([...host.querySelectorAll('.target-row')].map((row) => row.getAttribute('aria-label'))).toEqual(['Target 1: CRIT Rate']);
+      expect([...host.querySelectorAll('.tier-row')].map((row) => [row.getAttribute('role'), row.getAttribute('aria-label')])).toEqual([
+        ['group', 'Tiered target 1: CRIT DMG (worked out)'],
+        ['group', 'Tiered target 2: HP (switched off)'],
+        ['group', 'Tiered target 3: ATK (worked out)'],
+        ['group', 'Tiered target 4: Elemental Mastery (set by hand, from C1)'],
+      ]);
+      expect(tierValues('critDMG_')).toEqual([
+        ['106.7', true],
+        ['136', true],
+        ['165.4', true],
+      ]);
+      expect([auto('critDMG_').checked, auto('critDMG_').disabled]).toEqual([true, false]);
+      expect(text(tierRow('critDMG_')!.querySelector('.tier[data-tier="basic"] label'))).toBe('Basic (%)');
+      expect(text(tierRow('critDMG_')!.querySelector('.remove'))).toBe('');
+      expect(tierRow('critDMG_')!.querySelector('.remove')!.getAttribute('aria-label')).toBe('Switch off Tiered target 1: CRIT DMG (worked out)');
+      expect(tierRow('critDMG_')!.querySelector('.from')).toBeNull();
+      // Set by hand: its values to edit, where it holds from, Auto unticked - and disabled where nothing is worked out for the stat.
+      expect(tierValues('eleMas')).toEqual([
+        ['40', false],
+        ['80', false],
+        ['120', false],
+      ]);
+      expect([auto('eleMas').checked, auto('eleMas').disabled]).toEqual([false, true]);
+      expect(tierRow('eleMas')!.querySelector<HTMLSelectElement>('.from select')!.value).toBe('1');
+      expect(tierRow('eleMas')!.querySelector('.tier[data-tier="basic"]')!.getAttribute('data-path')).toBe('stat_targets[1].tiers.basic');
+      expect(tierRow('eleMas')!.querySelector('.remove')!.getAttribute('aria-label')).toBe('Remove Tiered target 4: Elemental Mastery (set by hand, from C1)');
+      // Switched off: said so, with Switch on.
+      expect([text(tierRow('hp')!.querySelector('.stat-name')), text(tierRow('hp')!.querySelector('.note')), text(tierRow('hp')!.querySelector('.switch-on'))]).toEqual([
+        'HP',
+        'Switched off: nothing is worked out or shown for it.',
+        'Switch on',
+      ]);
+      expect(unreadable).toEqual([[]]);
+    });
+
+    it('unticks Auto: the stat set by hand from the values worked out, its tiers typed as numbers; ticked again, the entry goes', async () => {
+      await setup([{ stat: 'critRate_', min: 70, max: null, from_rank: 0 }], COMPUTED);
+
+      auto('critDMG_').click();
+      await fixture.whenStable();
+      expect(last()).toEqual([
+        { stat: 'critRate_', min: 70, max: null, from_rank: 0 },
+        { stat: 'critDMG_', min: null, max: null, from_rank: 0, tiers: { basic: 106.7, intermediate: 136, advanced: 165.4 } },
+      ]);
+      expect(tierRow('critDMG_')!.getAttribute('aria-label')).toBe('Tiered target 1: CRIT DMG (set by hand)');
+      expect(document.activeElement).toBe(tierRow('critDMG_')!.querySelector('.tier[data-tier="basic"] input'));
+
+      await type('stat_targets[1].tiers.basic', '150%');
+      expect(last()[1].tiers).toEqual({ basic: 150, intermediate: 136, advanced: 165.4 });
+      await type('stat_targets[1].tiers.advanced', '2x');
+      expect(unreadable.at(-1)).toEqual(['stat_targets[1].tiers.advanced']);
+      await leave('stat_targets[1].tiers.advanced');
+      expect(text(field('stat_targets[1].tiers.advanced'))).toContain('Write a number');
+      await type('stat_targets[1].tiers.advanced', '');
+      expect(last()[1].tiers).toEqual({ basic: 150, intermediate: 136, advanced: null });
+
+      auto('critDMG_').click();
+      await fixture.whenStable();
+      expect(last()).toEqual([{ stat: 'critRate_', min: 70, max: null, from_rank: 0 }]);
+      expect(tierValues('critDMG_')).toEqual([
+        ['106.7', true],
+        ['136', true],
+        ['165.4', true],
+      ]);
+    });
+
+    it('switches a stat off and on again, takes a hand-set stat with nothing worked out off the list, and adds a tiered target for the first stat with no row', async () => {
+      await setup([{ stat: 'eleMas', min: null, max: null, from_rank: 0, tiers: { basic: 40, intermediate: 80, advanced: 120 } }], COMPUTED);
+
+      // A stat worked out switched off: a stored entry says so.
+      tierRow('hp')!.querySelector<HTMLButtonElement>('.remove')!.click();
+      await fixture.whenStable();
+      expect(last()[1]).toEqual({ stat: 'hp', min: null, max: null, from_rank: 0, off: true });
+      expect(tierRow('hp')!.getAttribute('aria-label')).toBe('Tiered target 2: HP (switched off)');
+      tierRow('hp')!.querySelector<HTMLButtonElement>('.switch-on')!.click();
+      await fixture.whenStable();
+      expect(last().map((target) => target.stat)).toEqual(['eleMas']);
+      expect(auto('hp').checked).toBe(true);
+
+      // A stat set by hand with one worked out behind it, removed: switched off, not worked out again.
+      auto('critDMG_').click();
+      await fixture.whenStable();
+      tierRow('critDMG_')!.querySelector<HTMLButtonElement>('.remove')!.click();
+      await fixture.whenStable();
+      expect(last()[1]).toEqual({ stat: 'critDMG_', min: null, max: null, from_rank: 0, off: true });
+
+      // One set by hand with nothing worked out behind it, removed: gone.
+      tierRow('eleMas')!.querySelector<HTMLButtonElement>('.remove')!.click();
+      await fixture.whenStable();
+      expect(last()).toEqual([{ stat: 'critDMG_', min: null, max: null, from_rank: 0, off: true }]);
+
+      // Added: the first stat with no row - CRIT Rate, a requirement only -, its three values to type.
+      host.querySelector<HTMLButtonElement>('button.add-tiered')!.click();
+      await fixture.whenStable();
+      expect(last()[1]).toEqual({ stat: 'critRate_', min: null, max: null, from_rank: 0, tiers: { basic: null, intermediate: null, advanced: null } });
+      expect(document.activeElement).toBe(tierRow('critRate_')!.querySelector('select'));
+    });
+
+    it('keeps a stat with a requirement from the start as it is - Auto and Switch off wait for that one -, switches a stat off from the constellation it held from, and stands HP% set by hand where HP is worked out', async () => {
+      await setup(
+        [
+          // A requirement with a maximum alone leaves CRIT DMG in the split: a row worked out beside it, locked.
+          { stat: 'critDMG_', min: null, max: 200, from_rank: 0 },
+          { stat: 'atk', min: null, max: null, from_rank: 2, tiers: { basic: 1250, intermediate: 1350, advanced: 1450 } },
+          { stat: 'hp_', min: null, max: null, from_rank: 0, tiers: { basic: 40, intermediate: 50, advanced: 60 } },
+        ],
+        COMPUTED,
+      );
+
+      expect([auto('critDMG_').disabled, tierRow('critDMG_')!.querySelector<HTMLButtonElement>('.remove')!.disabled]).toEqual([true, true]);
+      expect(text(tierRow('critDMG_')!.querySelector('.auto'))).toContain('A requirement for this stat holds from the start');
+      // HP% set by hand stands where the sheet's HP is worked out: one row, the hand one.
+      expect([...host.querySelectorAll('.tier-row')].map((row) => row.getAttribute('aria-label'))).toEqual([
+        'Tiered target 1: CRIT DMG (worked out)',
+        'Tiered target 2: HP% (set by hand)',
+        'Tiered target 3: ATK (set by hand, from C2)',
+      ]);
+      tierRow('atk')!.querySelector<HTMLButtonElement>('.remove')!.click();
+      await fixture.whenStable();
+      expect(last()[1]).toEqual({ stat: 'atk', min: null, max: null, from_rank: 2, off: true });
+    });
+
+    it('lists the stats set by hand while the catalog has no stats, Auto disabled on each', async () => {
+      await setup([{ stat: 'eleMas', min: null, max: null, from_rank: 0, tiers: { basic: 40, intermediate: 80, advanced: 120 } }], null);
+      expect([...host.querySelectorAll('.tier-row')].map((row) => row.getAttribute('aria-label'))).toEqual(['Tiered target 1: Elemental Mastery (set by hand)']);
+      expect([auto('eleMas').checked, auto('eleMas').disabled]).toEqual([false, true]);
+      expect(host.querySelector('.tiered + .add-tiered')).not.toBeNull();
+    });
+
+    it('says nothing is worked out while the catalog has no stats and nothing is set by hand', async () => {
+      await setup([], null);
+      expect(text(host.querySelector('.tiered-head ~ .none'))).toContain('Nothing worked out yet');
+      expect(host.querySelectorAll('.tier-row').length).toBe(0);
+    });
   });
 });

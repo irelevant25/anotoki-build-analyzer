@@ -295,6 +295,8 @@ export interface StatTarget {
   current?: number | null;
   ok?: boolean | null;
   tier?: TargetTier | null;
+  /** On a build's stored `stat_targets` alone: the stat switched off by an editor - nothing worked out or shown for it. */
+  off?: boolean;
 }
 
 /**
@@ -822,12 +824,25 @@ export interface EditorSetOption {
   pieces: EditorSetPiece[];
 }
 
-/** A stat target as the editor edits it: its numbers alone, from a constellation on. */
+/**
+ * A stat target as the editor edits it, one of three (the editor's round of 2026-10-26): a requirement - its numbers
+ * alone, from a constellation on -, the three tiers set by hand in place of the ones the site works out for the stat
+ * (`tiers`), or the stat switched off (`off`: nothing worked out for it, nothing shown).
+ */
 export interface EditorTarget {
   stat: string;
   min: number | null;
   max: number | null;
   from_rank: number;
+  /** The three tiers set by hand, each a number - null while one is still to be typed (no save until it is); the field left out otherwise (the server refuses null). */
+  tiers?: { basic: number | null; intermediate: number | null; advanced: number | null };
+  off?: boolean;
+}
+
+/** The stat targets the site works out for a build as the builds page shows them: what the form's Auto gives each stat. */
+export interface ComputedTargets {
+  rows: StatTarget[];
+  basis: TargetsBasis;
 }
 
 /** A character a team names, by key and name. */
@@ -893,6 +908,8 @@ export interface EditorEntry {
   /** The parts that differ from what the file said of it. */
   edited: BuildPart[];
   notes: EditorNotes;
+  /** What the site works out for its stat targets - the tiers set by hand and the stats switched off left out -; null while the catalog lacks the stats. */
+  computed: ComputedTargets | null;
   checked_at: string | null;
   changed_at: string | null;
   edited_at: string | null;
@@ -904,6 +921,7 @@ export interface RemovedBuild {
   build: EditorBuild;
   file_position: number;
   notes: EditorNotes;
+  computed: ComputedTargets | null;
   removed_at: string | null;
 }
 

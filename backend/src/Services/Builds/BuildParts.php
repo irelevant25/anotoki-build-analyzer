@@ -14,7 +14,8 @@ use App\Support\Json;
  * the texts the format still carries but the site never shows: a weapon's, a set option's and a team's note, a stat
  * target's text (the build's own notes are no part at all). Priorities, names and the order of every list as they are:
  * the analysis and the page read them so. A stat target's bound as a float, so 70 and 70.0 - as a browser sends one
- * back, as a file may write it - are the same; a main stat's slots in one order, whichever order they were written in.
+ * back, as a file may write it - are the same, its tiers set by hand as floats too and whether it is switched off
+ * (the editor's round of 2026-10-26); a main stat's slots in one order, whichever order they were written in.
  */
 final class BuildParts
 {
@@ -60,7 +61,14 @@ final class BuildParts
             'talent_priority' => Json::encode(self::ranked($build['talent_priority'] ?? null, 'talent')),
             'stat_targets' => Json::encode(
                 array_map(
-                    fn(array $target) => [(string) ($target['stat'] ?? ''), self::bound($target['min'] ?? null), self::bound($target['max'] ?? null), (int) ($target['from_rank'] ?? 0)],
+                    fn(array $target) => [
+                        (string) ($target['stat'] ?? ''),
+                        self::bound($target['min'] ?? null),
+                        self::bound($target['max'] ?? null),
+                        (int) ($target['from_rank'] ?? 0),
+                        is_array($target['tiers'] ?? null) ? array_map(fn(string $tier) => self::bound($target['tiers'][$tier] ?? null), ['basic', 'intermediate', 'advanced']) : null,
+                        ($target['off'] ?? false) === true,
+                    ],
                     self::list($build['stat_targets'] ?? null),
                 ),
             ),

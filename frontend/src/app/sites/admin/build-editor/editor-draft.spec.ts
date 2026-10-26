@@ -129,6 +129,7 @@ function loaded(fields: Partial<CharacterEditing> = {}): CharacterEditing {
         file: build(),
         file_position: 0,
         edited: [],
+        computed: null,
         notes: { build: { en: 'Keep her HP low.', sk: 'Drž jej HP nízko.' }, teams: [{ en: 'Swirl first.' }], waiting: [] },
         checked_at: '2026-10-20T10:00:00+00:00',
         changed_at: '2026-10-20T10:00:00+00:00',
@@ -141,6 +142,7 @@ function loaded(fields: Partial<CharacterEditing> = {}): CharacterEditing {
         file: support,
         file_position: 2,
         edited: ['game_version'],
+        computed: null,
         notes: { build: null, teams: [], waiting: [] },
         checked_at: null,
         changed_at: null,
@@ -153,13 +155,14 @@ function loaded(fields: Partial<CharacterEditing> = {}): CharacterEditing {
         file: null,
         file_position: null,
         edited: [],
+        computed: null,
         notes: { build: null, teams: [], waiting: [] },
         checked_at: null,
         changed_at: null,
         edited_at: null,
       },
     ],
-    removed: [{ id: 7, build: build({ role: 'sub_dps', teams: [] }), file_position: 1, notes: { build: { en: 'Old words.' }, teams: [], waiting: [] }, removed_at: null }],
+    removed: [{ id: 7, build: build({ role: 'sub_dps', teams: [] }), file_position: 1, notes: { build: { en: 'Old words.' }, teams: [], waiting: [] }, computed: null, removed_at: null }],
     ...fields,
   };
 }
@@ -291,6 +294,38 @@ describe("the builds editor's state: from what the server loaded to a save, and 
       const moved = moveBuild(fromServer(loaded()), 'b3', -1);
       expect(giveOrderBack(moved).orderToFile).toBe(false);
       expect(fileOrder(moved.builds).map((one) => one.uid)).toEqual(['b1', 'b2', 'b3']);
+    });
+  });
+
+  describe("the stat targets of each kind: a requirement, the tiers set by hand, a stat switched off (the editor's round of 2026-10-26)", () => {
+    const requirement = { stat: 'critRate_', min: 70, max: null, from_rank: 0 };
+    const byHand = { stat: 'critDMG_', min: null, max: null, from_rank: 0, tiers: { basic: 180, intermediate: 210, advanced: 240 } };
+    const off = { stat: 'hp', min: null, max: null, from_rank: 0, off: true };
+
+    it('tells the kinds apart in a part text: the same stat with tiers, switched off or as a requirement are three parts', () => {
+      const texts = [[requirement], [byHand], [off], [{ ...byHand, tiers: { ...byHand.tiers, advanced: 250 } }]].map((targets) => partText(build({ stat_targets: targets }), 'stat_targets'));
+      expect(new Set(texts).size).toBe(4);
+    });
+
+    it('holds a save back for a tier still to be typed or out of order, never for a stat switched off', () => {
+      const draft = fromServer(loaded());
+      const uid = draft.builds[0].uid;
+      const problemsOf = (targets: EditorBuild['stat_targets']) =>
+        problems(
+          updateBuild(draft, uid, (one) => withField(one, 'stat_targets', targets)),
+          FACTS,
+        ).map((problem) => [problem.path, problem.message]);
+      expect(problemsOf([requirement, byHand, off])).toEqual([]);
+      expect(problemsOf([{ ...byHand, tiers: { basic: null, intermediate: 210, advanced: 240 } }])).toEqual([['stat_targets[0].tiers.basic', 'Give all three tiers a number.']]);
+      expect(problemsOf([{ ...byHand, tiers: { basic: 220, intermediate: 210, advanced: 200 } }])).toEqual([
+        ['stat_targets[0].tiers.basic', 'No higher than the intermediate tier.'],
+        ['stat_targets[0].tiers.intermediate', 'No higher than the advanced tier.'],
+      ]);
+      expect(problemsOf([{ ...byHand, tiers: { basic: -1, intermediate: 210, advanced: 240 } }])).toEqual([['stat_targets[0].tiers.basic', `A number from 0 to ${FACTS.limits.bound}.`]]);
+      // One target a stat from each constellation, whatever their kinds.
+      expect(problemsOf([byHand, { ...off, stat: 'critDMG_' }])).toEqual([
+        ['stat_targets[1].stat', 'Another target is for this stat from the same constellation: one target a stat from each constellation.'],
+      ]);
     });
   });
 
@@ -509,7 +544,7 @@ describe("the builds editor's state: from what the server loaded to a save, and 
         { uid: 'b1', path: 'stat_targets[0].min', message: 'Give it a minimum, a maximum or both.' },
         { uid: 'b1', path: 'stat_targets[1].min', message: 'No higher than the maximum.' },
         { uid: 'b1', path: 'stat_targets[2].min', message: 'A number from -1000000 to 1000000.' },
-        { uid: 'b1', path: 'stat_targets[3].stat', message: 'Target 2 is for this stat from the same constellation: one target a stat from each constellation.' },
+        { uid: 'b1', path: 'stat_targets[3].stat', message: 'Another target is for this stat from the same constellation: one target a stat from each constellation.' },
       ]);
     });
 
@@ -546,7 +581,9 @@ describe("the builds editor's state: from what the server loaded to a save, and 
       expect(ofB1(over, over)).toEqual(['stat_targets[0].min']);
 
       // As the file has it is as a file brought it: a removed build brought back as it was...
-      const removed = fromServer(loaded({ removed: [{ id: 7, build: { ...parts, role: 'sub_dps' }, file_position: 1, notes: { build: null, teams: [], waiting: [] }, removed_at: null }] }));
+      const removed = fromServer(
+        loaded({ removed: [{ id: 7, build: { ...parts, role: 'sub_dps' }, file_position: 1, notes: { build: null, teams: [], waiting: [] }, computed: null, removed_at: null }] }),
+      );
       const brought = bringBack(removed, 7)!;
       expect(problems(brought.draft, FACTS, removed).filter((problem) => problem.uid === brought.uid)).toEqual([]);
       // ...and a part the file's again ("Use the file's"): two sets with no label, as the file has them.

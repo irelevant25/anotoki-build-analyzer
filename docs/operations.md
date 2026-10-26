@@ -742,6 +742,14 @@ Check after an install: `https://builder.anotoki.eu/config/database.local.php`, 
 `/src/Config.php` must not download (403); `https://builder.anotoki.eu/api/meta` answers JSON with the IAM's
 `issuer`, `client_id` and `login_required` under `auth`; `/api/accounts` answers 401 without a token.
 
+### Deploying 0.11.0
+
+No migration: the release goes up (`bun run anotoki-deploy deploy --backups <folder> --go`) and the site stays open.
+The editor's stat targets ([decisions.md](decisions.md), 2026-10-26; [builds.md](builds.md), "The editor"): the
+tiered targets in the builds editor with Auto, set by hand, switched off, added. Check: `/admin/builds/genshin/hutao`
+shows "Tiered targets" under the requirements with Auto ticked on each stat worked out; a stat's tiers set by hand and
+saved show on `/builds/genshin/hutao`, a stat switched off does not; Auto ticked again puts the worked-out ones back.
+
 ### Deploying 0.10.0
 
 No migration: the release goes up (`bun run anotoki-deploy deploy --backups <folder> --go`) and the site stays open.

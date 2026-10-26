@@ -413,6 +413,8 @@ one (the Backups page, "before an update"). `config/*.local.php` and `storage/` 
   0.9.0".
 - **Version 0.10.0** (no migration): the target bars on both pages and every bar in three colours - the release only.
   [docs/operations.md](docs/operations.md), "Deploying 0.10.0".
+- **Version 0.11.0** (no migration): the editor's stat targets - the tiers in the builds editor with Auto, set by hand,
+  switched off, added - the release only. [docs/operations.md](docs/operations.md), "Deploying 0.11.0".
 - **The site settings, robots.txt and sitemap.xml** (anotoki-lib 0.11.1, both halves; migration 025 and the
   library's `anotoki_admin/003`, `anotoki_translations/014` and `015`): Export each language, upload the release
   with `vendor/`, **Apply pending** at once - the settings start empty (the site open, no announcement, every page

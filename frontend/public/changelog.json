@@ -1,5 +1,14 @@
 [
   {
+    "version": "0.11.0",
+    "date": "2026-10-26",
+    "changes": {
+      "updated": [
+        "For the site's editors: a build's stat targets in three tiers show in the builds editor too, each with Auto ticked - untick it to set the three tiers by hand, switch a stat off, or add a tiered target of your own"
+      ]
+    }
+  },
+  {
     "version": "0.10.0",
     "date": "2026-10-26",
     "changes": {

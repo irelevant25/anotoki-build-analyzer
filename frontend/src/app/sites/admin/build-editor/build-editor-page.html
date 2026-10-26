@@ -273,6 +273,7 @@
                                             @case ("stat_targets") {
                                                 <app-targets-form
                                                     [targets]="b.build.stat_targets ?? none"
+                                                    [computed]="b.computed?.rows ?? null"
                                                     [stats]="statChoices()"
                                                     [maxRank]="facts()?.max_rank ?? 6"
                                                     [rankPrefix]="rankPrefix()"

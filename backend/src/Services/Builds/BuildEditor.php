@@ -10,6 +10,7 @@ use App\Models\GameSet;
 use App\Models\GameWeapon;
 use App\Presenters\Icons;
 use App\Repositories\CatalogRows;
+use App\Services\Analysis\TargetTiers;
 use App\Services\Catalog\Catalog;
 use App\Services\Translations\SiteTranslations;
 use App\Support\Clock;
@@ -26,9 +27,10 @@ use Closure;
  *
  * Loading gives each build in the editor's shape - the builds file's (BuildFile), without its character and without
  * the texts the format carries but the site no longer shows - with what the file said of it (for "use the file's"),
- * the parts that differ from that, its notes, and the builds an editor removed; and the version a save is checked
- * against: a hash of what an editor could see change - never of when a file last carried a build, which every import
- * moves.
+ * the parts that differ from that, its notes, the stat targets the site works out for it (`computed`: what the form's
+ * Auto gives each stat; the editor's round of 2026-10-26), and the builds an editor removed; and the version a save
+ * is checked against: a hash of what an editor could see change - never of when a file last carried a build, which
+ * every import moves.
  *
  * A save is the character's builds as the editor leaves them, in their order. Each build is read as a file's build is
  * (BuildFile::readEntry(): every field, shape and cap), its notes as BuildNotes reads them; a typed text (a qualifier,
@@ -165,13 +167,14 @@ final class BuildEditor
             }
         }
         $names = array_map(fn(GameCharacter $teammate) => $teammate->name, $teammates === [] ? [] : $this->catalog->byKeys($game, Catalog::CHARACTER, array_values(array_unique($teammates))));
+        $catalog = $this->targetsCatalog($game, [...array_column($state['rows'], 'build'), ...array_column($state['removals'], 'base')]);
 
         return [
             'game' => $game->value,
             'character' => self::characterOf($character),
             'version' => $state['version'],
             'order' => $state['ordered'] ? 'editors' : 'file',
-            'builds' => array_map(function (array $row) use ($character, $names) {
+            'builds' => array_map(function (array $row) use ($game, $character, $names, $catalog) {
                 $build = self::shape($row['build'], $character);
 
                 return [
@@ -183,12 +186,13 @@ final class BuildEditor
                     'file_position' => $row['base']['position'] ?? null,
                     'edited' => $row['base'] === null ? [] : BuildParts::differing(BuildParts::of($row['build']), BuildParts::of($row['base'])),
                     'notes' => BuildNotes::forEditor($row['notes'], $build['teams'], $names),
+                    'computed' => self::computed($game, $character, $row['build'], $catalog),
                     'checked_at' => Clock::iso($row['checked_at']),
                     'changed_at' => Clock::iso($row['changed_at']),
                     'edited_at' => Clock::iso($row['edited_at']),
                 ];
             }, $state['rows']),
-            'removed' => array_map(function (array $removal) use ($character, $names) {
+            'removed' => array_map(function (array $removal) use ($game, $character, $names, $catalog) {
                 $build = self::shape($removal['base'], $character);
 
                 return [
@@ -196,10 +200,86 @@ final class BuildEditor
                     'build' => $build,
                     'file_position' => $removal['base']['position'],
                     'notes' => BuildNotes::forEditor($removal['notes'], $build['teams'], $names),
+                    'computed' => self::computed($game, $character, $removal['base'], $catalog),
                     'removed_at' => Clock::iso($removal['removed_at']),
                 ];
             }, $state['removals']),
         ];
+    }
+
+    /**
+     * The catalog's weapons and sets the character's builds name - the removed ones' too -, by key, looked up once for
+     * the targets the site works out for each build (computed()).
+     *
+     * @param  list<array<string, mixed>>  $builds  BuildRows::decoded() or fromStored()
+     * @return array{weapons: array<string, GameWeapon>, sets: array<string, GameSet>}
+     */
+    private function targetsCatalog(Game $game, array $builds): array
+    {
+        $weaponKeys = [];
+        $setKeys = [];
+        foreach ($builds as $build) {
+            foreach ((array) ($build['weapons'] ?? []) as $weapon) {
+                if (is_array($weapon) && is_string($weapon['key'] ?? null) && $weapon['key'] !== '') {
+                    $weaponKeys[] = $weapon['key'];
+                }
+            }
+            foreach ((array) ($build['sets'] ?? []) as $option) {
+                foreach (is_array($option) ? (array) ($option['pieces'] ?? []) : [] as $piece) {
+                    foreach (is_array($piece) ? (array) ($piece['keys'] ?? []) : [] as $key) {
+                        if (is_string($key) && $key !== '') {
+                            $setKeys[] = $key;
+                        }
+                    }
+                }
+            }
+        }
+        $weaponKeys = array_values(array_unique($weaponKeys));
+        $setKeys = array_values(array_unique($setKeys));
+
+        return [
+            'weapons' => $weaponKeys === [] ? [] : $this->catalog->byKeys($game, Catalog::WEAPON, $weaponKeys),
+            'sets' => $setKeys === [] ? [] : $this->catalog->byKeys($game, Catalog::SET, $setKeys),
+        ];
+    }
+
+    /**
+     * The stat targets the site works out for a build, as the builds page shows them (BuildPresenter, TargetTiers:
+     * for the first of its weapons the catalog has the stats of, its first set option, the stated requirements paid
+     * first; a 4-star character's at C6) - with the tiers an editor set by hand and the stats switched off left out,
+     * so the editor's form can show what Auto gives for every stat. Null while the catalog lacks the character's
+     * stats or every weapon's.
+     *
+     * @param  array<string, mixed>  $build  BuildRows::decoded() or fromStored()
+     * @param  array{weapons: array<string, GameWeapon>, sets: array<string, GameSet>}  $catalog  targetsCatalog()
+     * @return array{rows: list<array<string, mixed>>, basis: array<string, mixed>}|null
+     */
+    private static function computed(Game $game, GameCharacter $character, array $build, array $catalog): ?array
+    {
+        $requirements = array_values(
+            array_filter((array) ($build['stat_targets'] ?? []), fn($target) => is_array($target) && ($target['off'] ?? false) !== true && !is_array($target['tiers'] ?? null)),
+        );
+        $model = new Build(
+            id: 0,
+            game_character_id: $character->id,
+            role: $build['role'],
+            qualifier: $build['qualifier'],
+            min_rank: $build['min_rank'],
+            position: $build['position'],
+            weapons: $build['weapons'],
+            sets: $build['sets'],
+            main_stats: $build['main_stats'],
+            substats: $build['substats'],
+            talent_priority: $build['talent_priority'],
+            stat_targets: $requirements ?: null,
+            teams: $build['teams'],
+            notes: $build['notes'],
+            game_version: $build['game_version'],
+            character: $character,
+        );
+        $computed = TargetTiers::forBuild($model, $character, $catalog['weapons'], $catalog['sets'], null, [], $character->rarity === 4 ? max($model->min_rank, $game->maxRank()) : $model->min_rank);
+
+        return $computed === null ? null : Neutral::deep($computed);
     }
 
     /**
