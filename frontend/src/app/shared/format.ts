@@ -24,15 +24,18 @@ export function gradeColor(grade: Grade | string | null | undefined): string {
   }
 }
 
+/**
+ * A score bar's fill: one of three colours (the owner's rule of 2026-10-26), cut where the grades are - red below 50
+ * (a D), gold to 79 (C and B), green from 80 (A and S) - so a bar never disagrees with the grade beside it; the muted
+ * colour where there is no score.
+ */
 export function scoreColor(score: number | null | undefined): string {
   if (score === null || score === undefined) {
     return 'var(--anotoki-muted)';
   }
-  if (score >= 90) return 'var(--grade-s)';
-  if (score >= 80) return 'var(--grade-a)';
-  if (score >= 65) return 'var(--grade-b)';
-  if (score >= 50) return 'var(--grade-c)';
-  return 'var(--grade-d)';
+  if (score >= 80) return 'var(--bar-high)';
+  if (score >= 50) return 'var(--bar-mid)';
+  return 'var(--bar-low)';
 }
 
 export function elementColor(element: string | null | undefined): string {

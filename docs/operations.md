@@ -742,6 +742,14 @@ Check after an install: `https://builder.anotoki.eu/config/database.local.php`, 
 `/src/Config.php` must not download (403); `https://builder.anotoki.eu/api/meta` answers JSON with the IAM's
 `issuer`, `client_id` and `login_required` under `auth`; `/api/accounts` answers 401 without a token.
 
+### Deploying 0.10.0
+
+No migration: the release goes up (`bun run anotoki-deploy deploy --backups <folder> --go`) and the site stays open.
+Step 4 of the round of 2026-10-26 ([decisions.md](decisions.md)): a bar under each stat target on an account's
+character page, the dashboard's fourth score bar, and every bar in three colours. Check: on an account's character
+page each stat target with a total shows a bar (a tiered one with two marks), the Score breakdown's bars are red,
+gold or green; the account page's cards show "Stat targets" as a fourth bar.
+
 ### Deploying 0.9.0
 
 The owner's round of 2026-10-26, step 3 ([decisions.md](decisions.md)): a character without in-game totals - one

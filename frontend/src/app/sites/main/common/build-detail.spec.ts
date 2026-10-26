@@ -155,9 +155,9 @@ const EVALUATION: Evaluation = {
 const TIERED: Evaluation = {
   ...EVALUATION,
   targets: [
-    { stat: 'critRate_', tiers: null, min: 70, max: null, from_rank: 0, current: 62, ok: false, tier: null },
-    { stat: 'critDMG_', tiers: { basic: 106.7, intermediate: 136, advanced: 165.4 }, min: null, max: null, from_rank: null, current: 140.2, ok: true, tier: 'intermediate' },
-    { stat: 'hp', tiers: { basic: 28200, intermediate: 29500, advanced: 30800 }, min: null, max: null, from_rank: null, current: null, ok: null, tier: null },
+    { stat: 'critRate_', tiers: null, min: 70, max: null, from_rank: 0, floor: 36.1, current: 62, ok: false, tier: null },
+    { stat: 'critDMG_', tiers: { basic: 106.7, intermediate: 136, advanced: 165.4 }, min: null, max: null, from_rank: null, floor: 88.4, current: 140.2, ok: true, tier: 'intermediate' },
+    { stat: 'hp', tiers: { basic: 28200, intermediate: 29500, advanced: 30800 }, min: null, max: null, from_rank: null, floor: 20332, current: null, ok: null, tier: null },
   ],
   targets_basis: { weapon: "Dragon's Bane", sets: '4pc Crimson Witch of Flames', main_stats: { sands: 'hp_', goblet: 'pyro_dmg_', circlet: 'critRate_' } },
 };
@@ -247,6 +247,17 @@ describe('BuildDetail: a recommended build in the reader’s words, the game’s
     expect(text('.target:nth-child(3) dd')).toEqual(['28,200', '29,500', '30,800']);
     expect([...host.querySelectorAll('.target:nth-child(3) .t-tier')].map((tier) => tier.classList.contains('reached'))).toEqual([false, false, false]);
     expect(text('.target:nth-child(3) .t-current')).toEqual([]);
+
+    // The bars (the kit's progress bars, heard with the stat's name and the total): a requirement's from where the
+    // sheet starts to its value; a tiered stat's to the advanced tier, the two lower tiers marked along it; none
+    // without a total.
+    const bar = (n: number) => host.querySelector(`.target:nth-child(${n}) app-target-bar [role="progressbar"]`);
+    const said = (n: number) => ['aria-label', 'aria-valuemin', 'aria-valuemax', 'aria-valuenow', 'aria-valuetext'].map((name) => bar(n)?.getAttribute(name));
+    expect(said(1)).toEqual(['CRIT Rate', '36.1', '70', '62', '62.0%']);
+    expect(host.querySelectorAll('.target:nth-child(1) .mark').length).toBe(0);
+    expect(said(2)).toEqual(['CRIT DMG', '88.4', '165.4', '140.2', '140.2%']);
+    expect([...host.querySelectorAll('.target:nth-child(2) .mark')].map((mark) => Math.round(parseFloat((mark as HTMLElement).style.left)))).toEqual([24, 62]);
+    expect(bar(3)).toBeNull();
     expect(warn).not.toHaveBeenCalled();
   });
 

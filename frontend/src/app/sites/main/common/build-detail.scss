@@ -162,6 +162,12 @@ ol li.matched {
   font-size: 0.85rem;
 }
 
+// The target's bar on a line of its own, under the stat's name (and a requirement's goal), over the tiers' values.
+.t-bar {
+  grid-column: 1 / -1;
+  margin: 2px 0;
+}
+
 .targets-basis {
   margin: -4px 0 10px;
 }

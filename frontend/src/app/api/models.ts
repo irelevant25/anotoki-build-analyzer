@@ -280,8 +280,8 @@ export const TARGET_TIERS: readonly TargetTier[] = ['basic', 'intermediate', 'ad
 /**
  * A stat target: a requirement the build states (`tiers` null: its `min` and `max` as stated, `from_rank` the
  * constellation it holds from) or a stat worked out in three tiers from the game's numbers (`tiers`). With an
- * evaluation on a character that has in-game totals: `current`, `ok` (a requirement met, or the basic tier
- * reached) and the tier reached.
+ * evaluation on a character that has the sheet's totals - the game's own, or worked out from the gear -: `current`,
+ * `ok` (a requirement met, or the basic tier reached) and the tier reached.
  */
 export interface StatTarget {
   stat: string;
@@ -290,6 +290,8 @@ export interface StatTarget {
   max: number | null;
   /** The constellation the target holds from (0: from the start); null on a tiered stat. */
   from_rank?: number | null;
+  /** Where the sheet starts for the stat - the fixed sources alone, not one useful substat roll yet -, which the target's bar measures from; null (nought) where the catalog's stats were not there to say. */
+  floor?: number | null;
   current?: number | null;
   ok?: boolean | null;
   tier?: TargetTier | null;

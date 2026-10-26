@@ -14,6 +14,7 @@ import { MetaStore } from '../../../shared/meta-store';
 import { Build, Evaluation, GameKey, SetOption, SetPiece, SiteNote, StatPriority, StatTarget, TARGET_TIERS, TalentPriority, TargetTier, TargetsBasis } from '../../../api/models';
 import { BUILD_TERMS } from './build-terms';
 import { BuildTeams } from './build-teams';
+import { TargetBar } from './target-bar';
 import { Avatar } from '../../../shared/char-avatar';
 import { StatValuePipe } from '../../../shared/stat-pipes';
 
@@ -39,7 +40,7 @@ interface SetGroup {
  */
 @Component({
   selector: 'app-build-detail',
-  imports: [Avatar, BuildTeams, StatValuePipe, AnotokiAgoPipe, TranslatePipe, TranslatePluralPipe, BadgeComponent, DisclosureComponent, IconComponent, TooltipDirective],
+  imports: [Avatar, BuildTeams, TargetBar, StatValuePipe, AnotokiAgoPipe, TranslatePipe, TranslatePluralPipe, BadgeComponent, DisclosureComponent, IconComponent, TooltipDirective],
   templateUrl: './build-detail.html',
   styleUrl: './build-detail.scss',
 })

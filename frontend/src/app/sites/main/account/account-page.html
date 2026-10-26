@@ -173,6 +173,8 @@
                 <app-score-bar [label]="'account.partSets' | translate" [value]="build.parts.sets" />
                 <app-score-bar [label]="buildTerms.mainStats" [value]="build.parts.main_stats" />
                 <app-score-bar [label]="buildTerms.substats" [value]="build.parts.substats" />
+                <!-- The stat targets' part - how far the sheet's totals are along the build's tiers; "n/a" without totals. -->
+                <app-score-bar [label]="'character.score.targets' | translate" [value]="build.parts.targets" />
               </div>
               <!-- The build the card is for: the one the player chose ("Selected build: ..."), else the closest match. -->
               <div class="muted small best-line">{{ buildLines().get(c.id) }}</div>

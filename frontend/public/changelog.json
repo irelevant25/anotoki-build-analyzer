@@ -1,5 +1,16 @@
 [
   {
+    "version": "0.10.0",
+    "date": "2026-10-26",
+    "changes": {
+      "added": [
+        "Every stat target on your character's page is a bar: from where the character sheet starts to the advanced tier, the basic and intermediate tiers marked along it - or to the value a build requires -, with how far your totals have come",
+        "The dashboard's character cards show the stat targets' score as a fourth bar, beside sets, main stats and substats"
+      ],
+      "updated": ["Every bar is red, gold or green - below 50, to 79, from 80, where the grades are - instead of a colour per grade"]
+    }
+  },
+  {
     "version": "0.9.0",
     "date": "2026-10-26",
     "changes": {

@@ -395,6 +395,9 @@ test('the fixed sources and the three tiers of a crit build: the sheet\'s base, 
     $rate = fn(int $budget) => rateRolls($crit($budget), 5, 194.7, 40);
     about(5 + $rate(16) * 3.3065, $rows['critRate_']['tiers']['basic'], 'CRIT Rate basic: every joint roll');
     about(194.7, $rows['critDMG_']['tiers']['basic'], 'CRIT DMG basic: the fixed sources alone');
+    // Where each row's bar starts: the fixed sources alone, the sheet's total for ATK.
+    same([194.7, 100.0, 5.0], [$rows['critDMG_']['floor'], $rows['enerRech_']['floor'], $rows['critRate_']['floor']], 'the floors: the fixed sources');
+    about(1016 * 1.466 + 311, $rows['atk']['floor'], 'ATK\'s floor: the sheet\'s total with the main stats alone', 1);
     about(45, $rows['critRate_']['tiers']['intermediate'], 'CRIT Rate intermediate: at the cap, Blizzard counted');
     about(194.7 + ($crit(24) - $rate(24)) * 6.6045, $rows['critDMG_']['tiers']['intermediate'], 'CRIT DMG intermediate: the rolls past the cap', 0.3);
     about(45, $rows['critRate_']['tiers']['advanced'], 'CRIT Rate advanced: still at the cap');
@@ -416,7 +419,11 @@ test('a stated target is a requirement: paid first from each budget, shown as st
     ]);
     $rows = byStat(TargetTiers::forBuild($build, ayaka(), ['mistsplitterreforged' => mistsplitter()], [], null, [], 0));
     same(['enerRech_', 'critDMG_', 'atk', 'critRate_'], array_keys($rows), 'the requirement first, Energy Recharge no longer split');
-    same(['stat' => 'enerRech_', 'tiers' => null, 'min' => 160, 'max' => 180, 'from_rank' => 0], $rows['enerRech_'], 'as stated, untiered');
+    same(
+        ['stat' => 'enerRech_', 'tiers' => null, 'min' => 160, 'max' => 180, 'from_rank' => 0, 'floor' => 151.8],
+        $rows['enerRech_'],
+        'as stated, untiered, from where the sheet starts (100 + the sands\' 51.8)',
+    );
     // 100 + 51.8 (sands) = 151.8; 160 takes 2 rolls of 5.508: 14, 22 and 30 are left, CRIT DMG's share 1.0 of 1.7.
     // No set here: CRIT Rate from 5 takes every joint roll (the pair's share 1.2 of 1.7) until the sheet is 1:2.
     about(5 + rateRolls(14 * share([1, 4], [1, 2, 4]), 5, 194.7) * 3.3065, $rows['critRate_']['tiers']['basic'], 'CRIT Rate basic after the requirement');

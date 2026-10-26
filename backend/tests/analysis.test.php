@@ -1022,6 +1022,11 @@ test(
         );
         $tiers = $rows['critDMG_']['tiers'];
         check($tiers['basic'] > 88.4 && $tiers['basic'] < $tiers['intermediate'] && $tiers['intermediate'] < $tiers['advanced'], 'three rising tiers above the fixed sources: ' . json_encode($tiers));
+        same(
+            [88.4, 36.1],
+            [$rows['critDMG_']['floor'], $rows['critRate_']['floor']],
+            'where each starts, for the page\'s bar: the fixed sources alone - CRIT DMG 50 + 38.4, CRIT Rate 5 + the circlet\'s 31.1',
+        );
         same([90, false, null], [$rows['critDMG_']['current'], $rows['critDMG_']['ok'], $rows['critDMG_']['tier']], 'CRIT DMG 90: below basic');
         same([null, null, null], [$rows['eleMas']['current'], $rows['eleMas']['ok'], $rows['eleMas']['tier']], 'no in-game Elemental Mastery: unscored');
         check(in_array($rows['hp']['tier'], ['basic', 'intermediate', 'advanced'], true) && $rows['hp']['ok'] === true, 'HP 29000 reaches a tier: ' . json_encode($rows['hp']));
@@ -1102,6 +1107,7 @@ test(
         db()->update('game_characters', ['meta' => '{}'], ['key' => 'hutao']);
         $result = $detail();
         same([null, null], [$result['character']['computed_stats'], $result['evaluations'][0]['score']['parts']['targets']], 'no stats of her: no totals, the part unscored');
+        same(null, $result['evaluations'][0]['targets'][0]['floor'], 'a stated target alone: no floor to start a bar from');
     },
 );
 

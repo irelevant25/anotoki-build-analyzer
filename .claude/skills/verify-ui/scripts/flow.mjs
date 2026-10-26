@@ -2429,6 +2429,18 @@ try {
         const targetMarks = await page.locator('.build-card .t-rank').allInnerTexts();
         check(targetMarks.join('|') === 'C1+', `the character, ${label}: the stat target of her constellation, marked C1+ (${targetMarks.join(', ')})`);
         check((await page.locator('app-score-bar [role=progressbar]').count()) === 5, `the character, ${label}: the five score bars, the kit's progress bars`);
+        // The stat targets' bars (step 4 of the round of 2026-10-26): one under each target with the sheet's total (hers
+        // worked out from the gear) heard as its value, a tiered one with the two lower tiers marked along it.
+        const targetBars = await page.evaluate(() =>
+          [...document.querySelectorAll('.build-card app-target-bar')].map((bar) => ({
+            said: bar.querySelector('[role=progressbar]')?.getAttribute('aria-valuetext') ?? null,
+            marks: bar.querySelectorAll('.mark').length,
+          })),
+        );
+        check(
+          targetBars.length >= 2 && targetBars.every((bar) => bar.said !== null && bar.said !== '') && targetBars.some((bar) => bar.marks === 2),
+          `the character, ${label}: a bar under each stat target, heard with the total, the tiered ones with two marks (${JSON.stringify(targetBars)})`,
+        );
         // The main build's team (tests/tools/browser-db.php): Hu Tao herself, no link; Kazuha, whom the account has below
         // the C2 the team asks - marked so, and a link to the account's own analysis of him -, and Traveler (Anemo), his
         // stand-in, whom it has too - marked, a link to its analysis of her; Xingqiu, whom the catalog does not know, by

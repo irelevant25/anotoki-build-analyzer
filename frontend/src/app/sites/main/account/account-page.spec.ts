@@ -292,13 +292,15 @@ describe('the account page', () => {
       expect(cards()[0].tagName).toBe('A');
       expect(cards()[0].classList).toContain('anotoki-link-card');
       expect(cards()[0].getAttribute('href')).toBe('/accounts/3/characters/character-1');
-      expect(texts('app-score-bar .anotoki-progress-bar__label', cards()[0])).toEqual(['Sety', 'Main stats', 'Substats']);
-      // Each its part's score, seen beside the name and heard as the bar's value - never "100 %": a score is no share.
+      expect(texts('app-score-bar .anotoki-progress-bar__label', cards()[0])).toEqual(['Sety', 'Main stats', 'Substats', 'Stat targets']);
+      // Each its part's score, seen beside the name and heard as the bar's value - never "100 %": a score is no share;
+      // the stat targets' part "n/a" where the character has no totals to check them with.
       const bars = [...cards()[0].querySelectorAll('[role="progressbar"]')];
       expect(bars.map((bar) => [bar.getAttribute('aria-valuenow'), bar.getAttribute('aria-valuetext')])).toEqual([
         ['100', '100'],
         ['67', '67'],
         ['55', '55'],
+        ['0', 'n/a'],
       ]);
       expect(text(cards()[0].querySelector('.best-line'))).toBe('Najlepší build: Hlavný DPS · Burst · C2+');
       expect(text(cards()[0].querySelector('.sets'))).toBe('4× Crimson Witch of Flames');

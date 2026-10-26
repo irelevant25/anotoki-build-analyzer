@@ -3,6 +3,29 @@
 Short records of choices that shape the code. Add a new entry (newest first) when you make a similar call.
 Older entries describe the Laravel version as it was; where a setting has since moved, the entry says so.
 
+**2026-10-26 — target bars on both pages (the owner's round of 2026-10-26, step 4).** The owner's original words:
+"progress bars beside sets/main stats/substats" - the three bars of a character card on the dashboard -, confirmed
+when asked what "both pages" meant: the dashboard's cards and the character page's Stat targets.
+- **A bar measures the rolls' worth, not the whole stat**: it runs from where the sheet starts for the stat (`floor`:
+  the fixed sources alone - base, ascension, weapon, main stats, 2-piece -, which every row carries since) to the
+  advanced tier, so the basic and the intermediate marks sit at a half and three quarters of the way whatever the
+  stat; from nought a CRIT DMG bar would be mostly fill for everybody and an HP bar's three tiers would crowd its end.
+  A requirement's bar runs to its value. Where the catalog's stats are missing the floor is unknown and the bar starts
+  at nought.
+- **The kit's bar, the site's marks**: the family's progress bar has no marks, so the site draws two ticks over its
+  track (`sites/main/common/target-bar`; the kit's head left out, so the track is the whole box). The bar is heard
+  with the stat's name and the total; the tier values and "you: ..." stay as text beside it. The builds browser, with
+  no total, keeps the values alone.
+- **The dashboard's fourth bar** is the stat targets' part score under the character page's own key
+  (`character.score.targets`): no new word.
+- **Every bar in three colours** (the owner's word, the same day: "all bars should have only 3 colors. Red, yellow
+  and green. Like 0-20% red, 20-80% yellow and 80-100% green. Or something like that"): the five grade tints on a
+  fill read as mud, and a traffic light reads at a glance. The cuts follow the grades the badge beside the bar
+  shows, not the owner's sketch - red below 50 (a D), amber to 79 (C and B), green from 80 (A and S) - so a bar and
+  its grade never disagree; a target's bar is red below the basic tier, amber at basic, green from intermediate, a
+  requirement's red unmet and green met. The three are `--bar-low`, `--bar-mid`, `--bar-high` (`$site-colours`: the
+  grades' red, gold and green, 3:1 on the track in both themes); the grade badges keep their five.
+
 **2026-10-26 — the totals worked out from the gear (the owner's round of 2026-10-26, step 3).** A character from an
 inventory file has no in-game totals (a GOOD file carries none), so its stat targets went unchecked and the import
 guide said "No in-game total stats" - and most accounts come from a file. The owner was unsure of the step ("I am not

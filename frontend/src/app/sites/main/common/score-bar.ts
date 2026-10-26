@@ -6,8 +6,9 @@ import { TranslationService } from '../../../shared/i18n/translation';
 /**
  * A part of a build's score, out of 100 - the family's progress bar (anotoki-lib 0.6.0, `@anotoki/lib/ui/progress`):
  * the part's name over it (worded by the page), its score beside the name and heard as the bar's value ("87"; "n/a"
- * where the part could not be judged, the bar empty), the fill in the score's grade colour (`--grade-*`, which
- * styles.scss keeps at 4.5:1 - well over the 3:1 a fill needs on its track - in both themes).
+ * where the part could not be judged, the bar empty), the fill in one of the bars' three colours - red below 50, gold
+ * to 79, green from 80, the grades' cuts (`scoreColor()`; `--bar-*` in styles.scss, each 3:1 at least on the track in
+ * both themes).
  */
 @Component({
   selector: 'app-score-bar',

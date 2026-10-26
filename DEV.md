@@ -411,6 +411,8 @@ one (the Backups page, "before an update"). `config/*.local.php` and `storage/` 
   then **Refresh catalog** once on the Builds page (the catalog keeps every ascension phase from then on; until the
   refresh a character below level 90 is read at level 90). [docs/operations.md](docs/operations.md), "Deploying
   0.9.0".
+- **Version 0.10.0** (no migration): the target bars on both pages and every bar in three colours - the release only.
+  [docs/operations.md](docs/operations.md), "Deploying 0.10.0".
 - **The site settings, robots.txt and sitemap.xml** (anotoki-lib 0.11.1, both halves; migration 025 and the
   library's `anotoki_admin/003`, `anotoki_translations/014` and `015`): Export each language, upload the release
   with `vendor/`, **Apply pending** at once - the settings start empty (the site open, no announcement, every page

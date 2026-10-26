@@ -99,15 +99,24 @@ its words.
   words (`SetBonus::fourPieceCritRate()`: Blizzard Strayer's 40 %, Marechaussee Hunter's 36 %, Obsidian Codex's
   40 %) - and the combat CRIT Rate never past 85 % (`CRIT_RATE_CAP`): a Blizzard Strayer build stops at 45 % on the
   sheet and puts the rest into CRIT DMG. Each tier's value is the fixed sources plus the rolls:
-  `{stat, tiers: {basic, intermediate, advanced}, min: null, max: null}`. HP%, ATK% and DEF% go out as the sheet's
-  totals under `hp`, `atk`, `def` (base × (1 + %) + flat); the rest as the percentage or points.
+  `{stat, tiers: {basic, intermediate, advanced}, min: null, max: null, floor}`. HP%, ATK% and DEF% go out as the
+  sheet's totals under `hp`, `atk`, `def` (base × (1 + %) + flat); the rest as the percentage or points. Every row
+  says where the sheet starts for its stat (`floor`: the fixed sources alone, not one useful roll yet).
 - **Rows**: the requirements first in the build's order, then the tiered stats by priority; on an account's
   character each row carries `current` - the sheet's total: the game's own from a showcase import, else worked out
   from the gear (below) -, `ok` (a requirement met; the basic tier reached) and the `tier` reached.
   A stat below a requirement is a `target_below` recommendation, one below the basic tier a `target_basic_below`
   (medium), with the basic value as its `min`.
+- **The bars** (step 4 of the round): on an account's character page each target with a total is drawn as the
+  kit's progress bar (`sites/main/common/target-bar`) from the row's `floor` to the advanced tier - the basic and
+  the intermediate tiers marked along it by the site, the kit having no marks - or, for a requirement, to its
+  value; the fill is the total, in the card's green where the requirement or a tier is reached, its red below. The
+  tier values and "you: ..." stay beside it; the builds browser, with no total, keeps the values alone. The account
+  page's character cards carry the stat targets' part as a fourth score bar beside the sets', main stats' and
+  substats'.
 - **Without the stats** - the catalog not refreshed since the genshin site hands them on, a character or weapon it
-  has none for - the rows are the stated targets alone (`tiers` null), and `targets_basis` is null.
+  has none for - the rows are the stated targets alone (`tiers` null, `floor` null: a bar from nought), and
+  `targets_basis` is null.
 
 The budgets, the shares and the Energy Recharge ceilings were set against what the top players of 36 builds reach
 (the owner's samples of 2026-10-26, never in the repository): a whale's set holds 37-40 useful rolls, so advanced is

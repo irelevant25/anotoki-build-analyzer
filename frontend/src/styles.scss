@@ -108,6 +108,11 @@
 // 4.6 to 4.7 in light, 4.6 to 4.8 in dark; the light ones were 1.6 to 2.8, the dark ones 3.0 to 4.8). The same
 // hues, darker in light, lighter in dark; a severity is its grade's colour (high D, medium C, low B).
 //
+// A bar's fill is one of three (the owner's rule of 2026-10-26: "all bars should have only 3 colors. Red, yellow
+// and green"): `--bar-low` below 50 (a D), `--bar-mid` to 79 (C and B), `--bar-high` from 80 (A and S) - the
+// grades' red, gold and green, each 3:1 at least on the bar's track (WCAG 1.4.11) in its theme; a target's bar
+// red below the basic tier, gold at basic, green from intermediate (sites/main/common/score-bar, target-bar).
+//
 // An element's mark in the account page's element filter (the kit's segmented control, `--el-mark-*`) is its
 // colour where that reaches 3:1 on the control (surface and surface-2 - WCAG 1.4.11, as the kit asks of a mark),
 // darker where it does not: in light, six of them; in dark, every element's own colour does.
@@ -121,6 +126,9 @@ $site-colours: (
     sev-high: #a62824,
     sev-medium: #884a14,
     sev-low: #1b5f8b,
+    bar-low: #a62824,
+    bar-mid: #735410,
+    bar-high: #25653e,
     el-mark-pyro: #e25f12,
     el-mark-hydro: #198ed3,
     el-mark-anemo: #36957b,
@@ -138,6 +146,9 @@ $site-colours: (
     sev-high: #e79592,
     sev-medium: #e69956,
     sev-low: #6ab2e2,
+    bar-low: #e79592,
+    bar-mid: #e0a526,
+    bar-high: #4dbf79,
     el-mark-pyro: var(--el-pyro),
     el-mark-hydro: var(--el-hydro),
     el-mark-anemo: var(--el-anemo),

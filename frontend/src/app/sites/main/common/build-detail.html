@@ -179,6 +179,10 @@
             }</span
           >
           @if (target.tiers; as tiers) {
+            <!-- With the character's total: how far it has come, from where the sheet starts to the advanced tier, the lower tiers marked. -->
+            @if (target.current !== undefined && target.current !== null) {
+              <app-target-bar class="t-bar" [target]="target" [game]="game()" [label]="stat(target.stat)" />
+            }
             <!-- The three tiers, the ones reached marked. -->
             <dl class="t-tiers">
               @for (tier of tierNames; track tier) {
@@ -196,6 +200,10 @@
                 – {{ target.max | statValue: game() : target.stat }}
               } @else {+}
             </span>
+            <!-- With the character's total: how far it has come towards the requirement. -->
+            @if (target.current !== undefined && target.current !== null) {
+              <app-target-bar class="t-bar" [target]="target" [game]="game()" [label]="stat(target.stat)" />
+            }
           }
           @if (target.current !== undefined && target.current !== null) {
             <span class="t-current">{{

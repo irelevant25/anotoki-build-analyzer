@@ -1,0 +1,7 @@
+<!-- The kit's bar alone - its name for screen readers, the total as its value -, the two lower tiers' marks over its track. -->
+<div class="bar">
+    <anotoki-progress-bar [label]="label()" [value]="value()" [min]="min()" [max]="max()" [valueText]="valueText()" [style.--anotoki-progress-color]="color()" />
+    @for (mark of marks(); track $index) {
+        <span class="mark" aria-hidden="true" [style.left.%]="mark"></span>
+    }
+</div>

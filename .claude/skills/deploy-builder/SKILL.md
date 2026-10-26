@@ -234,3 +234,11 @@ version, so:
    targets bar scored; `/import`'s file method reads "Full inventory (a file from a tool of your own)".
 
 Make a backup by hand once applied (the earlier ones restore offline only).
+
+## 14. Deploying 0.10.0
+
+No migration, so nothing waits after the swap: the release (section 2) and the site stays open (docs/operations.md,
+"Deploying 0.10.0"). Step 4 of the round of 2026-10-26: a bar under each stat target on an account's character
+page, the dashboard's fourth score bar, every bar in three colours. Check: an account's character page shows a bar
+under each stat target (a tiered one with two marks) and red, gold or green score bars; the account page's cards a
+fourth bar, "Stat targets".

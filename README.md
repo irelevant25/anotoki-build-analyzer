@@ -148,7 +148,7 @@ Every owned character is compared with each of its builds. Each part is scored f
 | Set bonuses | first satisfied option (4pc, 2+2, "any two" 2pc groups, 2pc stat groups) |
 | Main stats | per variable slot: first choice 100, alternatives 85 / 75, anything else 0 |
 | Substats | rolls (value ÷ max roll) weighted by the build's priority order (1.0 / 0.8 / 0.6 / 0.45 / 0.3; flat stats about 0.35 of their % version), compared with an ideal piece (all upgrades in the best stat). 70 % of ideal already counts as full marks. A build that lists no substats is scored by substats derived from its own main stats. |
-| Stat targets | your totals (the game's own from a showcase import, else worked out from the gear) against the build's targets: the requirements the build states (Energy Recharge mostly; of a stat's targets, the one from the highest constellation the character has) and every substat in three tiers - basic, intermediate, advanced - worked out from the game's numbers for the weapon in hand (`docs/analysis.md`, "Stat targets") |
+| Stat targets | your totals (the game's own from a showcase import, else worked out from the gear) against the build's targets, each drawn as a bar from where the sheet starts to the advanced tier: the requirements the build states (Energy Recharge mostly; of a stat's targets, the one from the highest constellation the character has) and every substat in three tiers - basic, intermediate, advanced - worked out from the game's numbers for the weapon in hand (`docs/analysis.md`, "Stat targets") |
 
 The overall score weights the parts 20 / 25 / 20 / 25 / 10 (parts without data are skipped). Grades are
 S ≥ 90, A ≥ 80, B ≥ 65 and C ≥ 50. A character's best build is the best scored of those its constellation reaches

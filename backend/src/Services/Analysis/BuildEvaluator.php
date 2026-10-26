@@ -576,6 +576,8 @@ final class BuildEvaluator
                     'min' => $target['min'] === null ? null : $target['min'] + 0,
                     'max' => $target['max'] === null ? null : $target['max'] + 0,
                     'from_rank' => (int) ($target['from_rank'] ?? 0),
+                    // Where the sheet starts is not known without the catalog's stats: the page's bar starts at nought.
+                    'floor' => null,
                 ],
                 self::targetsFor($build->stat_targets ?? [], $owned->rank),
             );

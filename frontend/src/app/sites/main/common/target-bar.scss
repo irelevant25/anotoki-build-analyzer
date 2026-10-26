@@ -1,0 +1,19 @@
+// The kit's progress bar draws itself; without its head (no label or value shown) it is its track alone, so the
+// tiers' marks - the site's own, the kit having none - stand over the track's full height at their place along it.
+:host {
+  display: block;
+}
+
+.bar {
+  position: relative;
+}
+
+.mark {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 2px;
+  margin-left: -1px;
+  border-radius: 1px;
+  background: var(--anotoki-text-muted);
+}

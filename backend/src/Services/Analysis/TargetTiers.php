@@ -31,7 +31,9 @@ use App\Support\Stats;
  *   whatever their priorities, split so CRIT DMG is twice the CRIT Rate in combat - the sheet's plus what the set
  *   option's 4-piece adds, Blizzard Strayer's 40 % (SetBonus::fourPieceCritRate()) - with the combat CRIT Rate
  *   never past CRIT_RATE_CAP;
- * - HP, ATK and DEF go out as the sheet's totals, every other stat as its percentage or points.
+ * - HP, ATK and DEF go out as the sheet's totals, every other stat as its percentage or points; every row says where
+ *   the sheet starts (`floor`: the fixed sources alone, not one useful roll yet), which the page's target bar
+ *   measures the rolls' worth from (step 4 of the round).
  *
  * Nothing conditional is in the sources - a 4-piece bonus, a weapon's passive, a buff -, as nothing conditional is
  * on the sheet, which is what the targets are compared with (an account's `final_stats`); a 4-piece's CRIT Rate
@@ -187,7 +189,7 @@ final class TargetTiers
      * @param  list<array{stat: string, min: int|float|null, max: int|float|null, from_rank?: int}>  $requirements  the stated targets that hold
      * @param  float  $critRateBonus  the CRIT Rate the set adds in combat, for the pair's balance
      * @param  float|null  $energyMost  the Energy Recharge the split stops at where no requirement states one; null: no stop
-     * @return list<array{stat: string, tiers: array{basic: float, intermediate: float, advanced: float}|null, min: float|null, max: float|null, from_rank: int|null}>
+     * @return list<array{stat: string, tiers: array{basic: float, intermediate: float, advanced: float}|null, min: float|null, max: float|null, from_rank: int|null, floor: float}> each with where the sheet starts (`floor`: the fixed sources alone)
      */
     public static function rows(
         Game $game,
@@ -214,10 +216,11 @@ final class TargetTiers
         foreach ($requirements as $requirement) {
             $stat = $requirement['stat'];
             $rolling = self::rolling($game, $stat);
+            // Where the sheet starts for the stat: the fixed sources alone - what a target bar measures from.
+            $floor = isset($base[$stat]) ? self::total($stat, $base, $fixed) : $fixed[$stat] ?? 0.0;
             if ($rolling !== null && $requirement['min'] !== null) {
                 $perRoll = isset($base[$stat]) ? ($base[$stat] * $roll($rolling)) / 100 : $roll($rolling);
-                $current = isset($base[$stat]) ? self::total($stat, $base, $fixed) : $fixed[$stat] ?? 0.0;
-                $needed = (int) ceil(max(0.0, ((float) $requirement['min'] - $current) / $perRoll - 1e-9));
+                $needed = (int) ceil(max(0.0, ((float) $requirement['min'] - $floor) / $perRoll - 1e-9));
                 $paid[$rolling] = min($caps[$rolling], ($paid[$rolling] ?? 0) + $needed);
             }
             // The bounds as stored ("+ 0": a number whatever the JSON held), the page writing them in the game's notation.
@@ -227,6 +230,7 @@ final class TargetTiers
                 'min' => $requirement['min'] === null ? null : $requirement['min'] + 0,
                 'max' => $requirement['max'] === null ? null : $requirement['max'] + 0,
                 'from_rank' => (int) ($requirement['from_rank'] ?? 0),
+                'floor' => isset($base[$stat]) ? round($floor) : round($floor, 1),
             ];
         }
         $spent = array_sum($paid);
@@ -276,7 +280,14 @@ final class TargetTiers
             foreach (self::TIERS as $tier => $budget) {
                 $tiers[$tier] = isset($base[$shown]) ? round(self::total($shown, $base, $values[$tier])) : round($values[$tier][$stat] ?? 0.0, 1);
             }
-            $rows[] = ['stat' => $shown, 'tiers' => $tiers, 'min' => null, 'max' => null, 'from_rank' => null];
+            $rows[] = [
+                'stat' => $shown,
+                'tiers' => $tiers,
+                'min' => null,
+                'max' => null,
+                'from_rank' => null,
+                'floor' => isset($base[$shown]) ? round(self::total($shown, $base, $fixed)) : round($fixed[$stat] ?? 0.0, 1),
+            ];
         }
 
         return $rows;
