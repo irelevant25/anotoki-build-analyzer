@@ -321,6 +321,15 @@
                 <span class="value">{{ entry[1] | statValue: game() : entry[0] }}</span>
               }
             </div>
+          } @else if (computedStats().length > 0) {
+            <!-- No in-game totals: the sheet's worked out from the gear, which the stat targets were compared with. -->
+            <p class="muted small">{{ 'character.stats.fromGear' | translate }}</p>
+            <div class="stat-table">
+              @for (entry of computedStats(); track entry[0]) {
+                <span class="muted">{{ entry[0] | statLabel: game() }}</span>
+                <span class="value">{{ entry[1] | statValue: game() : entry[0] }}</span>
+              }
+            </div>
           } @else {
             <p class="muted small">{{ 'character.stats.itemsOnly' | translate: { items: terms().items } }}</p>
             <div class="stat-table">

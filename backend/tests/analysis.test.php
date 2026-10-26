@@ -1043,6 +1043,68 @@ test(
     },
 );
 
+test(
+    'the totals worked out from the gear: a character without in-game totals has its stat targets checked against them, and the page gets them; the game\'s own stand first; none without the catalog\'s stats',
+    function () use ($detail, $state) {
+        // Hu Tao's and Dragon's Bane's stats as a catalog refresh keeps them, Crimson Witch's 2-piece from its words;
+        // no in-game totals of her.
+        db()->update(
+            'game_characters',
+            [
+                'meta' => Json::encode([
+                    'stats' => [
+                        'base' => ['hp' => 1210.72, 'atk' => 8.29, 'def' => 68.21],
+                        'lv80' => ['hp' => 14459.03, 'atk' => 98.95, 'def' => 814.56],
+                        'ascension' => ['stat' => 'critDMG_', 'value' => 38.4],
+                    ],
+                ]),
+            ],
+            ['key' => 'hutao'],
+        );
+        db()->update('game_weapons', ['meta' => Json::encode(['stats' => ['base_atk' => 41, 'lv80_atk' => 427, 'secondary' => ['stat' => 'eleMas', 'value' => 48]]])], ['key' => 'dragonsbane']);
+        db()->update('game_sets', ['meta' => Json::encode(['bonuses' => ['Pyro DMG Bonus +15%', 'Something conditional.']])], ['key' => 'crimsonwitchofflames']);
+        $owned = ['account_id' => $state->account, 'game_character_id' => $state->character];
+        db()->update('account_characters', ['final_stats' => null], $owned);
+
+        $result = $detail();
+        $totals = $result['character']['computed_stats'];
+        same([null, null], [$result['character']['final_stats'], $result['character']['final_stats_source']], 'no in-game totals');
+        // Hu Tao at 90 with Dragon's Bane at 90: HP 15552 × (1 + the sands' 46.6 %) + the flower's 4780; ATK (106 + 454) × (1 +
+        // the goblet's 46.6 %) + the plume's 311 + the circlet's 30 flat; CRIT Rate 5 + the circlet's 31.1 + four pieces' 7 each;
+        // CRIT DMG 50 + 38.4 + four pieces' 14 each; Elemental Mastery the weapon's 220.5; Pyro DMG the 2-piece's 15; DEF 876
+        // + 40 flat.
+        same(['hp', 'atk', 'def', 'eleMas', 'critRate_', 'critDMG_', 'enerRech_', 'heal_', 'physical_dmg_', 'pyro_dmg_'], array_keys($totals), 'the sheet\'s keys, as a showcase\'s');
+        check(abs($totals['hp'] - (15552.1 * 1.466 + 4780)) <= 2, "HP {$totals['hp']}");
+        check(abs($totals['atk'] - ((106.4 + 454) * 1.466 + 311 + 30)) <= 2, "ATK {$totals['atk']}");
+        check(abs($totals['def'] - (876.1 + 40)) <= 2, "DEF {$totals['def']}");
+        same(
+            [64.1, 144.4, 221.0, 100.0, 15.0],
+            [$totals['critRate_'], $totals['critDMG_'], $totals['eleMas'], $totals['enerRech_'], $totals['pyro_dmg_']],
+            'CRIT Rate, CRIT DMG, Elemental Mastery, Energy Recharge, Pyro DMG',
+        );
+
+        $evaluation = $result['evaluations'][0];
+        $rows = [];
+        foreach ($evaluation['targets'] as $row) {
+            $rows[$row['stat']] = $row;
+        }
+        same([64.1, false], [$rows['critRate_']['current'], $rows['critRate_']['ok']], 'the requirement of 70 checked against the total worked out');
+        same([144.4, $totals['hp']], [$rows['critDMG_']['current'], $rows['hp']['current']], 'CRIT DMG and HP too');
+        check(is_int($evaluation['score']['parts']['targets']), 'the part scored: ' . json_encode($evaluation['score']['parts']['targets']));
+
+        // The game's own totals, where there are some, stand first: none worked out beside them.
+        db()->update('account_characters', ['final_stats' => Json::encode(['critRate_' => 62.0])], $owned);
+        $result = $detail();
+        same([null, 62.0], [$result['character']['computed_stats'], (float) $result['evaluations'][0]['targets'][0]['current']], 'the showcase\'s totals, none worked out');
+
+        // Without the catalog's stats of the character: nothing worked out, the rows unscored as before.
+        db()->update('account_characters', ['final_stats' => null], $owned);
+        db()->update('game_characters', ['meta' => '{}'], ['key' => 'hutao']);
+        $result = $detail();
+        same([null, null], [$result['character']['computed_stats'], $result['evaluations'][0]['score']['parts']['targets']], 'no stats of her: no totals, the part unscored');
+    },
+);
+
 test('every kind of recommendation is one the cases above produce', function () use ($state) {
     // checkKinds() held every one of them to KINDS[kind]; a kind missing here is one no data of this file reaches.
     same([], array_values(array_diff(array_keys(BuildEvaluator::KINDS), array_keys($state->seen))), 'kinds no case produced');

@@ -15,7 +15,7 @@ step. Builds are not imported here: an editor imports a builds file (`build-anal
 Builds page ([builds.md](builds.md)).
 
 This page names the services, tools and formats: it is internal. The UI calls the two methods "Character
-Showcase (UID)" and "Full inventory (exporter tool)", describes the tools without naming or linking them, and
+Showcase (UID)" and "Full inventory (a file from a tool of your own)", describes the tools without naming or linking them, and
 the API reports an import's source as `showcase` or `file` (see [architecture.md](architecture.md), "Neutral
 names").
 

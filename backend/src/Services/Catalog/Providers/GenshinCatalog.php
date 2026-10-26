@@ -32,7 +32,9 @@ use Throwable;
  * - a character's and a weapon's base stats (that site's `stats`, since 2026-10-26: HP, ATK and DEF at level 1 and
  *   at level 80 ascended with the ascension stat, a weapon's base ATK at both with its secondary stat) in
  *   meta.stats, the stats' labels read as the catalog's keys - what the stat targets are worked out from
- *   (App\Support\MaxLevelStats takes them to level 90); none where a number or the stat is missing. While a list
+ *   (App\Support\LevelStats takes them to level 90) -, and every ascension phase there is beside them (`phases`,
+ *   the same site's since the round's step 3: what LevelStats reads the level a character stands at off, for the
+ *   totals worked out from the gear); none where a number or the stat is missing. While a list
  *   carries no `stats` at all (that site's release from before 2026-10-26), the same numbers are read from the
  *   site's own API ("catalog.genshin.site_api": its characters and weapons with their ascension phases, phase 0
  *   and phase 6 of each - the way its catalog endpoint reads them) and matched by the game's id; a phase list
@@ -133,14 +135,15 @@ final class GenshinCatalog implements CatalogProvider
             return [];
         }
 
-        // Phase 0 and 6 per set (or weapon), the lowest id of each, deleted rows left out.
+        // Every phase 0-6 per set (or weapon), the lowest id of each, deleted rows left out.
         $owner = $list === Catalog::CHARACTER ? 'ascension_set_id' : 'weapon_id';
         $byOwner = [];
         foreach ($phases as $phase) {
-            if (($phase['deleted'] ?? false) === true || !in_array((int) ($phase['phase'] ?? -1), [0, 6], true) || self::gameId($phase[$owner] ?? null) === null) {
+            $phaseNumber = $phase['phase'] ?? null;
+            if (($phase['deleted'] ?? false) === true || !is_int($phaseNumber) || $phaseNumber < 0 || $phaseNumber > 6 || self::gameId($phase[$owner] ?? null) === null) {
                 continue;
             }
-            $byOwner[(int) $phase[$owner]][(int) $phase['phase']] ??= $phase;
+            $byOwner[(int) $phase[$owner]][$phaseNumber] ??= $phase;
         }
         $number = fn(mixed $value) => is_int($value) || is_float($value) ? round((float) $value, 2) : null;
 
@@ -151,17 +154,31 @@ final class GenshinCatalog implements CatalogProvider
             if (($row['deleted'] ?? false) === true || $gameId === null || $ownerId === null || !isset($byOwner[$ownerId][0], $byOwner[$ownerId][6]) || isset($stats[$gameId])) {
                 continue;
             }
-            [$first, $last] = [$byOwner[$ownerId][0], $byOwner[$ownerId][6]];
+            $own = $byOwner[$ownerId];
+            ksort($own);
+            [$first, $last] = [$own[0], $own[6]];
             if ($list === Catalog::CHARACTER) {
-                $level = fn(array $phase) => [
-                    'hp' => $number($phase['start_level_hp'] ?? null),
-                    'atk' => $number($phase['start_level_atk'] ?? null),
-                    'def' => $number($phase['start_level_def'] ?? null),
+                $level = fn(array $phase, string $edge) => [
+                    'hp' => $number($phase["{$edge}_level_hp"] ?? null),
+                    'atk' => $number($phase["{$edge}_level_atk"] ?? null),
+                    'def' => $number($phase["{$edge}_level_def"] ?? null),
                 ];
                 $stats[$gameId] = [
-                    'base' => $level($first),
-                    'lv80' => $level($last),
+                    'base' => $level($first, 'start'),
+                    'lv80' => $level($last, 'start'),
                     'ascension' => ['stat' => $last['primary_stat'] ?? null, 'value' => $number($last['primary_stat_value'] ?? null)],
+                    'phases' => array_values(
+                        array_map(
+                            fn(int $phase, array $row) => [
+                                'phase' => $phase,
+                                'start' => $level($row, 'start'),
+                                'end' => $level($row, 'end'),
+                                'ascension' => $number($row['primary_stat_value'] ?? null),
+                            ],
+                            array_keys($own),
+                            $own,
+                        ),
+                    ),
                 ];
             } else {
                 $secondary = $number($first['secondary_stat_value'] ?? null);
@@ -169,6 +186,13 @@ final class GenshinCatalog implements CatalogProvider
                     'base_atk' => $number($first['primary_stat_value'] ?? null),
                     'lv80_atk' => $number($last['primary_stat_value'] ?? null),
                     'secondary' => is_string($row['secondary_stat'] ?? null) && $secondary !== null && $secondary > 0 ? ['stat' => $row['secondary_stat'], 'value' => $secondary] : null,
+                    'phases' => array_values(
+                        array_map(
+                            fn(int $phase, array $row) => ['phase' => $phase, 'atk' => $number($row['primary_stat_value'] ?? null), 'secondary' => $number($row['secondary_stat_value'] ?? null)],
+                            array_keys($own),
+                            $own,
+                        ),
+                    ),
                 ];
             }
         }
@@ -263,11 +287,13 @@ final class GenshinCatalog implements CatalogProvider
 
     /**
      * A character's base stats as that site's phases hold them (its `stats`): HP, ATK and DEF at level 1 and at
-     * level 80 ascended, and the ascension stat - its label read as the catalog's key - with its whole value.
-     * MaxLevelStats takes them to level 90. None unless every number is there and the ascension stat is one the
-     * game has.
+     * level 80 ascended, the ascension stat - its label read as the catalog's key - with its whole value, and the
+     * phases there are (each its number, its stats at its first and its last level and the ascension stat's value
+     * through it; one that cannot be read is left out, the list kept only where some can). LevelStats takes them to
+     * level 90, and to the level a character stands at. None unless every number of the base and the level 80 stats
+     * is there and the ascension stat is one the game has.
      *
-     * @return array{base: array{hp: float, atk: float, def: float}, lv80: array{hp: float, atk: float, def: float}, ascension: array{stat: string, value: float}}|null
+     * @return array{base: array{hp: float, atk: float, def: float}, lv80: array{hp: float, atk: float, def: float}, ascension: array{stat: string, value: float}, phases?: list<array{phase: int, start: array{hp: float, atk: float, def: float}, end: array{hp: float, atk: float, def: float}, ascension: float}>}|null
      */
     private static function characterStats(mixed $stats): ?array
     {
@@ -277,15 +303,26 @@ final class GenshinCatalog implements CatalogProvider
         $base = self::levelStats($stats['base'] ?? null);
         $lv80 = self::levelStats($stats['lv80'] ?? null);
         $ascension = self::statValue($stats['ascension'] ?? null);
+        if ($base === null || $lv80 === null || $ascension === null) {
+            return null;
+        }
+        $phases = self::phases($stats['phases'] ?? null, function (array $phase): ?array {
+            $start = self::levelStats($phase['start'] ?? null);
+            $end = self::levelStats($phase['end'] ?? null);
+            $value = self::number($phase['ascension'] ?? null);
 
-        return $base === null || $lv80 === null || $ascension === null ? null : ['base' => $base, 'lv80' => $lv80, 'ascension' => $ascension];
+            return $start === null || $end === null || $value === null ? null : ['start' => $start, 'end' => $end, 'ascension' => $value];
+        });
+
+        return ['base' => $base, 'lv80' => $lv80, 'ascension' => $ascension] + ($phases === [] ? [] : ['phases' => $phases]);
     }
 
     /**
-     * A weapon's base ATK at level 1 and at level 80 ascended, and its secondary stat at level 1 - its label read
-     * as the catalog's key; none for a weapon without one, or with one the game does not have.
+     * A weapon's base ATK at level 1 and at level 80 ascended, its secondary stat at level 1 - its label read as
+     * the catalog's key; none for a weapon without one, or with one the game does not have - and the phases there
+     * are (each its number, its base ATK and its secondary stat's value at its first level; as above).
      *
-     * @return array{base_atk: float, lv80_atk: float, secondary: array{stat: string, value: float}|null}|null
+     * @return array{base_atk: float, lv80_atk: float, secondary: array{stat: string, value: float}|null, phases?: list<array{phase: int, atk: float, secondary: float}>}|null
      */
     private static function weaponStats(mixed $stats): ?array
     {
@@ -294,8 +331,46 @@ final class GenshinCatalog implements CatalogProvider
         }
         $base = self::number($stats['base_atk'] ?? null);
         $lv80 = self::number($stats['lv80_atk'] ?? null);
+        if ($base === null || $lv80 === null) {
+            return null;
+        }
+        $phases = self::phases($stats['phases'] ?? null, function (array $phase): ?array {
+            $atk = self::number($phase['atk'] ?? null);
+            $secondary = self::number($phase['secondary'] ?? null);
 
-        return $base === null || $lv80 === null ? null : ['base_atk' => $base, 'lv80_atk' => $lv80, 'secondary' => self::statValue($stats['secondary'] ?? null)];
+            return $atk === null || $secondary === null ? null : ['atk' => $atk, 'secondary' => $secondary];
+        });
+
+        return ['base_atk' => $base, 'lv80_atk' => $lv80, 'secondary' => self::statValue($stats['secondary'] ?? null)] + ($phases === [] ? [] : ['phases' => $phases]);
+    }
+
+    /**
+     * The phases of a character's or a weapon's stats the catalog can read, in order of phase, one of each (the
+     * first of two): of a list, the entries with a phase 0-6 that $read makes something of, each with its number
+     * first. None of anything else.
+     *
+     * @param  callable(array<string, mixed>): (array<string, mixed>|null)  $read
+     * @return list<array<string, mixed>>
+     */
+    private static function phases(mixed $phases, callable $read): array
+    {
+        if (!is_array($phases) || !array_is_list($phases)) {
+            return [];
+        }
+        $byPhase = [];
+        foreach ($phases as $entry) {
+            $phase = is_array($entry) ? $entry['phase'] ?? null : null;
+            if (!is_int($phase) || $phase < 0 || $phase > 6 || isset($byPhase[$phase])) {
+                continue;
+            }
+            $fields = $read($entry);
+            if ($fields !== null) {
+                $byPhase[$phase] = ['phase' => $phase] + $fields;
+            }
+        }
+        ksort($byPhase);
+
+        return array_values($byPhase);
     }
 
     /** @return array{hp: float, atk: float, def: float}|null */

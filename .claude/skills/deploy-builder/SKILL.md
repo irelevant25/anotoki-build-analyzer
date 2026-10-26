@@ -216,3 +216,21 @@ reads every list in full. After the swap the owner presses **Refresh catalog** o
 characters and the weapons lists come back "changed" with their stats, and every build shows its three tiers.
 Check: `/builds/genshin/kamisatoayaka` shows "Worked out for Mistsplitter Reforged with 4pc Blizzard Strayer."
 and three tiers on CRIT DMG.
+
+## 13. Deploying 0.9.0
+
+Version 0.9.0 - the totals worked out from the gear for a character without in-game totals, and the import guide
+saying where an inventory file comes from (migration 028; docs/decisions.md, 2026-10-26; docs/operations.md,
+"Deploying 0.9.0"). The character at its level rests on every ascension phase, which the catalog keeps since this
+version, so:
+
+1. **The release** (section 2). From then on the site is closed until the Apply.
+2. **Apply pending at once** on `/admin/migrations` (one Apply, after its backup): **028** (one word; the file
+   method's words reworded). No build changes, nothing to import.
+3. **Refresh catalog** on `/admin/builds` once (read in full since 0.8.1): the characters and the weapons lists come
+   back "changed" with their phases. The genshin site's release is not needed: the phases are read from its public
+   phase lists while its catalog lists carry no stats.
+4. **Check**: an account's character from a file shows "Stats" with "Worked out from your gear ..." and its Stat
+   targets bar scored; `/import`'s file method reads "Full inventory (a file from a tool of your own)".
+
+Make a backup by hand once applied (the earlier ones restore offline only).

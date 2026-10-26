@@ -3,6 +3,7 @@
 namespace App\Services\Analysis;
 
 use App\Models\Account;
+use App\Models\AccountCharacter;
 use App\Models\AccountItem;
 use App\Models\AccountWeapon;
 use App\Models\CatalogEntry;
@@ -38,6 +39,9 @@ final class AccountContext
 
     /** @var array<string, GameSet|null> set key => the catalog's set, null for one it lacks */
     private array $catalogSets = [];
+
+    /** @var array<int, array<string, float>|null> character id => the sheet's totals worked out from the gear, null while the catalog has no stats of the character */
+    private array $sheetTotals = [];
 
     public function __construct(public readonly Account $account, Accounts $accounts, private readonly CatalogRows $rows)
     {
@@ -125,6 +129,24 @@ final class AccountContext
     public function catalogSets(array $keys): array
     {
         return $this->catalogEntries(Catalog::SET, $this->catalogSets, $keys);
+    }
+
+    /**
+     * The character's totals as its sheet would show them, worked out from the gear it wears (SheetTotals: the
+     * character at its level, the weapon, the pieces' stats, the 2-piece bonuses), once per character; null while
+     * the catalog keeps no stats of the character. What the stat targets are compared with where the account has
+     * no in-game totals of it.
+     *
+     * @return array<string, float>|null
+     */
+    public function sheetTotals(AccountCharacter $owned): ?array
+    {
+        $id = $owned->game_character_id;
+        if (!array_key_exists($id, $this->sheetTotals)) {
+            $this->sheetTotals[$id] = SheetTotals::compute($this->account->game, $owned, $this->equippedWeapon($id), $this->equippedItems($id));
+        }
+
+        return $this->sheetTotals[$id];
     }
 
     /**

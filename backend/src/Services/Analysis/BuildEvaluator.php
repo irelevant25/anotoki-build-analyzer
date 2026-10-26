@@ -547,9 +547,10 @@ final class BuildEvaluator
     /**
      * The stat targets: the build's rows as TargetTiers works them out for this character - with the weapon in hand
      * and the main stats worn where the build lists them - or, while the catalog lacks the stats behind them, the
-     * stated targets of the character's constellation alone. With in-game totals (a showcase import) each row gets
-     * the sheet's value and is scored: a requirement met or not, a tiered stat by how far along the tiers it is
-     * (TIER_SCORES); the part is their mean. A stat below a requirement, or below the basic tier, is a
+     * stated targets of the character's constellation alone. With the sheet's totals - the game's own from a
+     * showcase import, else worked out from the gear (SheetTotals, where the catalog has the character's stats) -
+     * each row gets the sheet's value and is scored: a requirement met or not, a tiered stat by how far along the
+     * tiers it is (TIER_SCORES); the part is their mean. A stat below a requirement, or below the basic tier, is a
      * recommendation.
      */
     private function targetPart(Build $build, AccountCharacter $owned, ?int $wornOption): ?array
@@ -582,7 +583,8 @@ final class BuildEvaluator
             return null;
         }
 
-        $final = $owned->final_stats ?? [];
+        // The sheet's totals: the game's own (a showcase import), else worked out from the gear.
+        $final = $owned->final_stats ?? ($this->context->sheetTotals($owned) ?? []);
         $scores = [];
         foreach ($rows as &$row) {
             $current = $final[$row['stat']] ?? null;

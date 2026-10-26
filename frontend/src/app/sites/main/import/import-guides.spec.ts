@@ -86,7 +86,7 @@ describe('the import guides (METHODS and GUIDES)', () => {
 
   it('say in English what they said before they were keys', () => {
     expect(strings[METHODS.genshin[0].title]).toBe('Character Showcase (UID)');
-    expect(strings[METHODS.genshin[1].cons[1]]).toBe('No in-game total stats (combine with a UID import)');
+    expect(strings[METHODS.genshin[1].cons[1]]).toBe('Totals are worked out from the gear, not read from the game (a UID import adds the exact ones)');
     expect(strings[GUIDES.genshin.showcase.steps[0].body]).toBe('In the game press Esc to open the Paimon menu, click your avatar at the top left and choose "Edit Profile".');
     // Reworded on purpose: the old tip named the system tool the exporters capture with (the neutral-names rule).
     expect(strings[GUIDES.genshin.file.steps[0].tip!]).toBe('Exporters that read the game data need administrator rights to capture the network traffic; screenshot scanners need English game text.');

@@ -54,7 +54,7 @@ and a character's first build is its main one ([builds.md](builds.md)).
 | Sets | first satisfied option (in rank order) → `max(70, 100 − 8·(rank−1))`; none → `10 + 60·bestFraction` (partial credit). A group per kind of set the game has, weighed by `Game::setWeight()` - Genshin has one, `artifact`. `SetMatcher`: a piece needs `count` items of one of its keys; one equipped set satisfies only one piece; `choose` = pieces required. |
 | Main stats | per variable slot the build lists: its top priority 100, the next 85, lower 75, not listed 0, empty slot 0. |
 | Substats | `ItemScorer` per item → percent of an ideal item; part = `min(100, avg% / 70 · 100)` where the average runs over all slots (empty slots count 0). |
-| Stat targets | the rows of "Stat targets" below, only with in-game totals (showcase imports): a requirement met → 100, else `max(0, current/min·100 − 10)`; a tiered stat by the tier reached (`BuildEvaluator::tierScore()`, `TIER_SCORES`): advanced 100, intermediate 85, basic 65, in proportion between two tiers, and below basic 65 in proportion to it. The part is the mean of the rows with a total. |
+| Stat targets | the rows of "Stat targets" below, against the sheet's totals - the game's own (a showcase import), else worked out from the gear ("The totals from the gear" below): a requirement met → 100, else `max(0, current/min·100 − 10)`; a tiered stat by the tier reached (`BuildEvaluator::tierScore()`, `TIER_SCORES`): advanced 100, intermediate 85, basic 65, in proportion between two tiers, and below basic 65 in proportion to it. The part is the mean of the rows with a total. |
 
 Overall = weighted mean of available parts: weapon 20, sets 25, main stats 20, substats 25, targets 10
 (`BuildEvaluator::PART_WEIGHTS`); a part the build has no data for is left out. Grades: S ≥ 90, A ≥ 80, B ≥ 65,
@@ -65,8 +65,8 @@ C ≥ 50, else D.
 Since the round of 2026-10-26 ([decisions.md](decisions.md)) every build has stat targets, worked out from the
 game's numbers rather than read from anywhere - the build sites give a number for one build in four, and nearly
 only Energy Recharge. The catalog keeps, since the same round, what genshin.anotoki.eu knows of each character and
-weapon (`meta.stats`: [data-model.md](data-model.md)); `App\Support\MaxLevelStats` takes it to level 90
-([stats-and-slots.md](stats-and-slots.md), "Level 90"), and `App\Support\SetBonus` reads a set's 2-piece bonus from
+weapon (`meta.stats`: [data-model.md](data-model.md)); `App\Support\LevelStats` takes it to level 90
+([stats-and-slots.md](stats-and-slots.md), "A level"), and `App\Support\SetBonus` reads a set's 2-piece bonus from
 its words.
 
 - **The fixed sources** of each stat on the character sheet: its base (5 % CRIT Rate, 50 % CRIT DMG, 100 % Energy
@@ -101,8 +101,9 @@ its words.
   sheet and puts the rest into CRIT DMG. Each tier's value is the fixed sources plus the rolls:
   `{stat, tiers: {basic, intermediate, advanced}, min: null, max: null}`. HP%, ATK% and DEF% go out as the sheet's
   totals under `hp`, `atk`, `def` (base × (1 + %) + flat); the rest as the percentage or points.
-- **Rows**: the requirements first in the build's order, then the tiered stats by priority; on a character with
-  in-game totals each row carries `current`, `ok` (a requirement met; the basic tier reached) and the `tier` reached.
+- **Rows**: the requirements first in the build's order, then the tiered stats by priority; on an account's
+  character each row carries `current` - the sheet's total: the game's own from a showcase import, else worked out
+  from the gear (below) -, `ok` (a requirement met; the basic tier reached) and the `tier` reached.
   A stat below a requirement is a `target_below` recommendation, one below the basic tier a `target_basic_below`
   (medium), with the basic value as its `min`.
 - **Without the stats** - the catalog not refreshed since the genshin site hands them on, a character or weapon it
@@ -116,6 +117,32 @@ priorities put Elemental Mastery or ATK% high, the targets follow them and the t
 sit above the computed CRIT DMG: the priorities are editors' to set. Constellations reach the targets through the
 requirements alone (`from_rank`): they change damage and energy, not the sheet's stats, and the samples' C1, C2 and
 C6 variants read like their C0.
+
+## The totals from the gear (`SheetTotals`)
+
+A showcase import brings the game's own totals (`account_characters.final_stats`); an inventory file brings none. Since
+the round's step 3 a character without them is shown with, and has its stat targets checked against, the totals its
+character sheet would show, worked out from the gear it wears (`App\Services\Analysis\SheetTotals`,
+`AccountContext::sheetTotals()` once per character; the detail's `computed_stats`, null beside the game's own, which
+stand first) - never stored, worked out when the character is shown:
+
+- **the sheet's base** (5 % CRIT Rate, 50 % CRIT DMG, 100 % Energy Recharge), **the character at its level** in its
+  ascension's phase with the ascension stat's value there (`LevelStats::characterAt()`; an ascension below the fewest
+  the level needs - an import naming none stores 0 - is read as that fewest, `LevelStats::leastAscension()`), **the
+  weapon at its level** (`LevelStats::weaponAt()`: base ATK and the
+  secondary stat), **every equipped piece's main stat** (its value as imported, or `MainStatValues`' for an export
+  without one) **and substats**, and **the 2-piece bonus** of every set worn on two pieces or more (`SetBonus`);
+- HP, ATK and DEF are the base times its percentage plus the flat points, the rest the percentage or points; the keys
+  are a showcase's (`hp`, `atk`, `def`, `eleMas`, `critRate_`, `critDMG_`, `enerRech_`, `heal_`, `physical_dmg_`,
+  `{element}_dmg_` - Elemental Mastery, the crit pair, Energy Recharge, Healing Bonus, Physical DMG and the
+  character's own element's DMG always, nought included, as a showcase sends them; another element's DMG only where
+  the gear gives some), so the two read alike and a target on any of them compares alike;
+- **nothing conditional**: no weapon passive, no 4-piece bonus, no resonance, no buff - the same sources the targets
+  are worked out from. The game shows a little more, and the page says so ("Worked out from your gear ... Passives
+  and team buffs are not in it").
+
+Null while the catalog keeps no stats of the character (the rows go unscored, as before); without the weapon's
+stats no ATK is said, and without a weapon the ATK is the character's own.
 
 ## Item scoring (`ItemScorer`)
 

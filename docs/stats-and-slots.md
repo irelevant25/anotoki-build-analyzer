@@ -87,18 +87,30 @@ sites' labels with them ([builds.md](builds.md)); a build site's own typos are t
   number where two are offered ("15%/30%"), times the stacks where the text says "Max 3 stacks" (Marechaussee
   Hunter's 36); a 4-piece worded another way counts as nought.
 
-## Level 90 (`MaxLevelStats`)
+## A level (`LevelStats`)
 
-The stat targets are compared on the character sheet at level 90; the catalog keeps what genshin.anotoki.eu's
-ascension phases hold ([data-model.md](data-model.md), `meta.stats`: level 1 and level 80 ascended), and the game's
-growth curves enter as the few constants the top level needs:
+The stat targets are compared on the character sheet at level 90, and the totals worked out from the gear
+([analysis.md](analysis.md), "The totals from the gear") take the character and the weapon at the level they stand
+at. The catalog keeps what genshin.anotoki.eu's ascension phases hold ([data-model.md](data-model.md), `meta.stats`:
+level 1, level 80 ascended, and every phase there is with its two ends), and the game's growth curves enter as the few
+constants the top level needs:
 
 | Constant | Value | What it says |
 | --- | --- | --- |
 | `CHARACTER_STEP` | 5★ 0.9028, 4★ 0.826 | a character's base HP, ATK and DEF at 90 = the level 80 value + the level 1 value × this (one curve per rarity for all three; the ascension bonus is in the level 80 value and unchanged after it) |
 | `WEAPON_ATK_90` | by rarity and level 1 base ATK: 5★ 44/46/48/49 → 542/608/674/741, 4★ 39/41/42/44/45 → 440/454/510/565/620, 3★ 38/39/40 → 354/401/448 | a weapon's base ATK at 90 (a dozen curves, told apart by the pair); a pair the table lacks keeps its level 80 value |
 | `WEAPON_SECONDARY_90` | 4.59375 | a weapon's secondary stat at 90 in level 1 values, one curve whatever the weapon (9.6% CRIT DMG at level 1 is 44.1% at 90) |
+| `PHASE_LEVELS` | 0: 1-20, 1: 20-40, 2: 40-50, 3: 50-60, 4: 60-70, 5: 70-80, 6: 80-90 | the levels of each ascension phase, its first (ascended) and its last |
+
+A level inside a phase (`characterAt()`, `weaponAt()`) is read off the phase's own two ends as a straight line - the
+curves are near enough to one within a phase: a character's from the phase's start to its end as the catalog keeps
+them (`meta.stats.phases`), phase 6's end being level 90 as above, the ascension stat at the phase's value; a weapon's
+from the phase's start to the next phase's start (the ascension's step a little early: the catalog keeps no end of a
+weapon's phase), the last to level 90, the secondary stat along the same line. A phase the catalog has not, a catalog
+refreshed before the phases came, or an ascension past the game's leaves the level 90 values standing in; an import
+that names no ascension stores 0, and an ascension below the fewest the level needs is read as that fewest
+(`LevelStats::leastAscension()`: a level 90 is never at phase 0).
 
 Checked against the game's own level 90 values for twenty characters and the common weapons (within a point:
-`tests/stat_targets.test.php`). A character of another rarity, or one the catalog has no stats of, has no level 90
-and no tiered targets.
+`tests/stat_targets.test.php`). A character of another rarity, or one the catalog has no stats of, has no level 90,
+no tiered targets and no totals from the gear.

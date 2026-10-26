@@ -253,6 +253,12 @@ export class CharacterPage {
     return stats ? Object.entries(stats).filter(([, value]) => value !== 0) : [];
   });
 
+  /** The sheet's totals worked out from the gear, for a character without the game's own. */
+  protected readonly computedStats = computed(() => {
+    const stats = this.data()?.character.computed_stats;
+    return stats ? Object.entries(stats).filter(([, value]) => value !== 0) : [];
+  });
+
   protected readonly totals = computed(() => Object.entries(this.data()?.equipment.totals ?? {}).sort(([, a], [, b]) => b - a));
 
   /** "No builds for {name} yet. They appear once an editor imports them (on the [Builds] page).", cut where the link stands. */

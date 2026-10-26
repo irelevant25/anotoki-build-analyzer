@@ -74,6 +74,13 @@ function apiCharacter(array $fields = []): array
             'base' => ['hp' => 1210.72, 'atk' => 8.29, 'def' => 68.21],
             'lv80' => ['hp' => 14459.03, 'atk' => 98.95, 'def' => 814.56],
             'ascension' => ['stat' => 'Crit DMG %', 'value' => 38.4],
+            // Every phase there is (here two), one without its end that the catalog cannot read, and one the game has not.
+            'phases' => [
+                ['phase' => 0, 'start' => ['hp' => 1210.72, 'atk' => 8.29, 'def' => 68.21], 'end' => ['hp' => 2421.44, 'atk' => 16.58, 'def' => 136.42], 'ascension' => 0],
+                ['phase' => 6, 'start' => ['hp' => 14459.03, 'atk' => 98.95, 'def' => 814.56], 'end' => ['hp' => 15552.3, 'atk' => 106.4, 'def' => 876.2], 'ascension' => 38.4],
+                ['phase' => 3, 'start' => ['hp' => 7000, 'atk' => 50, 'def' => 400], 'ascension' => 19.2],
+                ['phase' => 7, 'start' => ['hp' => 1, 'atk' => 1, 'def' => 1], 'end' => ['hp' => 1, 'atk' => 1, 'def' => 1], 'ascension' => 1],
+            ],
         ],
     ];
 }
@@ -84,7 +91,8 @@ function apiCharacter(array $fields = []): array
 function floats(mixed $value): mixed
 {
     if (is_array($value)) {
-        return array_map(floats(...), $value);
+        // A phase's number stays the integer it is.
+        return array_combine(array_keys($value), array_map(fn($key, $item) => $key === 'phase' ? $item : floats($item), array_keys($value), $value));
     }
 
     return is_int($value) ? (float) $value : $value;
@@ -217,11 +225,15 @@ test('the characters: element, weapon type, rarity, region, version, release and
                     'base' => ['hp' => 1210.72, 'atk' => 8.29, 'def' => 68.21],
                     'lv80' => ['hp' => 14459.03, 'atk' => 98.95, 'def' => 814.56],
                     'ascension' => ['stat' => 'critDMG_', 'value' => 38.4],
+                    'phases' => [
+                        ['phase' => 0, 'start' => ['hp' => 1210.72, 'atk' => 8.29, 'def' => 68.21], 'end' => ['hp' => 2421.44, 'atk' => 16.58, 'def' => 136.42], 'ascension' => 0.0],
+                        ['phase' => 6, 'start' => ['hp' => 14459.03, 'atk' => 98.95, 'def' => 814.56], 'end' => ['hp' => 15552.3, 'atk' => 106.4, 'def' => 876.2], 'ascension' => 38.4],
+                    ],
                 ],
             ],
         ],
         entry('characters', 'hutao'),
-        'Hu Tao\'s row, found by its in-game ID; its base stats kept, the ascension stat as the catalog\'s key',
+        'Hu Tao\'s row, found by its in-game ID; its base stats kept, the ascension stat as the catalog\'s key, the phases it can read in order',
     );
     same(
         [
@@ -287,7 +299,12 @@ test('weapons and artifact sets: of a weapon listed twice the lower in-game ID; 
                 'version_name' => null,
                 'release_date' => '2021-03-02',
                 'icon' => 'https://genshin.anotoki.eu/media/weapons/staff-of-homa.avif',
-                'stats' => ['base_atk' => 46, 'lv80_atk' => 563, 'secondary' => ['stat' => 'Crit DMG %', 'value' => 14.4]],
+                'stats' => [
+                    'base_atk' => 46,
+                    'lv80_atk' => 563,
+                    'secondary' => ['stat' => 'Crit DMG %', 'value' => 14.4],
+                    'phases' => [['phase' => 6, 'atk' => 563, 'secondary' => 60.3], ['phase' => 0, 'atk' => 46, 'secondary' => 14.4], ['phase' => 2, 'atk' => 'x', 'secondary' => 20]],
+                ],
             ],
             [
                 'game_id' => 11511,
@@ -346,10 +363,17 @@ test('weapons and artifact sets: of a weapon listed twice the lower in-game ID; 
             'weapon_type' => 'polearm',
             'external_id' => '13501',
             'icon_url' => 'https://genshin.anotoki.eu/media/weapons/staff-of-homa.avif',
-            'meta' => ['stats' => ['base_atk' => 46.0, 'lv80_atk' => 563.0, 'secondary' => ['stat' => 'critDMG_', 'value' => 14.4]]],
+            'meta' => [
+                'stats' => [
+                    'base_atk' => 46.0,
+                    'lv80_atk' => 563.0,
+                    'secondary' => ['stat' => 'critDMG_', 'value' => 14.4],
+                    'phases' => [['phase' => 0, 'atk' => 46.0, 'secondary' => 14.4], ['phase' => 6, 'atk' => 563.0, 'secondary' => 60.3]],
+                ],
+            ],
         ],
         entry('weapons', 'staffofhoma'),
-        'Homa\'s row, its base stats kept with the secondary stat as the catalog\'s key',
+        'Homa\'s row, its base stats kept with the secondary stat as the catalog\'s key, the phases it can read in order',
     );
     $isshin = (array) entry('weapons', 'prizedisshinblade');
     same(['11510', 'https://genshin.anotoki.eu/media/weapons/prized-isshin-blade.avif'], [$isshin['external_id'], $isshin['icon_url']], 'listed twice: the lower ID\'s, once');
@@ -653,8 +677,12 @@ test(
             'start_level_hp' => $hp,
             'start_level_atk' => $atk,
             'start_level_def' => $def,
+            'end_level_hp' => $hp * 2,
+            'end_level_atk' => $atk * 2,
+            'end_level_def' => $def * 2,
             'deleted' => false,
         ];
+        $level = fn(float $hp, float $atk, float $def) => ['hp' => $hp, 'atk' => $atk, 'def' => $def];
         T::$http->fake([
             API . '/characters' => FakeHttpClient::json([$withoutStats(), $withoutStats(['game_id' => 10000125, 'name' => 'Ineffa', 'element' => 'Electro'])], 200, ['ETag' => '"c2"']),
             // Hu Tao's set 40 with phases 0, 3 and 6 (and a deleted 6 with other numbers, and a second 0 with a higher
@@ -703,19 +731,42 @@ test(
                     'base' => ['hp' => 1210.72, 'atk' => 8.29, 'def' => 68.21],
                     'lv80' => ['hp' => 14459.03, 'atk' => 98.95, 'def' => 814.56],
                     'ascension' => ['stat' => 'critDMG_', 'value' => 38.4],
+                    'phases' => [
+                        ['phase' => 0, 'start' => $level(1210.72, 8.29, 68.21), 'end' => $level(2421.44, 16.58, 136.42), 'ascension' => 0.0],
+                        ['phase' => 3, 'start' => $level(7000, 50, 400), 'end' => $level(14000, 100, 800), 'ascension' => 19.2],
+                        ['phase' => 6, 'start' => $level(14459.03, 98.95, 814.56), 'end' => $level(28918.06, 197.9, 1629.12), 'ascension' => 38.4],
+                    ],
                 ],
             ],
             entry('characters', 'hutao')['meta'],
-            'Hu Tao\'s stats from her set\'s phases 0 and 6, the lowest id of each, the deleted ones left out',
+            'Hu Tao\'s stats from her set\'s phases 0 and 6, the lowest id of each, the deleted ones left out; every phase of hers beside them',
         );
         same([], entry('characters', 'ineffa')['meta'], 'a set without its phase 6: none');
         same(['outcome' => 'changed', 'written' => 2, 'problem' => null], catalogSync()->refresh(Game::Genshin, 'weapons'), 'the weapons written');
         same(
-            ['stats' => ['base_atk' => 46.0, 'lv80_atk' => 563.0, 'secondary' => ['stat' => 'critDMG_', 'value' => 14.4]]],
+            [
+                'stats' => [
+                    'base_atk' => 46.0,
+                    'lv80_atk' => 563.0,
+                    'secondary' => ['stat' => 'critDMG_', 'value' => 14.4],
+                    'phases' => [['phase' => 0, 'atk' => 46.0, 'secondary' => 14.4], ['phase' => 6, 'atk' => 563.0, 'secondary' => 60.3]],
+                ],
+            ],
             entry('weapons', 'staffofhoma')['meta'],
-            'Homa\'s stats, the secondary stat by the row\'s label',
+            'Homa\'s stats, the secondary stat by the row\'s label; its phases',
         );
-        same(['stats' => ['base_atk' => 42.0, 'lv80_atk' => 475.0, 'secondary' => null]], entry('weapons', 'thecatch')['meta'], 'a weapon without a secondary stat');
+        same(
+            [
+                'stats' => [
+                    'base_atk' => 42.0,
+                    'lv80_atk' => 475.0,
+                    'secondary' => null,
+                    'phases' => [['phase' => 0, 'atk' => 42.0, 'secondary' => 0.0], ['phase' => 6, 'atk' => 475.0, 'secondary' => 0.0]],
+                ],
+            ],
+            entry('weapons', 'thecatch')['meta'],
+            'a weapon without a secondary stat: its phases say nought of one',
+        );
         same($huTao, entry('characters', 'hutao')['id'], 'the rows found again');
         same($homa, entry('weapons', 'staffofhoma')['id'], 'the weapons too');
 

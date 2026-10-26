@@ -1,5 +1,17 @@
 [
   {
+    "version": "0.9.0",
+    "date": "2026-10-26",
+    "changes": {
+      "added": [
+        "A character imported from a file now has its totals worked out from its gear - the character at its level, the weapon, the artifacts and the 2-piece set bonuses -, so its stat targets are checked and scored like those of a character imported by UID, and its Stats card says where the numbers come from"
+      ],
+      "updated": [
+        "The import guide says plainly where a full inventory file comes from: a scanner or exporter tool of your own on your PC - this site hands out no script -, with steps for both kinds of tool"
+      ]
+    }
+  },
+  {
     "version": "0.8.1",
     "date": "2026-10-26",
     "changes": {

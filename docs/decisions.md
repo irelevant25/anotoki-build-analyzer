@@ -3,6 +3,30 @@
 Short records of choices that shape the code. Add a new entry (newest first) when you make a similar call.
 Older entries describe the Laravel version as it was; where a setting has since moved, the entry says so.
 
+**2026-10-26 — the totals worked out from the gear (the owner's round of 2026-10-26, step 3).** A character from an
+inventory file has no in-game totals (a GOOD file carries none), so its stat targets went unchecked and the import
+guide said "No in-game total stats" - and most accounts come from a file. The owner was unsure of the step ("I am not
+sure about the step 3 but you can continue"), so it is kept narrow:
+- **The sheet's arithmetic, nothing conditional** (`App\Services\Analysis\SheetTotals`): the sheet's base, the
+  character at its level in its ascension's phase, the weapon at its level, every piece's main stat and substats, the
+  2-piece bonus of every set worn on two pieces - the sources the targets are worked out from, so the two are compared
+  alike. No weapon passive, no 4-piece, no resonance: the game shows a little more, and the page says so ("Passives
+  and team buffs are not in it"). Never stored: worked out when the character is shown, and only where the game's own
+  totals are missing - a showcase import's stand first.
+- **Every ascension phase in the catalog** (genshin.anotoki.eu's catalog lists carry `phases` since the same day, and
+  the provider's fallback reads the same from its phase lists; `meta.stats.phases`): a level inside a phase is read
+  off the phase's two ends as a straight line (`App\Support\LevelStats`, the level 90 helper grown: `characterAt()`,
+  `weaponAt()`), near enough within a phase; without them the level 90 values stand in, so a catalog refreshed before
+  they came loses nothing it had.
+- **The import guide says where the file comes from** (migration 028; the owner's question of the same day: they
+  expected the site to hand out a script that reads the running game, as the wish-history trick does): a scanner or
+  exporter tool of the player's own, on their PC - this site gives no script or tool - and the steps fit a screen
+  scanner as well as an exporter that captures the game's data. Reading the inventory out of the game's files or
+  memory is no route: the inventory is on the server, reaches the client encrypted and sits in its memory, and both
+  ways at it break the game's terms. The sanctioned way to every character is the official web account's record with
+  the player's cookies (equipped gear with its substats, no unequipped pieces): a round of its own, if the owner wants
+  it.
+
 **2026-10-26 — stat targets for every build, in three tiers, worked out from the game's numbers (the owner's round
 of 2026-10-26, step 2).** The owner's words: "I really need a recommended target stats values for every build ...
 I would prefer 3 values like basic/intermediate/advanced target values", with progress bars beside the sets', main
@@ -52,7 +76,8 @@ pipeline is a site to depend on.
 - **The stats come with the catalog** (genshin.anotoki.eu's catalog lists carry each character's and weapon's
   level 1 and level 80 stats and the ascension stat since 2026-10-26, as its phases hold them; the analyzer keeps
   them in the rows' `meta.stats` and takes them to level 90 with the game's few curve constants,
-  `App\Support\MaxLevelStats`), not with the builds file: they are the character's and the weapon's, not a build's.
+  `App\Support\MaxLevelStats` - since step 3 `LevelStats`), not with the builds file: they are the character's and
+  the weapon's, not a build's.
   No table changes; a catalog refresh after the update fills them, and until then the stated targets stand alone.
 - **A 4-star character is at C6 on the builds page** (the owner's rule: "Expect all 4* to be c6 automatically in the
   builds on my website"): the stated targets held at C6, as nearly every player has them. On a character page the

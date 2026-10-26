@@ -8,7 +8,7 @@ use App\Models\GameCharacter;
 use App\Models\GameSet;
 use App\Models\GameWeapon;
 use App\Support\MainStatValues;
-use App\Support\MaxLevelStats;
+use App\Support\LevelStats;
 use App\Support\SetBonus;
 use App\Support\Stats;
 
@@ -86,16 +86,16 @@ final class TargetTiers
     public static function forBuild(Build $build, GameCharacter $character, array $weapons, array $sets, ?GameWeapon $inHand, array $wornMainStats, int $rank, ?int $wornOption = null): ?array
     {
         $game = $character->game;
-        $stats = MaxLevelStats::character($character);
+        $stats = LevelStats::character($character);
         if ($stats === null) {
             return null;
         }
 
         // The weapon in hand where the catalog knows its stats, else the first of the build's it knows.
-        $weapon = $inHand !== null && MaxLevelStats::weapon($inHand) !== null ? $inHand : null;
+        $weapon = $inHand !== null && LevelStats::weapon($inHand) !== null ? $inHand : null;
         foreach ($weapon === null ? $build->weapons : [] as $entry) {
             $candidate = $weapons[$entry['key']] ?? null;
-            if ($candidate !== null && MaxLevelStats::weapon($candidate) !== null) {
+            if ($candidate !== null && LevelStats::weapon($candidate) !== null) {
                 $weapon = $candidate;
                 break;
             }
@@ -115,7 +115,7 @@ final class TargetTiers
             'rows' => self::rows(
                 $game,
                 $stats,
-                (array) MaxLevelStats::weapon($weapon),
+                (array) LevelStats::weapon($weapon),
                 $mainStats,
                 self::bonuses($game, $option, $sets),
                 $substats,

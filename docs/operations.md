@@ -742,6 +742,30 @@ Check after an install: `https://builder.anotoki.eu/config/database.local.php`, 
 `/src/Config.php` must not download (403); `https://builder.anotoki.eu/api/meta` answers JSON with the IAM's
 `issuer`, `client_id` and `login_required` under `auth`; `/api/accounts` answers 401 without a token.
 
+### Deploying 0.9.0
+
+The owner's round of 2026-10-26, step 3 ([decisions.md](decisions.md)): a character without in-game totals - one
+from an inventory file - is shown with, and has its stat targets checked against, the sheet's totals worked out from
+its gear ([analysis.md](analysis.md), "The totals from the gear"), and the import guide says where the file comes
+from (migration 028: one word, and the file method's words reworded where they read as seeded). The character at its
+level rests on every ascension phase, which the catalog keeps in its rows' `meta.stats.phases` since this version -
+from genshin.anotoki.eu's catalog lists (its catalog endpoint carries `phases` since the same day; its release is
+still the owner's to make) and, while those carry no `stats`, from its phase lists as 0.8.1 reads them -, so:
+
+1. **The release**: `bun run anotoki-deploy deploy --backups <folder> --go`. From then on the site is closed until
+   the Apply.
+2. **Apply pending at once** (signed in as the ADMIN, on the Migrations page), after a backup of the database as it
+   was ("before-migration"): **028** (its gate refuses unless the site's own keys are 459 after it). No build
+   changes, nothing to import.
+3. **Refresh catalog** on `/admin/builds` (in full, as since 0.8.1): the characters and the weapons lists answer
+   "changed" and the rows gain their phases. Until then a character below level 90 is read at level 90.
+
+Then check: an account's character imported from a file shows "Stats" with "Worked out from your gear ..." and its
+stat targets scored ("you: ..." under each, the Stat targets bar no longer "n/a"); one imported by UID shows its
+in-game totals as before; `/import`'s file method reads "Full inventory (a file from a tool of your own)". **The
+backups made before this Apply are restored offline only** (`409 schema_differs`, as after every Apply): make a
+backup by hand once it is applied.
+
 ### Deploying 0.8.1
 
 No migration: the release goes up (`bun run anotoki-deploy deploy --backups <folder> --go`) and the site stays open.

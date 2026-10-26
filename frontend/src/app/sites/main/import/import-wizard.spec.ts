@@ -255,12 +255,7 @@ describe('the import wizard', () => {
     // Back to the guide (a step is drawn at a time): the chosen game's and way's, step by step.
     await backTo(1);
     expect(notFromAKey(['Genshin Impact', 'Second'])).toEqual([]);
-    expect([...host.querySelectorAll('.guide-title')].map(text)).toEqual([
-      '«Get an inventory exporter»',
-      '«Start the exporter before the game»',
-      '«Log into Genshin Impact»',
-      '«Export the GOOD file»',
-    ]);
+    expect([...host.querySelectorAll('.guide-title')].map(text)).toEqual(['«Get an inventory scanner or exporter»', '«Start the tool»', '«Let it read everything»', '«Export the GOOD file»']);
     expect([...host.querySelectorAll('.tip')].map(text)).toHaveLength(2);
     expect([...host.querySelectorAll('.trouble li')].map(text)).toHaveLength(3);
   });

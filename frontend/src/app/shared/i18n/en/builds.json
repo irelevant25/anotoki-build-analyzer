@@ -26,7 +26,6 @@
   "builds.filter.showing": "Showing {shown} of {total}",
   "builds.filter.none": "No character matches these filters.",
   "builds.filter.noneHint": "Change the filters, or reset them to see every character.",
-
   "character.talentBonus": "+{bonus} from {ranks}",
   "character.versus": "vs. {build}",
   "character.noBuilds": "No builds for {name} yet. They appear once an editor imports them (on the {link} page).",
@@ -81,7 +80,7 @@
   "character.stats.fromFile": "In-game totals from your inventory file, {when}.",
   "character.stats.inGame": "In-game totals.",
   "character.stats.itemsOnly": "From {items} only (import by UID to see in-game totals):",
-
+  "character.stats.fromGear": "Worked out from your gear: the character at its level, the weapon, the artifacts and the 2-piece set bonuses. Passives and team buffs are not in it, so the game may show a little more. Import by UID to see the game's own totals.",
   "buildDetail.noWeapons": "This build lists none.",
   "buildDetail.equipped": "Equipped",
   "buildDetail.owned": "Owned",
@@ -108,7 +107,6 @@
   "buildDetail.version": "Version {version}",
   "buildDetail.checked": "Checked {when}",
   "buildDetail.edit": "Edit builds",
-
   "item.percentOfIdealForBuild": "{percent}% of an ideal piece for this build",
   "item.wrongMainStat": "This build wants a different main stat",
   "item.percentOfIdeal": "{percent}% of ideal",

@@ -245,6 +245,7 @@ function analysis(game: GameKey = 'genshin', change: Partial<CharacterAnalysis> 
       talents: { skill: 12, bonus: { skill: 3 } },
       final_stats: { critRate_: 62 },
       final_stats_source: 'showcase',
+      computed_stats: null,
       synced_at: new Date(Date.now() - 3 * 3600 * 1000 - 5000).toISOString(),
     },
     equipment: { totals: { critRate_: 7.8 }, crit_value: 182.4, slots: ['sands'] },
@@ -338,6 +339,20 @@ describe('CharacterPage: the site’s words are keys, the game’s words stay', 
     expect(text('.bottom-grid > anotoki-card:last-child .anotoki-card__body > p')).toEqual(['In-game totals from your Character Showcase, 3 hours ago.']);
     // A key the page has no string for would stand on the page as itself, and warn.
     expect(warn).not.toHaveBeenCalled();
+  });
+
+  it('shows a character without in-game totals the ones worked out from the gear, and says where they are from', async () => {
+    const character = { ...analysis().character, final_stats: null, final_stats_source: null, computed_stats: { hp: 27579, critRate_: 64.1, pyro_dmg_: 0 } };
+    await open('en', of(analysis('genshin', { character })));
+    expect(text('.bottom-grid > anotoki-card:last-child .anotoki-card__body > p')).toEqual([en['character.stats.fromGear']]);
+    expect(text('.stat-table .value')).toEqual(['27,579', '64.1%']);
+  });
+
+  it('shows a character with neither (the catalog has no stats of it) the sum of the pieces, as before', async () => {
+    const character = { ...analysis().character, final_stats: null, final_stats_source: null, computed_stats: null };
+    await open('en', of(analysis('genshin', { character })));
+    expect(text('.bottom-grid > anotoki-card:last-child .anotoki-card__body > p')).toEqual(['From Artifacts only (import by UID to see in-game totals):']);
+    expect(text('.stat-table .value')).toEqual(['7.8%']);
   });
 
   it('words every recommendation from its kind - and shows the stored English of a kind it does not know', async () => {

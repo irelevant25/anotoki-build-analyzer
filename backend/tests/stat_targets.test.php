@@ -2,7 +2,7 @@
 
 /**
  * The stat targets worked out from the game's numbers (App\Services\Analysis\TargetTiers): a character's and a
- * weapon's stats taken to level 90 from what the catalog keeps (App\Support\MaxLevelStats), a set's 2-piece bonus
+ * weapon's stats taken to level 90 from what the catalog keeps (App\Support\LevelStats), a set's 2-piece bonus
  * read from its words (App\Support\SetBonus), the fixed sources of the sheet, the three tiers as budgets of rolls
  * split by the substat priorities, the requirements paid first, the caps, the crit pair's 1:2 rule, and what a
  * build gets when the catalog lacks the stats.
@@ -13,12 +13,16 @@ declare(strict_types=1);
 require __DIR__ . '/lib.php';
 
 use App\Enums\Game;
+use App\Models\AccountCharacter;
+use App\Models\AccountItem;
+use App\Models\AccountWeapon;
 use App\Models\Build;
 use App\Models\GameCharacter;
 use App\Models\GameSet;
 use App\Models\GameWeapon;
+use App\Services\Analysis\SheetTotals;
 use App\Services\Analysis\TargetTiers;
-use App\Support\MaxLevelStats;
+use App\Support\LevelStats;
 use App\Support\SetBonus;
 
 bootTests();
@@ -141,7 +145,7 @@ function about(float $expected, float $actual, string $label, float $within = 0.
 // ── Level 90 ─────────────────────────────────────────────────────────────────────────────────────
 
 test('a character at level 90 from its level 1 and level 80 stats: the game\'s own numbers within a point', function () {
-    $stats = MaxLevelStats::character(ayaka());
+    $stats = LevelStats::character(ayaka());
     about(12858, $stats['hp'], 'Ayaka\'s HP', 1);
     about(342, $stats['atk'], 'her ATK', 1);
     about(784, $stats['def'], 'her DEF', 1);
@@ -164,43 +168,155 @@ test('a character at level 90 from its level 1 and level 80 stats: the game\'s o
         null,
         rarity: 4,
     );
-    $stats = MaxLevelStats::character($bennett);
+    $stats = LevelStats::character($bennett);
     about(12397, $stats['hp'], 'a 4-star\'s HP', 1);
     about(191, $stats['atk'], 'his ATK', 1);
 });
 
 test('no stats, a number missing or a rarity the game has not: no level 90', function () {
-    same(null, MaxLevelStats::character(ayaka(['stats' => null])), 'none kept');
+    same(null, LevelStats::character(ayaka(['stats' => null])), 'none kept');
     same(
         null,
-        MaxLevelStats::character(ayaka(['stats' => ['base' => ['hp' => 1, 'atk' => 1], 'lv80' => ['hp' => 1, 'atk' => 1, 'def' => 1], 'ascension' => ['stat' => 'critDMG_', 'value' => 1]]])),
+        LevelStats::character(ayaka(['stats' => ['base' => ['hp' => 1, 'atk' => 1], 'lv80' => ['hp' => 1, 'atk' => 1, 'def' => 1], 'ascension' => ['stat' => 'critDMG_', 'value' => 1]]])),
         'DEF missing',
     );
     $odd = ayaka();
     $odd->rarity = 3;
-    same(null, MaxLevelStats::character($odd), 'a 3-star character');
+    same(null, LevelStats::character($odd), 'a 3-star character');
 });
 
 test('a weapon at level 90: base ATK by its rarity and level 1 value, the secondary stat by the one curve; a pair the table lacks keeps level 80', function () {
-    same(['atk' => 674.0, 'secondary' => ['stat' => 'critDMG_', 'value' => 44.1]], MaxLevelStats::weapon(mistsplitter()), 'Mistsplitter: 48 -> 674, 9.6 -> 44.1');
+    same(['atk' => 674.0, 'secondary' => ['stat' => 'critDMG_', 'value' => 44.1]], LevelStats::weapon(mistsplitter()), 'Mistsplitter: 48 -> 674, 9.6 -> 44.1');
     same(
         ['atk' => 454.0, 'secondary' => ['stat' => 'enerRech_', 'value' => 61.1]],
-        MaxLevelStats::weapon(weapon('Favonius Sword', 4, 41, 427, ['stat' => 'enerRech_', 'value' => 13.3])),
+        LevelStats::weapon(weapon('Favonius Sword', 4, 41, 427, ['stat' => 'enerRech_', 'value' => 13.3])),
         'a 4-star: 41 -> 454',
     );
     same(
         ['atk' => 542.0, 'secondary' => ['stat' => 'eleMas', 'value' => 264.6]],
-        MaxLevelStats::weapon(weapon('A Thousand Floating Dreams', 5, 44, 506, ['stat' => 'eleMas', 'value' => 57.6])),
+        LevelStats::weapon(weapon('A Thousand Floating Dreams', 5, 44, 506, ['stat' => 'eleMas', 'value' => 57.6])),
         'Elemental Mastery by the same curve',
     );
-    same(['atk' => 186.0, 'secondary' => null], MaxLevelStats::weapon(weapon('Silver Sword', 2, 33, 186, null)), 'a 2-star: its level 80 value, no secondary stat');
+    same(['atk' => 186.0, 'secondary' => null], LevelStats::weapon(weapon('Silver Sword', 2, 33, 186, null)), 'a 2-star: its level 80 value, no secondary stat');
     same(
         null,
-        MaxLevelStats::weapon(
-            weapon('Nameless', 5, 48, 621, null)->meta === [] ? weapon('Nameless', 5, 48, 621, null) : new GameWeapon(9, GAME, 'nameless', 'Nameless', null, null, [], null, rarity: 5),
-        ),
+        LevelStats::weapon(weapon('Nameless', 5, 48, 621, null)->meta === [] ? weapon('Nameless', 5, 48, 621, null) : new GameWeapon(9, GAME, 'nameless', 'Nameless', null, null, [], null, rarity: 5)),
         'no stats kept: none',
     );
+});
+
+// ── A level ──────────────────────────────────────────────────────────────────────────────────────
+
+/** Ayaka with the phases a catalog refresh keeps of her: phase 0 (levels 1-20), 4 (60-70) and 6 (80-90), the rest left out. */
+function ayakaWithPhases(): GameCharacter
+{
+    $character = ayaka();
+    $character->meta['stats']['phases'] = [
+        ['phase' => 0, 'start' => ['hp' => 1000.99, 'atk' => 26.63, 'def' => 61.03], 'end' => ['hp' => 2597.0, 'atk' => 69.1, 'def' => 158.3], 'ascension' => 0.0],
+        ['phase' => 4, 'start' => ['hp' => 8597.0, 'atk' => 228.7, 'def' => 524.1], 'end' => ['hp' => 9701.0, 'atk' => 258.0, 'def' => 591.5], 'ascension' => 19.2],
+        // Phase 6's end as the catalog keeps it is level 90 by no curve: never read.
+        ['phase' => 6, 'start' => ['hp' => 11954.32, 'atk' => 317.98, 'def' => 728.82], 'end' => ['hp' => 1.0, 'atk' => 1.0, 'def' => 1.0], 'ascension' => 38.4],
+    ];
+
+    return $character;
+}
+
+test('a character at a level: read off its phase\'s two ends with the ascension stat as the phase has it; phase 6 ends at level 90; a phase the catalog has not leaves level 90 standing', function () {
+    $at = fn(int $level, int $ascension) => LevelStats::characterAt(ayakaWithPhases(), $level, $ascension);
+    same(['hp' => 1001.0, 'atk' => 26.6, 'def' => 61.0, 'ascension' => ['stat' => 'critDMG_', 'value' => 0.0]], $at(1, 0), 'level 1: phase 0\'s start, no ascension stat yet');
+    same(['hp' => 2597.0, 'atk' => 69.1, 'def' => 158.3, 'ascension' => ['stat' => 'critDMG_', 'value' => 0.0]], $at(20, 0), 'level 20 before ascending: phase 0\'s end');
+    $halfway = $at(65, 4);
+    about(9149, $halfway['hp'], 'level 65: HP halfway through phase 4', 0.1);
+    about(243.35, $halfway['atk'], 'its ATK', 0.1);
+    about(557.8, $halfway['def'], 'its DEF', 0.1);
+    same(['stat' => 'critDMG_', 'value' => 19.2], $halfway['ascension'], 'the ascension stat as phase 4 has it');
+    $top = LevelStats::character(ayaka());
+    same($top, $at(90, 6), 'level 90: the top level');
+    about(($top['hp'] + 11954.32) / 2, $at(85, 6)['hp'], 'level 85: halfway from level 80 ascended to 90, whatever the phase\'s end says', 0.1);
+    same($at(80, 6), $at(65, 9), 'an ascension past the game\'s is the last phase, the level held inside it');
+    same($at(65, 4), $at(65, 0), 'an ascension below the fewest the level needs - an import naming none stores 0 - is that fewest');
+    same($top, $at(90, 0), 'so a level 90 "at phase 0" is level 90, not level 20');
+    same([0, 0, 1, 2, 3, 4, 5, 5, 6, 6], array_map(LevelStats::leastAscension(...), [1, 20, 21, 41, 51, 61, 71, 80, 81, 90]), 'the fewest ascensions a level needs');
+    same($top, $at(45, 2), 'a phase the catalog has not: the level 90 values stand in');
+    same($top, LevelStats::characterAt(ayaka(), 45, 2), 'no phases kept: the level 90 values');
+    same(null, LevelStats::characterAt(ayaka(['stats' => null]), 45, 2), 'no stats kept: none');
+});
+
+test('a weapon at a level: from its phase\'s start to the next phase\'s start, the last to level 90, the secondary stat along the same line', function () {
+    $weapon = mistsplitter();
+    $weapon->meta['stats']['phases'] = [
+        ['phase' => 0, 'atk' => 48.0, 'secondary' => 9.6],
+        ['phase' => 1, 'atk' => 133.0, 'secondary' => 17.0],
+        ['phase' => 2, 'atk' => 261.0, 'secondary' => 24.6],
+        ['phase' => 6, 'atk' => 621.0, 'secondary' => 41.0],
+    ];
+    $at = fn(int $level, int $ascension) => LevelStats::weaponAt($weapon, $level, $ascension);
+    same(['atk' => 48.0, 'secondary' => ['stat' => 'critDMG_', 'value' => 9.6]], $at(1, 0), 'level 1');
+    same(['atk' => 133.0, 'secondary' => ['stat' => 'critDMG_', 'value' => 17.0]], $at(20, 0), 'level 20 before ascending: where phase 1 begins (the ascension\'s step a little early)');
+    same(['atk' => 197.0, 'secondary' => ['stat' => 'critDMG_', 'value' => 20.8]], $at(30, 1), 'level 30: halfway through phase 1');
+    same($at(30, 1), $at(30, 0), 'an ascension below the fewest the level needs: that fewest');
+    same(LevelStats::weapon($weapon), $at(90, 6), 'level 90: the top level');
+    about((621 + 674) / 2, $at(85, 6)['atk'], 'level 85: halfway from level 80 ascended to 90', 0.1);
+    about((41 + 44.1) / 2, $at(85, 6)['secondary']['value'], 'the secondary stat too', 0.1);
+    same(LevelStats::weapon($weapon), $at(45, 2), 'a phase whose next the catalog has not: the level 90 values stand in');
+    same(LevelStats::weapon(mistsplitter()), LevelStats::weaponAt(mistsplitter(), 45, 2), 'no phases kept: the level 90 values');
+    same(null, LevelStats::weaponAt(new GameWeapon(9, GAME, 'nameless', 'Nameless', null, null, [], null, rarity: 5), 45, 2), 'no stats kept: none');
+});
+
+// ── The totals from the gear ─────────────────────────────────────────────────────────────────────
+
+/** A 5-star piece at +20 of a set, equipped: its main stat with its value (none: as an export without one gets it), these substats. */
+function piece(GameSet $set, string $slot, string $main, array $substats, ?float $mainValue = null): AccountItem
+{
+    return new AccountItem(1, 1, $set, $slot, 5, 20, $main, $mainValue, $substats, 7);
+}
+
+test('the sheet\'s totals from the gear: the base, the character at its level, the weapon, the main stats and substats, the 2-piece bonuses - keyed as a showcase keys them', function () {
+    $owned = new AccountCharacter(1, 1, 1, ayaka(), level: 90, ascension: 6);
+    $weapon = new AccountWeapon(1, 1, mistsplitter(), level: 90, ascension: 6);
+    $crit = [['key' => 'critRate_', 'value' => 3.9, 'rolls' => 1]];
+    $items = [
+        'flower' => piece(blizzard(), 'flower', 'hp', $crit, 4780.0),
+        'plume' => piece(blizzard(), 'plume', 'atk', $crit, 311.0),
+        'sands' => piece(blizzard(), 'sands', 'atk_', $crit, 46.6),
+        'goblet' => piece(blizzard(), 'goblet', 'cryo_dmg_', $crit, 46.6),
+        'circlet' => piece(set('Gladiator\'s Finale', 'ATK +18%'), 'circlet', 'critDMG_', [['key' => 'eleMas', 'value' => 23.0, 'rolls' => 1]]),
+    ];
+    $totals = SheetTotals::compute(GAME, $owned, $weapon, $items);
+    same(
+        ['hp', 'atk', 'def', 'eleMas', 'critRate_', 'critDMG_', 'enerRech_', 'heal_', 'physical_dmg_', 'cryo_dmg_'],
+        array_keys($totals),
+        'a showcase\'s keys: the three totals, then every stat of the sheet\'s - nought included -, another element\'s DMG only with a value',
+    );
+    same(12858.0 + 4780, $totals['hp'], 'HP: Ayaka at 90 plus the flower');
+    about((342.0 + 674) * 1.466 + 311, $totals['atk'], 'ATK: her base with the weapon\'s, times the sands\' ATK%, plus the plume', 1);
+    same(784.0, $totals['def'], 'DEF: her own');
+    same(5 + 4 * 3.9, $totals['critRate_'], 'CRIT Rate: the sheet\'s 5 % and four rolls');
+    about(50 + 38.4 + 44.1 + 62.2, $totals['critDMG_'], 'CRIT DMG: the base, the ascension, the weapon at 90, the circlet at +20 (the export without a value)', 0.1);
+    same(100.0, $totals['enerRech_'], 'Energy Recharge: the base');
+    same(46.6 + 15, $totals['cryo_dmg_'], 'Cryo DMG: the goblet and the 2-piece Blizzard Strayer (four pieces: once)');
+    same(23.0, $totals['eleMas'], 'Elemental Mastery: the circlet\'s roll; the lone Gladiator piece no bonus');
+
+    same(
+        [12858.0, 342.0, 784.0, 0.0, 5.0, 88.4, 100.0, 0.0, 0.0, 0.0],
+        array_values((array) SheetTotals::compute(GAME, $owned, null, [])),
+        'nothing worn: the character alone, its ascension stat in CRIT DMG',
+    );
+    $nameless = new AccountWeapon(1, 1, new GameWeapon(9, GAME, 'nameless', 'Nameless', null, null, [], null, rarity: 5), level: 90);
+    same(
+        ['hp', 'def', 'eleMas', 'critRate_', 'critDMG_', 'enerRech_', 'heal_', 'physical_dmg_', 'cryo_dmg_'],
+        array_keys((array) SheetTotals::compute(GAME, $owned, $nameless, [])),
+        'a weapon the catalog has no stats of: no ATK to say',
+    );
+    about(9149, SheetTotals::compute(GAME, new AccountCharacter(1, 1, 1, ayakaWithPhases(), level: 65, ascension: 4), null, [])['hp'], 'at level 65 in phase 4: the character there', 0.1);
+    about(9149, SheetTotals::compute(GAME, new AccountCharacter(1, 1, 1, ayakaWithPhases(), level: 65), null, [])['hp'], 'an import naming no ascension: the fewest the level needs', 0.1);
+    about(
+        9149,
+        SheetTotals::compute(GAME, new AccountCharacter(1, 1, 1, ayakaWithPhases(), level: 65, ascension: 0), null, [])['hp'],
+        'an import naming none the way the parsers store it, 0: the same',
+        0.1,
+    );
+    same(null, SheetTotals::compute(GAME, new AccountCharacter(1, 1, 1, ayaka(['stats' => null]), level: 90), $weapon, $items), 'no stats of the character: none');
 });
 
 test('a set\'s 2-piece bonus from its words: the sheet\'s stats as the catalog keys them, anything else none', function () {

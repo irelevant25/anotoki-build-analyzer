@@ -114,6 +114,9 @@ class CharacterAnalyzer
                 'talents' => $character->talents,
                 'final_stats' => $character->final_stats,
                 'final_stats_source' => $character->final_stats ? self::importKind($character->source) : null,
+                // Without the game's own totals, the sheet's worked out from the gear (SheetTotals) - what the stat
+                // targets were compared with; null while the catalog keeps no stats of the character.
+                'computed_stats' => $character->final_stats ? null : $context->sheetTotals($character),
                 'synced_at' => Clock::iso($character->synced_at),
             ],
             'equipment' => $this->equipment($context, $character),

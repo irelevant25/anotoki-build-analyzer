@@ -598,6 +598,12 @@ export interface CharacterAnalysis {
     talents: Record<string, number | Record<string, number>> | null;
     final_stats: Record<string, number> | null;
     final_stats_source: ImportKind | null;
+    /**
+     * The sheet's totals worked out from the gear (the character at its level, the weapon, the artifacts, the
+     * 2-piece bonuses) for a character without in-game totals - what its stat targets are compared with; null with
+     * in-game totals, or while the catalog keeps no stats of the character.
+     */
+    computed_stats: Record<string, number> | null;
     synced_at: string | null;
   };
   equipment: { totals: Record<string, number>; crit_value: number; slots: string[] };
