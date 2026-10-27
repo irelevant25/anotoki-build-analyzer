@@ -14,9 +14,10 @@ use DateTimeInterface;
 
 /**
  * The file a signed-in person's own data is exported to and imported from: format "build-analyzer.accounts",
- * version 2 (docs/data-model.md, "Accounts files"). It carries their game accounts - each with its
+ * version 3 (docs/data-model.md, "Accounts files"). It carries their game accounts - each with its
  * characters, weapons, artifacts and import history - from one installation to another, or keeps
- * them as a backup. Version 1 - a character without the build chosen for it, before 0.8.0 - is read too.
+ * them as a backup. Version 2 - a character without its favourite star, before 1.0.0 - and version 1 - without
+ * the build chosen for it either, before 0.8.0 - are read too.
  *
  * It holds nothing that only makes sense here: catalog entries by their key ("hutao"), never an internal
  * id; a build chosen for a character by its variation (role, qualifier, min_rank - BuildFile::identity()),
@@ -35,9 +36,9 @@ final class AccountsFile
 {
     public const FORMAT = 'build-analyzer.accounts';
 
-    public const VERSION = 2;
+    public const VERSION = 3;
 
-    /** The oldest version the reader takes: 1, whose characters carry no chosen build. */
+    /** The oldest version the reader takes: 1, whose characters carry no chosen build (and, like 2's, no star). */
     public const OLDEST_VERSION = 1;
 
     public const MAX_ACCOUNTS = 500;
@@ -105,9 +106,12 @@ final class AccountsFile
         'imports',
     ];
 
-    private const CHARACTER_FIELDS = ['key', 'level', 'ascension', 'rank', 'talents', 'final_stats', 'source', 'synced_at', 'build'];
+    private const CHARACTER_FIELDS = ['key', 'level', 'ascension', 'rank', 'talents', 'final_stats', 'source', 'synced_at', 'build', 'favourite'];
 
-    /** A character of version 1: no chosen build. */
+    /** A character of version 2: no favourite star. */
+    private const CHARACTER_FIELDS_V2 = ['key', 'level', 'ascension', 'rank', 'talents', 'final_stats', 'source', 'synced_at', 'build'];
+
+    /** A character of version 1: no chosen build either. */
     private const CHARACTER_FIELDS_V1 = ['key', 'level', 'ascension', 'rank', 'talents', 'final_stats', 'source', 'synced_at'];
 
     /** The build chosen for a character, by its variation. */
@@ -171,8 +175,8 @@ final class AccountsFile
 
     /**
      * One account as the file holds it, from its database rows: the account's, and those of its characters
-     * (with `character_key`, and the chosen build's `build_role`, `build_qualifier`, `build_min_rank` - null
-     * for none), weapons (`weapon_key`, `equipped_key`), items (`set_key`, `equipped_key`) and
+     * (with `character_key`, the chosen build's `build_role`, `build_qualifier`, `build_min_rank` - null
+     * for none - and `favourite`), weapons (`weapon_key`, `equipped_key`), items (`set_key`, `equipped_key`) and
      * import runs (oldest first; the newest MAX_IMPORTS are kept). Whatever a stored value holds that the
      * reader would refuse - a talent that is not a whole number, a stat key of another shape - stays behind,
      * so the file always imports.
@@ -210,6 +214,7 @@ final class AccountsFile
                     'source' => CharacterAnalyzer::importKind((string) $row['source']),
                     'synced_at' => self::time(Clock::parse($row['synced_at'] ?? null)),
                     'build' => self::writeBuild($game, $row),
+                    'favourite' => (bool) ($row['favourite'] ?? false),
                 ],
                 $characters,
             ),
@@ -511,7 +516,15 @@ final class AccountsFile
         $keys = [];
         foreach ($this->list($entry['characters'], "{$path}.characters", self::MAX_CHARACTERS) as $index => $character) {
             $at = "{$path}.characters[{$index}]";
-            $this->fields($character, $at, $this->version === 1 ? self::CHARACTER_FIELDS_V1 : self::CHARACTER_FIELDS);
+            $this->fields(
+                $character,
+                $at,
+                match ($this->version) {
+                    1 => self::CHARACTER_FIELDS_V1,
+                    2 => self::CHARACTER_FIELDS_V2,
+                    default => self::CHARACTER_FIELDS,
+                },
+            );
             $key = $this->catalogKey($character['key'], "{$at}.key");
             if (isset($keys[$key])) {
                 $this->fail("{$at}.key", 'a character listed twice');
@@ -527,6 +540,7 @@ final class AccountsFile
                 'source' => $this->source($character['source'], "{$at}.source"),
                 'synced_at' => $this->checkTime($character['synced_at'], "{$at}.synced_at"),
                 'build' => $this->version === 1 ? null : $this->build($character['build'], "{$at}.build", $game),
+                'favourite' => $this->version < 3 ? false : $this->bool($character['favourite'], "{$at}.favourite"),
             ];
         }
 

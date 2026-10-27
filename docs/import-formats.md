@@ -52,7 +52,8 @@ The in-game IDs it sends (`avatarId`, a weapon's `itemId`, an artifact's `setId`
 
 ## GOOD (full inventory) — `Files/GoodParser`
 
-Written by Irminsul (packet capture), Inventory Kamera, GOODScanner and Genshin Optimizer.
+Written by the project's own scanner (`game-scanner/`, [game-scanner.md](game-scanner.md): the import guide's
+recommendation since 1.0.0), and by Irminsul (packet capture), Inventory Kamera, GOODScanner and Genshin Optimizer.
 `{format: "GOOD", version: 1–3, source, characters[], weapons[], artifacts[], materials?}`.
 
 - Characters: `key` PascalCase ("KaedeharaKazuha", "TravelerAnemo"; plain "Traveler" = old file, skipped),
@@ -102,11 +103,13 @@ failure that is not an `ImportException`; 18 kinds) and `WARNINGS` (7).
 
 ## The tools players use
 
-The wizard describes these without their names ("an inventory exporter"); this table is for whoever maintains
-the parser.
+The wizard recommends the project's own scanner - "our scanner", the PowerShell line that starts it and a link to its
+README (migration 030; [game-scanner.md](game-scanner.md)) - and describes any other tool without its name ("another
+tool that writes GOOD"); this table is for whoever maintains the parser.
 
 | Tool | How | Output |
 | --- | --- | --- |
+| The project's scanner (`game-scanner/`) | PowerShell as admin, the import page's line; screenshots read with OCR and from their pixels, English client, 16:9 full screen | `genshin-good_<date_time>.json` (GOOD) in Downloads, and the clipboard |
 | Irminsul | run as admin (pktmon) before entering the world, export | `genshin_export_*.json` (GOOD) or clipboard |
 | Inventory Kamera (taiwenlee fork) | OCR, English client | `genshinData_GOOD_*.json` |
 

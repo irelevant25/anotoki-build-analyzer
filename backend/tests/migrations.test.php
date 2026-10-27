@@ -117,6 +117,18 @@ const TOTALS_FROM_GEAR_FILES = ['028_totals_from_gear_words.sql'];
 /** What the totals' file does to the count of the site's own keys: 028 adds 1. */
 const TOTALS_FROM_GEAR_KEYS = 1;
 
+/** After the totals': the characters a player is building - the star's column, its words, the Privacy page's sentence (029). */
+const FAVOURITES_FILES = ['029_favourite_characters.sql'];
+
+/** What the favourites' file does to the count of the site's own keys: 029 adds 7. */
+const FAVOURITES_KEYS = 7;
+
+/** After the favourites': the import guide points to the site's own scanner - two words, the file method's reworded (030). */
+const SCANNER_GUIDE_FILES = ['030_scanner_import_guide.sql'];
+
+/** What the scanner guide's file does to the count of the site's own keys: 030 adds 2. */
+const SCANNER_GUIDE_KEYS = 2;
+
 /** Every column, constraint and index of the app's tables, as comparable lines. */
 function schemaOf(PDO $pdo): array
 {
@@ -727,7 +739,9 @@ test('006 moves the two words of the library\'s under its keys with every reword
                 SITE_SETTINGS_KEYS +
                 CHOSEN_BUILD_KEYS +
                 TARGET_TIERS_KEYS +
-                TOTALS_FROM_GEAR_KEYS,
+                TOTALS_FROM_GEAR_KEYS +
+                FAVOURITES_KEYS +
+                SCANNER_GUIDE_KEYS,
             'the library\'s' => libraryKeyCount(),
         ],
         [
@@ -770,6 +784,8 @@ test('006\'s gate refuses a database whose keys are not the ones it expects - an
             ...CHOSEN_BUILD_FILES,
             ...TARGET_TIERS_FILES,
             ...TOTALS_FROM_GEAR_FILES,
+            ...FAVOURITES_FILES,
+            ...SCANNER_GUIDE_FILES,
             ...array_column(libraryFiles(), 'name'),
             ...array_column(peopleFiles(), 'name'),
         ],
@@ -941,6 +957,8 @@ test(
                     ...CHOSEN_BUILD_FILES,
                     ...TARGET_TIERS_FILES,
                     ...TOTALS_FROM_GEAR_FILES,
+                    ...FAVOURITES_FILES,
+                    ...SCANNER_GUIDE_FILES,
                 ]),
                 ...array_slice(libraryFiles(), 2),
                 ...peopleFiles(),
@@ -992,7 +1010,9 @@ test(
                 SITE_SETTINGS_KEYS +
                 CHOSEN_BUILD_KEYS +
                 TARGET_TIERS_KEYS +
-                TOTALS_FROM_GEAR_KEYS,
+                TOTALS_FROM_GEAR_KEYS +
+                FAVOURITES_KEYS +
+                SCANNER_GUIDE_KEYS,
             (int) $pdo->query("SELECT count(*) FROM translation_keys WHERE name NOT LIKE 'anotoki.%'")->fetchColumn(),
             'the site\'s keys: eight gone and five new (009), fourteen gone (010), the legal pages\' words (011), the stepper\'s and tabs\' (012), the footer\'s three gone (013), and version 0.5\'s',
         );
@@ -1022,6 +1042,8 @@ test('009 where the library\'s sign-in words went in first: the site\'s words ta
                 ...CHOSEN_BUILD_FILES,
                 ...TARGET_TIERS_FILES,
                 ...TOTALS_FROM_GEAR_FILES,
+                ...FAVOURITES_FILES,
+                ...SCANNER_GUIDE_FILES,
             ]),
             ...array_slice(libraryFiles(), 4),
             ...peopleFiles(),
@@ -1066,6 +1088,8 @@ test('009\'s gate refuses a database whose keys are not the ones it expects - no
             ...CHOSEN_BUILD_FILES,
             ...TARGET_TIERS_FILES,
             ...TOTALS_FROM_GEAR_FILES,
+            ...FAVOURITES_FILES,
+            ...SCANNER_GUIDE_FILES,
             ...array_column(array_slice(libraryFiles(), 2), 'name'),
             ...array_column(peopleFiles(), 'name'),
         ],
@@ -1127,6 +1151,8 @@ test(
                     ...CHOSEN_BUILD_FILES,
                     ...TARGET_TIERS_FILES,
                     ...TOTALS_FROM_GEAR_FILES,
+                    ...FAVOURITES_FILES,
+                    ...SCANNER_GUIDE_FILES,
                 ]),
                 ...array_slice(libraryFiles(), 2),
                 ...peopleFiles(),
@@ -1200,6 +1226,8 @@ test('010\'s gate refuses a database whose keys are not the ones it expects - no
             ...CHOSEN_BUILD_FILES,
             ...TARGET_TIERS_FILES,
             ...TOTALS_FROM_GEAR_FILES,
+            ...FAVOURITES_FILES,
+            ...SCANNER_GUIDE_FILES,
         ],
         array_column(Migrations::migrator($pdo)->status()['pending'], 'name'),
         'it still waits, and the files after it',
@@ -1266,6 +1294,8 @@ test(
                     ...CHOSEN_BUILD_FILES,
                     ...TARGET_TIERS_FILES,
                     ...TOTALS_FROM_GEAR_FILES,
+                    ...FAVOURITES_FILES,
+                    ...SCANNER_GUIDE_FILES,
                 ]),
                 ...array_slice(libraryFiles(), 11),
             ],
@@ -1295,7 +1325,18 @@ test(
             'whatsNew.title\'s description names the footer\'s word',
         );
         same(
-            $keys - FOOTER_KEYS + VERSION_05_KEYS + VERSION_06_KEYS + VERSION_07_KEYS + ADMIN_FRAME_KEYS + SITE_SETTINGS_KEYS + CHOSEN_BUILD_KEYS + TARGET_TIERS_KEYS + TOTALS_FROM_GEAR_KEYS,
+            $keys -
+                FOOTER_KEYS +
+                VERSION_05_KEYS +
+                VERSION_06_KEYS +
+                VERSION_07_KEYS +
+                ADMIN_FRAME_KEYS +
+                SITE_SETTINGS_KEYS +
+                CHOSEN_BUILD_KEYS +
+                TARGET_TIERS_KEYS +
+                TOTALS_FROM_GEAR_KEYS +
+                FAVOURITES_KEYS +
+                SCANNER_GUIDE_KEYS,
             (int) $pdo->query("SELECT count(*) FROM translation_keys WHERE name NOT LIKE 'anotoki.%'")->fetchColumn(),
             'the site\'s keys less the three, and version 0.5\'s',
         );
@@ -1326,6 +1367,8 @@ test('013 where the library\'s footer words went in first: the site\'s take thei
                 ...CHOSEN_BUILD_FILES,
                 ...TARGET_TIERS_FILES,
                 ...TOTALS_FROM_GEAR_FILES,
+                ...FAVOURITES_FILES,
+                ...SCANNER_GUIDE_FILES,
             ]),
         ],
         $result['applied'],
@@ -1363,6 +1406,8 @@ test('013\'s gate refuses a database whose keys are not the ones it expects - no
             ...CHOSEN_BUILD_FILES,
             ...TARGET_TIERS_FILES,
             ...TOTALS_FROM_GEAR_FILES,
+            ...FAVOURITES_FILES,
+            ...SCANNER_GUIDE_FILES,
             ...array_column(array_slice(libraryFiles(), 11), 'name'),
         ],
         array_column(Migrations::migrator($pdo)->status()['pending'], 'name'),
@@ -2090,7 +2135,7 @@ test('025\'s gate refuses a database whose keys are not the ones it expects - no
     check(str_contains((string) $result['error'], 'keys of the site\'s own'), 'its gate says why: ' . $result['error']);
     same(0, (int) $pdo->query("SELECT count(*) FROM translation_keys WHERE name IN ('title.notOpen', 'legal.settings.name')")->fetchColumn(), 'none of its keys');
     same(
-        ['025_site_settings_words.sql', ...CHOSEN_BUILD_FILES, ...TARGET_TIERS_FILES, ...TOTALS_FROM_GEAR_FILES],
+        ['025_site_settings_words.sql', ...CHOSEN_BUILD_FILES, ...TARGET_TIERS_FILES, ...TOTALS_FROM_GEAR_FILES, ...FAVOURITES_FILES, ...SCANNER_GUIDE_FILES],
         array_column(Migrations::migrator($pdo)->status()['pending'], 'name'),
         'it still waits, and the files after it',
     );
@@ -2155,7 +2200,11 @@ test('026\'s gate refuses a database whose keys are not the ones it expects - no
     check(str_contains((string) $result['error'], 'keys of the site\'s own'), 'its gate says why: ' . $result['error']);
     same(0, (int) $pdo->query("SELECT count(*) FROM translation_keys WHERE name IN ('character.useBuild', 'account.chosenBuild')")->fetchColumn(), 'none of its keys');
     same(0, (int) $pdo->query("SELECT count(*) FROM information_schema.columns WHERE table_name = 'account_characters' AND column_name = 'chosen_build_id'")->fetchColumn(), 'no column');
-    same([...CHOSEN_BUILD_FILES, ...TARGET_TIERS_FILES, ...TOTALS_FROM_GEAR_FILES], array_column(Migrations::migrator($pdo)->status()['pending'], 'name'), 'it still waits, and the file after it');
+    same(
+        [...CHOSEN_BUILD_FILES, ...TARGET_TIERS_FILES, ...TOTALS_FROM_GEAR_FILES, ...FAVOURITES_FILES, ...SCANNER_GUIDE_FILES],
+        array_column(Migrations::migrator($pdo)->status()['pending'], 'name'),
+        'it still waits, and the file after it',
+    );
 });
 
 test('027: the stat target tiers\' six words in both languages, nothing else; the site\'s own keys six more', function () use ($server) {
@@ -2196,7 +2245,11 @@ test('027\'s gate refuses a database whose keys are not the ones it expects - no
     same('027_stat_target_tiers_words.sql', $result['failed']['name'] ?? null, 'it stops at 027');
     check(str_contains((string) $result['error'], 'keys of the site\'s own'), 'its gate says why: ' . $result['error']);
     same(0, (int) $pdo->query("SELECT count(*) FROM translation_keys WHERE name IN ('buildDetail.tierBasic', 'recommendation.target_basic_below')")->fetchColumn(), 'none of its keys');
-    same([...TARGET_TIERS_FILES, ...TOTALS_FROM_GEAR_FILES], array_column(Migrations::migrator($pdo)->status()['pending'], 'name'), 'it still waits, and the file after it');
+    same(
+        [...TARGET_TIERS_FILES, ...TOTALS_FROM_GEAR_FILES, ...FAVOURITES_FILES, ...SCANNER_GUIDE_FILES],
+        array_column(Migrations::migrator($pdo)->status()['pending'], 'name'),
+        'it still waits, and the file after it',
+    );
 });
 
 test(
@@ -2208,7 +2261,7 @@ test(
         $count = fn(): int => (int) $pdo->query("SELECT count(*) FROM translation_keys WHERE name NOT LIKE 'anotoki.%'")->fetchColumn();
         $before = $count();
 
-        $result = Migrations::migrator($pdo)->apply();
+        $result = siteFilesBefore($pdo, 'to013gear', '029')->apply();
         same(null, $result['error'], 'no error');
         same([siteFile('028_totals_from_gear_words.sql')], $result['applied'], '028 applied, alone');
         same($before + TOTALS_FROM_GEAR_KEYS, $count(), 'one key of the site\'s own more');
@@ -2235,7 +2288,7 @@ test(
         );
         same('Moje slová o súbore.', $value('importGuide.genshin.file.summary', 'sk'), 'the editor\'s Slovak kept');
         check(str_starts_with((string) $value('importGuide.genshin.file.summary', 'en'), 'A scanner or exporter tool'), 'its English reworded all the same');
-        same([], Migrations::migrator($pdo)->apply()['applied'], 'nothing left to apply');
+        same([], siteFilesBefore($pdo, 'to013gear', '029')->apply()['applied'], 'nothing left to apply before 029');
     },
 );
 
@@ -2249,7 +2302,130 @@ test('028\'s gate refuses a database whose keys are not the ones it expects - no
     check(str_contains((string) $result['error'], 'keys of the site\'s own'), 'its gate says why: ' . $result['error']);
     same(0, (int) $pdo->query("SELECT count(*) FROM translation_keys WHERE name = 'character.stats.fromGear'")->fetchColumn(), 'none of its keys');
     same('Full inventory (exporter tool)', $pdo->query("SELECT value FROM translations WHERE key_name = 'importGuide.genshin.file.title' AND language_code = 'en'")->fetchColumn(), 'nothing reworded');
-    same(TOTALS_FROM_GEAR_FILES, array_column(Migrations::migrator($pdo)->status()['pending'], 'name'), 'it still waits');
+    same([...TOTALS_FROM_GEAR_FILES, ...FAVOURITES_FILES, ...SCANNER_GUIDE_FILES], array_column(Migrations::migrator($pdo)->status()['pending'], 'name'), 'it still waits, and the files after it');
+});
+
+test(
+    '029 where an editor reworded the Privacy page\'s game accounts in Slovak: the English names the favourites, the editor\'s Slovak kept; the star\'s column, nobody starred, and its words in both languages',
+    function () use ($server) {
+        $pdo = upTo013($server, 'to013stars');
+        siteFilesBefore($pdo, 'to013stars', '029')->apply();
+        $pdo->exec("UPDATE translations SET value = 'Moje vlastné slová o herných účtoch.' WHERE key_name = 'legal.accounts.what' AND language_code = 'sk'");
+        $count = fn(): int => (int) $pdo->query("SELECT count(*) FROM translation_keys WHERE name NOT LIKE 'anotoki.%'")->fetchColumn();
+        $before = $count();
+
+        $result = siteFilesBefore($pdo, 'to013stars', '030')->apply();
+        same(null, $result['error'], 'no error');
+        same([siteFile('029_favourite_characters.sql')], $result['applied'], '029 applied, alone');
+        same($before + FAVOURITES_KEYS, $count(), 'seven keys of the site\'s own more');
+        same(
+            ['boolean', 'NO', 'false'],
+            $pdo->query("SELECT data_type, is_nullable, column_default FROM information_schema.columns WHERE table_name = 'account_characters' AND column_name = 'favourite'")->fetch(PDO::FETCH_NUM),
+            'account_characters.favourite, a boolean never null, false unless starred',
+        );
+        $value = fn(string $key, string $language) => $pdo->query("SELECT value FROM translations WHERE key_name = '{$key}' AND language_code = '{$language}'")->fetchColumn();
+        check(
+            str_ends_with((string) $value('legal.accounts.what', 'en'), 'And the build you choose for a character, if you choose one, and the characters you mark as favourites.'),
+            'the English, as 026 left it, names the favourites',
+        );
+        same('Moje vlastné slová o herných účtoch.', $value('legal.accounts.what', 'sk'), 'the editor\'s Slovak kept');
+        same(
+            ['Favourites', 'Obľúbené', 'Favourite: {name}', 'Obľúbená postava: {name}', 'Only favourites', 'Len obľúbené'],
+            [
+                $value('account.favourites', 'en'),
+                $value('account.favourites', 'sk'),
+                $value('favourites.mark', 'en'),
+                $value('favourites.mark', 'sk'),
+                $value('account.onlyFavourites', 'en'),
+                $value('account.onlyFavourites', 'sk'),
+            ],
+            'the new words in English and Slovak',
+        );
+        foreach (['favourites.add', 'favourites.remove', 'account.allCharacters', 'account.favouritesHint'] as $key) {
+            check(is_string($value($key, 'en')) && is_string($value($key, 'sk')), "{$key}: in English and Slovak");
+        }
+
+        same([], siteFilesBefore($pdo, 'to013stars', '030')->apply()['applied'], 'nothing left to apply before 030');
+    },
+);
+
+test('029\'s gate refuses a database whose keys are not the ones it expects - nothing of it is applied, the column neither', function () use ($server) {
+    $pdo = upTo013($server, 'to013starsgate');
+    siteFilesBefore($pdo, 'to013starsgate', '029')->apply();
+    $pdo->exec("INSERT INTO translation_keys (name, description) VALUES ('test.extra', 'A key nobody expects')");
+
+    $result = Migrations::migrator($pdo)->apply();
+    same('029_favourite_characters.sql', $result['failed']['name'] ?? null, 'it stops at 029');
+    check(str_contains((string) $result['error'], 'keys of the site\'s own'), 'its gate says why: ' . $result['error']);
+    same(0, (int) $pdo->query("SELECT count(*) FROM translation_keys WHERE name IN ('favourites.mark', 'account.favourites')")->fetchColumn(), 'none of its keys');
+    same(0, (int) $pdo->query("SELECT count(*) FROM information_schema.columns WHERE table_name = 'account_characters' AND column_name = 'favourite'")->fetchColumn(), 'no column');
+    same([...FAVOURITES_FILES, ...SCANNER_GUIDE_FILES], array_column(Migrations::migrator($pdo)->status()['pending'], 'name'), 'it still waits, and the file after it');
+});
+
+test(
+    '030: the import guide points to the scanner - its two words in both languages, the file method\'s words reworded where they read as 028 left them, an editor\'s rewording kept; the site\'s own keys two more',
+    function () use ($server) {
+        $pdo = upTo013($server, 'to013scanner');
+        siteFilesBefore($pdo, 'to013scanner', '030')->apply();
+        $pdo->exec("UPDATE translations SET value = 'Moje slová o prvom kroku.' WHERE key_name = 'importGuide.genshin.file.step1.body' AND language_code = 'sk'");
+        $count = fn(): int => (int) $pdo->query("SELECT count(*) FROM translation_keys WHERE name NOT LIKE 'anotoki.%'")->fetchColumn();
+        $before = $count();
+
+        $result = Migrations::migrator($pdo)->apply();
+        same(null, $result['error'], 'no error');
+        same([siteFile('030_scanner_import_guide.sql')], $result['applied'], '030 applied, alone');
+        same($before + SCANNER_GUIDE_KEYS, $count(), 'two keys of the site\'s own more');
+        $value = fn(string $key, string $language) => $pdo->query("SELECT value FROM translations WHERE key_name = '{$key}' AND language_code = '{$language}'")->fetchColumn();
+        same(
+            ['The line to paste into PowerShell', 'Riadok, ktorý vložíš do PowerShellu', 'How the scanner works, and its source code', 'Ako skener funguje a jeho zdrojový kód'],
+            [
+                $value('importGuide.genshin.file.step1.command', 'en'),
+                $value('importGuide.genshin.file.step1.command', 'sk'),
+                $value('importGuide.genshin.file.step1.link', 'en'),
+                $value('importGuide.genshin.file.step1.link', 'sk'),
+            ],
+            'the new words in English and Slovak',
+        );
+        same(
+            ['Start the scanner', 'Spusti skener', 'Full inventory (a file from our scanner or another tool)', '…or paste the JSON (the scanner copies it to the clipboard)'],
+            [
+                $value('importGuide.genshin.file.step1.title', 'en'),
+                $value('importGuide.genshin.file.step1.title', 'sk'),
+                $value('importGuide.genshin.file.title', 'en'),
+                $value('importWizard.file.paste', 'en'),
+            ],
+            'the file method\'s words reworded',
+        );
+        same('Moje slová o prvom kroku.', $value('importGuide.genshin.file.step1.body', 'sk'), 'the editor\'s Slovak kept');
+        check(str_starts_with((string) $value('importGuide.genshin.file.step1.body', 'en'), 'Open PowerShell as administrator'), 'its English reworded all the same');
+        same(0, (int) $pdo->query("SELECT count(*) FROM translations WHERE key_name NOT LIKE 'anotoki.%' AND value ~* 'https?:|www\\.'")->fetchColumn(), 'no string of the site\'s holds an address');
+        same([], Migrations::migrator($pdo)->apply()['applied'], 'nothing left to apply');
+    },
+);
+
+test('030\'s gate refuses a database whose keys are not the ones it expects - nothing of it is applied, nothing reworded', function () use ($server) {
+    $pdo = upTo013($server, 'to013scannergate');
+    siteFilesBefore($pdo, 'to013scannergate', '030')->apply();
+    $pdo->exec("INSERT INTO translation_keys (name, description) VALUES ('test.extra', 'A key nobody expects')");
+
+    $result = Migrations::migrator($pdo)->apply();
+    same('030_scanner_import_guide.sql', $result['failed']['name'] ?? null, 'it stops at 030');
+    check(str_contains((string) $result['error'], 'keys of the site\'s own'), 'its gate says why: ' . $result['error']);
+    same(
+        0,
+        (int) $pdo
+            ->query(
+                "SELECT count(*) FROM translation_keys WHERE name LIKE 'importGuide.genshin.file.step1.%' AND name IN ('importGuide.genshin.file.step1.command', 'importGuide.genshin.file.step1.link')",
+            )
+            ->fetchColumn(),
+        'none of its keys',
+    );
+    same(
+        'Get an inventory scanner or exporter',
+        $pdo->query("SELECT value FROM translations WHERE key_name = 'importGuide.genshin.file.step1.title' AND language_code = 'en'")->fetchColumn(),
+        'nothing reworded',
+    );
+    same(SCANNER_GUIDE_FILES, array_column(Migrations::migrator($pdo)->status()['pending'], 'name'), 'it still waits');
 });
 
 finishTests();

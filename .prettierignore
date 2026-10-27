@@ -10,6 +10,10 @@ composer.lock
 *.sql
 **/storage/
 **/config/*.local.php
+# The game scanner's runs (untracked): its scans, GOOD files and logs.
+*/scans/
+*/exports/
+*/logs/
 
 # The PHP plugin drops the parentheses of (require $file)($slim, $app): PHP would then call the file's name, and require what that returns.
 backend/api/app.php

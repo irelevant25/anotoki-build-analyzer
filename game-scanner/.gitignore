@@ -1,0 +1,11 @@
+node_modules/
+# What a run of the program makes: its log, the scans, the GOOD files.
+logs/
+scans/
+exports/
+# The release zip and its PowerShell script (npm run package).
+dist/
+# Screenshots of the game taken while building the scanner (the tests use test/fixtures).
+/first_*.png
+/last_*.png
+/mid_*.png

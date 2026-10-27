@@ -1,0 +1,25 @@
+{
+  "name": "genshin-good-scanner",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Reads your Genshin Impact weapons, artifacts and characters from the game and makes a GOOD file to import on builder.anotoki.eu.",
+  "type": "module",
+  "main": "src/index.js",
+  "scripts": {
+    "start": "node src/index.js",
+    "test": "node --test \"test/*.test.js\"",
+    "good": "node src/export-good.js",
+    "names": "node tools/update-names.mjs",
+    "package": "node tools/package.mjs"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "dependencies": {
+    "@nut-tree-fork/nut-js": "^4.2.6",
+    "@tesseract.js-data/eng": "^1.0.0",
+    "pngjs": "^7.0.0",
+    "tesseract.js": "^7.0.0",
+    "uiohook-napi": "^1.5.5"
+  }
+}

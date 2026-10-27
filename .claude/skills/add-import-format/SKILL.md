@@ -11,7 +11,8 @@ work is what lets one importer serve the showcase and GOOD files - and the next 
 
 Two ways in today, both Genshin Impact's: the **Character Showcase by UID** (`Import/Enka/EnkaClient` +
 `EnkaGenshinParser`) and **GOOD files** (`Import/Files/GoodParser`, the one format `ImportService::fromFile()`
-detects). Star Rail's parsers went in 0.5.0 (docs/decisions.md, 2026-10-20): a format of another game starts with
+detects) - written by the project's own scanner (`game-scanner/`, since 1.0.0: a change to what it writes is the
+`game-scanner` skill's, checked against this parser) or any other tool. Star Rail's parsers went in 0.5.0 (docs/decisions.md, 2026-10-20): a format of another game starts with
 that game's case in `App\Enums\Game` and a migration widening the `game` CHECKs.
 
 Read `docs/import-formats.md` first (exact field mappings of every supported format, the tools players use,

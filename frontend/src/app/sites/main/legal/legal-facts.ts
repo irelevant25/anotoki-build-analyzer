@@ -16,9 +16,9 @@ import { VISITOR_STORAGE_KEY } from '../../../shared/visitor-key';
 /**
  * The day this site's facts last changed: the pages show the later of it and the day the library's own words last
  * did. Move it with any change to what the site keeps or for how long - and the strings that say so (`legal.*`,
- * migration 011; the site settings' part, 025; the build chosen for a character, 026).
+ * migration 011; the site settings' part, 025; the build chosen for a character, 026; the favourites, 029).
  */
-export const SITE_LEGAL_UPDATED = '2026-10-26';
+export const SITE_LEGAL_UPDATED = '2026-10-27';
 
 /**
  * The anotoki account's cookie for every anotoki site (the IAM's hint_cookie_name, set under the IAM's parent
@@ -61,8 +61,9 @@ export function legalPagesConfig(): AnotokiLegalConfig {
  *   once the account is deleted (the library's scrub, users.anonymized_at);
  * - the game accounts: accounts (UID, nickname - the game's or the person's own -, level, world level, signature,
  *   meta: region, achievements, platform), account_characters (with the build the person chose for a character,
- *   chosen_build_id - migration 026: legal.accounts.what), account_weapons, account_items and import_runs
- *   (source, status, the file's name, the summary and its warnings, the error) - never deleted by age; a person
+ *   chosen_build_id - migration 026 -, and whether they starred it, favourite - 029: legal.accounts.what),
+ *   account_weapons, account_items and import_runs (source, status, the file's name, the summary and its
+ *   warnings, the error) - never deleted by age; a person
  *   deletes an account (DELETE /api/accounts/{id}: its characters, gear and imports go by the foreign keys), an
  *   import replaces what it brings (App\Services\Import\AccountImporter), an ADMIN's delete on the People page takes
  *   all of it; when the account is deleted it stays, the row it hangs on nobody's (the owner's rule: the data

@@ -1,0 +1,15 @@
+<button
+    anotokiButton
+    variant="ghost"
+    size="sm"
+    iconOnly
+    type="button"
+    [attr.aria-pressed]="favourite()"
+    [attr.aria-label]="'favourites.mark' | translate: { name: name() }"
+    [anotokiTooltip]="(favourite() ? 'favourites.remove' : 'favourites.add') | translate"
+    (click)="press()">
+    <!-- A five-pointed star on the icons' 24-unit grid: an outline, or filled while pressed. -->
+    <svg class="star" [class.on]="favourite()" viewBox="0 0 24 24" width="20" height="20" aria-hidden="true" focusable="false">
+        <path d="M12 2.5l2.94 5.96 6.56.95-4.75 4.63 1.12 6.54L12 17.5l-5.87 3.08 1.12-6.54L2.5 9.41l6.56-.95z" />
+    </svg>
+</button>

@@ -2,7 +2,7 @@ import { HttpErrorResponse } from '@angular/common/http';
 import { signal } from '@angular/core';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { provideRouter } from '@angular/router';
-import { Observable, of, throwError } from 'rxjs';
+import { Observable, Subject, of, throwError } from 'rxjs';
 import { provideTestTranslations } from '@anotoki/lib/translations/testing';
 import { ToastService } from '@anotoki/lib/ui/toast';
 import { Api } from '../../../api/api';
@@ -50,6 +50,7 @@ function character(id: number, overrides: Partial<CharacterOverview> = {}): Char
     icon_url: null,
     level: 90,
     rank: 2,
+    favourite: false,
     weapon: { name: 'Staff of Homa', icon_url: null, rarity: 5, level: 80, refinement: 1 },
     sets: [{ key: 'crimson', name: 'Crimson Witch of Flames', count: 4 }],
     items_count: 5,
@@ -123,6 +124,13 @@ const SLOVAK = {
   'account.sortLevel': 'Level',
   'account.sortName': 'Meno',
   'account.showUnbuilt': 'Zobraziť aj postavy bez výbavy ({count})',
+  'account.onlyFavourites': 'Len obľúbené',
+  'account.favourites': 'Obľúbené',
+  'account.allCharacters': 'Všetky postavy',
+  'account.favouritesHint': 'Hviezdičkou označ postavy, na ktorých práve pracuješ, a zostanú navrchu tejto stránky.',
+  'favourites.mark': 'Obľúbená postava: {name}',
+  'favourites.add': 'Pridať medzi obľúbené',
+  'favourites.remove': 'Odobrať z obľúbených',
   'account.noItemsEquipped': '{items}: nič nasadené',
   'account.partSets': 'Sety',
   'account.bestBuild': 'Najlepší build: {build}',
@@ -152,12 +160,12 @@ const SLOVAK = {
 };
 
 /** Anything that looks like one of the site's keys: where a word should be, a key must never show. */
-const A_KEY = /\b(common|account|error|import|recommendation)\.[A-Za-z]/;
+const A_KEY = /\b(common|account|error|import|recommendation|favourites)\.[A-Za-z]/;
 
 describe('the account page', () => {
   let fixture: ComponentFixture<AccountPage>;
   let host: HTMLElement;
-  let api: { account: ReturnType<typeof vi.fn>; accountImports: ReturnType<typeof vi.fn>; renameAccount: ReturnType<typeof vi.fn> };
+  let api: { account: ReturnType<typeof vi.fn>; accountImports: ReturnType<typeof vi.fn>; renameAccount: ReturnType<typeof vi.fn>; markFavourite: ReturnType<typeof vi.fn> };
   let toasts: { error: ReturnType<typeof vi.fn> };
 
   /** What an element says. */
@@ -192,6 +200,7 @@ describe('the account page', () => {
       account: vi.fn(() => (detail instanceof Observable ? detail : of(detail))),
       accountImports: vi.fn(() => of(options.imports ?? [])),
       renameAccount: vi.fn(),
+      markFavourite: vi.fn(),
     };
     toasts = { error: vi.fn() };
     const meta = {
@@ -408,6 +417,97 @@ describe('the account page', () => {
     host.querySelector<HTMLInputElement>('anotoki-switch input')!.click();
     await fixture.whenStable();
     expect(cards()).toHaveLength(2);
+  });
+
+  describe('the favourites', () => {
+    /** The names of the cards in a list: the favourites' or every character's. */
+    const names = (list: 'favourite-characters' | 'all-characters') => texts(`.${list} .char-name`);
+    /** A character's star, in one list or the other. */
+    const star = (list: 'favourite-characters' | 'all-characters', key: string) => host.querySelector<HTMLButtonElement>(`.${list} .char-cell[data-key="${key}"] app-favourite-toggle button`)!;
+
+    it('come first under their heading - an unbuilt one too -, then every character under "All characters", the starred ones among them', async () => {
+      await setup({
+        account: account({
+          characters: [character(1), character(2, { name: 'Furina', favourite: true }), character(3, { name: 'Escoffier', favourite: true, items_count: 0, sets: [] })],
+        }),
+      });
+
+      expect(texts('.section-title')).toEqual(['Obľúbené', 'Všetky postavy']);
+      expect(names('favourite-characters')).toEqual(['Furina', 'Escoffier']);
+      // Escoffier wears nothing: hidden from every character's list, as before - never from the favourites.
+      expect(names('all-characters')).toEqual(['Character 1', 'Furina']);
+      expect(star('favourite-characters', 'character-2').getAttribute('aria-pressed')).toBe('true');
+      expect(star('all-characters', 'character-2').getAttribute('aria-pressed')).toBe('true');
+      expect(star('all-characters', 'character-1').getAttribute('aria-pressed')).toBe('false');
+      expect(star('all-characters', 'character-1').getAttribute('aria-label')).toBe('Obľúbená postava: Character 1');
+      // The star stands beside the link, never inside it.
+      expect(host.querySelector('.char-card app-favourite-toggle')).toBeNull();
+      expect(host.querySelector('.favourites-hint')).toBeNull();
+      expect(host.textContent).not.toMatch(A_KEY);
+    });
+
+    it('say how to star a character while none is starred; once one is, "Only favourites" shows them alone', async () => {
+      await setup({ account: account({ characters: [character(1), character(2)] }) });
+      expect(text(host.querySelector('.favourites-hint'))).toBe('Hviezdičkou označ postavy, na ktorých práve pracuješ, a zostanú navrchu tejto stránky.');
+      expect(host.querySelector('.only-favourites')).toBeNull();
+      expect(host.querySelector('.section-title')).toBeNull();
+      expect(names('all-characters')).toEqual(['Character 1', 'Character 2']);
+
+      TestBed.resetTestingModule();
+      await setup({ account: account({ characters: [character(1), character(2, { favourite: true })] }) });
+      expect(text(host.querySelector('.only-favourites .anotoki-switch__words'))).toBe('Len obľúbené');
+      host.querySelector<HTMLInputElement>('.only-favourites input')!.click();
+      await fixture.whenStable();
+      expect(host.querySelector('.all-characters')).toBeNull();
+      expect(names('favourite-characters')).toEqual(['Character 2']);
+    });
+
+    it('star a character: saved first, then shown - the star pressed where it was, the card under "Favourites" too', async () => {
+      await setup({ account: account({ characters: [character(1), character(2)] }) });
+      const answer = new Subject<{ favourite: boolean }>();
+      api.markFavourite.mockReturnValue(answer);
+      const pressed = star('all-characters', 'character-2');
+
+      pressed.click();
+      await fixture.whenStable();
+      expect(api.markFavourite).toHaveBeenCalledWith(3, 'character-2', true);
+      // On its way: the star waits, and a second press asks nothing more.
+      expect(pressed.getAttribute('aria-pressed')).toBe('false');
+      pressed.click();
+      expect(api.markFavourite).toHaveBeenCalledTimes(1);
+
+      answer.next({ favourite: true });
+      answer.complete();
+      await fixture.whenStable();
+      expect([pressed.isConnected, pressed.getAttribute('aria-pressed')]).toEqual([true, 'true']);
+      expect(names('favourite-characters')).toEqual(['Character 2']);
+      expect(host.querySelector('.favourites-hint')).toBeNull();
+    });
+
+    it('say a refusal in a toast, the star left as it was', async () => {
+      await setup({ account: account({ characters: [character(1)] }) });
+      api.markFavourite.mockReturnValue(throwError(() => new HttpErrorResponse({ status: 404, error: { message: 'Not found.', code: 'not_found' } })));
+
+      star('all-characters', 'character-1').click();
+      await fixture.whenStable();
+      expect(toasts.error).toHaveBeenCalledWith('Nenašlo sa.');
+      expect(star('all-characters', 'character-1').getAttribute('aria-pressed')).toBe('false');
+      expect(host.querySelector('.favourite-characters')).toBeNull();
+    });
+
+    it('keep the focus: a star pressed under "Favourites" takes its card away, and the focus goes to its star under "All characters"', async () => {
+      await setup({ account: account({ characters: [character(1, { favourite: true }), character(2)] }) });
+      api.markFavourite.mockReturnValue(of({ favourite: false }));
+      const pressed = star('favourite-characters', 'character-1');
+
+      pressed.focus();
+      pressed.click();
+      await fixture.whenStable();
+      expect(pressed.isConnected).toBe(false);
+      expect(host.querySelector('.favourite-characters')).toBeNull();
+      expect(document.activeElement).toBe(star('all-characters', 'character-1'));
+      expect(star('all-characters', 'character-1').getAttribute('aria-pressed')).toBe('false');
+    });
   });
 
   describe('the import history', () => {

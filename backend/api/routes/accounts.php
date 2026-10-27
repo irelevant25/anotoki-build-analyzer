@@ -34,6 +34,9 @@ use Slim\Routing\RouteCollectorProxy;
  *   PUT    /api/accounts/{id}/characters/{key}/build  {build_id}: the build the character is judged by - one of its
  *                                                     own builds, reached or not -, or null for the closest match;
  *                                                     answers {chosen_build_id}. Another build: 422 invalid
+ *   PUT    /api/accounts/{id}/characters/{key}/favourite  {favourite}: the character starred - one the player is
+ *                                                     building, listed first on the account page - or not; answers
+ *                                                     {favourite}. Anything but true or false: 422 invalid
  */
 return function (Slim\App $slim, App $app): void {
     $own = function (Request $request, array $args) use ($app): Account {
@@ -141,6 +144,20 @@ return function (Slim\App $slim, App $app): void {
                 }
 
                 return Json::send($response, ['chosen_build_id' => $buildId]);
+            });
+
+            $group->put('/{account:[0-9]+}/characters/{key}/favourite', function (Request $request, Response $response, array $args) use ($app, $own): Response {
+                $account = $own($request, $args);
+                $accounts = $app->get(Accounts::class);
+                $owned = $accounts->character($account->id, (string) $args['key']) ?? throw HttpError::notFound();
+
+                $input = Input::of($request);
+                $favourite = $input->boolean('favourite', required: true);
+                $input->valid();
+
+                $accounts->markFavourite($owned, $favourite);
+
+                return Json::send($response, ['favourite' => $owned->favourite]);
             });
         })
         ->add(requireOwner($app));

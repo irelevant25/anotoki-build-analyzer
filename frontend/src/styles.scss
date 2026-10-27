@@ -116,6 +116,9 @@
 // An element's mark in the account page's element filter (the kit's segmented control, `--el-mark-*`) is its
 // colour where that reaches 3:1 on the control (surface and surface-2 - WCAG 1.4.11, as the kit asks of a mark),
 // darker where it does not: in light, six of them; in dark, every element's own colour does.
+//
+// A favourite's star (sites/main/common/favourite-toggle, pressed) is filled in `--favourite`, a gold that reaches
+// 3:1 on every ground of its theme (WCAG 1.4.11; measured 2026-10-27: 4.4 to 5.4 in light, 6.3 to 8.5 in dark).
 $site-colours: (
   light: (
     grade-s: #735410,
@@ -136,6 +139,7 @@ $site-colours: (
     el-mark-dendro: #6d9221,
     el-mark-cryo: #2e92ab,
     el-mark-geo: #ab811f,
+    favourite: #8f6200,
   ),
   dark: (
     grade-s: #e0a526,
@@ -156,6 +160,7 @@ $site-colours: (
     el-mark-dendro: var(--el-dendro),
     el-mark-cryo: var(--el-cryo),
     el-mark-geo: var(--el-geo),
+    favourite: #e0a526,
   ),
 );
 

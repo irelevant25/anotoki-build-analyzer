@@ -3,6 +3,79 @@
 Short records of choices that shape the code. Add a new entry (newest first) when you make a similar call.
 Older entries describe the Laravel version as it was; where a setting has since moved, the entry says so.
 
+**2026-10-27 — 1.0.0: the import page shows the scanner's line, the one address of the project's own.** The owner's
+words: "I have created a folder ... where is the implementation of inventory and characters data ... and generating the
+GOOD file. It has its own README with instructions. It also has a PS script with kinda automatizated way of running
+it. The import page text should contain it." And: "You can start using version 1.0.0 from now on."
+- **The file method's guide recommends the scanner** (migration 030): step 1 shows the PowerShell line with the
+  kit's Copy button and links to the scanner's README; the intro, the steps and the troubles are the scanner's; a
+  GOOD file from any other tool still works, and the guide says so. The 2026-10-26 entry's "this site gives no script
+  or tool" ends here - for the guide; the site still reads any GOOD file.
+- **The line and the README's address are the code's** (`sites/main/import/scanner.ts`), never a string: no string
+  holds a web address (`SiteTranslations` refuses one, and an editor can reword every string). They name GitHub, the
+  project's own repository - the one exception to "the UI names no other website, service or tool", made by the
+  owner's request; no other address joins it without the owner's word. The README is linked in the same tab (no new
+  window the kit has no words to announce).
+- **Version 1.0.0** for the project: the site (`Version.php`, `package.json`, What's new) and the scanner (its own
+  `package.json`, which the program shows) start there together. The scanner keeps a version of its own from now on,
+  bumped when it is released (Actions → Game scanner → Run workflow).
+- **Publish the scanner before the site that shows its line** (operations.md, "Deploying 1.0.0"): the line
+  downloads from the release `scanner`, which the workflow makes only when run by hand.
+
+**2026-10-27 — favourites: a star on the characters a player is building.** The owner's words: "I have imported 90
+characters via GOOD file and I want to build only few of them via the app. So something like favourite or currently
+building or something will be needed I think. And those characters will be on top or easily filterable/sortable."
+- **A star per character of a game account** (`account_characters.favourite`, migration 029), beside the build the
+  player chose for it: an account's own fact, kept by every import (it writes the game's numbers only), carried by
+  the accounts file (format version 3; 1 and 2 still read, nobody starred), moved with a visitor's account at sign-in.
+  A boolean, not a time: nothing shows when it was starred, and the Privacy page names the stars without a date.
+- **Where it is pressed**: on each character's card on the account page - beside the link, over its corner (the
+  kit's link card holds nothing to press) - and beside the name on the character page. "Favourite" with a star,
+  rather than "building": the word and the mark every site uses; the hint under the filters says what it is for
+  ("Star the characters you are building").
+- **The account page lists the favourites first, under "Favourites", and then every character under "All
+  characters" - the starred ones among them.** A star pressed in the long list never takes its card out of it (the
+  card stays, the favourites' list above gains it - scrolled down the long list, the browser's scroll anchoring keeps
+  the cards in view still), so marking several in a row works; one pressed under
+  "Favourites" takes its card away, and the focus goes to the same character's star below. The favourites ignore
+  "Show unbuilt": a character being built may wear nothing yet. "Only favourites" shows them alone, offered while
+  there is one; no setting is remembered (no new browser storage for the Privacy page to name).
+- **Saved first, then shown**: the star the page shows is the one the server keeps; a press while one is on its way
+  asks nothing (a moment), and the button is never disabled, so the focus stays on it.
+
+**2026-10-27 — the scanner's fixtures carry nothing of the player's account (the owner's request).** "I would like to
+remove any personal genshin account trace": the scanner's test screenshots are of the owner's real account. The UID
+and the detail panel were already blacked out; the names the owner gave the Traveler, the Manekina and the Manekin
+showed on the character screens and in the tests. They were re-lettered in the screenshots with glyphs cut from the
+same screenshots ("ivantelle", "Ivantelle", "Taren"), the letters after the Manekina's capital I one pixel further
+right in the header (two in the white name), as two names a capital letter apart lie on screen - so the tests still
+read real game pixels, and the two look-alike headers still differ by about 260-320 pixels (the scanner tells two
+characters apart from 200). The names left the tests, the comments and this file too; the git history never had
+them (the folder was untracked until 1.0.0). A fixture added later is cut down the same way before it is committed.
+
+**2026-10-27 — the project's own game scanner (the owner's decision of 2026-10-27).** The owner wants players to
+get a GOOD file as simply as possible: paste a PowerShell line, scan, import. Their words on where it lives: "It will
+be not another git but it will be part of the project/git of the builder. Player can use different tool, this is
+just my/project recommendation." This changes "this site gives no script or tool" of the 2026-10-26 entry on the
+totals worked out from the gear - for the project, not the site: the site still reads any GOOD file.
+- **It reads the game as a player does** (screenshots of the inventory's panels and the character screen, read with
+  OCR and from their pixels), never the game's files or memory - that entry's reasons stand. It is a Node program
+  in its own folder, `game-scanner/` (built in the git-ignored `local/`, renamed and tracked with 1.0.0; its README
+  says how it works, docs/game-scanner.md what the rest of the project needs to know).
+- **A zip, not a single exe**: a single executable of a Node program is a rebuilt `node.exe`, which loses the OpenJS
+  Foundation's signature - an unsigned file that hooks the keyboard and moves the mouse reads as malware to antivirus
+  tools. The zip carries the official, signed `node.exe` and the program; a PowerShell script players paste as
+  administrator (`irm .../releases/download/scanner/scanner.ps1 | iex`) downloads it, checks its SHA-256, runs it in
+  TEMP and deletes it after. The program deletes the GOOD file it made once the player has imported it (it asks, and
+  says so first), and keeps no screenshots: each is read while the scan goes on.
+- **What it needs from the player**: the names of the characters they named (the Traveler, the Wanderer, the
+  Manekin, the Manekina - the game shows those names, and two of them can differ in a capital letter alone); it asks
+  for them when it starts. The game's names come from genshin.anotoki.eu's catalog lists, a copy in the program for
+  when that can't be reached.
+- **Released by hand**: the workflow `.github/workflows/game-scanner.yml` tests and builds it on every push that
+  changes it, and publishes the zip and the script in the release `scanner` when run by hand - replaced each time,
+  never the repository's latest release. The import page shows the PowerShell line since 1.0.0 (the entry above).
+
 **2026-10-26 — the editor's stat targets: the tiers in the form, set by hand or switched off.** The owner's words,
 after step 4: "In admin panel of character build, I do not see the stats target. I mean, only the original one ...
 Varesa has the Energy recharge without tiers and other crit rate, crit dmg and atk with tier but no in admin panel. I

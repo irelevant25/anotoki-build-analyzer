@@ -63,6 +63,18 @@
                       <anotoki-icon [name]="item.icon" [size]="20" />{{ item.title | translate }}
                     </div>
                     <p>{{ item.body | translate }}</p>
+                    @if (item.command; as command) {
+                      <!-- A line to paste (the scanner's): the code's, never a string; the kit's Copy button beside it. -->
+                      <div class="command" role="group" [attr.aria-label]="command.label | translate">
+                        <code class="command-text" translate="no">{{ command.text }}</code>
+                        <anotoki-copy-button [text]="command.text" />
+                      </div>
+                    }
+                    @if (item.link; as link) {
+                      <p class="guide-link">
+                        <a [href]="link.href">{{ link.label | translate }}</a>
+                      </p>
+                    }
                     @if (item.tip; as tip) {
                       <p class="tip"><anotoki-icon name="lightbulb" [size]="18" />{{ tip | translate }}</p>
                     }

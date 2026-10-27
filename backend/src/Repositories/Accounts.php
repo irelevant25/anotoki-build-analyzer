@@ -196,6 +196,16 @@ final class Accounts
         }
     }
 
+    /**
+     * Stars the account's character as a favourite - one the player is building - or takes the star away. The
+     * character is one the caller found in an account of its owner's (findOwned(), character()).
+     */
+    public function markFavourite(AccountCharacter $owned, bool $favourite): void
+    {
+        $this->db->run('UPDATE account_characters SET favourite = ? WHERE id = ? AND account_id = ?', [$favourite, $owned->id, $owned->account_id]);
+        $owned->favourite = $favourite;
+    }
+
     public function characterRow(int $accountId, int $gameCharacterId): ?array
     {
         return $this->db->one('SELECT * FROM account_characters WHERE account_id = ? AND game_character_id = ?', [$accountId, $gameCharacterId]);

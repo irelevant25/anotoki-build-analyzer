@@ -329,8 +329,11 @@ the data, as the law asks: the hosting company WebSupport s.r.o. (`HOSTING` in `
 the code's), Cloudflare and Umami (the library's words) - never a build site, a data provider, a tool or the
 showcase service, which they describe without naming. The family's About and Support pages (`/about`, `/support`,
 anotoki-lib 0.8.0: the owner's words, the same on every anotoki site) name and link the anotoki sites and the
-owner's Ko-fi page - the library's words and addresses, nothing of the site's. So the API never sends a site's
-name or address either:
+owner's Ko-fi page - the library's words and addresses, nothing of the site's. And since 1.0.0 the import guide's
+file method shows the project's own scanner's PowerShell line and links to its README - the project's GitHub
+repository, the only address of the site's own, kept in the frontend's code (`sites/main/import/scanner.ts`) and
+never in a string ([game-scanner.md](game-scanner.md); the owner's request of 2026-10-27). So the API never sends a
+site's name or address either:
 
 - **The build sites are named nowhere** - not on the site, not by the API, and not in the repository, which is
   public (the owner's decision of 2026-10-20, [decisions.md](decisions.md)): no tracked file, commit message,
@@ -595,9 +598,10 @@ bar took the place of the site's own), each with every rewording.
 | --- | --- | --- |
 | `GET /api/meta` | anyone (also while sign-in is required) | slots, stat labels, talent names, elements, weapon types and the game's labels per game (one, Genshin Impact); `version`; `auth {issuer, client_id, login_required, sign_in_available}` (whether the IAM requires sign-in here, and whether it knows the site); `visitors {keep_days}` |
 | `GET /api/icons/{c\|w\|s}/{id}` | anyone (also while sign-in is required) | a character / weapon / set icon, served from `storage/icons/` |
-| `GET /api/accounts`, `GET/PATCH/DELETE /api/accounts/{id}` | signed in or visitor (own) | list / overview (+ characters with the build each is judged by: the one chosen, else the best) / rename / delete |
+| `GET /api/accounts`, `GET/PATCH/DELETE /api/accounts/{id}` | signed in or visitor (own) | list / overview (+ characters with the build each is judged by: the one chosen, else the best; and whether each is starred, `favourite`) / rename / delete |
 | `GET /api/accounts/{id}/characters/{key}?build=ID` | signed in or visitor (own) | full analysis of one character (key = catalog key, e.g. `hutao`), its builds in full, `best_build_id`, `chosen_build_id`, and `owned_teammates` (`{key: constellation}`: the account's characters among the builds' teammates; `{}` for none; a Traveler of another element than the account's `null`) |
 | `PUT /api/accounts/{id}/characters/{key}/build` (`{build_id}`) | signed in or visitor (own) | the build the account page grades the character by: one of the character's own builds, reached or not, or null for the closest match; answers `{chosen_build_id}`; another build, or no `build_id`, 422 `invalid`; a character the account lacks 404 |
+| `PUT /api/accounts/{id}/characters/{key}/favourite` (`{favourite}`) | signed in or visitor (own) | the character starred - one the player is building, listed first on the account page - or not (1.0.0); answers `{favourite}`; anything but true or false, or none, 422 `invalid`; a character the account lacks 404 |
 | `GET /api/accounts/{id}/imports` | signed in or visitor (own) | import history |
 | `POST /api/imports/showcase` `{game, uid, account_id?}` | signed in or visitor (own); nobody: makes a visitor (JSON only: else 415) | Character Showcase import (10 a minute per person; a visitor's per address, all visitors' 20 together) |
 | `POST /api/imports/file` `{content \| file, game?, account_id?, file_name?}` | signed in or visitor (own); nobody: makes a visitor (JSON only: else 415) | GOOD import - the game is the file's, a `game` sent along is not read (20 a minute per person; a visitor's per address); a person or a visitor may upload `file` as multipart |

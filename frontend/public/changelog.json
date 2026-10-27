@@ -1,5 +1,16 @@
 [
   {
+    "version": "1.0.0",
+    "date": "2026-10-27",
+    "changes": {
+      "added": [
+        "Star the characters you are building - on a character's card on your account page, or beside its name on its own page: they come first on your account page, under Favourites, and Only favourites shows them alone",
+        "Our own scanner for Windows: the import guide's full inventory method shows the one line to paste into PowerShell, with a Copy button. The scanner reads your weapons, artifacts and characters from the game's screen and makes the GOOD file to import here"
+      ],
+      "updated": ["Your own accounts file - the export and import of your data - keeps the stars of your characters too"]
+    }
+  },
+  {
     "version": "0.11.0",
     "date": "2026-10-26",
     "changes": {

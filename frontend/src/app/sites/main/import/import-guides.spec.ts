@@ -2,6 +2,7 @@ import { GAMES } from '../../../shared/format';
 import { en, isTranslationKey } from '../../../shared/i18n/en';
 import { GameKey } from '../../../api/models';
 import { GUIDES, ImportMethodKey, METHODS } from './import-guides';
+import { SCANNER_COMMAND, SCANNER_GUIDE } from './scanner';
 
 const WAYS: ImportMethodKey[] = ['showcase', 'file'];
 
@@ -26,6 +27,12 @@ function keysOfTheGuides(): { key: string; where: string }[] {
         found.push({ key: step.title, where: `${at}.steps[${index}].title` }, { key: step.body, where: `${at}.steps[${index}].body` });
         if (step.tip) {
           found.push({ key: step.tip, where: `${at}.steps[${index}].tip` });
+        }
+        if (step.command) {
+          found.push({ key: step.command.label, where: `${at}.steps[${index}].command` });
+        }
+        if (step.link) {
+          found.push({ key: step.link.label, where: `${at}.steps[${index}].link` });
         }
       });
       guide.troubleshooting.forEach((key, index) => found.push({ key, where: `${at}.troubleshooting[${index}]` }));
@@ -53,16 +60,18 @@ describe('the import guides (METHODS and GUIDES)', () => {
         tips: guide.steps.filter((step) => step.tip).length,
         troubleshooting: guide.troubleshooting.length,
         fileHint: !!guide.fileHint,
+        commands: guide.steps.filter((step) => step.command).length,
+        links: guide.steps.filter((step) => step.link).length,
       };
     };
-    expect(shape('genshin', 'showcase')).toEqual({ pros: 3, cons: 2, steps: 5, tips: 1, troubleshooting: 3, fileHint: false });
-    expect(shape('genshin', 'file')).toEqual({ pros: 3, cons: 2, steps: 4, tips: 2, troubleshooting: 3, fileHint: true });
+    expect(shape('genshin', 'showcase')).toEqual({ pros: 3, cons: 2, steps: 5, tips: 1, troubleshooting: 3, fileHint: false, commands: 0, links: 0 });
+    expect(shape('genshin', 'file')).toEqual({ pros: 3, cons: 2, steps: 4, tips: 2, troubleshooting: 3, fileHint: true, commands: 1, links: 1 });
     expect(GUIDES.genshin.showcase.steps.map((step) => step.icon)).toEqual(['user', 'columns', 'eye', 'clock', 'key']);
   });
 
   it('hold keys and nothing else: each one a key of the site, each written once, none left over', () => {
     const found = keysOfTheGuides();
-    expect(found).toHaveLength(44);
+    expect(found).toHaveLength(46);
     expect(found.filter(({ key }) => !isTranslationKey(key)).map(({ where }) => where)).toEqual([]);
     // A list is tracked by its keys, so no key may stand twice.
     expect(new Set(found.map(({ key }) => key)).size).toBe(found.length);
@@ -88,13 +97,19 @@ describe('the import guides (METHODS and GUIDES)', () => {
     expect(strings[METHODS.genshin[0].title]).toBe('Character Showcase (UID)');
     expect(strings[METHODS.genshin[1].cons[1]]).toBe('Totals are worked out from the gear, not read from the game (a UID import adds the exact ones)');
     expect(strings[GUIDES.genshin.showcase.steps[0].body]).toBe('In the game press Esc to open the Paimon menu, click your avatar at the top left and choose "Edit Profile".');
-    // Reworded on purpose: the old tip named the system tool the exporters capture with (the neutral-names rule).
-    expect(strings[GUIDES.genshin.file.steps[0].tip!]).toBe('Exporters that read the game data need administrator rights to capture the network traffic; screenshot scanners need English game text.');
+    // Reworded on purpose: the file comes from the project's own scanner now (migration 030), which runs as the game does.
+    expect(strings[GUIDES.genshin.file.steps[0].tip!]).toBe("The game runs as administrator, so the scanner must as well: without it, Windows blocks the scanner's clicks and key presses.");
     expect(strings[GUIDES.genshin.file.fileHint!]).toBe('A .json file in the GOOD format');
   });
 
-  it('link nowhere: no string of the guides holds a web address', () => {
+  it("hold no web address in a string: the one place they link to, and the line they show, are the code's - the scanner's", () => {
     const guideStrings = keysOfTheGuides().map(({ key }) => strings[key]);
     expect(guideStrings.filter((text) => /https?:|www\.|\.(?:com|gg|net|org|io|moe)\b/i.test(text))).toEqual([]);
+    const steps = GAMES.flatMap((game) => WAYS.flatMap((way) => GUIDES[game][way].steps));
+    expect(steps.filter((step) => step.command || step.link)).toEqual([GUIDES.genshin.file.steps[0]]);
+    expect([GUIDES.genshin.file.steps[0].command?.text, GUIDES.genshin.file.steps[0].link?.href]).toEqual([SCANNER_COMMAND, SCANNER_GUIDE]);
+    // The project's own repository, nothing else: the release the workflow publishes, and the scanner's README.
+    expect(SCANNER_COMMAND).toBe('irm https://github.com/irelevant25/anotoki-build-analyzer/releases/download/scanner/scanner.ps1 | iex');
+    expect(SCANNER_GUIDE.startsWith('https://github.com/irelevant25/anotoki-build-analyzer/')).toBe(true);
   });
 });

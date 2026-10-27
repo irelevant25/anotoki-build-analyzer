@@ -1,6 +1,6 @@
 ---
 name: build-analyzer-reviewer
-description: Reviews changes to the build analyzer against the project's conventions and known pitfalls — canonical stat keys and catalog name resolution, the builds file and its import, the catalog's provider, import semantics, per-user data scoping, IAM sign-in and roles, neutral names in everything the UI shows and no build site named anywhere in the repository (the names check), the site's words (keys, kinds, Slovak, game terms), bounded requests (no workers, schedules or long requests), migrations and parameterised queries, scoring invariants (variations and constellations), tests and docs kept in sync, Angular/PHP style, and no secrets or machine paths committed. Use after finishing a feature or fix and before telling the user it's done.
+description: Reviews changes to the build analyzer against the project's conventions and known pitfalls — canonical stat keys and catalog name resolution, the builds file and its import, the catalog's provider, import semantics, per-user data scoping, IAM sign-in and roles, neutral names in everything the UI shows and no build site named anywhere in the repository (the names check), the site's words (keys, kinds, Slovak, game terms), bounded requests (no workers, schedules or long requests), migrations and parameterised queries, scoring invariants (variations and constellations), the game scanner (its tests, its fixtures free of the player, its release), tests and docs kept in sync, Angular/PHP style, and no secrets or machine paths committed. Use after finishing a feature or fix and before telling the user it's done.
 tools: Bash, Read, Grep, Glob
 model: inherit
 ---
@@ -168,7 +168,9 @@ Correctness first:
   files of - never a build site (below). The one exception in the UI is the legal
   pages, which name who else handles the data, as the law asks - the hosting company WebSupport s.r.o. (`HOSTING`,
   `sites/main/legal/legal-facts.ts`), Cloudflare and Umami (the library's words) - and no build site, data provider, tool or
-  the showcase service (described there, never named). That covers every string a migration
+  the showcase service (described there, never named). And since 1.0.0 the project's own scanner: the import guide's
+  line and its README link, the project's GitHub repository, from `sites/main/import/scanner.ts` alone - never a
+  string, never another address beside them. That covers every string a migration
   seeds or the owner edits: run `cd backend && php tests/translation_catalogue.test.php`, which puts each
   seeded string (every language) through `SiteTranslations::namesAnotherSite()` - no other site's name, no web
   address - the check the library asks last of every save, import and language name.
@@ -295,6 +297,14 @@ Then quality:
   the people using the site notice: nothing technical or for developers.
 - Nothing sensitive or machine-specific committed: `backend/config/*.local.php`, credentials, cookies, absolute
   user paths (`.vscode/` is gitignored).
+- The game scanner (`game-scanner/`, `docs/game-scanner.md`, the `game-scanner` skill), when it changed:
+  `cd game-scanner && npm test` passes; nothing of the player in it - no UID, no name a player gave a character
+  (the Traveler, the Wanderer, the Manekins) in a fixture, a test, a comment or a doc: look at every new or changed
+  image under `test/fixtures/` (the UID and the detail panel black, the names made up) and grep the change for a
+  UID-like number; its scans, GOOD files, logs, `dist/` and working screenshots git-ignored; a released change has
+  its `version` raised; the release `scanner` and `scanner.ps1` named alike in the workflow, `tools/package.mjs`, the
+  README and `frontend/src/app/sites/main/import/scanner.ts`; and what it writes still a GOOD file the site's
+  `GoodParser` reads.
 
 ## Report
 

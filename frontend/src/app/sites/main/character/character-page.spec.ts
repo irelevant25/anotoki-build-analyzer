@@ -239,6 +239,7 @@ function analysis(game: GameKey = 'genshin', change: Partial<CharacterAnalysis> 
       icon_url: null,
       level: 90,
       rank: 1,
+      favourite: false,
       weapon: null,
       sets: [],
       items_count: 1,
@@ -653,5 +654,83 @@ describe('CharacterPage: the build the player chooses for the account page', () 
     expect(toasts()).toEqual([['danger', 'Some of what was sent is not valid. Check it and try again.']]);
     expect(api.character).toHaveBeenCalledTimes(2);
     expect(text('.choice > *')).toEqual(['Use this build', 'Closest match to your current setup']);
+  });
+});
+
+describe('CharacterPage: the character starred as a favourite', () => {
+  let fixture: ComponentFixture<CharacterPage>;
+  let host: HTMLElement;
+  let api: { meta: () => Observable<Meta>; character: ReturnType<typeof vi.fn>; markFavourite: ReturnType<typeof vi.fn> };
+
+  const star = () => host.querySelector<HTMLButtonElement>('.hero-title app-favourite-toggle button')!;
+  const toasts = () =>
+    TestBed.inject(ToastService)
+      .toasts()
+      .map((toast) => [toast.tone, toast.message]);
+
+  async function open(answer: CharacterAnalysis, mark: (accountId: number, key: string, favourite: boolean) => Observable<{ favourite: boolean }>): Promise<void> {
+    api = { meta: () => of(META), character: vi.fn(() => of(answer)), markFavourite: vi.fn(mark) };
+    TestBed.configureTestingModule({
+      providers: [
+        provideRouter([]),
+        provideTestTranslations(en),
+        provideKit(),
+        { provide: Api, useValue: api },
+        { provide: AuthService, useValue: { signedIn: signal(true), isStaff: signal(false), available: signal(true), failure: signal(null), user: signal(null), preferences: signal(null) } },
+      ],
+    });
+    await TestBed.inject(MetaStore).load();
+    fixture = TestBed.createComponent(CharacterPage);
+    fixture.componentRef.setInput('id', '3');
+    fixture.componentRef.setInput('key', 'hutao');
+    host = fixture.nativeElement;
+    await fixture.whenStable();
+  }
+
+  afterEach(() => vi.restoreAllMocks());
+
+  it('stars the character beside its name - saved first, then shown - and takes the star away', async () => {
+    await open(analysis(), (_account, _key, favourite) => of({ favourite }));
+
+    expect([star().getAttribute('aria-pressed'), star().getAttribute('aria-label')]).toEqual(['false', 'Favourite: Hu Tao']);
+    star().click();
+    await fixture.whenStable();
+    expect(api.markFavourite).toHaveBeenLastCalledWith(3, 'hutao', true);
+    expect(star().getAttribute('aria-pressed')).toBe('true');
+
+    star().click();
+    await fixture.whenStable();
+    expect(api.markFavourite).toHaveBeenLastCalledWith(3, 'hutao', false);
+    expect(star().getAttribute('aria-pressed')).toBe('false');
+    expect(toasts()).toEqual([]);
+  });
+
+  it('keeps a star saved while the analysis of another tab was on its way - the late answer read the old one', async () => {
+    const late = new Subject<CharacterAnalysis>();
+    await open(analysis(), () => of({ favourite: true }));
+    api.character.mockReturnValueOnce(late);
+
+    host.querySelectorAll<HTMLElement>('[role="tab"]')[1].click();
+    await fixture.whenStable();
+    star().click();
+    await fixture.whenStable();
+    expect(star().getAttribute('aria-pressed')).toBe('true');
+
+    late.next(analysis('genshin', { focus_build_id: 12 }));
+    late.complete();
+    await fixture.whenStable();
+    expect(star().getAttribute('aria-pressed')).toBe('true');
+  });
+
+  it('says why a star failed, the star left as it was', async () => {
+    await open(analysis('genshin', { character: { ...analysis().character, favourite: true } }), () =>
+      throwError(() => new HttpErrorResponse({ status: 404, error: { message: 'Not found.', code: 'not_found' } })),
+    );
+    expect(star().getAttribute('aria-pressed')).toBe('true');
+
+    star().click();
+    await fixture.whenStable();
+    expect(toasts()).toEqual([['danger', 'Not found.']]);
+    expect(star().getAttribute('aria-pressed')).toBe('true');
   });
 });

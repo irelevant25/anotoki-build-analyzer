@@ -88,6 +88,11 @@ export class Api {
     return this.http.put<{ chosen_build_id: number | null }>(`${this.base}/accounts/${accountId}/characters/${key}/build`, { build_id: buildId }, { context: this.asCaller() });
   }
 
+  /** The account's character starred as a favourite - one the player is building - or not. */
+  markFavourite(accountId: number, key: string, favourite: boolean): Observable<{ favourite: boolean }> {
+    return this.http.put<{ favourite: boolean }>(`${this.base}/accounts/${accountId}/characters/${key}/favourite`, { favourite }, { context: this.asCaller() });
+  }
+
   /** The characters of a public in-game Character Showcase, by UID. */
   importShowcase(game: GameKey, uid: string, accountId: number | null = null): Observable<ImportRun> {
     return this.http.post<ImportRun>(`${this.base}/imports/showcase`, { game, uid, account_id: accountId }, { context: this.asCaller() });

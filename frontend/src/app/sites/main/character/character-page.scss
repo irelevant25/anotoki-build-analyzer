@@ -22,6 +22,19 @@
   min-width: min(100%, 15rem);
 }
 
+// The name with its star on the same line (the star first to go under it, on a long name on a phone).
+.hero-title {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0 0.25rem;
+  margin-bottom: 0.5rem;
+
+  h1 {
+    margin: 0;
+  }
+}
+
 // The character's element, weapon, level, constellation and talents. (Not "facts": that is the kit's global
 // label-value grid, which would stack these one under the other.)
 .traits {

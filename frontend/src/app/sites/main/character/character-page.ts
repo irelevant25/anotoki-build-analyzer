@@ -27,6 +27,7 @@ import { CharacterAnalysis, Evaluation, GameKey, Recommendation, Suggestion } fr
 import { BuildDetail } from '../common/build-detail';
 import { BUILD_TERMS } from '../common/build-terms';
 import { Avatar } from '../../../shared/char-avatar';
+import { FavouriteToggle } from '../common/favourite-toggle/favourite-toggle';
 import { GradeBadge } from '../common/grade-badge';
 import { ItemCard, ItemView } from '../common/item-card';
 import { ScoreBar } from '../common/score-bar';
@@ -88,6 +89,7 @@ const SEVERITY_ICONS = new Map<string, string>([
     TooltipDirective,
     Avatar,
     BuildDetail,
+    FavouriteToggle,
     GradeBadge,
     ItemCard,
     ScoreBar,
@@ -121,6 +123,10 @@ export class CharacterPage {
   protected readonly choosing = signal(false);
   /** How many choices were saved: an analysis asked for before the latest one keeps that choice, newer than its own word. */
   private choicesSaved = 0;
+  /** The character's star on its way to the server: it waits. */
+  protected readonly starring = signal(false);
+  /** How many stars were saved: an analysis asked for before the latest one keeps that star, as choicesSaved its choice. */
+  private starsSaved = 0;
   protected readonly loading = signal(true);
   /** The analysis on its way: the newest asked wins (load()). */
   private request: Subscription | null = null;
@@ -323,6 +329,33 @@ export class CharacterPage {
     });
   }
 
+  /**
+   * The character starred - one the player is building, listed first on the account page - or its star taken away:
+   * saved first, then shown. A refusal is said in a toast.
+   */
+  protected star(favourite: boolean): void {
+    const data = this.data();
+    if (!data || this.starring()) {
+      return;
+    }
+    this.starring.set(true);
+    this.api.markFavourite(data.account.id, data.character.key, favourite).subscribe({
+      next: (answer) => {
+        this.starring.set(false);
+        this.starsSaved++;
+        const current = this.data();
+        if (current?.character.key === data.character.key && current.account.id === data.account.id) {
+          this.data.set({ ...current, character: { ...current.character, favourite: answer.favourite } });
+        }
+      },
+      // A message takes a finished sentence: worded now, in the language the page is in.
+      error: (err: unknown) => {
+        this.starring.set(false);
+        this.toasts.error(errorText(this.i18n, err));
+      },
+    });
+  }
+
   protected severityIcon(recommendation: Recommendation): string {
     return SEVERITY_ICONS.get(recommendation.severity) ?? 'info';
   }
@@ -362,13 +395,20 @@ export class CharacterPage {
     this.request?.unsubscribe();
     this.loading.set(true);
     const choicesSaved = this.choicesSaved;
+    const starsSaved = this.starsSaved;
     this.request = this.api.character(accountId, key, buildId).subscribe({
       next: (answer) => {
         // A choice saved while this was on its way (a tab opened, then "Use this build" at once) is newer than the
-        // choice the answer read: the page keeps it.
+        // choice the answer read: the page keeps it - and a star likewise.
         const current = this.data();
-        const choiceSince = choicesSaved !== this.choicesSaved && current?.account.id === answer.account.id && current.character.key === answer.character.key;
-        const data = choiceSince ? { ...answer, chosen_build_id: current.chosen_build_id } : answer;
+        const same = current?.account.id === answer.account.id && current.character.key === answer.character.key;
+        let data = answer;
+        if (same && choicesSaved !== this.choicesSaved) {
+          data = { ...data, chosen_build_id: current.chosen_build_id };
+        }
+        if (same && starsSaved !== this.starsSaved) {
+          data = { ...data, character: { ...data.character, favourite: current.character.favourite } };
+        }
         this.data.set(data);
         this.selectedBuildId.set(data.focus_build_id ?? data.best_build_id);
         this.error.set(null);

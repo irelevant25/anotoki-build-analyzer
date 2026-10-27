@@ -15,7 +15,10 @@ Setting it up, running, testing, building and deploying: **[DEV.md](DEV.md)**.
 
 - **Guided import wizard** (method → step-by-step preparation → import → result). Data is read either:
   - by **UID**: the characters in your in-game Character Showcase, through a public showcase service, or
-  - from a **full inventory export** written by a tool on your PC: a GOOD file.
+  - from a **full inventory export**: a GOOD file - from **[our own scanner](game-scanner/README.md)** for Windows,
+    which the wizard starts with one PowerShell line, or from any other tool that writes GOOD.
+- **Favourites**: star the characters you are building - on their cards or their own pages - and your account page
+  lists them first, under Favourites; "Only favourites" shows them alone.
 - **Builds by role and constellation**: each character's builds are its variations - Main DPS, Sub DPS or
   Support, a short name where a character has two of one role ("Main DPS · Melt"), and the constellation a build
   needs ("C4+"). They are put together on the owner's computer from community build sites and imported by an
@@ -89,10 +92,22 @@ line and the upload for a host: [DEV.md](DEV.md).
 | Method | What it reads | You get |
 | --- | --- | --- |
 | UID (Character Showcase) | up to 12 showcase characters | equipped gear, exact roll counts, in-game totals |
-| Inventory file (a scanner or exporter tool of your own) | a GOOD file | every character, weapon and artifact; totals worked out from the gear |
+| Inventory file (our scanner, or another tool) | a GOOD file | every character, weapon and artifact; totals worked out from the gear |
 
 Both can be combined on one account: import by UID for the game's own totals, then upload a file for the full
-inventory. The wizard shows the in-game steps. Accounts belong to the person who imported them (two people can
+inventory.
+
+**The game scanner** ([game-scanner/](game-scanner/README.md), Windows) is the project's own way to that file: in
+PowerShell started as administrator, paste
+
+```powershell
+irm https://github.com/irelevant25/anotoki-build-analyzer/releases/download/scanner/scanner.ps1 | iex
+```
+
+It reads your weapons, artifacts and characters from the game's screen - never the game's files or memory -, makes
+the GOOD file (in Downloads and on the clipboard) and deletes itself when you are done. Its README says what it
+needs (the game in English, full screen at 16:9), how it works, and how to develop and release it;
+[docs/game-scanner.md](docs/game-scanner.md) is what the rest of the project needs to know about it. The wizard shows the in-game steps. Accounts belong to the person who imported them (two people can
 import the same UID, each into their own account). From the command line, `--user` names whose account it is
 (an IAM user id; required):
 
@@ -288,8 +303,11 @@ frontend/src/app/       the anotoki family's folders, the genshin site's: api/, 
                         Site settings, People and the admin tools, routed straight. Both frames with anotoki-lib's
                         footer (version, What's new, Feedback; About · Support · Terms · Privacy · Contact)
 frontend/public/        changelog.json, favicon (robots.txt and sitemap.xml are the backend's: anotoki-lib's Robots)
+game-scanner/           the game scanner (Node.js, Windows): reads the game's screen into a GOOD file; npm test;
+                        released by .github/workflows/game-scanner.yml (see its README)
 docs/                   knowledge base (start at docs/README.md)
 .claude/                project skills and agents for AI-assisted work
+.github/workflows/      game-scanner.yml: the scanner's tests and build on every push, its release when run by hand
 local/                  (git-ignored, never in the repository) the owner's own tools that make the builds file
 ```
 
@@ -299,8 +317,8 @@ local/                  (git-ignored, never in the repository) the owner's own t
   documentation, skill and agent; other AI tools can read it, and `.claude/`, as plain Markdown.
 - [docs/](docs/README.md) is the knowledge base: architecture, data model, stats and slots, name matching,
   builds (what a build is, the builds file and its import), import formats, analysis, operations and decisions.
-- Project skills (`.claude/skills/`): `add-import-format`, `tune-analysis`, `verify-ui`, `deploy-builder`. Project
-  agents (`.claude/agents/`): `analysis-auditor`, `build-analyzer-reviewer`.
+- Project skills (`.claude/skills/`): `add-import-format`, `tune-analysis`, `verify-ui`, `deploy-builder`,
+  `game-scanner`. Project agents (`.claude/agents/`): `analysis-auditor`, `build-analyzer-reviewer`.
 
 ## Notes
 

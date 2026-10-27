@@ -144,6 +144,25 @@
   }
 }
 
+// A line to paste (the scanner's PowerShell line): the kit's code (its mono face and ground, breaking anywhere rather
+// than push a 390 px screen sideways) as a box with the family's edge, the kit's Copy button beside it - under it where
+// the line takes the whole width.
+.command {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+  margin: 0.25rem 0 0.5rem;
+}
+
+.command-text {
+  flex: 1 1 18rem;
+  min-width: 0;
+  padding: 0.5rem 0.625rem;
+  border: 1px solid var(--anotoki-border);
+  border-radius: var(--anotoki-radius);
+}
+
 // A tip in a guide: the warning's soft ground and ink of the family (4.5:1), the site's gold for its bulb.
 .tip {
   display: flex;

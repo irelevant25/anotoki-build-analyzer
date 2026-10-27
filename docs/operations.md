@@ -400,8 +400,9 @@ a file over 8 MB is refused before it is sent). The format and every rule:
 [data-model.md](data-model.md), "Accounts files"; why the newer copy wins and nothing is deleted:
 [decisions.md](decisions.md).
 
-- **Export** saves `build-analyzer-accounts-2026-10-04.json`: every account with its characters, weapons,
-  artifacts and its newest 200 import runs - keys and neutral words only, no ids. Keep it as a backup, or import
+- **Export** saves `build-analyzer-accounts-2026-10-04.json`: every account with its characters (the build chosen
+  for each and its star among them), weapons, artifacts and its newest 200 import runs - keys and neutral words only,
+  no ids. Keep it as a backup, or import
   it on another copy. A file holding a Star Rail account (exported by this site before 0.5.0) is refused (422
   `bad_entry`): the site keeps Genshin Impact accounts alone.
 - **Import** asks first (a dry run: what would be added, replaced by a newer copy, kept, and how many entries
@@ -741,6 +742,30 @@ upload map, are in [DEV.md](../DEV.md) ("Deploying"); in short:
 Check after an install: `https://builder.anotoki.eu/config/database.local.php`, `/storage/logs/app.log` and
 `/src/Config.php` must not download (403); `https://builder.anotoki.eu/api/meta` answers JSON with the IAM's
 `issuer`, `client_id` and `login_required` under `auth`; `/api/accounts` answers 401 without a token.
+
+### Deploying 1.0.0
+
+The owner's round of 2026-10-27 ([decisions.md](decisions.md)): a player stars the characters they are building
+(migration 029: `account_characters.favourite`, its words, the Privacy page's game-accounts sentence where it reads as
+026 left it), and the import guide's file method recommends the project's own scanner, showing its PowerShell line
+(migration 030: two words, the method's words reworded where they read as 028 left them). In this order:
+
+1. **Publish the scanner first** (it is not part of the site's release): GitHub → Actions → Game scanner → Run
+   workflow, on `main`. It tests, builds and puts `scanner-win-x64.zip` and `scanner.ps1` in the release `scanner`
+   ([game-scanner.md](game-scanner.md)). Check: `https://github.com/irelevant25/anotoki-build-analyzer/releases/download/scanner/scanner.ps1`
+   downloads a script that names version 1.0.0 - the line the import page shows fetches it.
+2. **The release**: `bun run anotoki-deploy deploy --backups <folder> --go`. From then on the site is closed until
+   the Apply.
+3. **Apply pending at once** (signed in as the ADMIN, on the Migrations page): **029** and **030** (their gates
+   refuse unless the site's own keys are 466 after 029 and 468 after 030). Nothing to import, no catalog refresh.
+
+Then check: an account page shows "Star the characters you are building ..." under the filters; a star pressed on a
+card puts the character under "Favourites" at the top, and "Only favourites" shows it alone; a character page shows
+the star beside the name, pressed. `/import` → Full inventory → the guide's first step shows the line with Copy, and
+"How the scanner works, and its source code" opens the scanner's README. The Privacy page's game accounts name the
+favourites. An accounts file exported now is format version 3 (a version 2 file still imports). **The backups made
+before this Apply are restored offline only** (`409 schema_differs`, as after every Apply): make a backup by hand once
+it is applied.
 
 ### Deploying 0.11.0
 

@@ -65,6 +65,7 @@ function aliceAccounts(): array
         'source' => 'enka',
         'synced_at' => '2026-09-20 08:00:00+00',
         'chosen_build_id' => $vape,
+        'favourite' => true,
     ]);
     character($main, idOf('game_characters', 'kaedeharakazuha'), ['level' => 80, 'ascension' => 5, 'rank' => 0, 'source' => 'good']);
     weapon($main, idOf('game_weapons', 'staffofhoma'), ['equipped_character_id' => $hutao, 'locked' => true, 'external_uid' => 'weapon_1']);
@@ -244,7 +245,7 @@ test('the export: keys, never ids; sources as showcase or file; UTC to the secon
     $file = $answer->json();
 
     same(['format', 'format_version', 'exported_at', 'app_version', 'accounts'], array_keys($file), 'the header');
-    same(['build-analyzer.accounts', 2], [$file['format'], $file['format_version']], 'format and version');
+    same(['build-analyzer.accounts', 3], [$file['format'], $file['format_version']], 'format and version');
     same(['700000001', null, '800000001'], array_column($file['accounts'], 'uid'), 'Alice\'s three accounts, by game and when they were made; not Bob\'s');
     $keys = keysOf($file);
     foreach (['id', 'user_id', 'account_id', 'game_character_id', 'game_weapon_id', 'game_set_id', 'equipped_character_id', 'chosen_build_id', 'tool'] as $key) {
@@ -266,11 +267,12 @@ test('the export: keys, never ids; sources as showcase or file; UTC to the secon
             'source' => 'showcase',
             'synced_at' => '2026-09-20T08:00:00Z',
             'build' => ['role' => 'main_dps', 'qualifier' => 'Vape', 'min_rank' => 1],
+            'favourite' => true,
         ],
         $main['characters'][0],
-        'a character, with the build chosen for it by its variation',
+        'a character, with the build chosen for it by its variation, and starred',
     );
-    same(null, $main['characters'][1]['build'], 'none chosen for Kazuha');
+    same([null, false], [$main['characters'][1]['build'], $main['characters'][1]['favourite']], 'none chosen for Kazuha, and no star');
     same(['staffofhoma', 'hutao', 'file'], [$main['weapons'][0]['key'], $main['weapons'][0]['equipped'], $main['weapons'][0]['source']], 'a weapon, equipped by key');
     same(['crimsonwitchofflames', 'flower', 'hutao'], [$main['items'][0]['set'], $main['items'][0]['slot'], $main['items'][0]['equipped']], 'an item');
     same([['key' => 'critRate_', 'value' => 10.5, 'rolls' => 3], ['key' => 'critDMG_', 'value' => 21, 'rolls' => null]], $main['items'][0]['substats'], 'its substats');
@@ -349,17 +351,52 @@ test('the build chosen for a character travels by its variation; one this copy l
     same(['dry_run' => false, 'added' => 3, 'replaced' => 0, 'kept' => 0, 'skipped' => 0], outcome(importAs(ALICE, $file)->status(200)), 'nothing left out of the file');
     same(null, $chosen(ALICE), 'none chosen');
 
-    // A version 1 file - before 0.8.0: no build at all.
+    // A version 1 file - before 0.8.0: no build at all (and no star).
     db()->run('DELETE FROM accounts WHERE user_id = ?', [ALICE]);
     $old = $file;
     $old['format_version'] = 1;
     foreach ($old['accounts'] as $a => $account) {
         foreach (array_keys($account['characters']) as $c) {
-            unset($old['accounts'][$a]['characters'][$c]['build']);
+            unset($old['accounts'][$a]['characters'][$c]['build'], $old['accounts'][$a]['characters'][$c]['favourite']);
         }
     }
     same(3, outcome(importAs(ALICE, $old)->status(200))['added'], 'read as it was');
     same(null, $chosen(ALICE), 'none chosen');
+});
+
+test('a favourite travels with its character; a version 2 file, from before the stars, stars nobody', function () {
+    aliceAccounts();
+    $file = exported(ALICE)->json();
+    $starred = fn(int $person) => db()->column(
+        "SELECT c.key FROM account_characters ac JOIN accounts a ON a.id = ac.account_id JOIN game_characters c ON c.id = ac.game_character_id
+          WHERE a.user_id = ? AND a.uid = '700000001' AND ac.favourite ORDER BY c.key",
+        [$person],
+    );
+
+    // Kazuha starred in the file too: both come back starred.
+    $file['accounts'][0]['characters'][1]['favourite'] = true;
+    importAs(BOB, $file)->status(200);
+    same(['hutao', 'kaedeharakazuha'], $starred(BOB), 'both starred in Bob\'s copy');
+
+    // A version 2 file - before 1.0.0: the characters carry no star.
+    db()->run('DELETE FROM accounts WHERE user_id = ?', [ALICE]);
+    $old = $file;
+    $old['format_version'] = 2;
+    foreach ($old['accounts'] as $a => $account) {
+        foreach (array_keys($account['characters']) as $c) {
+            unset($old['accounts'][$a]['characters'][$c]['favourite']);
+        }
+    }
+    same(3, outcome(importAs(ALICE, $old)->status(200))['added'], 'read as it was');
+    same([], $starred(ALICE), 'nobody starred');
+    same(
+        ['main_dps', 'Vape'],
+        [
+            db()->value('SELECT b.role FROM account_characters ac JOIN builds b ON b.id = ac.chosen_build_id JOIN accounts a ON a.id = ac.account_id WHERE a.user_id = ?', [ALICE]),
+            db()->value('SELECT b.qualifier FROM account_characters ac JOIN builds b ON b.id = ac.chosen_build_id JOIN accounts a ON a.id = ac.account_id WHERE a.user_id = ?', [ALICE]),
+        ],
+        'the chosen build kept, as version 2 carries it',
+    );
 });
 
 test('the same file twice changes nothing - imported over the original, or over its own copy', function () {
@@ -555,7 +592,18 @@ test('what this copy\'s catalog does not know is skipped and counted; equipped o
     aliceAccounts();
     $file = exported(ALICE)->json();
     $main = &$file['accounts'][0];
-    $main['characters'][] = ['key' => 'somebodynew', 'level' => 90, 'ascension' => 6, 'rank' => 0, 'talents' => null, 'final_stats' => null, 'source' => 'file', 'synced_at' => null, 'build' => null];
+    $main['characters'][] = [
+        'key' => 'somebodynew',
+        'level' => 90,
+        'ascension' => 6,
+        'rank' => 0,
+        'talents' => null,
+        'final_stats' => null,
+        'source' => 'file',
+        'synced_at' => null,
+        'build' => null,
+        'favourite' => false,
+    ];
     $main['weapons'][] = ['key' => 'anewblade', 'level' => 90, 'ascension' => 6, 'refinement' => 1, 'equipped' => 'hutao', 'locked' => false, 'external_uid' => null, 'source' => 'file'];
     $main['weapons'][0]['equipped'] = 'somebodynew';
     $main['items'][] = [
@@ -688,7 +736,7 @@ test('a file that is not right is refused whole, with a code and a sentence, and
         'not JSON' => ['this is not JSON', 'not_a_data_file', []],
         'a list' => ['[1, 2]', 'not_a_data_file', []],
         'a builds file' => [['format' => 'build-analyzer.builds', 'format_version' => 1], 'not_a_data_file', []],
-        'a newer version' => [$edit(fn(&$f) => ($f['format_version'] = 3)), 'newer_version', ['version' => 3]],
+        'a newer version' => [$edit(fn(&$f) => ($f['format_version'] = 4)), 'newer_version', ['version' => 4]],
         'version zero' => [$edit(fn(&$f) => ($f['format_version'] = 0)), 'bad_entry', ['path' => 'format_version']],
         'an unknown field' => [$edit(fn(&$f) => ($f['accounts'][1]['password'] = 'x')), 'bad_entry', ['path' => 'accounts[1]']],
         'a missing field' => [
@@ -731,6 +779,15 @@ test('a file that is not right is refused whole, with a code and a sentence, and
         ],
         'a constellation past C6' => [$edit(fn(&$f) => ($f['accounts'][0]['characters'][0]['build']['min_rank'] = 7)), 'bad_entry', ['path' => 'accounts[0].characters[0].build.min_rank']],
         'a build in a version 1 file' => [$edit(fn(&$f) => ($f['format_version'] = 1)), 'bad_entry', ['path' => 'accounts[0].characters[0]']],
+        'a star in a version 2 file' => [$edit(fn(&$f) => ($f['format_version'] = 2)), 'bad_entry', ['path' => 'accounts[0].characters[0]']],
+        'a star that is not true or false' => [$edit(fn(&$f) => ($f['accounts'][0]['characters'][0]['favourite'] = 1)), 'bad_entry', ['path' => 'accounts[0].characters[0].favourite']],
+        'a character without its star' => [
+            $edit(function (&$f) {
+                unset($f['accounts'][0]['characters'][1]['favourite']);
+            }),
+            'bad_entry',
+            ['path' => 'accounts[0].characters[1]'],
+        ],
     ];
     foreach ($cases as $what => [$body, $code, $params]) {
         foreach ([true, false] as $dry) {

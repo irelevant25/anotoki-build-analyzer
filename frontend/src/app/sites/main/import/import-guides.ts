@@ -1,12 +1,14 @@
 import { TranslationKey } from '../../../shared/i18n/en';
 import { GameKey } from '../../../api/models';
+import { SCANNER_COMMAND, SCANNER_GUIDE } from './scanner';
 
 /**
- * The two ways in: the public in-game Character Showcase, read by UID, and an inventory file exported by a
- * tool on the player's PC.
+ * The two ways in: the public in-game Character Showcase, read by UID, and an inventory file - from the project's own
+ * scanner (game-scanner/, the owner's request of 2026-10-27), or any other tool that writes the GOOD format.
  *
- * The guides name no website, service or tool and link to none (the app credits nobody by name); they
- * describe what to look for instead - an exporter that writes the file format the backend reads.
+ * The guides name no other website, service or tool and link to none (the app credits nobody by name). The one
+ * address they hold is the project's own: the file method's first step shows the line that starts the scanner, with a
+ * Copy button, and links to the scanner's instructions - both from scanner.ts, never a string.
  *
  * Every text here is a key, written out whole: the words are the site's own, in the reader's language,
  * around the games' menu names ("Character Showcase", "Edit Profile", UID, GOOD), which every language
@@ -29,6 +31,10 @@ export interface GuideStep {
   body: TranslationKey;
   icon: string;
   tip?: TranslationKey;
+  /** A line to copy and paste, shown under the body with a Copy button: its name (heard before it) and the line itself. */
+  command?: { label: TranslationKey; text: string };
+  /** A link under the body: its words and where it goes. */
+  link?: { label: TranslationKey; href: string };
 }
 
 export interface Guide {
@@ -103,6 +109,8 @@ export const GUIDES: Record<GameKey, Record<ImportMethodKey, Guide>> = {
           title: 'importGuide.genshin.file.step1.title',
           body: 'importGuide.genshin.file.step1.body',
           tip: 'importGuide.genshin.file.step1.tip',
+          command: { label: 'importGuide.genshin.file.step1.command', text: SCANNER_COMMAND },
+          link: { label: 'importGuide.genshin.file.step1.link', href: SCANNER_GUIDE },
         },
         {
           icon: 'play',

@@ -1,0 +1,62 @@
+# The game scanner - the program players run to read their Genshin Impact account into a GOOD file for
+# builder.anotoki.eu/import (its folder: APP_DIR; its README says how it works).
+# - Every push to main that changes it: its tests, and the release build (which runs its self-test with the
+#   node.exe it ships).
+# - Run by hand (Actions -> Game scanner -> Run workflow): the same, then publishes the build in the release
+#   RELEASE_TAG - scanner-win-x64.zip and scanner.ps1, replacing what was there; never marked as the
+#   repository's latest release. Players run:
+#     irm https://github.com/<this repository>/releases/download/scanner/scanner.ps1 | iex
+name: Game scanner
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "game-scanner/**" # the scanner's folder: keep it the same as APP_DIR
+      - ".github/workflows/game-scanner.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: game-scanner
+  cancel-in-progress: false
+
+env:
+  APP_DIR: game-scanner # the scanner's folder
+  RELEASE_TAG: scanner # the release players download it from (its address is in the script)
+  NODE_VERSION: 22.23.3 # the Node.js the tests run on and the zip ships
+
+jobs:
+  scanner:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+      - name: Install
+        working-directory: ${{ env.APP_DIR }}
+        run: npm ci
+      - name: Test
+        working-directory: ${{ env.APP_DIR }}
+        run: npm test
+      - name: Build the release
+        working-directory: ${{ env.APP_DIR }}
+        run: npm run package -- --node-version=${{ env.NODE_VERSION }} --url=https://github.com/${{ github.repository }}/releases/download/${{ env.RELEASE_TAG }}
+      - name: Publish
+        if: github.event_name == 'workflow_dispatch'
+        working-directory: ${{ env.APP_DIR }}
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          version=$(node -p "require('./package.json').version")
+          git push --force origin "HEAD:refs/tags/$RELEASE_TAG"
+          if ! gh release view "$RELEASE_TAG" > /dev/null 2>&1; then
+            gh release create "$RELEASE_TAG" --latest=false --title "Game scanner" \
+              --notes "Reads your Genshin Impact weapons, artifacts and characters and makes a GOOD file for builder.anotoki.eu/import. In PowerShell started as administrator: irm https://github.com/${{ github.repository }}/releases/download/$RELEASE_TAG/scanner.ps1 | iex"
+          fi
+          gh release edit "$RELEASE_TAG" --latest=false --title "Game scanner $version"
+          gh release upload "$RELEASE_TAG" dist/scanner-win-x64.zip dist/scanner.ps1 --clobber

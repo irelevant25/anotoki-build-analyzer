@@ -1,4 +1,5 @@
-import { Component, computed, effect, inject, input, signal } from '@angular/core';
+import { DOCUMENT, NgTemplateOutlet } from '@angular/common';
+import { Component, ElementRef, Injector, afterNextRender, computed, effect, inject, input, signal } from '@angular/core';
 import { RouterLink } from '@angular/router';
 import { AlertComponent } from '@anotoki/lib/ui/alert';
 import { BadgeComponent, BadgeTone } from '@anotoki/lib/ui/badge';
@@ -32,6 +33,7 @@ import { MetaStore } from '../../../shared/meta-store';
 import { AccountDetail, CharacterOverview, ImportRun } from '../../../api/models';
 import { BUILD_TERMS } from '../common/build-terms';
 import { Avatar } from '../../../shared/char-avatar';
+import { FavouriteToggle } from '../common/favourite-toggle/favourite-toggle';
 import { GradeBadge } from '../common/grade-badge';
 import { ScoreBar } from '../common/score-bar';
 import { VisitorHero } from '../common/visitor-hero/visitor-hero';
@@ -70,14 +72,22 @@ const STATUS_TONES: Record<string, BadgeTone> = { success: 'success', partial: '
 /**
  * One game account: its head (name, UID, level, last import; renaming it; updating it by UID or from a file), its
  * numbers, its characters - each the kit's link card (anotoki-lib 0.6.0: one link as a whole, its focus ring round
- * the card) with its grade, gear and first thing to improve - filtered (the element filter the kit's segmented
- * control, each element's colour its mark, the label beside it the kit's labelled group) and sorted, and its import
- * history (the kit's disclosure, its table made only while open). Drawn with the anotoki family's kit: the page
- * header, cards, fields, a switch, badges, alerts.
+ * the card) with its grade, gear and first thing to improve, and beside it the character's star (FavouriteToggle,
+ * outside the link: nothing to press inside a link) - filtered (the element filter the kit's segmented control, each
+ * element's colour its mark, the label beside it the kit's labelled group) and sorted, and its import history (the
+ * kit's disclosure, its table made only while open). Drawn with the anotoki family's kit: the page header, cards,
+ * fields, switches, badges, alerts.
+ *
+ * The characters the player starred - the ones they are building (the owner's request of 2026-10-27) - come first,
+ * under a heading of their own, whatever the search and the element leave of them, unbuilt or not; every character
+ * follows under "All characters", the starred ones too, so a star pressed there never takes its card out of the list
+ * (the list above grows; scrolled down the long list, the browser's scroll anchoring keeps the cards in view still).
+ * "Only favourites" shows the starred alone.
  */
 @Component({
   selector: 'app-account-page',
   imports: [
+    NgTemplateOutlet,
     RouterLink,
     AlertComponent,
     BadgeComponent,
@@ -96,6 +106,7 @@ const STATUS_TONES: Record<string, BadgeTone> = { success: 'success', partial: '
     SwitchComponent,
     TextFieldComponent,
     Avatar,
+    FavouriteToggle,
     GradeBadge,
     ScoreBar,
     TranslatePipe,
@@ -113,6 +124,9 @@ export class AccountPage {
   private readonly meta = inject(MetaStore);
   private readonly toasts = inject(ToastService);
   private readonly i18n = inject(TranslationService);
+  private readonly host = inject<ElementRef<HTMLElement>>(ElementRef);
+  private readonly document = inject(DOCUMENT);
+  private readonly injector = inject(Injector);
   protected readonly auth = inject(AuthService);
 
   /** Route parameter (component input binding). */
@@ -132,6 +146,10 @@ export class AccountPage {
   protected readonly onlyWithBuilds = signal(false);
   /** Characters with nothing equipped are usually just unbuilt; they would otherwise top "needs work". */
   protected readonly hideUnbuilt = signal(true);
+  /** The starred characters alone. */
+  protected readonly onlyFavourites = signal(false);
+  /** The characters (by key) whose star is being saved: their stars wait for the answer. */
+  protected readonly saving = signal<ReadonlySet<string>>(new Set());
   protected readonly renaming = signal(false);
   protected readonly newName = signal('');
 
@@ -175,13 +193,14 @@ export class AccountPage {
   /** The orders, worded in the language on the page. */
   protected readonly sortOptions = computed<SelectOption[]>(() => SORTS.map((option) => ({ value: option.value, label: this.i18n.t(option.label) })));
 
-  /** The account's characters the filters find (a name the family's way, @anotoki/lib/ui/search: each word typed anywhere in it, accents and case aside), in the order chosen. */
-  protected readonly characters = computed(() => {
+  /**
+   * The account's characters the search and the element find (a name the family's way, @anotoki/lib/ui/search: each
+   * word typed anywhere in it, accents and case aside), in the order chosen.
+   */
+  private readonly found = computed(() => {
     const query = this.search();
     const element = this.element();
-    let list = (this.account()?.characters ?? []).filter(
-      (c) => matchesSearch(c.name, query) && (element === 'all' || c.element === element) && (!this.onlyWithBuilds() || c.builds_count > 0) && (!this.hideUnbuilt() || c.items_count > 0),
-    );
+    let list = (this.account()?.characters ?? []).filter((c) => matchesSearch(c.name, query) && (element === 'all' || c.element === element));
 
     const score = (c: CharacterOverview) => c.build?.overall ?? -1;
     // Characters without builds or without any equipment go last; the built ones needing most work come first.
@@ -202,6 +221,18 @@ export class AccountPage {
     }
     return list;
   });
+
+  /** The starred characters the search and the element find, unbuilt ones too: the ones the player is building. */
+  protected readonly favourites = computed(() => this.found().filter((c) => c.favourite));
+
+  /** Every character the filters find - the starred ones among them -, unbuilt ones only when asked for. */
+  protected readonly characters = computed(() => this.found().filter((c) => (!this.onlyWithBuilds() || c.builds_count > 0) && (!this.hideUnbuilt() || c.items_count > 0)));
+
+  /** How many of the account's characters are starred, whatever the filters. */
+  protected readonly favouriteCount = computed(() => (this.account()?.characters ?? []).filter((c) => c.favourite).length);
+
+  /** "Only favourites" while there are any: the last star taken away shows every character again, and its switch goes. */
+  protected readonly showOnlyFavourites = computed(() => this.onlyFavourites() && this.favouriteCount() > 0);
 
   /** Average over characters that actually wear something. */
   protected readonly averageScore = computed(() => {
@@ -320,6 +351,56 @@ export class AccountPage {
       // A message takes a finished sentence: worded now, in the language the page is in.
       error: (err: unknown) => this.toasts.error(errorText(this.i18n, err)),
     });
+  }
+
+  /**
+   * A character starred, or its star taken away: saved first, then shown - the star the page shows is the one the
+   * server keeps, and a press while one is on its way waits for it (FavouriteToggle's busy). A refusal is said in a
+   * toast. A star pressed under "Favourites" takes its card out of that list: the focus then goes to the same
+   * character's star under "All characters" - or, where that list is not shown, to the next favourite's, or the search.
+   */
+  protected setFavourite(character: CharacterOverview, favourite: boolean): void {
+    const account = this.account();
+    if (!account || this.saving().has(character.key)) {
+      return;
+    }
+    const pressed = this.document.activeElement;
+    this.saving.update((keys) => new Set(keys).add(character.key));
+    const done = () =>
+      this.saving.update((keys) => {
+        const left = new Set(keys);
+        left.delete(character.key);
+        return left;
+      });
+    this.api.markFavourite(account.id, character.key, favourite).subscribe({
+      next: (answer) => {
+        done();
+        this.account.update((current) =>
+          current?.id === account.id ? { ...current, characters: current.characters.map((c) => (c.key === character.key ? { ...c, favourite: answer.favourite } : c)) } : current,
+        );
+        afterNextRender(() => this.keepFocus(pressed, character.key), { injector: this.injector });
+      },
+      // A message takes a finished sentence: worded now, in the language the page is in.
+      error: (err: unknown) => {
+        done();
+        this.toasts.error(errorText(this.i18n, err));
+      },
+    });
+  }
+
+  /** Where the focus goes when the star that had it went with its card - and only then. */
+  private keepFocus(pressed: Element | null, key: string): void {
+    const lost = this.document.activeElement === null || this.document.activeElement === this.document.body;
+    if (!pressed || pressed.isConnected || !lost) {
+      return;
+    }
+    const page = this.host.nativeElement;
+    const cell = [...page.querySelectorAll<HTMLElement>('.all-characters .char-cell')].find((element) => element.dataset['key'] === key);
+    const next =
+      cell?.querySelector<HTMLElement>('app-favourite-toggle button') ??
+      page.querySelector<HTMLElement>('.favourite-characters app-favourite-toggle button') ??
+      page.querySelector<HTMLElement>('.search input');
+    next?.focus();
   }
 
   /** One of the orders, as the sort select gives it. */

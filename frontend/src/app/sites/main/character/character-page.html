@@ -27,7 +27,16 @@
           size="xl"
         />
         <div class="hero-text">
-          <h1>{{ d.character.name }}</h1>
+          <!-- The name, and its star beside it: one the player is building, listed first on the account page. -->
+          <div class="hero-title">
+            <h1>{{ d.character.name }}</h1>
+            <app-favourite-toggle
+              [favourite]="d.character.favourite"
+              [name]="d.character.name"
+              [busy]="starring()"
+              (toggled)="star($event)"
+            />
+          </div>
           <div class="cluster traits">
             @if (d.character.element) {
               <anotoki-badge

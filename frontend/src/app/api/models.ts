@@ -133,6 +133,8 @@ export interface CharacterSummary {
   icon_url: string | null;
   level: number;
   rank: number;
+  /** Starred by the player: one they are building, listed first on the account page. */
+  favourite: boolean;
   weapon: EquippedWeapon | null;
   sets: SetCount[];
   items_count: number;

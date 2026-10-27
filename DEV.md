@@ -9,6 +9,7 @@ these steps (configuration keys, sign-in and roles, the catalog, importing build
 | Backend (API, importers, the builds' import, the catalog, analysis) | `backend/` | PHP 8.4+, Slim 4, PostgreSQL | http://localhost:8400 |
 | Frontend | `frontend/` | Angular 21, the anotoki family's kit (`@anotoki/lib`) | http://localhost:4600 (proxies `/api`, `/setup.php`, `/robots.txt` and `/sitemap.xml` to :8400) |
 | Sign-in | the anotoki IAM (`../anotoki-iam`) | | pages http://localhost:4300, API :8100 |
+| The game scanner (players run it on their PC; never on the host) | `game-scanner/` | Node.js 20+, Windows | - (its [README](game-scanner/README.md)) |
 
 ## Prerequisites
 
@@ -119,7 +120,10 @@ ran on SQLite is not carried over: import the accounts again, and a builds file;
   `frontend/src/app/api/models.ts`; change both together. The strings' routes are the library's: their
   shapes come with it, in both halves.
 - **Nothing names another site** in the UI or in what the API sends to be shown: the showcase service and the
-  tools are described, never named. See [docs/architecture.md](docs/architecture.md) ("Neutral names").
+  tools are described, never named. See [docs/architecture.md](docs/architecture.md) ("Neutral names"). The one
+  exception is the project's own: the import guide shows the scanner's PowerShell line and links to its README, both
+  on the project's GitHub repository - addresses in the frontend's code (`sites/main/import/scanner.ts`), never in a
+  string.
 - **The repository names no build site** - not in a tracked file, a commit message, a branch or a PR (the owner's
   decision of 2026-10-20): say "a build site". Their names are in the owner's untracked
   `backend/config/neutral.local.php`, and `php backend/tools/check-names.php` (from the root) reads the tracked
@@ -138,9 +142,15 @@ ran on SQLite is not carried over: import the accounts again, and a builds file;
 - **A new release**: add an entry at the top of `frontend/public/changelog.json` (version, date, and what
   changed, in plain words for the people using the app) and raise `backend/src/Version.php` and
   `frontend/package.json`'s `version` to the same version (`tests/auth.test.php` holds the three together). A
-  version has three numbers, MAJOR.MINOR.PATCH: big changes, new features, bug fixes (0.5.0). What's new holds
-  only what the people using the site notice - nothing technical or for developers (a library, the servers, a
-  visitor counter). The version shows at the foot of every page, beside the button that opens "What's new".
+  version has three numbers, MAJOR.MINOR.PATCH: big changes, new features, bug fixes (1.0.0 since 2026-10-27). What's
+  new holds only what the people using the site notice - nothing technical or for developers (a library, the servers,
+  a visitor counter). The version shows at the foot of every page, beside the button that opens "What's new".
+- **The game scanner** (`game-scanner/`) is its own program with its own version (`game-scanner/package.json`, 1.0.0
+  with the site's 1.0.0): `cd game-scanner && npm ci && npm test` (no network, no game); `npm start` from a terminal
+  started as administrator. It is released by hand - GitHub → Actions → Game scanner → Run workflow, after its
+  version is raised - and the import page's line downloads that release, so a new release of the line's script
+  comes first. Its fixtures are a real account's screenshots, kept free of the player (no UID, no name a player gave
+  a character). See [docs/game-scanner.md](docs/game-scanner.md) and the `game-scanner` skill.
 
 ## The shared library (anotoki-lib)
 
@@ -214,10 +224,11 @@ never from a local copy. Then run the tests, the production build and the browse
 ## Testing
 
 ```bash
-cd backend && php tests/run.php            # every backend test file: 25 files, 379 tests (or one: php tests/auth.test.php)
-cd frontend && npx ng test --watch=false   # frontend unit tests (Vitest): 56 spec files, 510 tests
+cd backend && php tests/run.php            # every backend test file: 26 files, 423 tests (or one: php tests/auth.test.php)
+cd frontend && npx ng test --watch=false   # frontend unit tests (Vitest): 57 spec files, 538 tests
 cd frontend && npx ng build                # the production build must pass too
-bun run format:check                       # Prettier on every file of both halves, at the root (bun install there first)
+cd game-scanner && npm test                # the scanner's tests (node --test): simulated screens and real screenshots
+bun run format:check                       # Prettier on every file of both halves and the scanner, at the root (bun install there first)
 php backend/tools/check-names.php          # from the root: no tracked file names a build site
 ```
 

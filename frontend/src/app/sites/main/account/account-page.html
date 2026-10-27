@@ -130,15 +130,26 @@
         (valueChange)="setSort($event)"
       />
 
-      @if (unbuiltCount() > 0) {
+      @if (favouriteCount() > 0) {
+        <anotoki-switch class="only-favourites" [checked]="onlyFavourites()" (checkedChange)="onlyFavourites.set($event)">
+          {{ 'account.onlyFavourites' | translate }}
+        </anotoki-switch>
+      }
+
+      @if (unbuiltCount() > 0 && !showOnlyFavourites()) {
         <anotoki-switch class="unbuilt" [checked]="!hideUnbuilt()" (checkedChange)="hideUnbuilt.set(!$event)">
           {{ 'account.showUnbuilt' | translate: { count: unbuiltCount() } }}
         </anotoki-switch>
       }
     </div>
 
-    <div class="char-grid">
-      @for (c of characters(); track c.id) {
+    @if (favouriteCount() === 0 && acc.characters.length > 0) {
+      <p class="muted small favourites-hint">{{ 'account.favouritesHint' | translate }}</p>
+    }
+
+    <!-- A character: its card and its star, as both lists draw it. -->
+    <ng-template #card let-c>
+      <div class="char-cell" [attr.data-key]="c.key">
         <!-- The kit's link card: the character's name first (where it goes), nothing to press inside. -->
         <a anotokiLinkCard class="char-card" [routerLink]="['/accounts', acc.id, 'characters', c.key]">
           <div class="char-body">
@@ -191,10 +202,46 @@
             }
           </div>
         </a>
-      } @empty {
-        <anotoki-empty-state class="no-matches" icon="search" [heading]="'account.noMatches' | translate" />
-      }
-    </div>
+        <!-- The character's star: beside the link, over the card's corner. -->
+        <app-favourite-toggle
+          class="char-star"
+          [favourite]="c.favourite"
+          [name]="c.name"
+          [busy]="saving().has(c.key)"
+          (toggled)="setFavourite(c, $event)"
+        />
+      </div>
+    </ng-template>
+
+    <!-- The characters the player is building, first: what the search and the element leave of them. -->
+    @if (favourites().length > 0 || showOnlyFavourites()) {
+      <section class="char-section favourite-characters" aria-labelledby="favourite-characters-heading">
+        <h2 id="favourite-characters-heading" class="section-title">{{ 'account.favourites' | translate }}</h2>
+        <div class="char-grid">
+          @for (c of favourites(); track c.id) {
+            <ng-container *ngTemplateOutlet="card; context: { $implicit: c }" />
+          } @empty {
+            <anotoki-empty-state class="no-matches" icon="search" [heading]="'account.noMatches' | translate" />
+          }
+        </div>
+      </section>
+    }
+
+    <!-- Every character, the starred ones too: a star pressed here never takes its card out of this list. -->
+    @if (!showOnlyFavourites()) {
+      <section class="char-section all-characters" [attr.aria-labelledby]="favourites().length > 0 ? 'all-characters-heading' : null">
+        @if (favourites().length > 0) {
+          <h2 id="all-characters-heading" class="section-title">{{ 'account.allCharacters' | translate }}</h2>
+        }
+        <div class="char-grid">
+          @for (c of characters(); track c.id) {
+            <ng-container *ngTemplateOutlet="card; context: { $implicit: c }" />
+          } @empty {
+            <anotoki-empty-state class="no-matches" icon="search" [heading]="'account.noMatches' | translate" />
+          }
+        </div>
+      </section>
+    }
 
     @if (withoutBuilds() > 0) {
       <p class="muted small without-builds">{{ 'account.withoutBuilds' | translatePlural: withoutBuilds() }}</p>

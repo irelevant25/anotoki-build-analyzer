@@ -4,6 +4,7 @@ import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { AlertComponent } from '@anotoki/lib/ui/alert';
 import { ButtonComponent } from '@anotoki/lib/ui/button';
 import { CardComponent } from '@anotoki/lib/ui/card';
+import { CopyButtonComponent } from '@anotoki/lib/ui/copy';
 import { DisclosureComponent } from '@anotoki/lib/ui/disclosure';
 import { SelectComponent, SelectOption, TextFieldComponent, TextareaComponent } from '@anotoki/lib/ui/forms';
 import { IconComponent } from '@anotoki/lib/ui/icon';
@@ -53,9 +54,10 @@ const NO_ACCOUNT = '';
  * The wizard is drawn with the anotoki family's kit: its row of steps is the family's stepper (anotoki-lib 0.6.0,
  * `@anotoki/lib/ui/stepper`: the step in hand aria-current="step" and heard "Step 2 of 4: Prepare", the steps done
  * buttons back to them, heard "Method, done"; on a narrow row their marks alone), and its card, fields (the UID, the
- * account to import into, the pasted text), buttons, alerts, disclosures, spinner and icons; its choice cards and
- * the file's drop zone stay the site's own. A step is shown at a time; going on moves the focus to the new step's
- * heading, so a keyboard and a screen reader follow.
+ * account to import into, the pasted text), buttons, alerts, disclosures, spinner and icons, and the Copy button of
+ * the scanner's line (`@anotoki/lib/ui/copy`); its choice cards, the file's drop zone and the box that line stands in
+ * stay the site's own. A step is shown at a time; going on moves the focus to the new step's heading, so a keyboard
+ * and a screen reader follow.
  */
 @Component({
   selector: 'app-import-wizard',
@@ -64,6 +66,7 @@ const NO_ACCOUNT = '';
     AlertComponent,
     ButtonComponent,
     CardComponent,
+    CopyButtonComponent,
     DisclosureComponent,
     IconComponent,
     PageHeaderComponent,

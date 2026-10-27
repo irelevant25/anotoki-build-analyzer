@@ -28,6 +28,8 @@ final class AccountCharacter
         public ?DateTimeImmutable $synced_at = null,
         /** The build the player chose to judge the character by (migration 026); null: the closest match. */
         public ?int $chosen_build_id = null,
+        /** Whether the player starred the character - one they are building (migration 029). */
+        public bool $favourite = false,
     ) {}
 
     /**
@@ -50,6 +52,7 @@ final class AccountCharacter
             source: (string) $row['source'],
             synced_at: Db::time($row['synced_at'] ?? null),
             chosen_build_id: isset($row['chosen_build_id']) ? (int) $row['chosen_build_id'] : null,
+            favourite: (bool) ($row['favourite'] ?? false),
         );
     }
 

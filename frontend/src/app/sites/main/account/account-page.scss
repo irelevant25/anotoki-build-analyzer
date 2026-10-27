@@ -64,9 +64,21 @@
   }
 }
 
-// The switch stands level with the fields' boxes, not with their labels.
-.unbuilt {
+// The switches stand level with the fields' boxes, not with their labels.
+.unbuilt,
+.only-favourites {
   padding-bottom: 0.6rem;
+}
+
+// The favourites, then every character: each list under its heading (the favourites' only while there are some).
+.char-section {
+  display: grid;
+  gap: 0.75rem;
+}
+
+.section-title {
+  margin: 0;
+  font-size: 1.125rem;
 }
 
 .char-grid {
@@ -76,7 +88,23 @@
 }
 
 // A character: the kit's link card, the whole of it a link (its look, hover and focus ring the kit's); what it holds
-// laid out inside it.
+// laid out inside it. Its star stands beside the link, over the card's top right corner - where the card's head keeps
+// room for it.
+.char-cell {
+  position: relative;
+  min-width: 0;
+
+  > .char-card {
+    height: 100%;
+  }
+}
+
+.char-star {
+  position: absolute;
+  top: 0.5rem;
+  right: 0.5rem;
+}
+
 .char-body {
   display: flex;
   flex-direction: column;
@@ -89,6 +117,10 @@
   align-items: center;
   gap: 0.5rem;
   min-width: 0;
+}
+
+.char-head {
+  padding-right: 2.25rem;
 }
 
 .char-names {

@@ -196,6 +196,22 @@ test('importing again keeps the build chosen for a character', function () use (
     );
 });
 
+test('importing again keeps the characters starred as favourites, and stars nobody new', function () use ($owner) {
+    $service = T::$app->get(ImportService::class);
+    $first = $service->fromFile(goodFile(), $owner());
+    $accounts = T::$app->get(Accounts::class);
+    $account = $accounts->findOwned(1, (int) $first->account_id);
+    $accounts->markFavourite($accounts->character($account->id, 'hutao'), true);
+
+    $service->fromFile(goodFile(), $owner(), $account);
+
+    same(
+        ['hutao'],
+        db()->column('SELECT c.key FROM account_characters ac JOIN game_characters c ON c.id = ac.game_character_id WHERE ac.account_id = ? AND ac.favourite', [$account->id]),
+        'Hu Tao still starred, nobody else',
+    );
+});
+
 test('a showcase import can complete an account made from a file', function () use ($owner) {
     $fromFile = T::$app->get(ImportService::class)->fromFile(goodFile(), $owner());
     $accountId = (int) $fromFile->account_id;

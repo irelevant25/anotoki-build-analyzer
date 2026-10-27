@@ -355,6 +355,7 @@ final class AccountsTransfer
                         'source' => self::stored($game, $character['source']),
                         'synced_at' => $character['synced_at'],
                         'chosen_build_id' => $character['build'] === null ? null : $builds[self::identity($character['catalog_id'], $character['build'])] ?? null,
+                        'favourite' => $character['favourite'],
                         'created_at' => $now,
                         'updated_at' => $now,
                     ],

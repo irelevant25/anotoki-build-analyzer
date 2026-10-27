@@ -4,6 +4,7 @@ import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { provideRouter } from '@angular/router';
 import { of, throwError } from 'rxjs';
 import { provideTestTranslations } from '@anotoki/lib/translations/testing';
+import { KIT_LIBRARY_WORDS } from '@anotoki/lib/ui/config';
 import { IconComponent } from '@anotoki/lib/ui/icon';
 import { STEPPER_LIBRARY_WORDS } from '@anotoki/lib/words/stepper';
 import { By } from '@angular/platform-browser';
@@ -14,14 +15,15 @@ import { TranslationService } from '../../../shared/i18n/translation';
 import { AccountSummary, ImportRun } from '../../../api/models';
 import { VisitorKey } from '../../../shared/visitor-key';
 import { ImportWizard } from './import-wizard';
+import { SCANNER_COMMAND, SCANNER_GUIDE } from './scanner';
 import { provideKit } from '../../../shared/kit';
 
 /**
  * Every string of the site, marked: what a page shows without these marks did not come from a key. The kit's
- * stepper's words too - the library's, which a site reads from its database's rows -, around which the stepper sets
- * only its punctuation ("Step 2 of 4: ", ", done").
+ * stepper's words and its own (the Copy button's) too - the library's, which a site reads from its database's rows -,
+ * around which the stepper sets only its punctuation ("Step 2 of 4: ", ", done").
  */
-const MARKED: Record<string, string> = Object.fromEntries(Object.entries({ ...en, ...STEPPER_LIBRARY_WORDS.en }).map(([key, value]) => [key, `«${value}»`]));
+const MARKED: Record<string, string> = Object.fromEntries(Object.entries({ ...en, ...STEPPER_LIBRARY_WORDS.en, ...KIT_LIBRARY_WORDS.en }).map(([key, value]) => [key, `«${value}»`]));
 
 /** The informal Slovak of what these tests read; everything else is the marked English. */
 const SLOVAK: Record<string, string> = {
@@ -46,7 +48,7 @@ const SLOVAK: Record<string, string> = {
   'importWizard.done.characters': 'Postavy',
   'importWizard.done.unmatched': 'Zatiaľ chýbajú v katalógu hry (zostávajú pod vlastnými názvami): {names}',
   'importGuide.genshin.showcase.title': 'Character Showcase (UID)',
-  'importGuide.genshin.file.step1.title': 'Zaobstaraj si exportovací nástroj',
+  'importGuide.genshin.file.step1.title': 'Spusti skener',
   'importGuide.genshin.file.fileHint': 'Súbor .json vo formáte GOOD',
   'import.error.file_not_json': 'Súbor nie je platný JSON.',
   'import.error.showcase_player_not_found': 'Hráč sa nenašiel (skontroluj UID aj hru).',
@@ -252,12 +254,34 @@ describe('the import wizard', () => {
     expect(text(host.querySelector('.drop .small'))).toBe('«A .json file in the GOOD format»');
     expect(text(host.querySelector('.account-field .anotoki-field__hint'))).toBe("«A full export replaces the account's Weapons and Artifacts; characters are kept.»");
 
-    // Back to the guide (a step is drawn at a time): the chosen game's and way's, step by step.
+    // Back to the guide (a step is drawn at a time): the chosen game's and way's, step by step - and the scanner's line,
+    // the code's, never a key.
     await backTo(1);
-    expect(notFromAKey(['Genshin Impact', 'Second'])).toEqual([]);
-    expect([...host.querySelectorAll('.guide-title')].map(text)).toEqual(['«Get an inventory scanner or exporter»', '«Start the tool»', '«Let it read everything»', '«Export the GOOD file»']);
+    expect(notFromAKey(['Genshin Impact', 'Second', SCANNER_COMMAND])).toEqual([]);
+    expect([...host.querySelectorAll('.guide-title')].map(text)).toEqual(['«Start the scanner»', '«Get the game ready»', '«Scan the inventory and the characters»', '«Import the GOOD file»']);
     expect([...host.querySelectorAll('.tip')].map(text)).toHaveLength(2);
     expect([...host.querySelectorAll('.trouble li')].map(text)).toHaveLength(3);
+  });
+
+  it("shows the scanner's line in the file guide's first step, named, with the kit's Copy button and the way to its instructions", async () => {
+    await wizard({ strings: MARKED });
+    await choose('file');
+    await backTo(1);
+
+    const steps = host.querySelectorAll('.guide > li');
+    const command = steps[0].querySelector('.command')!;
+    expect(command.getAttribute('role')).toBe('group');
+    expect(command.getAttribute('aria-label')).toBe('«The line to paste into PowerShell»');
+    expect(text(command.querySelector('code'))).toBe(SCANNER_COMMAND);
+    expect(command.querySelector('code')!.getAttribute('translate')).toBe('no');
+    expect(text(command.querySelector('anotoki-copy-button button'))).toBe('«Copy»');
+    const link = steps[0].querySelector<HTMLAnchorElement>('.guide-link a')!;
+    expect([text(link), link.getAttribute('href')]).toEqual(['«How the scanner works, and its source code»', SCANNER_GUIDE]);
+    // The other steps hold no line and no link; the showcase's guide neither.
+    expect([...steps].slice(1).filter((step) => step.querySelector('.command, .guide-link'))).toEqual([]);
+    await backTo(0);
+    await choose('showcase');
+    expect(host.querySelector('.command, .guide-link')).toBeNull();
   });
 
   it('takes every word of the way to an import by UID from a key', async () => {

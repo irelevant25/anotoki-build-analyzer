@@ -12,13 +12,14 @@ written to be read on their own. Setting up, running, testing and deploying are 
 | [stats-and-slots.md](stats-and-slots.md) | handle stat keys, slots, main stats, roll values, talents, the game's other facts (`Enums/Game`), label parsing |
 | [name-matching.md](name-matching.md) | see an "unknown character / weapon / set" in an import, add an alias, refresh the catalog (from genshin.anotoki.eu: the refresh, its triggers, the mapping, the icons) |
 | [import-formats.md](import-formats.md) | fix or add an importer (the Character Showcase, GOOD), or an import error or warning (a kind) |
+| [game-scanner.md](game-scanner.md) | touch the project's own game scanner (`game-scanner/`, 1.0.0: a Windows program that reads the game's screen into a GOOD file), its release (the workflow, the release `scanner`), the PowerShell line the import page shows, or its test fixtures (a real account's screenshots, kept free of the player) |
 | [analysis.md](analysis.md) | change scoring, grades, the best build (by the character's constellation), stat targets from a constellation, recommendations (kinds the page words), inventory suggestions |
-| [operations.md](operations.md) | configure, run, test, refresh the catalog, import and export the builds, a person's own accounts as a file, release new strings or carry reworded ones between installations, sign-in and who may do what, the visitors (limits, which address counts, watching their number), the admin tools (the error log, the audit log, feedback, backups and restoring one), deploy to the FTP-only host (each version's order: 0.3's migration 004 and IAM 007, 0.5.0's genshin.anotoki.eu first, 0.6.0 before the next builds file, 0.7.0's Apply with nothing to import; every migration closes the site until an ADMIN applies it), adopt an old database, troubleshoot, or hit a machine quirk |
+| [operations.md](operations.md) | configure, run, test, refresh the catalog, import and export the builds, a person's own accounts as a file, release new strings or carry reworded ones between installations, sign-in and who may do what, the visitors (limits, which address counts, watching their number), the admin tools (the error log, the audit log, feedback, backups and restoring one), deploy to the FTP-only host (each version's order: 0.3's migration 004 and IAM 007, 0.5.0's genshin.anotoki.eu first, 0.6.0 before the next builds file, 0.7.0's Apply with nothing to import, 1.0.0's scanner release before the site; every migration closes the site until an ADMIN applies it), adopt an old database, troubleshoot, or hit a machine quirk |
 | [decisions.md](decisions.md) | wonder why something is the way it is |
 
 Project automation built on this knowledge:
 
-- Skills (`.claude/skills/`): `add-import-format`, `tune-analysis`, `verify-ui`, `deploy-builder`
+- Skills (`.claude/skills/`): `add-import-format`, `tune-analysis`, `verify-ui`, `deploy-builder`, `game-scanner`
 - Agents (`.claude/agents/`): `analysis-auditor`, `build-analyzer-reviewer`
 
 Keep these pages current: when behavior described here changes, update the page in the same change.

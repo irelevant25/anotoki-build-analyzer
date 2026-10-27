@@ -1,6 +1,6 @@
 ---
 name: deploy-builder
-description: Build the build analyzer for the FTP-only hosting and ship it to builder.anotoki.eu with anotoki-deploy - a release of frontend/ and backend/, swapped in whole, a rollback, the setup page on a first install, a new migration's Apply, the catalog's refresh and the builds file's import after it, version 0.5.0's one-time steps (genshin.anotoki.eu first, the names file, Apply 014-019), 0.6.0's (Apply 020-021, then a version 3 builds file - the teams - before the next builds refresh), 0.6.1's (no migration; the builds file without the sites' notes) 0.7.0's (the builds editor: Apply 022-023 at once, nothing to import), 0.7.1's (no migration: the release only) and anotoki-lib 0.11.1's (the site settings, robots.txt and sitemap.xml: Apply 025 with the library's three files at once, the read-only checks after it). Use when the user asks to deploy, release, upload or publish the build analyzer, roll a release back, or asks what a new version needs on the hosting.
+description: Build the build analyzer for the FTP-only hosting and ship it to builder.anotoki.eu with anotoki-deploy - a release of frontend/ and backend/, swapped in whole, a rollback, the setup page on a first install, a new migration's Apply, the catalog's refresh and the builds file's import after it, version 0.5.0's one-time steps (genshin.anotoki.eu first, the names file, Apply 014-019), 0.6.0's (Apply 020-021, then a version 3 builds file - the teams - before the next builds refresh), 0.6.1's (no migration; the builds file without the sites' notes) 0.7.0's (the builds editor: Apply 022-023 at once, nothing to import), 0.7.1's (no migration: the release only), anotoki-lib 0.11.1's (the site settings, robots.txt and sitemap.xml: Apply 025 with the library's three files at once, the read-only checks after it) and 1.0.0's (the game scanner's release on GitHub before the site, then Apply 029-030). Use when the user asks to deploy, release, upload or publish the build analyzer, roll a release back, or asks what a new version needs on the hosting.
 ---
 
 # Deploy the build analyzer
@@ -251,3 +251,23 @@ switched off, added (docs/builds.md, "The editor"). Check: `/admin/builds/genshi
 Auto ticked on each stat worked out; a stat's tiers set by hand and saved show on `/builds/genshin/hutao`, a stat
 switched off does not; Auto ticked again puts the worked-out ones back. The builds file's format stays version 3:
 the owner's local tools write as before.
+
+## 16. Deploying 1.0.0
+
+Version 1.0.0 - favourites and the import guide's scanner (migrations 029 and 030; docs/decisions.md, 2026-10-27;
+docs/operations.md, "Deploying 1.0.0"). The import guide shows the scanner's PowerShell line, which downloads from
+the GitHub release `scanner` - a release the site's own does not make. In this order:
+
+1. **The scanner's release first** - the owner's: GitHub → Actions → Game scanner → Run workflow, on `main`
+   (docs/game-scanner.md). Check that
+   `https://github.com/irelevant25/anotoki-build-analyzer/releases/download/scanner/scanner.ps1` downloads a script
+   naming version 1.0.0. Never deploy the site before it: the page would hand players a line that fails.
+2. **The release** (section 2): from then on the site is closed until the Apply.
+3. **Apply pending at once** on `/admin/migrations` (one Apply, after its backup): **029** (the star's column, its
+   seven words, the Privacy page's sentence) and **030** (the file method's words reworded, two new). Their gates
+   refuse unless the site's own keys are 466 after 029 and 468 after 030. Nothing to import, no catalog refresh.
+
+Check: an account page says "Star the characters you are building ..." under the filters; a star pressed on a card
+lists the character under "Favourites" at the top; the character page has the star beside the name; `/import` → Full
+inventory → the guide's first step shows the line with Copy and the link to the scanner's README; the Privacy page's
+game accounts name the favourites. Make a backup by hand once applied (the ones before the Apply restore offline only).

@@ -228,6 +228,8 @@ class CharacterAnalyzer
             'icon_url' => Icons::of($catalog),
             'level' => $character->level,
             'rank' => $character->rank,
+            // Starred by the player: one they are building, listed first on the account page.
+            'favourite' => $character->favourite,
             'weapon' => $weapon
                 ? [
                     'name' => $weapon->weapon->name,

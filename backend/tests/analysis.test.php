@@ -935,6 +935,63 @@ test('choosing a build: only one of the character\'s own, and only for a charact
     same($state->build, (int) $chosen(), 'a number written as text is a number too');
 });
 
+test('a character starred as a favourite says so on both pages, until the star is taken away', function () use ($state) {
+    $client = (new Client())->asIam(1);
+    $url = "/api/accounts/{$state->account}/characters/hutao/favourite";
+    // As a number: PDO reads a false value as no value.
+    $starred = fn() => (int) db()->value('SELECT favourite::int FROM account_characters WHERE account_id = ? AND game_character_id = ?', [$state->account, $state->character]);
+
+    $client
+        ->get("/api/accounts/{$state->account}")
+        ->status(200)
+        ->path('characters.0.favourite', false);
+    $client
+        ->put($url, ['favourite' => true])
+        ->status(200)
+        ->path('favourite', true);
+    same(1, $starred(), 'stored');
+    $client
+        ->get("/api/accounts/{$state->account}")
+        ->status(200)
+        ->path('characters.0.favourite', true);
+    $client
+        ->get("/api/accounts/{$state->account}/characters/hutao")
+        ->status(200)
+        ->path('character.favourite', true);
+
+    // Starred twice is starred; then the star taken away.
+    $client
+        ->put($url, ['favourite' => true])
+        ->status(200)
+        ->path('favourite', true);
+    $client
+        ->put($url, ['favourite' => false])
+        ->status(200)
+        ->path('favourite', false);
+    same(0, $starred(), 'no star');
+    $client
+        ->get("/api/accounts/{$state->account}")
+        ->status(200)
+        ->path('characters.0.favourite', false);
+});
+
+test('starring a character: true or false, and only a character the account has', function () use ($state) {
+    $client = (new Client())->asIam(1);
+    $url = "/api/accounts/{$state->account}/characters/hutao/favourite";
+
+    foreach ([[], ['favourite' => null], ['favourite' => 'yes'], ['favourite' => 2], ['favourite' => '']] as $body) {
+        $client->put($url, $body)->status(422)->path('code', 'invalid');
+    }
+    same(0, (int) db()->value('SELECT favourite::int FROM account_characters WHERE account_id = ?', [$state->account]), 'nobody starred');
+    // The account has no Kazuha; another person's account is no account at all.
+    $client->put("/api/accounts/{$state->account}/characters/kaedeharakazuha/favourite", ['favourite' => true])->status(404);
+    (new Client())
+        ->asIam(2)
+        ->put($url, ['favourite' => true])
+        ->status(404);
+    same(0, (int) db()->value('SELECT favourite::int FROM account_characters WHERE account_id = ?', [$state->account]), 'still nobody');
+});
+
 test('stat targets by constellation: of a stat\'s targets, the one from the highest constellation reached', function () use ($detail, $state) {
     db()->run('UPDATE builds SET stat_targets = ? WHERE id = ?', [
         Json::encode([

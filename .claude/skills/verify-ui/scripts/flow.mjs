@@ -1399,8 +1399,16 @@ try {
       const before = await box('topbar.import').inputValue();
       await box('topbar.import').fill('Importovať');
       await ad.click('[data-save]');
-      await ad.waitForFunction(() => /saved/i.test(document.querySelector('[data-save-state]')?.textContent ?? ''), null, { timeout: 15000 });
-      check((await bundle('sk'))['topbar.import'] === 'Importovať', 'saved: the Slovak bundle has the new words');
+      await ad.waitForFunction(() => /\bsaved\b/i.test(document.querySelector('[data-save-state]')?.textContent ?? ''), null, { timeout: 15000 });
+      // Read until the save has landed, as below: the page's words can say "saved" a moment before a slow server has.
+      let saved = null;
+      for (let i = 0; i < 50 && saved !== 'Importovať'; i++) {
+        saved = (await bundle('sk'))['topbar.import'];
+        if (saved !== 'Importovať') {
+          await ad.waitForTimeout(200);
+        }
+      }
+      check(saved === 'Importovať', `saved: the Slovak bundle has the new words (${saved})`);
       const written = sql("SELECT value, updated_by FROM translations WHERE key_name = 'topbar.import' AND language_code = 'sk'")[0];
       check(written?.value === 'Importovať' && Number(written?.updated_by) === 1, `by whoever saved it: the token's person (${JSON.stringify(written)})`);
       await shot(ad, '17b-admin-translations-saved-1280-light');
@@ -2651,6 +2659,54 @@ try {
         );
         await fits('his character page');
 
+        // Favourites (1.0.0): the hint while nobody is starred; Hu Tao starred from her card - listed under "Favourites"
+        // at the top, her star pressed in both lists, the focus still on the star pressed -; "Only favourites" showing
+        // her alone; her own page's star beside her name, pressed, and taken away there - the account page as it was.
+        const favouriteWords = language === 'sk' ? { lists: 'Obľúbené|Všetky postavy', mark: 'Obľúbená postava: Hu Tao' } : { lists: 'Favourites|All characters', mark: 'Favourite: Hu Tao' };
+        await open(page, `/accounts/${monaAccount}?lang=${language}`);
+        await page.waitForSelector('.char-card', { timeout: 15000 });
+        const herStar = page.locator('.all-characters .char-cell[data-key="hutao"] app-favourite-toggle button');
+        const before = { hint: await page.locator('.favourites-hint').count(), name: await herStar.getAttribute('aria-label'), pressed: await herStar.getAttribute('aria-pressed') };
+        check(
+          before.hint === 1 && before.name === favouriteWords.mark && before.pressed === 'false',
+          `the account, ${label}: the hint, and Hu Tao's star "${before.name}", not pressed (${JSON.stringify(before)})`,
+        );
+        await herStar.click();
+        await page.waitForSelector('.favourite-characters .char-cell[data-key="hutao"]', { timeout: 10000 });
+        const starred = await page.evaluate(() => ({
+          lists: [...document.querySelectorAll('.section-title')].map((heading) => heading.textContent.trim()).join('|'),
+          favourites: [...document.querySelectorAll('.favourite-characters .char-name')].map((name) => name.textContent.trim()).join('|'),
+          pressed: [...document.querySelectorAll('.char-cell[data-key="hutao"] app-favourite-toggle button')].map((button) => button.getAttribute('aria-pressed')).join('|'),
+          focus: document.activeElement?.closest('.all-characters .char-cell')?.getAttribute('data-key') ?? null,
+          hint: document.querySelectorAll('.favourites-hint').length,
+          insideLink: document.querySelectorAll('a.char-card app-favourite-toggle').length,
+        }));
+        check(
+          starred.lists === favouriteWords.lists && starred.favourites === 'Hu Tao' && starred.pressed === 'true|true' && starred.focus === 'hutao' && starred.hint === 0 && starred.insideLink === 0,
+          `the account, ${label}: Hu Tao starred - first, under her heading; her star pressed in both lists, the focus where it was, beside the link (${JSON.stringify(starred)})`,
+        );
+        await fits('the account, a favourite');
+        await shot(page, `29-favourites-account-${language}-${width}-${scheme}`, { fullPage: true });
+        await page.click('.only-favourites label');
+        await page.waitForFunction(() => document.querySelectorAll('.all-characters').length === 0, null, { timeout: 10000 });
+        check(
+          (await page.locator('.favourite-characters .char-card').count()) === 1 && (await page.isChecked('.only-favourites input[role=switch]')),
+          `the account, ${label}: "Only favourites" shows Hu Tao alone`,
+        );
+        await open(page, `/accounts/${monaAccount}/characters/hutao?lang=${language}`);
+        const ownStar = page.locator('.hero-title app-favourite-toggle button');
+        await page.waitForSelector('.hero-title app-favourite-toggle button[aria-pressed="true"]', { timeout: 15000 });
+        await fits('the character, a favourite');
+        await shot(page, `29-favourites-character-${language}-${width}-${scheme}`, { clip: { x: 0, y: 0, width, height: 420 } });
+        await ownStar.click();
+        await page.waitForSelector('.hero-title app-favourite-toggle button[aria-pressed="false"]', { timeout: 10000 });
+        await open(page, `/accounts/${monaAccount}?lang=${language}`);
+        await page.waitForSelector('.char-card', { timeout: 15000 });
+        check(
+          (await page.locator('.favourite-characters').count()) === 0 && (await page.locator('.favourites-hint').count()) === 1 && (await page.locator('.section-title').count()) === 0,
+          `the account, ${label}: the star taken away on her page - no favourites, the hint again`,
+        );
+
         // The import guide: the kit's stepper, the way in done and a way back to it; the trouble list in the kit's
         // disclosure; in English on to the file's step and its paste box, in the kit's disclosure too.
         await open(page, `/import?lang=${language}`);
@@ -2670,6 +2726,26 @@ try {
         check(
           steps.name !== null && steps.done === 1 && steps.current !== null,
           `the import guide, ${label}: the kit's stepper "${steps.name}", the way in done with a way back, the one in hand "${steps.current}"`,
+        );
+        // The file method's first step: the scanner's line in its box, named, with the kit's Copy button, and the way to
+        // the scanner's README (1.0.0) - the code's addresses, the project's own repository.
+        const scanner = await page.evaluate(() => {
+          const box = document.querySelector('.guide > li:first-child .command');
+          return {
+            name: box?.getAttribute('aria-label') ?? null,
+            line: box?.querySelector('code')?.textContent?.trim() ?? null,
+            copy: box?.querySelector('anotoki-copy-button button')?.textContent?.replace(/\s+/g, ' ').trim() ?? null,
+            link: document.querySelector('.guide > li:first-child .guide-link a')?.getAttribute('href') ?? null,
+            boxes: document.querySelectorAll('.command').length,
+          };
+        });
+        check(
+          scanner.line === 'irm https://github.com/irelevant25/anotoki-build-analyzer/releases/download/scanner/scanner.ps1 | iex' &&
+            scanner.link === 'https://github.com/irelevant25/anotoki-build-analyzer/blob/main/game-scanner/README.md' &&
+            scanner.name === (language === 'sk' ? 'Riadok, ktorý vložíš do PowerShellu' : 'The line to paste into PowerShell') &&
+            (scanner.copy ?? '').length > 0 &&
+            scanner.boxes === 1,
+          `the import guide, ${label}: the scanner's line, named, with Copy, and its README (${JSON.stringify(scanner)})`,
         );
         /** A disclosure of the kit opened, its panel shown (the attribute and the panel follow on the page's next turn). */
         const opened = (selector) =>

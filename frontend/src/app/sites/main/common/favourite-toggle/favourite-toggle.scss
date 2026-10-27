@@ -1,0 +1,18 @@
+:host {
+  display: inline-flex;
+}
+
+// The star's own ink, never the button's: an outline in the muted ink (4.5:1), filled in the favourite's gold while
+// pressed (3:1 and more on every ground of its theme, styles.scss).
+.star {
+  display: block;
+  fill: none;
+  stroke: var(--anotoki-muted);
+  stroke-width: 2;
+  stroke-linejoin: round;
+}
+
+.star.on {
+  fill: var(--favourite);
+  stroke: var(--favourite);
+}
