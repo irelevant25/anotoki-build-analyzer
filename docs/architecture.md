@@ -360,7 +360,8 @@ site's name or address either:
 - Text that came from elsewhere (errors, a builds file's notes and names, an uploaded account file) passes
   through `Neutral::text()` on the way out: web addresses become "the source page", names of sites and tools
   "the source". `backend/tools/check-release.php` (run with every release's frontend build) refuses a frontend
-  build that contains one of those names.
+  build that contains one of those names - but the scanner's two addresses, read from `sites/main/import/scanner.ts`
+  and each on the project's repository, which it takes out first.
 - Icons: the catalog stores the provider's icon address - only one on the provider's own host (https; http only
   for this computer), with no user part, no backslash and nothing but printable ASCII (`GenshinCatalog`); the API
   sends `/api/icons/{c|w|s}/{id}`, which fetches the image a catalog row names - never an address a request

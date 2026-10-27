@@ -15,7 +15,9 @@ it. The import page text should contain it." And: "You can start using version 1
   holds a web address (`SiteTranslations` refuses one, and an editor can reword every string). They name GitHub, the
   project's own repository - the one exception to "the UI names no other website, service or tool", made by the
   owner's request; no other address joins it without the owner's word. The README is linked in the same tab (no new
-  window the kit has no words to announce).
+  window the kit has no words to announce). The release check (`tools/check-release.php`) lets exactly these two
+  through - read from `scanner.ts`, each on the project's repository or the build stops - and refuses any other
+  address or name of GitHub, as before.
 - **Version 1.0.0** for the project: the site (`Version.php`, `package.json`, What's new) and the scanner (its own
   `package.json`, which the program shows) start there together. The scanner keeps a version of its own from now on,
   bumped when it is released (Actions → Game scanner → Run workflow).

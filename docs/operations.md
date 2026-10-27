@@ -596,7 +596,8 @@ upload map, are in [DEV.md](../DEV.md) ("Deploying"); in short:
 
 1. `cd frontend && bun run anotoki-deploy build` (anotoki-lib's deploy tool, set up in `backend/composer.json`'s
    `extra["anotoki-deploy"]`) runs the frontend's build and `backend/tools/check-release.mjs` (it refuses a
-   frontend that names another site - a build site too, with the names file in `backend/config/`), then assembles
+   frontend that names another site - a build site too, with the names file in `backend/config/`; the scanner's two
+   addresses on the project's repository, from `sites/main/import/scanner.ts`, alone go through), then assembles
    the release: `dist/frontend/` (the Angular build, `index.php`, `.htaccess`) and `dist/backend/` (`api/`, `src/`,
    `config/app.php`, `migrations/`, `vendor/`, `setup.php`, `release.json`) - never a `*.local.php`.
 2. `bun run anotoki-deploy deploy --backups <folder> --go` puts it into `anotoki.eu/sub/builder/`: `frontend/` and

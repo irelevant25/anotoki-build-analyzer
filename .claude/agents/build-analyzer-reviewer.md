@@ -170,7 +170,8 @@ Correctness first:
   `sites/main/legal/legal-facts.ts`), Cloudflare and Umami (the library's words) - and no build site, data provider, tool or
   the showcase service (described there, never named). And since 1.0.0 the project's own scanner: the import guide's
   line and its README link, the project's GitHub repository, from `sites/main/import/scanner.ts` alone - never a
-  string, never another address beside them. That covers every string a migration
+  string, never another address beside them (`backend/tools/check-release.php` lets exactly those two through, each
+  on the repository; `tests/neutral.test.php` holds it). That covers every string a migration
   seeds or the owner edits: run `cd backend && php tests/translation_catalogue.test.php`, which puts each
   seeded string (every language) through `SiteTranslations::namesAnotherSite()` - no other site's name, no web
   address - the check the library asks last of every save, import and language name.

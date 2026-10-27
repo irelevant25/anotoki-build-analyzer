@@ -327,7 +327,7 @@ ADMIN applies it** - apply at once.
 ## Commands
 
 ```bash
-cd backend && php tests/run.php                      # backend tests (throwaway databases, 26 files, ~423 tests)
+cd backend && php tests/run.php                      # backend tests (throwaway databases, 26 files, ~424 tests)
 (cd frontend && npx ng build && npx ng test --watch=false)   # Vitest: every spec beside its code in src/app
 (cd game-scanner && npm ci && npm test)              # the game scanner's tests: simulated screens, real screenshots, no network
 cd game-scanner && npm start                         # the scanner itself (a terminal started as administrator; the game in English, 16:9)
@@ -416,7 +416,8 @@ cd frontend && bun run anotoki-deploy build   # ../dist/frontend + ../dist/backe
   every site), which name and link the anotoki sites and the owner's Ko-fi page - the library's words and addresses,
   nothing of the site's. And the project's own scanner (1.0.0, the owner's request): the import guide shows its
   PowerShell line and links to its README, both on the project's GitHub repository - `sites/main/import/scanner.ts`,
-  in code, never a string; no other address joins them without the owner's word. That covers every string in the
+  in code, never a string; no other address joins them without the owner's word (the release check,
+  `tools/check-release.php`, lets exactly those two through, each on the repository). That covers every string in the
   database, seeded or edited,
   and a language's two names: `SiteTranslations::namesAnotherSite()` (the library's last check) refuses one that
   names another site or holds a web address (422 `names_another_site`).

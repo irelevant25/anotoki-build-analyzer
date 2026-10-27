@@ -123,7 +123,7 @@ ran on SQLite is not carried over: import the accounts again, and a builds file;
   tools are described, never named. See [docs/architecture.md](docs/architecture.md) ("Neutral names"). The one
   exception is the project's own: the import guide shows the scanner's PowerShell line and links to its README, both
   on the project's GitHub repository - addresses in the frontend's code (`sites/main/import/scanner.ts`), never in a
-  string.
+  string; the release check (`backend/tools/check-release.php`) lets exactly those two through.
 - **The repository names no build site** - not in a tracked file, a commit message, a branch or a PR (the owner's
   decision of 2026-10-20): say "a build site". Their names are in the owner's untracked
   `backend/config/neutral.local.php`, and `php backend/tools/check-names.php` (from the root) reads the tracked
@@ -224,7 +224,7 @@ never from a local copy. Then run the tests, the production build and the browse
 ## Testing
 
 ```bash
-cd backend && php tests/run.php            # every backend test file: 26 files, 423 tests (or one: php tests/auth.test.php)
+cd backend && php tests/run.php            # every backend test file: 26 files, 424 tests (or one: php tests/auth.test.php)
 cd frontend && npx ng test --watch=false   # frontend unit tests (Vitest): 57 spec files, 538 tests
 cd frontend && npx ng build                # the production build must pass too
 cd game-scanner && npm test                # the scanner's tests (node --test): simulated screens and real screenshots

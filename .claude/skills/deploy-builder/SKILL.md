@@ -40,7 +40,12 @@ cd ../frontend && bun run anotoki-deploy build # the frontend's build, the neutr
 misses bun's links.) The build stops if the app names another site, service
 or tool - the build sites' names of `config/neutral.local.php` included
 (`backend/tools/check-release.php`, with a PHP 8.4+: `BUILD_ANALYZER_PHP`,
-else `php8`, else `php`).
+else `php8`, else `php`). Only the scanner's line and README go through
+(the two addresses of `frontend/src/app/sites/main/import/scanner.ts`, each on
+the project's repository). Without bun: `node node_modules/@anotoki/deploy/cli.mjs`
+in `frontend/` runs the same commands; a `dist/` that holds anything but an
+earlier build of the tool is refused - build with `--out <folder>` and deploy
+with `--dist <folder>`.
 
 ## 2. Release
 

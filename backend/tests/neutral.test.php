@@ -352,4 +352,37 @@ test('the site\'s own words name no other site, in English and in Slovak', funct
     }
 });
 
+test('a release names no other site but the scanner\'s two addresses on the project\'s repository (tools/check-release.php)', function () {
+    preg_match_all("~export const SCANNER_(?:COMMAND|GUIDE)\s*=\s*'([^'\\\\]*)';~", (string) file_get_contents(__DIR__ . '/../../frontend/src/app/sites/main/import/scanner.ts'), $constants);
+    same(2, count($constants[1]), 'the line and the README\'s address');
+    $app = T::$storage . DIRECTORY_SEPARATOR . 'release-' . bin2hex(random_bytes(3));
+    @mkdir($app, 0777, true);
+    $check = function () use ($app): array {
+        $process = proc_open([PHP_BINARY, __DIR__ . '/../tools/check-release.php', $app], [1 => ['pipe', 'w'], 2 => ['pipe', 'w']], $pipes);
+        $out = stream_get_contents($pipes[1]) . stream_get_contents($pipes[2]);
+
+        return [proc_close($process), trim($out)];
+    };
+    try {
+        file_put_contents("{$app}/index.html", '<!doctype html><title>Build Analyzer</title>');
+        // The import guide's chunk as the build writes it.
+        $strings = array_map(fn(string $value) => json_encode($value, JSON_UNESCAPED_SLASHES), $constants[1]);
+        file_put_contents("{$app}/chunk-import.js", "var a={$strings[0]},b={$strings[1]};");
+        same([0, 'check-release: the app names no other site, service or tool.'], $check(), 'the scanner\'s line and README pass');
+
+        $refused = [
+            'another repository' => 'https://github.com/somebody/elsewhere',
+            'another file of the repository' => 'https://github.com/irelevant25/anotoki-build-analyzer/blob/main/README.md',
+            'the name alone' => 'the scanner on GitHub',
+        ];
+        foreach ($refused as $what => $text) {
+            file_put_contents("{$app}/chunk-other.js", 'var c=' . json_encode($text, JSON_UNESCAPED_SLASHES) . ';');
+            [$code, $out] = $check();
+            check($code === 1 && str_contains($out, 'chunk-other.js names github') && !str_contains($out, 'chunk-import.js'), "{$what} is refused: {$out}");
+        }
+    } finally {
+        removeTree($app);
+    }
+});
+
 finishTests();

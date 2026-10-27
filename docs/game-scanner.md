@@ -32,7 +32,9 @@ button (`@anotoki/lib/ui/copy`), and links to the scanner's README:
 - The line and the README's address are the frontend's code - `sites/main/import/scanner.ts` (`SCANNER_COMMAND`,
   `SCANNER_GUIDE`), read by `import-guides.ts` (a step's `command` and `link`) -, never a string: no string holds a
   web address (`SiteTranslations` refuses one), and these two are the only addresses the import guide holds - the
-  project's own repository, the one exception to "the UI names no other website" (CLAUDE.md's rules).
+  project's own repository, the one exception to "the UI names no other website" (CLAUDE.md's rules). The release
+  check (`backend/tools/check-release.php`) reads them from `scanner.ts` and lets exactly them through, each on the
+  repository or the build stops; any other address or name of GitHub in the built app is refused.
 - The guide's words are migration 030's (the method's card, intro, four steps, three troubles, the paste panel's
   title); `import-guides.spec.ts` and `import-wizard.spec.ts` hold the line and the link to the constants.
 
